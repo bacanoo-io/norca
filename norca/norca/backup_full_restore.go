@@ -695,6 +695,11 @@ func (s *Server) restoreRaftSnapshot(archive io.Reader) error {
 }
 
 // GetRestore returns a restore record, with the preview of a full restore.
+// The changed objects of the preview were computed without a filter, for the
+// management token that requested the restore: they name ACL tokens,
+// policies and roles and the Variables, secret and Consul KV paths of every
+// namespace. Only a management token gets them back; backup read gets the
+// record with the counts of the preview, as ListRestores gives it.
 func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *structs.SingleBackupRestoreResponse) error {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.GetRestore", args, args, reply); done {
@@ -721,6 +726,12 @@ func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *s
 			record, err := store.BackupRestoreByID(ws, args.RestoreID)
 			if err != nil {
 				return err
+			}
+			if record != nil && record.Preview != nil && aclObj != nil && !aclObj.IsManagement() {
+				record = record.Copy()
+				preview := *record.Preview
+				preview.Objects = nil
+				record.Preview = &preview
 			}
 			reply.Restore = record
 			if record != nil {

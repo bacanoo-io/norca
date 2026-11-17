@@ -519,3 +519,59 @@ func TestBackupEndpoint_FullRestoreCluster(t *testing.T) {
 	must.Eq(t, "before", items["password"])
 	must.Eq(t, "before", ft.readVariable("app/config"))
 }
+
+// The changed objects of a full restore preview are computed without a
+// filter (review finding SRV-9): GetRestore hands them to a management
+// token only, backup read gets the record without them.
+func TestBackupEndpoint_GetRestorePreviewObjects(t *testing.T) {
+	ci.Parallel(t)
+
+	ft, cleanup := newFullRestoreTest(t, 1)
+	defer cleanup()
+
+	ft.setVariable("app/config", "before")
+	record := ft.save()
+	ft.setVariable("app/config", "after")
+	ft.setVariable("other/secret-path", "x")
+
+	requested, err := ft.request(record.ID, ft.root, "global", false)
+	must.NoError(t, err)
+	must.SliceNotEmpty(t, requested.Preview.Objects)
+	stored := ft.restoreRecord(requested.Restore.ID)
+	must.SliceNotEmpty(t, stored.Preview.Objects)
+
+	// Directly on the leader and forwarded by a follower.
+	follower := ft.followers[0]
+	testutil.WaitForResult(func() (bool, error) {
+		r, err := follower.fsm.State().BackupRestoreByID(nil, requested.Restore.ID)
+		return err == nil && r != nil, err
+	}, func(err error) { t.Fatalf("the follower has no restore record: %v", err) })
+	for name, srv := range map[string]*Server{"leader": ft.srv, "follower": follower} {
+		get := func(token *structs.ACLToken) (*structs.BackupRestore, error) {
+			codec := rpcClient(t, srv)
+			defer codec.Close()
+			var resp structs.SingleBackupRestoreResponse
+			err := msgpackrpc.CallWithCodec(codec, "Backup.GetRestore", &structs.BackupRestoreSpecificRequest{
+				RestoreID:    requested.Restore.ID,
+				QueryOptions: structs.QueryOptions{Region: "global", AuthToken: token.SecretID},
+			}, &resp)
+			return resp.Restore, err
+		}
+
+		// backup write (which includes read): the record and the counts.
+		got, err := get(ft.writer)
+		must.NoError(t, err, must.Sprint(name))
+		must.NotNil(t, got)
+		must.NotNil(t, got.Preview)
+		must.SliceEmpty(t, got.Preview.Objects, must.Sprintf("%s: backup read got the unfiltered objects", name))
+		must.Eq(t, stored.Preview.Counts, got.Preview.Counts)
+
+		// A management token: the objects too.
+		got, err = get(ft.second)
+		must.NoError(t, err, must.Sprint(name))
+		must.Len(t, len(stored.Preview.Objects), got.Preview.Objects)
+	}
+
+	// The stored record keeps its objects.
+	must.SliceNotEmpty(t, ft.restoreRecord(requested.Restore.ID).Preview.Objects)
+}
