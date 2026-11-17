@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -469,14 +468,14 @@ func (c *Client) ObjectKinds() *ObjectKinds {
 }
 
 // List lists the object kinds the caller may read. QueryOptions.Prefix
-// filters on the "group/Kind" reference.
+// filters on the "group/Kind" reference. The kinds come in the order of the
+// server (by group and kind; QueryOptions.Reverse turns it), page by page.
 func (k *ObjectKinds) List(q *QueryOptions) ([]*ObjectKind, *QueryMeta, error) {
 	var resp []*ObjectKind
 	qm, err := k.client.query("/v1/object-kinds", &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
-	sort.Slice(resp, func(i, j int) bool { return resp[i].KindRef() < resp[j].KindRef() })
 	return resp, qm, nil
 }
 
