@@ -25,6 +25,13 @@ import (
 // of their types with the rights of the servers, and lists what it created
 // in the status of the tenant: these resources have no owner field.
 //
+// The status is the only record of what is the tenant's, so a pass writes
+// the resources it is about to create or adopt into the status first, and
+// writes none of them when that write fails: a status write lost later (the
+// object changed during the pass, the leader changed) can't make the tenant
+// forget a resource it created. A listed resource that is not known to
+// exist is marked pending.
+//
 // A resource of a tenant's name that the tenant did not create is left
 // alone (condition Conflict), unless spec.adopt names its type; a resource
 // of a release or of another tenant is never taken. A change made to a
@@ -117,6 +124,7 @@ type tenantWork struct {
 	spec *tenantSpec
 
 	owned     map[string]tenantResourceRef
+	adopted   []tenantResourceRef
 	conflicts []string
 	failures  []string
 	changed   []string
@@ -142,15 +150,23 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // A resource has one tenant: what a tenant takes is the pass's knowledge at
 // once, so a tenant later in the same pass can't take it too, and the owner
 // the pass knows is asked before the tenant's own list. Of two tenants
-// that list one resource (which the checks above should never let happen)
-// the one the pass does not know as its owner gives it up.
+// that list one resource (which this and the write checks should never let
+// happen) the one the pass does not know as its owner gives it up.
+//
+// A resource of the tenant's list is the tenant's also when the list says
+// it is pending and it exists now: the tenant wrote its intent down before
+// it created the resource, and the status write that would have said so may
+// have been lost. take writes nothing: the pass records what was taken
+// (recordClaims) before it writes a resource.
 func (w *tenantWork) take(ref tenantResourceRef, exists bool) bool {
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
 		delete(w.owned, ref.key())
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the tenant %s", ref, owner))
 		return false
 	}
-	if w.owns(ref) {
+	if mine, ok := w.owned[ref.key()]; ok {
+		mine.Pending = !exists
+		w.owned[ref.key()] = mine
 		w.p.tenants[ref.key()] = w.obj.Name
 		return true
 	}
@@ -163,8 +179,9 @@ func (w *tenantWork) take(ref tenantResourceRef, exists bool) bool {
 		return false
 	}
 	if exists {
-		w.o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, "Adopted", fmt.Sprintf("took over the existing %s", ref))
+		w.adopted = append(w.adopted, ref)
 	}
+	ref.Pending = !exists
 	w.owned[ref.key()] = ref
 	w.p.tenants[ref.key()] = w.obj.Name
 	return true
@@ -180,6 +197,10 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 	reason, what := "Created", "created "
 	if existed {
 		reason, what = "Updated", "set back "
+	}
+	if mine, ok := w.owned[ref.key()]; ok && mine.Pending {
+		mine.Pending = false
+		w.owned[ref.key()] = mine
 	}
 	w.changed = append(w.changed, ref.String())
 	w.o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, reason, what+ref.String())
@@ -211,19 +232,39 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		o.writeTenantStatus(w, status.Namespace)
 		return
 	}
+	ns := spec.Namespace.Name
+
+	// What the tenant wants is taken first and written second. Until the
+	// status lists what was taken nothing is written, so a pass that stops
+	// before that gives up what it took: the status lists only resources
+	// the tenant may have created.
+	listed := map[string]bool{}
+	for key := range w.owned {
+		listed[key] = true
+	}
+	stop := func() {
+		for key := range w.owned {
+			if !listed[key] {
+				delete(w.owned, key)
+			}
+		}
+		o.writeTenantStatus(w, ns)
+	}
+	// writes are the writes of the pass in their order; one that returns
+	// false ends the pass.
+	var writes []func() bool
 
 	// The namespace first: without it nothing else of the tenant is
 	// written.
-	ns := spec.Namespace.Name
 	nsRef := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: ns}
 	liveNS, err := p.store.NamespaceByName(p.ws, ns)
 	if err != nil {
 		w.failures = append(w.failures, err.Error())
-		o.writeTenantStatus(w, ns)
+		stop()
 		return
 	}
 	if !w.take(nsRef, liveNS != nil) {
-		o.writeTenantStatus(w, ns)
+		stop()
 		return
 	}
 
@@ -236,26 +277,32 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		live, err := p.store.QuotaSpecByName(p.ws, quotaRef.Name)
 		if err != nil {
 			w.failures = append(w.failures, err.Error())
-			o.writeTenantStatus(w, ns)
+			stop()
 			return
 		}
 		if !w.take(quotaRef, live != nil) {
-			o.writeTenantStatus(w, ns)
+			stop()
 			return
 		}
-		if live == nil || !quotaSpecMatches(live, desired.quota) {
+		writes = append(writes, func() bool {
+			if live != nil && quotaSpecMatches(live, desired.quota) {
+				return true
+			}
 			err := o.upsertQuota(live, desired.quota)
 			w.wrote(quotaRef, live != nil, err)
-			if err != nil && live == nil {
-				o.writeTenantStatus(w, ns)
-				return
-			}
-		}
+			return err == nil || live != nil
+		})
 	}
 
-	if liveNS == nil || !namespaceMatches(liveNS, desired.namespace) {
-		w.wrote(nsRef, liveNS != nil, o.upsertNamespace(liveNS, desired.namespace))
-	}
+	// Nothing is written into a namespace that could not be created.
+	writes = append(writes, func() bool {
+		if liveNS != nil && namespaceMatches(liveNS, desired.namespace) {
+			return true
+		}
+		err := o.upsertNamespace(liveNS, desired.namespace)
+		w.wrote(nsRef, liveNS != nil, err)
+		return err == nil || liveNS != nil
+	})
 
 	acls := o.srv.config.ACLEnabled
 	if acls {
@@ -269,9 +316,12 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			if !w.take(ref, live != nil) {
 				continue
 			}
-			if live == nil || live.Rules != policy.Rules || live.Description != policy.Description {
-				w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
-			}
+			writes = append(writes, func() bool {
+				if live == nil || live.Rules != policy.Rules || live.Description != policy.Description {
+					w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
+				}
+				return true
+			})
 
 			role := desired.roles[i]
 			roleRef := tenantResourceRef{Type: structs.TenantResourceACLRole, Name: role.Name}
@@ -284,16 +334,18 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				continue
 			}
 			if liveRole != nil {
-				roleRef.ID = liveRole.ID
+				w.setRoleID(roleRef, liveRole.ID)
 			}
-			if liveRole == nil || !roleMatches(liveRole, role) {
-				id, err := o.upsertRole(liveRole, role)
-				if err == nil {
-					roleRef.ID = id
+			writes = append(writes, func() bool {
+				if liveRole == nil || !roleMatches(liveRole, role) {
+					id, err := o.upsertRole(liveRole, role)
+					if err == nil {
+						w.setRoleID(roleRef, id)
+					}
+					w.wrote(roleRef, liveRole != nil, err)
 				}
-				w.wrote(roleRef, liveRole != nil, err)
-			}
-			w.owned[roleRef.key()] = roleRef
+				return true
+			})
 		}
 	}
 
@@ -304,9 +356,26 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		case err != nil:
 			w.failures = append(w.failures, err.Error())
 		case w.take(netRef, live != nil):
-			if live == nil || !networkPolicyMatches(live, desired.network) {
-				w.wrote(netRef, live != nil, o.upsertNetworkPolicy(desired.network))
-			}
+			writes = append(writes, func() bool {
+				if live == nil || !networkPolicyMatches(live, desired.network) {
+					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(desired.network))
+				}
+				return true
+			})
+		}
+	}
+
+	// The status first, then the resources.
+	if !o.recordClaims(w, listed, ns) {
+		return
+	}
+	for _, ref := range w.adopted {
+		o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, "Adopted", fmt.Sprintf("took over the existing %s", ref))
+	}
+	for _, write := range writes {
+		if !write() {
+			o.writeTenantStatus(w, ns)
+			return
 		}
 	}
 
@@ -352,14 +421,53 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 	o.writeTenantStatus(w, ns)
 }
 
-// writeTenantStatus writes the status of a tenant from a pass.
-func (o *tenantOperator) writeTenantStatus(w *tenantWork, namespace string) {
-	o.writeTenantStatusNote(w, namespace, "")
+// setRoleID records the ID of a role of the tenant.
+func (w *tenantWork) setRoleID(ref tenantResourceRef, id string) {
+	if mine, ok := w.owned[ref.key()]; ok {
+		mine.ID = id
+		w.owned[ref.key()] = mine
+	}
 }
 
-func (o *tenantOperator) writeTenantStatusNote(w *tenantWork, namespace, note string) {
-	refs := make([]any, 0, len(w.owned))
-	for _, ref := range sortedRefs(w.owned) {
+// recordClaims writes the resources the pass took and the status does not
+// list yet into the status, before any of them is written. It reports
+// whether the pass may write: when the status can't be written (the object
+// changed since the pass read it, or the write failed) the pass ends
+// without creating anything, and the next one starts over.
+func (o *tenantOperator) recordClaims(w *tenantWork, listed map[string]bool, namespace string) bool {
+	fresh := false
+	for key := range w.owned {
+		if !listed[key] {
+			fresh = true
+		}
+	}
+	if !fresh {
+		return true
+	}
+	next := structs.CopyObjectMap(w.obj.Status)
+	if next == nil {
+		next = map[string]any{}
+	}
+	next["resources"] = statusRefs(w.owned)
+	next["namespace"] = namespace
+	changed := w.obj.Copy()
+	changed.Status = next
+	written, err := o.srv.writeOperatorObject(changed)
+	if err != nil {
+		if !structs.IsObjectConflictError(err) {
+			o.logger.Warn("failed to write what a tenant is about to create into its status", "tenant", w.obj.Name, "error", err)
+		}
+		w.p.want(w.p.now.Add(operatorsRetry))
+		return false
+	}
+	w.obj = written
+	return true
+}
+
+// statusRefs returns the resources of a tenant as its status lists them.
+func statusRefs(owned map[string]tenantResourceRef) []any {
+	refs := make([]any, 0, len(owned))
+	for _, ref := range sortedRefs(owned) {
 		m := map[string]any{"type": ref.Type, "name": ref.Name}
 		if ref.Namespace != "" {
 			m["namespace"] = ref.Namespace
@@ -367,11 +475,23 @@ func (o *tenantOperator) writeTenantStatusNote(w *tenantWork, namespace, note st
 		if ref.ID != "" {
 			m["id"] = ref.ID
 		}
+		if ref.Pending {
+			m["pending"] = true
+		}
 		refs = append(refs, m)
 	}
+	return refs
+}
+
+// writeTenantStatus writes the status of a tenant from a pass.
+func (o *tenantOperator) writeTenantStatus(w *tenantWork, namespace string) {
+	o.writeTenantStatusNote(w, namespace, "")
+}
+
+func (o *tenantOperator) writeTenantStatusNote(w *tenantWork, namespace, note string) {
 	status := map[string]any{
 		structs.ObjectStatusObservedGeneration: w.obj.Generation,
-		"resources":                            refs,
+		"resources":                            statusRefs(w.owned),
 	}
 	if namespace != "" {
 		status["namespace"] = namespace
@@ -508,18 +628,7 @@ func (o *tenantOperator) writeRemaining(obj *structs.CustomObject, owned map[str
 	if next == nil {
 		next = map[string]any{}
 	}
-	refs := []any{}
-	for _, ref := range sortedRefs(owned) {
-		m := map[string]any{"type": ref.Type, "name": ref.Name}
-		if ref.Namespace != "" {
-			m["namespace"] = ref.Namespace
-		}
-		if ref.ID != "" {
-			m["id"] = ref.ID
-		}
-		refs = append(refs, m)
-	}
-	next["resources"] = refs
+	next["resources"] = statusRefs(owned)
 	// The wait for the namespace is over when resources are being deleted:
 	// the condition of the wait (the only one a waiting tenant has) must not
 	// go on saying what the namespace had.

@@ -92,7 +92,8 @@ const tenantKindSchema = `{
               "type": {"type": "string"},
               "name": {"type": "string"},
               "namespace": {"type": "string"},
-              "id": {"type": "string"}
+              "id": {"type": "string"},
+              "pending": {"type": "boolean"}
             },
             "additionalProperties": false
           }
@@ -171,12 +172,15 @@ type tenantRole struct {
 	Policy       string   `json:"policy"`
 }
 
-// tenantResourceRef names a resource a tenant created.
+// tenantResourceRef names a resource a tenant created. Pending marks one
+// the tenant wrote down before it created it and has not seen to exist
+// since: it may not exist (the creation fails, or has not happened yet).
 type tenantResourceRef struct {
 	Type      string `json:"type"`
 	Name      string `json:"name"`
 	Namespace string `json:"namespace,omitempty"`
 	ID        string `json:"id,omitempty"`
+	Pending   bool   `json:"pending,omitempty"`
 }
 
 func (r tenantResourceRef) key() string { return r.Type + "/" + r.Namespace + "/" + r.Name }

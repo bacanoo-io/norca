@@ -628,3 +628,77 @@ func TestTenant_DeletionWaitsForVariablesAndObjects(t *testing.T) {
 	role, _ := store.GetACLRoleByName(nil, "team-v-developer")
 	must.Nil(t, role)
 }
+
+// The tenant writes what it is about to create into its status first, and
+// creates nothing when that write fails: a status write lost later can't make
+// it forget what it created (review finding TEN-1).
+func TestTenant_IntentBeforeCreate(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	o := newTenantOperator(c.s, c.s.logger)
+
+	// An object the store does not have: every write of its status fails as
+	// a write on a stale modify index does, and the loop of the operators
+	// never sees it.
+	ghost := &structs.CustomObject{
+		ID: uuid.Generate(), Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: "ghost",
+		Generation: 1, ModifyIndex: 7, Finalizers: []string{structs.OperatorsFinalizer},
+		Spec: map[string]any{
+			"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 1000}}},
+			"roles": map[string]any{"developer": []any{"submit-job"}},
+		},
+	}
+	o.reconcileTenant(newTenantPass(t, c.s), ghost)
+
+	ns, err := store.NamespaceByName(nil, "ghost")
+	must.NoError(t, err)
+	must.Nil(t, ns, must.Sprint("the namespace was created although the status could not be written"))
+	q, err := store.QuotaSpecByName(nil, "ghost")
+	must.NoError(t, err)
+	must.Nil(t, q, must.Sprint("the quota was created although the status could not be written"))
+	pol, err := store.ACLPolicyByName(nil, "ghost-developer")
+	must.NoError(t, err)
+	must.Nil(t, pol)
+}
+
+// What the status lists and the tenant could not create is marked pending,
+// and nothing that exists is (review findings TEN-7 and TEN-1).
+func TestTenant_PendingResources(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	// The quota can't be written: a limit without a region.
+	spec := map[string]any{
+		"quota": map[string]any{"region": map[string]any{"": map[string]any{"cpu": 1000}}},
+	}
+	_, err := c.apply("", structs.TenantKind, "team-p", spec)
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-p", "the failed write reported", func(o *structs.CustomObject) bool {
+		return o.Status["observedGeneration"] != nil && !objectConditionTrue(o.Status, structs.CertificateConditionReady)
+	})
+	must.SliceNotEmpty(t, obj.Status["resources"].([]any))
+	for _, raw := range obj.Status["resources"].([]any) {
+		ref := raw.(map[string]any)
+		must.Eq(t, true, ref["pending"], must.Sprintf("%v was never created and is not marked pending", ref))
+	}
+	q, _ := store.QuotaSpecByName(nil, "team-p")
+	must.Nil(t, q)
+	ns, _ := store.NamespaceByName(nil, "team-p")
+	must.Nil(t, ns)
+
+	// With a quota that can be written everything is created and nothing
+	// is pending.
+	spec["quota"] = map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 1000}}}
+	_, err = c.apply("", structs.TenantKind, "team-p", spec)
+	must.NoError(t, err)
+	obj = waitTenant(c, "team-p", "ready", tenantReady)
+	must.SliceLen(t, 2, obj.Status["resources"].([]any))
+	for _, raw := range obj.Status["resources"].([]any) {
+		ref := raw.(map[string]any)
+		must.MapNotContainsKey(t, ref, "pending", must.Sprintf("%v exists and is marked pending", ref))
+	}
+}
