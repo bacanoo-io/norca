@@ -898,3 +898,267 @@ func TestTenant_DeletionWithTwoRegions(t *testing.T) {
 		must.StrNotContains(t, err.Error(), "replication_token")
 	})
 }
+
+// tenantByHand makes the resources a tenant is to take over, as an operator
+// of the cluster would by hand.
+type tenantByHand struct {
+	c *certTest
+}
+
+func (h tenantByHand) namespace(name string) {
+	h.c.t.Helper()
+	var resp structs.GenericResponse
+	must.NoError(h.c.t, h.c.s.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
+		Namespaces: []*structs.Namespace{{Name: name, Description: "made by hand"}}, WriteRequest: h.c.write(""),
+	}, &resp))
+}
+
+func (h tenantByHand) quota(name string) {
+	h.c.t.Helper()
+	var resp structs.GenericResponse
+	must.NoError(h.c.t, h.c.s.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
+		Quotas: []*structs.QuotaSpec{{Name: name, Description: "made by hand", Limits: []*structs.QuotaLimit{
+			{Region: "global", RegionLimit: &structs.Resources{CPU: 100}},
+		}}},
+		WriteRequest: h.c.write(""),
+	}, &resp))
+}
+
+func (h tenantByHand) policyAndRole(name string) {
+	h.c.t.Helper()
+	var resp structs.GenericResponse
+	must.NoError(h.c.t, h.c.s.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
+		Policies:     []*structs.ACLPolicy{{Name: name, Description: "made by hand", Rules: `node { policy = "read" }`}},
+		WriteRequest: h.c.write(""),
+	}, &resp))
+	var roles structs.ACLRolesUpsertResponse
+	must.NoError(h.c.t, h.c.s.RPC(structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
+		ACLRoles: []*structs.ACLRole{{Name: name, Description: "made by hand",
+			Policies: []*structs.ACLRolePolicyLink{{Name: name}}}},
+		WriteRequest: h.c.write(""),
+	}, &roles))
+}
+
+// tenantAdopted returns the keys of the resources the status marks adopted.
+func tenantAdopted(obj *structs.CustomObject) []string {
+	st := &tenantStatus{}
+	_ = structs.DecodeObjectPart(obj.Status, st)
+	out := []string{}
+	for _, r := range st.Resources {
+		if r.Adopted {
+			out = append(out, r.key())
+		}
+	}
+	return out
+}
+
+// tenantEvents returns the events of a tenant as "Reason: message".
+func tenantEvents(c *certTest, name string) []string {
+	log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, structs.TenantKind, "", name)
+	must.NoError(c.t, err)
+	var out []string
+	if log != nil {
+		for _, e := range log.Events {
+			out = append(out, e.Reason+": "+e.Message)
+		}
+	}
+	return out
+}
+
+func waitTenantGone(c *certTest, name string) {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("", structs.TenantKind, name) == nil
+	}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)),
+		must.Func(func() string {
+			return fmt.Sprintf("the tenant %s is still there: %v; events: %q", name, c.get("", structs.TenantKind, name), tenantEvents(c, name))
+		}))
+}
+
+// What a tenant took over stays when the tenant is deleted; what it created
+// goes (review finding TEN-8).
+func TestTenant_AdoptedStay(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	hand := tenantByHand{c}
+
+	hand.namespace("kept")
+	hand.quota("team-ad")
+	hand.policyAndRole("team-ad-dev")
+
+	_, err := c.apply("", structs.TenantKind, "team-ad", map[string]any{
+		"namespace": map[string]any{"name": "kept", "description": "Team AD", "meta": map[string]any{"owner": "ad"}},
+		"quota":     map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+		"roles": map[string]any{
+			"dev":   []any{"submit-job"},
+			"extra": []any{"read-job"},
+		},
+		"network":                  map[string]any{"isolation": "namespace"},
+		"dns_suffixes":             []any{"ad.example.com"},
+		"certificate_dns_suffixes": []any{"ad.example.com"},
+		"adopt":                    []any{"namespace", "quota", "acl-policy", "acl-role"},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-ad", "ready", tenantReady)
+	must.SliceContainsAll(t, tenantAdopted(obj), []string{
+		"namespace//kept", "quota//team-ad", "acl-policy//team-ad-dev", "acl-role//team-ad-dev",
+	}, must.Sprintf("status: %v", obj.Status))
+
+	// While the tenant lives, what it took over is as its spec says.
+	ns, _ := store.NamespaceByName(nil, "kept")
+	must.Eq(t, "Team AD", ns.Description)
+	must.Eq(t, "team-ad", ns.Quota)
+	must.Eq(t, "ad.example.com", ns.Meta[structs.NamespaceMetaDNSSuffixes])
+	pol, _ := store.ACLPolicyByName(nil, "team-ad-dev")
+	must.StrContains(t, pol.Rules, "submit-job")
+
+	// A variable in the namespace: the tenant does not delete the namespace,
+	// so it does not wait for it to empty.
+	variable := mock.VariableEncrypted()
+	variable.Namespace = "kept"
+	index, err := store.LatestIndex()
+	must.NoError(t, err)
+	must.NoError(t, store.VarSet(index+1, &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-ad"))
+	waitTenantGone(c, "team-ad")
+
+	// What it took over is there.
+	ns, _ = store.NamespaceByName(nil, "kept")
+	must.NotNil(t, ns, must.Sprint("the namespace the tenant took over was deleted"))
+	q, _ := store.QuotaSpecByName(nil, "team-ad")
+	must.NotNil(t, q, must.Sprint("the quota the tenant took over was deleted"))
+	pol, _ = store.ACLPolicyByName(nil, "team-ad-dev")
+	must.NotNil(t, pol, must.Sprint("the policy the tenant took over was deleted"))
+	role, _ := store.GetACLRoleByName(nil, "team-ad-dev")
+	must.NotNil(t, role, must.Sprint("the role the tenant took over was deleted"))
+
+	// The namespace keeps its limit and what is not a right, and loses the
+	// rights the tenant gave it.
+	must.Eq(t, "team-ad", ns.Quota)
+	must.Eq(t, "ad", ns.Meta["owner"])
+	must.MapNotContainsKey(t, ns.Meta, structs.NamespaceMetaDNSSuffixes)
+	must.MapNotContainsKey(t, ns.Meta, structs.NamespaceMetaCertificateDNSSuffixes)
+
+	// What it created is gone.
+	pol, _ = store.ACLPolicyByName(nil, "team-ad-extra")
+	must.Nil(t, pol)
+	role, _ = store.GetACLRoleByName(nil, "team-ad-extra")
+	must.Nil(t, role)
+	np, _ := store.NetworkPolicyByName(nil, "kept", structs.TenantNetworkPolicyName)
+	must.Nil(t, np)
+}
+
+// A namespace the tenant created goes, the quota it took over stays; the
+// event of the deletion says so while the tenant waits for the namespace.
+func TestTenant_AdoptedQuotaCreatedNamespace(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	tenantByHand{c}.quota("team-bq")
+
+	_, err := c.apply("", structs.TenantKind, "team-bq", map[string]any{
+		"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+		"adopt": []any{"quota"},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-bq", "ready", tenantReady)
+	must.Eq(t, []string{"quota//team-bq"}, tenantAdopted(obj))
+
+	// A job holds the deletion back: the namespace is the tenant's own.
+	job := mock.Job()
+	job.Namespace = "team-bq"
+	var jobResp structs.JobRegisterResponse
+	must.NoError(t, c.s.RPC("Job.Register", &structs.JobRegisterRequest{Job: job, WriteRequest: c.write("team-bq")}, &jobResp))
+	must.NoError(t, c.delete("", structs.TenantKind, "team-bq"))
+	waitTenant(c, "team-bq", "waiting for the namespace", func(o *structs.CustomObject) bool {
+		return objectConditionTrue(o.Status, structs.TenantConditionNamespaceNotEmpty)
+	})
+	events := strings.Join(tenantEvents(c, "team-bq"), "\n")
+	must.StrContains(t, events, "Released: the deleted tenant leaves in place: quota team-bq (taken over by the tenant)")
+
+	var deregResp structs.JobDeregisterResponse
+	must.NoError(t, c.s.RPC("Job.Deregister", &structs.JobDeregisterRequest{
+		JobID: job.ID, Purge: true, WriteRequest: c.write("team-bq"),
+	}, &deregResp))
+	waitTenantGone(c, "team-bq")
+	ns, _ := store.NamespaceByName(nil, "team-bq")
+	must.Nil(t, ns)
+	q, _ := store.QuotaSpecByName(nil, "team-bq")
+	must.NotNil(t, q, must.Sprint("the quota the tenant took over was deleted"))
+}
+
+// A namespace the tenant took over stays with the quota the tenant created
+// for it: a namespace that stays keeps its limit, and the deletion is not
+// stuck on a quota in use.
+func TestTenant_AdoptedNamespaceCreatedQuota(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	tenantByHand{c}.namespace("team-cq")
+
+	_, err := c.apply("", structs.TenantKind, "team-cq", map[string]any{
+		"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+		"roles": map[string]any{"dev": []any{"submit-job"}},
+		"adopt": []any{"namespace"},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-cq", "ready", tenantReady)
+	must.Eq(t, []string{"namespace//team-cq"}, tenantAdopted(obj))
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-cq"))
+	waitTenantGone(c, "team-cq")
+	ns, _ := store.NamespaceByName(nil, "team-cq")
+	must.NotNil(t, ns, must.Sprint("the namespace the tenant took over was deleted"))
+	must.Eq(t, "team-cq", ns.Quota)
+	q, _ := store.QuotaSpecByName(nil, "team-cq")
+	must.NotNil(t, q)
+	must.Eq(t, 8000, q.Limits[0].RegionLimit.CPU)
+	role, _ := store.GetACLRoleByName(nil, "team-cq-dev")
+	must.Nil(t, role)
+}
+
+// A role the tenant took over and that leaves the spec is released, not
+// deleted; one the tenant created is deleted.
+func TestTenant_AdoptedRoleLeavesSpec(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	tenantByHand{c}.policyAndRole("team-rl-old")
+
+	spec := map[string]any{
+		"roles": map[string]any{"old": []any{"read-job"}, "new": []any{"submit-job"}},
+		"adopt": []any{"acl-policy", "acl-role"},
+	}
+	_, err := c.apply("", structs.TenantKind, "team-rl", spec)
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-rl", "ready", tenantReady)
+	must.Eq(t, []string{"acl-policy//team-rl-old", "acl-role//team-rl-old"}, tenantAdopted(obj))
+
+	// Both roles leave the spec, and adopt with them: the mark stays.
+	_, err = c.apply("", structs.TenantKind, "team-rl", map[string]any{})
+	must.NoError(t, err)
+	obj = waitTenant(c, "team-rl", "the roles gone from the status", func(o *structs.CustomObject) bool {
+		return tenantReady(o) && len(tenantResources(o)) == 1
+	})
+	must.Eq(t, []string{"namespace//team-rl"}, tenantResources(obj))
+
+	pol, _ := store.ACLPolicyByName(nil, "team-rl-old")
+	must.NotNil(t, pol, must.Sprint("the policy the tenant took over was deleted"))
+	role, _ := store.GetACLRoleByName(nil, "team-rl-old")
+	must.NotNil(t, role, must.Sprint("the role the tenant took over was deleted"))
+	pol, _ = store.ACLPolicyByName(nil, "team-rl-new")
+	must.Nil(t, pol)
+	role, _ = store.GetACLRoleByName(nil, "team-rl-new")
+	must.Nil(t, role)
+
+	events := strings.Join(tenantEvents(c, "team-rl"), "\n")
+	must.StrContains(t, events, "Released: released acl-role team-rl-old")
+	must.StrContains(t, events, "Released: released acl-policy team-rl-old")
+	must.StrContains(t, events, "Deleted: deleted acl-role team-rl-new")
+}

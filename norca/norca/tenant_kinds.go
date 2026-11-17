@@ -93,7 +93,8 @@ const tenantKindSchema = `{
               "name": {"type": "string"},
               "namespace": {"type": "string"},
               "id": {"type": "string"},
-              "pending": {"type": "boolean"}
+              "pending": {"type": "boolean"},
+              "adopted": {"type": "boolean"}
             },
             "additionalProperties": false
           }
@@ -191,6 +192,11 @@ type tenantResourceRef struct {
 	Namespace string `json:"namespace,omitempty"`
 	ID        string `json:"id,omitempty"`
 	Pending   bool   `json:"pending,omitempty"`
+
+	// Adopted marks a resource that existed and the tenant took over
+	// (spec.adopt). It stays marked while the tenant lists it; the tenant
+	// never deletes it.
+	Adopted bool `json:"adopted,omitempty"`
 }
 
 func (r tenantResourceRef) key() string { return r.Type + "/" + r.Namespace + "/" + r.Name }

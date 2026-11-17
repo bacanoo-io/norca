@@ -32,6 +32,16 @@ import (
 // forget a resource it created. A listed resource that is not known to
 // exist is marked pending.
 //
+// A resource the tenant took over (spec.adopt) is marked adopted in the
+// status, for the life of the tenant. While the tenant lives it is kept
+// like one the tenant created. It is never deleted by the tenant: when it
+// leaves the spec it is released (dropped from the status), and when the
+// tenant is deleted it stays. What stays of a deleted tenant keeps its
+// limits and loses the rights the tenant gave: an adopted namespace keeps
+// the quota it names (also one the tenant created, which then stays too),
+// and loses the certificate and DNS allow lists the tenant wrote into its
+// meta.
+//
 // A resource of a tenant's name that the tenant did not create is left
 // alone (condition Conflict), unless spec.adopt names its type; a resource
 // of a release or of another tenant is never taken. A change made to a
@@ -181,7 +191,7 @@ func (w *tenantWork) take(ref tenantResourceRef, exists bool) bool {
 	if exists {
 		w.adopted = append(w.adopted, ref)
 	}
-	ref.Pending = !exists
+	ref.Pending, ref.Adopted = !exists, exists
 	w.owned[ref.key()] = ref
 	w.p.tenants[ref.key()] = w.obj.Name
 	return true
@@ -379,7 +389,8 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		}
 	}
 
-	// What the tenant created and no longer wants goes.
+	// What the tenant created and no longer wants goes; what it took over
+	// and no longer wants is let go as it is.
 	wanted := map[string]bool{nsRef.key(): true}
 	if desired.quota != nil {
 		wanted[quotaRef.key()] = true
@@ -403,6 +414,12 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		if _, ok := p.othersResource(obj.Name, ref); ok {
 			// Another tenant's: not this one's to delete, or to list.
 			delete(w.owned, ref.key())
+			continue
+		}
+		if ref.Adopted {
+			delete(w.owned, ref.key())
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released",
+				"released "+ref.String()+": the tenant took it over and no longer has it; it is left as it is")
 			continue
 		}
 		if err := o.deleteResource(ref); err != nil {
@@ -478,6 +495,9 @@ func statusRefs(owned map[string]tenantResourceRef) []any {
 		if ref.Pending {
 			m["pending"] = true
 		}
+		if ref.Adopted {
+			m["adopted"] = true
+		}
 		refs = append(refs, m)
 	}
 	return refs
@@ -552,7 +572,8 @@ func (o *tenantOperator) writeStatus(obj *structs.CustomObject, status map[strin
 }
 
 // finishDeletion deletes what a deleted tenant created, once its namespace
-// is empty, and then lets the object go.
+// is empty, and then lets the object go. What the tenant took over stays
+// (see the top of the file); an event says what is left.
 func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject) {
 	if !slices.Contains(obj.Finalizers, structs.OperatorsFinalizer) {
 		return
@@ -569,8 +590,41 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 	}
 	w := &tenantWork{o: o, p: p, obj: obj, owned: owned}
 
-	nsRef := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: status.Namespace}
-	if status.Namespace != "" && w.owns(nsRef) {
+	// What stays: the adopted resources, and the quota the tenant created
+	// that an adopted namespace names. A quota in use can't be deleted, and
+	// taking it off a namespace that stays would leave that namespace
+	// without a limit.
+	nsRef, adoptedNS := owned[tenantResourceRef{Type: structs.TenantResourceNamespace, Name: status.Namespace}.key()]
+	adoptedNS = adoptedNS && nsRef.Adopted
+	var liveNS *structs.Namespace
+	if adoptedNS {
+		var err error
+		if liveNS, err = p.store.NamespaceByName(p.ws, status.Namespace); err != nil {
+			o.logger.Warn("failed to read the namespace of a deleted tenant", "tenant", obj.Name, "error", err)
+			p.want(p.now.Add(operatorsRetry))
+			return
+		}
+	}
+	stays := func(ref tenantResourceRef) (bool, string) {
+		switch {
+		case ref.Adopted:
+			return true, ref.String() + " (taken over by the tenant)"
+		case ref.Type == structs.TenantResourceQuota && liveNS != nil && liveNS.Quota == ref.Name:
+			return true, fmt.Sprintf("%s (created by the tenant; the namespace %s, which stays, names it)", ref, liveNS.Name)
+		}
+		return false, ""
+	}
+	var left []string
+	for _, ref := range sortedForDeletion(owned) {
+		if stay, why := stays(ref); stay {
+			left = append(left, why)
+		}
+	}
+	if len(left) > 0 {
+		o.reportLeft(obj, left)
+	}
+
+	if status.Namespace != "" && w.owns(nsRef) && !adoptedNS {
 		what, err := namespaceContents(p.store, p.ws, status.Namespace)
 		if err != nil {
 			o.logger.Warn("failed to look into the namespace of a deleted tenant", "tenant", obj.Name, "error", err)
@@ -596,9 +650,22 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 		}
 	}
 
+	// The rights the tenant gave an adopted namespace go with the tenant.
+	if liveNS != nil {
+		if err := o.dropNamespaceRights(liveNS); err != nil {
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed",
+				fmt.Sprintf("taking the certificate and DNS allow lists off the namespace %s failed: %v", liveNS.Name, err))
+			p.want(p.now.Add(operatorsRetry))
+			return
+		}
+	}
+
 	for _, ref := range sortedForDeletion(owned) {
 		if (ref.Type == structs.TenantResourceACLPolicy || ref.Type == structs.TenantResourceACLRole) && !o.srv.config.ACLEnabled {
 			delete(owned, ref.key())
+			continue
+		}
+		if stay, _ := stays(ref); stay {
 			continue
 		}
 		if err := o.deleteResource(ref); err != nil {
@@ -620,6 +687,59 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 		return
 	}
 	o.srv.finalizeObjectIfReady(written)
+}
+
+// tenantNamespaceRights are the keys of the namespace meta a tenant writes
+// from its spec that give the namespace rights: what it may ask certificates
+// for, and the names norca-dns may write for it.
+var tenantNamespaceRights = []string{
+	structs.NamespaceMetaCertificateDNSSuffixes,
+	structs.NamespaceMetaCertificateIPAddresses,
+	structs.NamespaceMetaCertificateIssuers,
+	structs.NamespaceMetaDNSSuffixes,
+}
+
+// dropNamespaceRights takes the rights a tenant gave off a namespace that
+// stays when the tenant is deleted. A tenant that takes a namespace over
+// replaces its meta, so these keys are the tenant's writes.
+func (o *tenantOperator) dropNamespaceRights(live *structs.Namespace) error {
+	ns := live.Copy()
+	dropped := false
+	for _, key := range tenantNamespaceRights {
+		if _, ok := ns.Meta[key]; ok {
+			delete(ns.Meta, key)
+			dropped = true
+		}
+	}
+	if !dropped {
+		return nil
+	}
+	ns.CreateIndex, ns.ModifyIndex, ns.Hash = 0, 0, nil
+	var resp structs.GenericResponse
+	return o.srv.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
+		Namespaces: []*structs.Namespace{ns}, WriteRequest: o.writeRequest(""),
+	}, &resp)
+}
+
+// reportLeft says, once, what a deleted tenant leaves in place: as an event
+// of the tenant, and in the log of the servers, because the events of an
+// object go with it.
+func (o *tenantOperator) reportLeft(obj *structs.CustomObject, left []string) {
+	message := "the deleted tenant leaves in place: " + strings.Join(left, "; ") +
+		". Delete them by hand if they are not needed"
+	if len(message) > 1000 {
+		message = message[:1000]
+	}
+	log, err := o.srv.State().ObjectEventLog(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
+	if err == nil && log != nil {
+		for _, e := range log.Events {
+			if e.Reason == "Released" && e.Message == message {
+				return
+			}
+		}
+	}
+	o.logger.Info("a deleted tenant leaves resources in place", "tenant", obj.Name, "resources", strings.Join(left, "; "))
+	o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released", message)
 }
 
 // writeRemaining records the resources a deletion has not deleted yet.
