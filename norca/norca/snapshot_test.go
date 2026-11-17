@@ -34,6 +34,40 @@ type fakeSnapshotCSI struct {
 	createErr     error
 	deleteErr     error
 	notReady      bool
+
+	// lostAnswers is how many creations the plugin makes while the caller
+	// gets an error, as when the answer is lost on the way.
+	lostAnswers int
+
+	// retryBase and readyPoll are the waits of the operator of the test's
+	// server, if set: see tuning.
+	retryBase time.Duration
+	readyPoll time.Duration
+}
+
+// tuning sets the waits of the operator: it is read once, when the server
+// of the test makes its operator.
+func (f *fakeSnapshotCSI) tuning() (time.Duration, time.Duration) {
+	retryBase, readyPoll := snapshotRetryBase, snapshotReadyPoll
+	if f.retryBase > 0 {
+		retryBase = f.retryBase
+	}
+	if f.readyPoll > 0 {
+		readyPoll = f.readyPoll
+	}
+	return retryBase, readyPoll
+}
+
+// names returns the names of the snapshots the plugin holds, sorted.
+func (f *fakeSnapshotCSI) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var names []string
+	for name := range f.byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func newFakeSnapshotCSI() *fakeSnapshotCSI {
@@ -54,6 +88,10 @@ func (f *fakeSnapshotCSI) create(_ *state.StateSnapshot, _ string, req *structs.
 		f.byName[req.Name] = snap
 	}
 	snap.IsReady = !f.notReady
+	if f.lostAnswers > 0 {
+		f.lostAnswers--
+		return nil, errors.New("context deadline exceeded")
+	}
 	out := *snap
 	return &out, nil
 }
@@ -103,7 +141,17 @@ func (f *fakeSnapshotCSI) counts() (creates, deletes int) {
 // take snapshots (or not).
 func snapshotTestServer(t *testing.T, acl bool, canSnapshot bool) (*certTest, *fakeSnapshotCSI, func()) {
 	t.Helper()
+	return snapshotTestServerWith(t, acl, canSnapshot, nil)
+}
+
+// snapshotTestServerWith is snapshotTestServer with a fake plugin set up
+// before the server starts.
+func snapshotTestServerWith(t *testing.T, acl bool, canSnapshot bool, setup func(*fakeSnapshotCSI)) (*certTest, *fakeSnapshotCSI, func()) {
+	t.Helper()
 	fake := newFakeSnapshotCSI()
+	if setup != nil {
+		setup(fake)
+	}
 	s, root, cleanup := secretTestServer(t, acl, func(c *Config) { c.snapshotCSI = fake })
 
 	node := mock.Node()
@@ -208,12 +256,8 @@ func TestSnapshotSchedule_TakesAndRetains(t *testing.T) {
 
 func TestSnapshotSchedule_Failures(t *testing.T) {
 	ci.Parallel(t)
-	c, fake, cleanup := snapshotTestServer(t, false, true)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) { f.retryBase = 200 * time.Millisecond })
 	defer cleanup()
-
-	oldBase := snapshotRetryBase
-	snapshotRetryBase = 200 * time.Millisecond
-	defer func() { snapshotRetryBase = oldBase }()
 
 	fake.set(func(f *fakeSnapshotCSI) { f.createErr = errors.New("storage is full") })
 	_, err := c.apply("default", volumeSnapshotScheduleKind, "db-fail", map[string]any{
@@ -286,11 +330,8 @@ func TestSnapshotSchedule_NotReadyAndUnsupported(t *testing.T) {
 	})
 
 	t.Run("unfinished snapshot", func(t *testing.T) {
-		c, fake, cleanup := snapshotTestServer(t, false, true)
+		c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) { f.readyPoll = 100 * time.Millisecond })
 		defer cleanup()
-		oldPoll := snapshotReadyPoll
-		snapshotReadyPoll = 100 * time.Millisecond
-		defer func() { snapshotReadyPoll = oldPoll }()
 
 		fake.set(func(f *fakeSnapshotCSI) { f.notReady = true })
 		_, err := c.apply("default", volumeSnapshotScheduleKind, "slow", map[string]any{
@@ -804,4 +845,106 @@ func TestSnapshotSchedule_StatusWriteAfterEvent(t *testing.T) {
 	log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, volumeSnapshotScheduleKind, "default", "db")
 	must.NoError(t, err)
 	must.NotNil(t, log)
+}
+
+// A snapshot the plugin made is in the list of its schedule, also when the
+// answer of the plugin was lost (review finding SNP-4).
+func TestSnapshotSchedule_LostAnswer(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) { f.lostAnswers = 1 })
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db-lost", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 50},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db-lost", "taken after the lost answer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Taken >= 3
+	})
+
+	// What the plugin holds was written into the status before it was
+	// asked for.
+	held := fake.names()
+	_, st := c.schedule("db-lost")
+	var listed []string
+	for _, s := range st.Snapshots {
+		listed = append(listed, s.Name)
+	}
+	must.GreaterEq(t, 3, len(held))
+	for _, name := range held {
+		must.SliceContains(t, listed, name)
+	}
+}
+
+// The wait after a failed snapshot holds only until the next scheduled
+// time: that one is tried at its time (review finding SNP-11). The request
+// is the one that failed, by its name.
+func TestSnapshotSchedule_RetryAtTheNextTime(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) {
+		f.retryBase = time.Hour
+		f.createErr = errors.New("storage is full")
+	})
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db-retry", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 5},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db-retry", "tried again at the later times", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Failures >= 3 && st.RetryAt != ""
+	})
+	fake.set(func(f *fakeSnapshotCSI) {
+		for _, name := range f.creates {
+			must.Eq(t, f.creates[0], name)
+		}
+		f.createErr = nil
+	})
+	st := c.waitSchedule("db-retry", "taken", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Taken >= 1 && st.Failures == 0
+	})
+	must.Eq(t, "", st.RetryAt)
+}
+
+// A snapshot the plugin was still making: when asking for it fails the
+// schedule says so, and when the plugin made it again the list has the new
+// ID (review finding SNP-13).
+func TestSnapshotSchedule_UnfinishedSnapshot(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) { f.readyPoll = 100 * time.Millisecond })
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "slow", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("slow", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+
+	fake.set(func(f *fakeSnapshotCSI) {
+		f.createErr = errors.New("snapshot exists with other parameters")
+		f.byName["slow-1"] = &structs.CSISnapshot{ID: "snap-new", SizeBytes: 7}
+	})
+	obj, _ := c.schedule("slow")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: []*scheduledSnapshot{{
+		ID: "snap-old", Name: "slow-1", Volume: "db", Plugin: "minnie",
+		Scheduled: time.Now().UTC().Format(time.RFC3339),
+	}}})
+
+	c.waitSchedule("slow", "the failure shown", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return objectConditionTrue(obj.Status, snapshotConditionFailed) &&
+			objectConditionTrue(obj.Status, structs.CertificateConditionDegraded)
+	})
+	obj, st := c.schedule("slow")
+	must.StrContains(t, snapshotFailure(obj.Status), "slow-1")
+	must.StrContains(t, snapshotFailure(obj.Status), "other parameters")
+	must.Eq(t, "snap-old", st.Snapshots[0].ID)
+	must.Eq(t, 0, st.Failures)
+
+	fake.set(func(f *fakeSnapshotCSI) { f.createErr = nil })
+	c.waitSchedule("slow", "finished under the new ID", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return len(st.Snapshots) == 1 && st.Snapshots[0].ID == "snap-new" && st.Snapshots[0].Ready &&
+			!objectConditionTrue(obj.Status, snapshotConditionFailed)
+	})
 }

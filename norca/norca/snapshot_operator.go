@@ -24,19 +24,23 @@ import (
 // go. Norca keeps no record of snapshots in its state, so the snapshots of a
 // schedule are listed in its status, and only those are ever deleted.
 //
-// The name of a snapshot is derived from the time it was scheduled for. CSI
+// The name of a snapshot is derived from the time it was scheduled for, and
+// it is written into the status before the plugin is asked for it. CSI
 // creates a snapshot of a name once and answers again with the one it has,
 // so a leader that takes over a snapshot in progress, or tries a failed one
-// again, never makes a second one. A time missed while there was no leader is
-// taken once when the next leader comes, not once per missed time.
+// again, asks for the name in the status and never makes a second one, and
+// no snapshot the plugin made is left out of the list: not when the answer
+// of the plugin was lost, and not when the leader changed before it could
+// be written down. A time missed while there was no leader is taken once
+// when the next leader comes, not once per missed time.
 //
 // Snapshots are crash-consistent: what the volume holds at the moment of the
 // snapshot, without any help from the application.
 
-var (
+const (
 	// snapshotRetryBase and snapshotRetryMax bound the wait after a failed
 	// snapshot: it doubles with every failure in a row. A scheduled time
-	// that comes earlier is taken at its time.
+	// that comes earlier is tried at its time.
 	snapshotRetryBase = time.Minute
 	snapshotRetryMax  = time.Hour
 
@@ -44,6 +48,12 @@ var (
 	// is asked for again.
 	snapshotReadyPoll = 30 * time.Second
 )
+
+// snapshotTuning is implemented by the plugin of a test that changes the
+// waits of the operator of its server.
+type snapshotTuning interface {
+	tuning() (retryBase, readyPoll time.Duration)
+}
 
 // snapshotTimesWindow is the stretch of a schedule that is walked time by
 // time to find the latest one that has come.
@@ -90,9 +100,15 @@ type snapshotScheduleStatus struct {
 	Deleted   int                  `json:"deleted"`
 	Failures  int                  `json:"failures"`
 	RetryAt   string               `json:"retryAt,omitempty"`
+
+	// FailedRun is the latest scheduled time that had come when the last
+	// attempt failed: RetryAt holds only until a later time comes.
+	FailedRun string `json:"failedRun,omitempty"`
 }
 
-// scheduledSnapshot is a snapshot a schedule took.
+// scheduledSnapshot is a snapshot a schedule took, or one it has begun: the
+// plugin has not answered for a snapshot without an ID yet, and is asked
+// for it by its name until it does.
 type scheduledSnapshot struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -196,6 +212,9 @@ type snapshotOperator struct {
 	srv    *Server
 	logger hclog.Logger
 	csi    snapshotCSI
+
+	retryBase time.Duration
+	readyPoll time.Duration
 }
 
 func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
@@ -203,7 +222,12 @@ func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
 	if srv.config != nil && srv.config.snapshotCSI != nil {
 		csi = srv.config.snapshotCSI
 	}
-	return &snapshotOperator{srv: srv, logger: logger.Named("snapshots"), csi: csi}
+	o := &snapshotOperator{srv: srv, logger: logger.Named("snapshots"), csi: csi,
+		retryBase: snapshotRetryBase, readyPoll: snapshotReadyPoll}
+	if t, ok := csi.(snapshotTuning); ok {
+		o.retryBase, o.readyPoll = t.tuning()
+	}
+	return o
 }
 
 func (o *snapshotOperator) kinds() []*structs.ObjectKind { return builtinSnapshotKinds() }
@@ -254,6 +278,41 @@ type snapshotOutcome struct {
 	unsupported bool
 }
 
+// snapshotRun is one schedule in a pass.
+type snapshotRun struct {
+	// obj is the object as it was read, or as the pass wrote it last.
+	obj     *structs.CustomObject
+	spec    *snapshotScheduleSpec
+	st      *snapshotScheduleStatus
+	out     *snapshotOutcome
+	vol     *structs.CSIVolume
+	secrets structs.CSISecrets
+
+	// due is the latest time of the schedule that has come since the
+	// last run (zero: none).
+	due time.Time
+}
+
+// latestRun returns the latest scheduled time that has come, as the status
+// has it.
+func (r *snapshotRun) latestRun() string {
+	if r.due.IsZero() {
+		return r.st.LastRun
+	}
+	return r.due.UTC().Format(time.RFC3339)
+}
+
+// withOperatorsFinalizer returns the finalizers of a schedule with the one
+// of the operators: the operator decides at the deletion whether the
+// snapshots go (delete_snapshots may change until then).
+func withOperatorsFinalizer(finalizers []string) []string {
+	out := slices.Clone(finalizers)
+	if !slices.Contains(out, structs.OperatorsFinalizer) {
+		out = append(out, structs.OperatorsFinalizer)
+	}
+	return out
+}
+
 // reconcileSchedule brings one schedule to its wanted state.
 func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.CustomObject) {
 	spec := &snapshotScheduleSpec{}
@@ -275,6 +334,7 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	out := &snapshotOutcome{}
 	secrets, secretErr := o.secrets(obj, spec)
 	expr, loc, maxAge, specErr := spec.parse()
+	r := &snapshotRun{obj: obj, spec: spec, st: st, out: out, secrets: secrets}
 
 	vol, err := p.store.CSIVolumeByID(p.ws, obj.Namespace, spec.Volume)
 	if err != nil {
@@ -291,6 +351,7 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 		}
 		st.Plugin = vol.PluginID
 	}
+	r.vol = vol
 
 	switch {
 	case specErr != nil:
@@ -309,29 +370,25 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	}
 
 	if specErr == nil {
-		o.schedule(p, obj, spec, st, expr, loc, vol, secrets, out)
-		o.refreshPending(p, obj, spec, st, vol, secrets, out)
-		o.retain(p, obj, st, maxAge, spec.Keep.Last, secrets)
+		o.schedule(p, r, expr, loc)
+		o.finish(p, r)
+		o.retain(p, r.obj, st, maxAge, spec.Keep.Last, secrets)
 	}
 
-	finalizers := slices.Clone(obj.Finalizers)
-	if !slices.Contains(finalizers, structs.OperatorsFinalizer) {
-		// The operator decides at the deletion whether the snapshots go
-		// (delete_snapshots may change until then).
-		finalizers = append(finalizers, structs.OperatorsFinalizer)
-	}
-	o.writeSchedule(p, obj, st, out, spec.Suspend, &finalizers)
+	finalizers := withOperatorsFinalizer(r.obj.Finalizers)
+	o.writeSchedule(p, r.obj, st, out, spec.Suspend, &finalizers)
 }
 
-// schedule takes the snapshot of the latest scheduled time that has come,
-// unless it was taken.
-func (o *snapshotOperator) schedule(p *snapshotPass, obj *structs.CustomObject, spec *snapshotScheduleSpec,
-	st *snapshotScheduleStatus, expr *cronexpr.Expression, loc *time.Location, vol *structs.CSIVolume,
-	secrets structs.CSISecrets, out *snapshotOutcome) {
+// schedule begins the snapshot of the latest scheduled time that has come,
+// unless it was begun: it writes the snapshot into the status, by the name
+// the plugin is asked for. Only a snapshot that is written down is asked
+// for (in finish), so whatever happens to the answer, the list has it.
+func (o *snapshotOperator) schedule(p *snapshotPass, r *snapshotRun, expr *cronexpr.Expression, loc *time.Location) {
+	st := r.st
 
 	// The first time of a new schedule is the first one after the object
 	// was created.
-	base := time.Unix(0, obj.CreateTime).UTC()
+	base := time.Unix(0, r.obj.CreateTime).UTC()
 	if last, err := time.Parse(time.RFC3339, st.LastRun); err == nil {
 		base = last
 	}
@@ -341,69 +398,48 @@ func (o *snapshotOperator) schedule(p *snapshotPass, obj *structs.CustomObject, 
 		st.NextRun = next.UTC().Format(time.RFC3339)
 	}
 	p.want(next)
+	if due.IsZero() {
+		return
+	}
+	r.due = due
 
-	if due.IsZero() || spec.Suspend || out.notReadyReason != "" {
-		if !due.IsZero() && !spec.Suspend {
+	if r.spec.Suspend || r.out.notReadyReason != "" {
+		if !r.spec.Suspend {
 			// Taken once the schedule can take it, if no later time
 			// has come by then.
 			p.want(p.now.Add(operatorsRetry))
 		}
 		return
 	}
-	if retryAt, err := time.Parse(time.RFC3339, st.RetryAt); err == nil && p.now.Before(retryAt) {
-		out.failedMessage = snapshotFailure(obj.Status)
-		p.want(retryAt)
+	// One at a time: a snapshot the plugin has not answered for is asked
+	// for again under its name, and stands for the times that come until
+	// it is made. A new name now would leave it out of the list if the
+	// plugin made it after all.
+	if slices.ContainsFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.ID == "" }) {
 		return
 	}
 
-	name := snapshotName(obj, spec, due)
-	created, err := o.csi.create(p.snap, obj.Namespace, &structs.CSISnapshot{
-		SourceVolumeID: vol.ID,
-		PluginID:       vol.PluginID,
-		Name:           name,
-		Secrets:        secrets,
-		Parameters:     spec.Parameters,
-	})
-	if err != nil {
-		st.Failures++
-		wait := min(snapshotRetryBase<<min(st.Failures-1, 16), snapshotRetryMax)
-		retryAt := p.now.Add(wait)
-		st.RetryAt = retryAt.Format(time.RFC3339)
-		out.failedMessage = err.Error()
-		p.want(retryAt)
-		operatorCount(volumeSnapshotScheduleKind, "snapshot_failures")
-		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "SnapshotFailed",
-			fmt.Sprintf("snapshot %s of the volume %s failed (attempt %d): %v", name, vol.ID, st.Failures, err))
-		return
-	}
-
-	st.Failures, st.RetryAt = 0, ""
+	before := *st
+	name := snapshotName(r.obj, r.spec, due)
 	st.LastRun = due.UTC().Format(time.RFC3339)
-	entry := &scheduledSnapshot{
-		ID:        created.ID,
-		Name:      name,
-		Volume:    vol.ID,
-		Plugin:    vol.PluginID,
-		Scheduled: st.LastRun,
-		SizeBytes: created.SizeBytes,
-		Ready:     created.IsReady,
+	st.Failures, st.RetryAt, st.FailedRun = 0, "", ""
+	if !slices.ContainsFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.Name == name }) {
+		st.Snapshots = append(slices.Clone(st.Snapshots), &scheduledSnapshot{
+			Name:      name,
+			Volume:    r.vol.ID,
+			Plugin:    r.vol.PluginID,
+			Scheduled: st.LastRun,
+		})
 	}
-	if created.CreateTime > 0 {
-		entry.CreateTime = time.Unix(created.CreateTime, 0).UTC().Format(time.RFC3339)
+	written, err := o.writeProgress(r)
+	if err != nil {
+		// Not written down: not asked for. The next pass begins it
+		// again.
+		*st = before
+		p.want(p.now.Add(operatorsRetry))
+		return
 	}
-	// The same snapshot again (a leader that took over): update it.
-	st.Snapshots = slices.DeleteFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.ID == created.ID })
-	st.Snapshots = append(st.Snapshots, entry)
-	st.Taken++
-	operatorCount(volumeSnapshotScheduleKind, "snapshots_taken")
-	o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "SnapshotTaken",
-		fmt.Sprintf("snapshot %s (%s) of the volume %s", name, created.ID, vol.ID))
-
-	// The next time after the one just taken.
-	if _, next := scheduleTimes(expr, loc, due, p.now); !next.IsZero() {
-		st.NextRun = next.UTC().Format(time.RFC3339)
-		p.want(next)
-	}
+	r.obj = written
 }
 
 // scheduleTimes returns the latest time of the schedule after base that has
@@ -439,37 +475,91 @@ func scheduleTimes(expr *cronexpr.Expression, loc *time.Location, base, now time
 	return due, t
 }
 
-// refreshPending asks the plugin again for the snapshots it has not
-// finished: CSI answers a repeated request of the same name with the
-// snapshot's current state.
-func (o *snapshotOperator) refreshPending(p *snapshotPass, obj *structs.CustomObject, spec *snapshotScheduleSpec,
-	st *snapshotScheduleStatus, vol *structs.CSIVolume, secrets structs.CSISecrets, out *snapshotOutcome) {
-
-	if vol == nil || out.notReadyReason != "" {
+// finish asks the plugin for the snapshots of the status it has not
+// finished: for one that was begun and has no answer yet, and again for one
+// the plugin was still making. CSI answers a repeated request of the same
+// name with the snapshot's current state.
+func (o *snapshotOperator) finish(p *snapshotPass, r *snapshotRun) {
+	if r.vol == nil || r.out.notReadyReason != "" {
 		return
 	}
+	st := r.st
 	for _, s := range st.Snapshots {
-		if s.Ready || s.Volume != vol.ID {
+		if s.Ready || s.Volume != r.vol.ID {
 			continue
 		}
-		got, err := o.csi.create(p.snap, obj.Namespace, &structs.CSISnapshot{
-			SourceVolumeID: vol.ID,
-			PluginID:       vol.PluginID,
+		answered := s.ID != ""
+		if !answered {
+			if r.spec.Suspend {
+				continue
+			}
+			// The wait after a failure holds until a later scheduled
+			// time comes: that one is tried at its time.
+			retryAt, err := time.Parse(time.RFC3339, st.RetryAt)
+			if err == nil && p.now.Before(retryAt) && st.FailedRun == r.latestRun() {
+				r.out.failedMessage = snapshotFailure(r.obj.Status)
+				p.want(retryAt)
+				continue
+			}
+		}
+
+		got, err := o.csi.create(p.snap, r.obj.Namespace, &structs.CSISnapshot{
+			SourceVolumeID: r.vol.ID,
+			PluginID:       r.vol.PluginID,
 			Name:           s.Name,
-			Secrets:        secrets,
-			Parameters:     spec.Parameters,
+			Secrets:        r.secrets,
+			Parameters:     r.spec.Parameters,
 		})
-		if err != nil {
+		if err == nil && got.ID == "" {
+			err = errors.New("the plugin answered with a snapshot that has no ID")
+		}
+		switch {
+		case err != nil && answered:
+			// The plugin refuses to say how the snapshot is (it does
+			// when the parameters changed meanwhile, for one): the
+			// schedule says so instead of asking silently for ever.
+			r.out.failedMessage = fmt.Sprintf("snapshot %s (%s) is not finished, and asking the plugin for it failed: %v",
+				s.Name, s.ID, err)
 			o.logger.Debug("asking for an unfinished snapshot failed", "snapshot", s.Name, "error", err)
-			p.want(p.now.Add(snapshotReadyPoll))
+			p.want(p.now.Add(o.readyPoll))
+			continue
+		case err != nil:
+			st.Failures++
+			wait := min(o.retryBase<<min(st.Failures-1, 16), snapshotRetryMax)
+			retryAt := p.now.Add(wait)
+			st.RetryAt = retryAt.Format(time.RFC3339)
+			st.FailedRun = r.latestRun()
+			r.out.failedMessage = err.Error()
+			p.want(retryAt)
+			operatorCount(volumeSnapshotScheduleKind, "snapshot_failures")
+			o.srv.operatorEvent(r.obj, structs.ObjectEventTypeWarning, "SnapshotFailed",
+				fmt.Sprintf("snapshot %s of the volume %s failed (attempt %d): %v", s.Name, r.vol.ID, st.Failures, err))
 			continue
 		}
-		s.Ready, s.SizeBytes = got.IsReady, got.SizeBytes
+
+		switch {
+		case !answered:
+			st.Failures, st.RetryAt, st.FailedRun = 0, "", ""
+			// It stands for the times that came while it could not be
+			// made.
+			st.LastRun = max(st.LastRun, r.latestRun())
+			st.Taken++
+			operatorCount(volumeSnapshotScheduleKind, "snapshots_taken")
+			o.srv.operatorEvent(r.obj, structs.ObjectEventTypeNormal, "SnapshotTaken",
+				fmt.Sprintf("snapshot %s (%s) of the volume %s", s.Name, got.ID, r.vol.ID))
+		case got.ID != s.ID:
+			// The snapshot that was being made is gone and the plugin
+			// made the name again: the list follows the one that
+			// exists.
+			o.srv.operatorEvent(r.obj, structs.ObjectEventTypeWarning, "SnapshotReplaced",
+				fmt.Sprintf("snapshot %s was %s and is %s now: the plugin made it again", s.Name, s.ID, got.ID))
+		}
+		s.ID, s.Ready, s.SizeBytes = got.ID, got.IsReady, got.SizeBytes
 		if got.CreateTime > 0 {
 			s.CreateTime = time.Unix(got.CreateTime, 0).UTC().Format(time.RFC3339)
 		}
 		if !s.Ready {
-			p.want(p.now.Add(snapshotReadyPoll))
+			p.want(p.now.Add(o.readyPoll))
 		}
 	}
 }
@@ -580,18 +670,39 @@ func (o *snapshotOperator) writeSchedule(p *snapshotPass, obj *structs.CustomObj
 	conditions.set(structs.CertificateConditionDegraded, !ready, "", "")
 	encoded[structs.ObjectStatusConditions] = conditions.list()
 	encoded[structs.ObjectStatusObservedGeneration] = obj.Generation
-	return o.writeStatus(obj, encoded, finalizers)
+	written, _ := o.writeStatus(obj, encoded, finalizers)
+	return written
 }
 
-// writeStatus writes a changed status and finalizers of a schedule.
-func (o *snapshotOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) *structs.CustomObject {
+// writeProgress writes the status of a schedule in the middle of a pass,
+// with the conditions as they are: the end of the pass sets them.
+func (o *snapshotOperator) writeProgress(r *snapshotRun) (*structs.CustomObject, error) {
+	r.st.Kept = len(r.st.Snapshots)
+	encoded, err := structs.EncodeObjectPart(r.st)
+	if err != nil {
+		o.logger.Warn("status of a snapshot schedule can't be encoded", "schedule", r.obj.Name, "error", err)
+		return nil, err
+	}
+	for _, key := range []string{structs.ObjectStatusConditions, structs.ObjectStatusObservedGeneration} {
+		if v, ok := r.obj.Status[key]; ok {
+			encoded[key] = v
+		}
+	}
+	finalizers := withOperatorsFinalizer(r.obj.Finalizers)
+	return o.writeStatus(r.obj, encoded, &finalizers)
+}
+
+// writeStatus writes a changed status and finalizers of a schedule, and
+// returns the object as it is stored then. With an error nothing was
+// written.
+func (o *snapshotOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) (*structs.CustomObject, error) {
 	normalized, err := structs.NormalizeObjectMap(status)
 	if err != nil {
 		o.logger.Warn("status of a snapshot schedule can't be encoded", "schedule", obj.Name, "error", err)
-		return obj
+		return obj, err
 	}
 	if structs.ObjectMapsEqual(obj.Status, normalized) && (finalizers == nil || slices.Equal(obj.Finalizers, *finalizers)) {
-		return obj
+		return obj, nil
 	}
 	changed := obj.Copy()
 	changed.Status = normalized
@@ -604,9 +715,9 @@ func (o *snapshotOperator) writeStatus(obj *structs.CustomObject, status map[str
 			o.logger.Warn("failed to write the status of a snapshot schedule", "schedule", obj.Name,
 				"namespace", obj.Namespace, "error", err)
 		}
-		return obj
+		return obj, err
 	}
-	return written
+	return written, nil
 }
 
 // finishDeletion does what the deletion of a schedule asks of the operator:
@@ -624,6 +735,13 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		var failed []string
 		var left []*scheduledSnapshot
 		for _, s := range st.Snapshots {
+			if s.ID == "" {
+				// The plugin never answered for it: there is no ID to
+				// delete it by.
+				o.logger.Warn("a snapshot the plugin did not answer for is left when its schedule is deleted",
+					"schedule", obj.Name, "namespace", obj.Namespace, "snapshot", s.Name)
+				continue
+			}
 			err := secretErr
 			if err == nil {
 				err = o.deleteSnapshot(p, obj.Namespace, s, secrets)
