@@ -11,6 +11,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	"github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/taskenv"
+	"github.com/bacanoo-io/norca/norca/helper/users"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
@@ -20,11 +21,17 @@ import (
 type validateHook struct {
 	config *config.Config
 	logger log.Logger
+
+	// jobUser returns the user the job gives the task. The task of a
+	// prestart request is not that: it carries the dynamic user of a task
+	// without a user.
+	jobUser func() string
 }
 
-func newValidateHook(config *config.Config, logger log.Logger) *validateHook {
+func newValidateHook(config *config.Config, jobUser func() string, logger log.Logger) *validateHook {
 	h := &validateHook{
-		config: config,
+		config:  config,
+		jobUser: jobUser,
 	}
 	h.logger = logger.Named(h.Name())
 	return h
@@ -35,11 +42,28 @@ func (*validateHook) Name() string {
 }
 
 func (h *validateHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRequest, resp *interfaces.TaskPrestartResponse) error {
+	if h.jobUser != nil {
+		if err := validateJobUser(h.jobUser()); err != nil {
+			return err
+		}
+	}
 	if err := validateTask(req.Task, req.TaskEnv, h.config); err != nil {
 		return err
 	}
 
 	resp.Done = true
+	return nil
+}
+
+// validateJobUser refuses a user of a job that has the form of the names of
+// dynamic users. The client gives those to tasks without a user, for an ID
+// of its pool; the drivers turn such a name into the ID in it, so from a job
+// it would run the task as the dynamic user of another task, or as any user
+// of the node, past the user denylist.
+func validateJobUser(user string) error {
+	if users.IsDynamicName(user) {
+		return fmt.Errorf("running as user %q is disallowed: the name is reserved for the dynamic users of tasks without a user", user)
+	}
 	return nil
 }
 

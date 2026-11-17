@@ -41,14 +41,34 @@ const DynamicPrefix = "norca:"
 const DynamicHome = "/nonexistent"
 
 func dynamicUser(username string) (*user.User, bool) {
-	rest, ok := strings.CutPrefix(username, DynamicPrefix)
+	rest, ok := dynamicID(username)
 	if !ok {
 		return nil, false
 	}
-	if n, err := strconv.Atoi(rest); err != nil || n <= 0 {
-		return nil, false
-	}
 	return &user.User{Uid: rest, Gid: rest, Username: username, HomeDir: DynamicHome}, true
+}
+
+// dynamicID returns the ID part of a dynamic user name.
+func dynamicID(username string) (string, bool) {
+	rest, ok := strings.CutPrefix(username, DynamicPrefix)
+	if !ok {
+		return "", false
+	}
+	if n, err := strconv.Atoi(rest); err != nil || n <= 0 {
+		return "", false
+	}
+	return rest, true
+}
+
+// IsDynamicName reports whether username has the form of a dynamic user
+// name, which Lookup turns into the ID in it without looking anything up.
+//
+// Only the client makes such names, for the ID it took from its pool for a
+// task without a user. Whatever takes a user name from a job must refuse
+// these: the name would run the task with any ID its author likes.
+func IsDynamicName(username string) bool {
+	_, ok := dynamicID(username)
+	return ok
 }
 
 // lock is used to serialize all user lookup at the process level, because

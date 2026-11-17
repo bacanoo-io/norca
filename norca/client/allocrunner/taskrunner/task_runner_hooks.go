@@ -63,7 +63,7 @@ func (tr *TaskRunner) initHooks() {
 	// directory path exists for other hooks.
 	alloc := tr.Alloc()
 	tr.runnerHooks = []interfaces.TaskHook{
-		newValidateHook(tr.clientConfig, hookLogger),
+		newValidateHook(tr.clientConfig, func() string { return tr.Task().User }, hookLogger),
 		newTaskDirHook(tr, hookLogger),
 		newIdentityHook(tr, hookLogger),
 		newLogMonHook(tr, hookLogger),

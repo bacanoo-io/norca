@@ -66,3 +66,19 @@ func TestTaskRunner_Validate_ServiceName(t *testing.T) {
 	task.Services[0].Name = "${BAD}"
 	require.Error(t, validateTask(task, builder.Build(), conf))
 }
+
+// TestTaskRunner_Validate_DynamicUserName checks that the user a job gives
+// its task is refused when it has the form of the names the client gives to
+// dynamic users: with any driver, since the drivers turn such a name into
+// the ID in it.
+func TestTaskRunner_Validate_DynamicUserName(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, user := range []string{"norca:85000", "norca:1"} {
+		err := validateJobUser(user)
+		require.ErrorContains(t, err, "is reserved for the dynamic users", user)
+	}
+	for _, user := range []string{"", "nobody", "norca", "norca:staff", "1000:1000"} {
+		require.NoError(t, validateJobUser(user), user)
+	}
+}

@@ -36,6 +36,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/constraints/semver"
 	"github.com/bacanoo-io/norca/norca/helper/escapingfs"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/users"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/lib/cpuset"
 	"github.com/bacanoo-io/norca/norca/lib/kheap"
@@ -7995,6 +7996,11 @@ func (t *Task) Validate(jobType string, tg *TaskGroup) error {
 	}
 	if t.Driver == "" {
 		mErr.Errors = append(mErr.Errors, errors.New("Missing task driver"))
+	}
+	if users.IsDynamicName(t.User) {
+		// The clients make these names; a driver runs the task with the ID
+		// in the name. The clients refuse them too (validate hook).
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Task user %q is reserved for the dynamic users of tasks without a user", t.User))
 	}
 	if t.KillTimeout < 0 {
 		mErr.Errors = append(mErr.Errors, errors.New("KillTimeout must be a positive value"))
