@@ -219,6 +219,14 @@ func (m *Manager) configAndDestinations() (*Config, []Destination, error) {
 	return m.cfg, m.dests, nil
 }
 
+// destinationsError returns the error of the configuration or of building
+// its destinations, if any.
+func (m *Manager) destinationsError() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.destsErr
+}
+
 // Destination returns the named destination.
 func (m *Manager) Destination(name string) (Destination, error) {
 	_, dests, err := m.configAndDestinations()
@@ -276,6 +284,9 @@ func (m *Manager) run(ctx context.Context) {
 
 		switch {
 		case !cfg.Enabled || !cfg.Configured():
+		case m.destinationsError() != nil:
+			// SetConfig reported it; a save would fail at once, without a
+			// record, and stay due.
 		case !m.deps.ServersReady():
 			if !notReadyLogged {
 				m.logger.Warn("scheduled backups wait until all servers run a Norca version that supports them")
@@ -296,12 +307,21 @@ func (m *Manager) run(ctx context.Context) {
 			now := time.Now()
 			m.emitAgeMetric(records, now)
 			st := cfg.schedule(records, m.deps.Region, now)
+			if st.due.IsZero() {
+				// The schedule has no next time.
+				break
+			}
 			if !now.Before(st.due) {
-				if _, err := m.save(ctx, SaveOptions{Trigger: structs.BackupTriggerSchedule}); err != nil {
-					m.logger.Error("scheduled backup failed", "error", err)
-				}
+				_, err := m.save(ctx, SaveOptions{Trigger: structs.BackupTriggerSchedule})
 				if ctx.Err() != nil {
 					return
+				}
+				if err != nil {
+					// A failure may have left no record (the configuration
+					// changed, the Raft write failed): the backup is still
+					// due then, so wait before the next look.
+					m.logger.Error("scheduled backup failed", "error", err)
+					break
 				}
 				continue
 			}

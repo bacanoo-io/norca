@@ -296,8 +296,10 @@ func (c *Config) Validate() error {
 		add("at least one destination is required when backups are enabled")
 	}
 	if c.Schedule != "" {
-		if _, err := cronexpr.Parse(c.Schedule); err != nil {
+		if expr, err := cronexpr.Parse(c.Schedule); err != nil {
 			add("invalid schedule %q: %v", c.Schedule, err)
+		} else if expr.Next(time.Now().UTC()).IsZero() {
+			add("invalid schedule %q: it never comes", c.Schedule)
 		}
 	} else if c.Interval < time.Minute {
 		add("interval must be at least 1m")

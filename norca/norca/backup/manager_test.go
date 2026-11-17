@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"sync/atomic"
@@ -408,4 +409,98 @@ func TestPathAndID(t *testing.T) {
 		_, err := PathFor(bad)
 		must.Error(t, err, must.Sprint(bad))
 	}
+}
+
+// A destination that can't be built (review finding SRV-14) leaves the
+// scheduler idle: it must not spin on a save that fails at once.
+func TestManager_Scheduler_BrokenDestination(t *testing.T) {
+	ci.Parallel(t)
+	env := newTestEnv(t, 2048)
+	cfg := env.config("primary")
+	cfg.Enabled = true
+	cfg.Destinations[0].CAFile = "/nonexistent/ca.pem"
+
+	var reads atomic.Int64
+	env.deps.State = func() *state.StateStore {
+		reads.Add(1)
+		return env.store
+	}
+
+	m := New(cfg, env.deps)
+	_, _, err := m.configAndDestinations()
+	must.ErrorContains(t, err, "ca_file")
+	m.SetLeader(true)
+	defer m.SetLeader(false)
+
+	time.Sleep(500 * time.Millisecond)
+	must.Less(t, 20, reads.Load(), must.Sprint("scheduler iterations in 500ms"))
+}
+
+// A scheduled backup that fails without leaving a record (here the Raft
+// write fails) is not retried at once (review finding SRV-14).
+func TestManager_Scheduler_UnrecordedFailure(t *testing.T) {
+	ci.Parallel(t)
+	env := newTestEnv(t, 2048)
+	cfg := env.config("primary")
+	cfg.Enabled = true
+
+	var snapshots atomic.Int64
+	snapshot := env.deps.Snapshot
+	env.deps.Snapshot = func() (Snapshot, error) {
+		snapshots.Add(1)
+		return snapshot()
+	}
+	env.deps.Apply = func(structs.MessageType, any) (uint64, error) {
+		return 0, errors.New("no leader")
+	}
+
+	m := New(cfg, env.deps)
+	m.SetLeader(true)
+	defer m.SetLeader(false)
+
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return snapshots.Load() > 0 }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+	time.Sleep(time.Second)
+	must.Less(t, 3, snapshots.Load(), must.Sprint("backups attempted in a second"))
+}
+
+// A cron expression without a next time (review finding SRV-15) is refused,
+// and a schedule that ran out takes no more backups.
+func TestManager_Scheduler_NoNextTime(t *testing.T) {
+	ci.Parallel(t)
+	env := newTestEnv(t, 2048)
+
+	for _, schedule := range []string{"0 0 30 2 *", "0 0 1 1 * 2020"} {
+		cfg := env.config("primary")
+		cfg.Schedule = schedule
+		must.ErrorContains(t, cfg.Validate(), "never", must.Sprint(schedule))
+	}
+
+	cfg := env.config("primary")
+	cfg.Enabled = true
+	m := New(cfg, env.deps)
+	// The schedule ran out while the server runs.
+	m.cfg.Schedule = "0 0 1 1 * 2020"
+	m.SetLeader(true)
+	defer m.SetLeader(false)
+
+	scheduled := func() int {
+		records, _ := env.store.BackupsList(nil)
+		return len(records)
+	}
+	// The first scheduled backup is due immediately; no other follows.
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return scheduled() > 0 }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+	time.Sleep(2 * time.Second)
+	must.Eq(t, 1, scheduled())
+
+	records, err := env.store.BackupsList(nil)
+	must.NoError(t, err)
+	must.True(t, m.Config().schedule(records, "eu", time.Now()).due.IsZero())
 }

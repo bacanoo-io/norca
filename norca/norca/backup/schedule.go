@@ -75,7 +75,9 @@ type scheduleState struct {
 // backups count: the next one follows the slot of the last successful one,
 // so a new leader neither repeats nor skips a slot. Without any successful
 // scheduled backup the first one is due immediately. A failed attempt is
-// retried after RetryInterval.
+// retried after RetryInterval. A zero due time means that the schedule (a
+// cron expression) has no time after the last successful backup: no backup
+// is due any more.
 func (c *Config) schedule(records []*structs.BackupRecord, region string, now time.Time) scheduleState {
 	var st scheduleState
 	for _, b := range records {
@@ -96,6 +98,9 @@ func (c *Config) schedule(records []*structs.BackupRecord, region string, now ti
 		st.due = now
 	} else {
 		st.due = c.NextScheduled(st.lastSuccess.StartedAt, offset)
+		if st.due.IsZero() {
+			return st
+		}
 	}
 	if st.lastFailed != nil && (st.lastSuccess == nil || st.lastFailed.StartedAt.After(st.lastSuccess.StartedAt)) {
 		if retry := st.lastFailed.StartedAt.Add(c.RetryInterval); retry.After(st.due) {
