@@ -54,6 +54,11 @@ func (s *HTTPServer) OperatorUnsealRequest(resp http.ResponseWriter, req *http.R
 		Reset:    body.Reset,
 	}
 	if args.ServerID == "" {
+		// The server of this agent is the default in its own region only:
+		// another region does not know it.
+		if region := req.URL.Query().Get("region"); region != "" && region != s.agent.GetConfig().Region {
+			return nil, CodedError(400, "server_id is required for a request to another region")
+		}
 		srv := s.agent.Server()
 		if srv == nil {
 			return nil, CodedError(400, "server_id is required: this agent is not a server")
