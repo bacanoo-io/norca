@@ -40,6 +40,25 @@ func checkVolumeRequestApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 	return nil
 }
 
+// checkVolumeRequestDelete checks the deletion of a volume request through
+// the object API. With a policy other than "retain" the servers deregister
+// or delete the volume, so the caller needs what the volume API asks for
+// that; with "retain" the volume is not touched. A spec that can't be read
+// is taken as one that takes the volume away.
+func checkVolumeRequestDelete(aclObj *acl.ACL, existing *structs.CustomObject) error {
+	spec := &volumeRequestSpec{}
+	if err := structs.DecodeObjectPart(existing.Spec, spec); err == nil && spec.policy() == volumeRequestRetain {
+		return nil
+	}
+	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
+	if !allowVolume(aclObj, existing.Namespace) || !aclObj.AllowPluginRead() {
+		return structs.NewErrRPCCodedf(http.StatusForbidden,
+			"deleting a volume request that does not retain its volume needs the right %s in the namespace %q and to read CSI plugins",
+			acl.NamespaceCapabilityCSIWriteVolume, existing.Namespace)
+	}
+	return nil
+}
+
 // checkVolumeRequestStatusWrite refuses status writes through the object
 // API: the status of a request is the servers'.
 func checkVolumeRequestStatusWrite() error {

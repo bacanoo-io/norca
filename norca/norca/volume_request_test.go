@@ -592,3 +592,43 @@ func TestVolumeRequestSpec_UnknownBlockKeys(t *testing.T) {
 	must.Len(t, 1, spec.TopologyRequest.Required)
 	must.Len(t, 1, spec.TopologyRequest.Preferred)
 }
+
+// Deleting a request whose policy takes the volume away needs the rights of
+// the volume API, as writing it does (review finding VOL-2).
+func TestVolumeRequest_DeleteChecks(t *testing.T) {
+	ci.Parallel(t)
+	c, _, cleanup := volumeRequestTestServer(t, true)
+	defer cleanup()
+
+	for name, policy := range map[string]string{
+		"kept": "retain", "forgotten": "deregister", "dropped": "delete", "dropped-too": "delete",
+	} {
+		_, err := c.apply("default", csiVolumeRequestKind, name, volumeSpec(func(m map[string]any) { m["deletion_policy"] = policy }))
+		must.NoError(t, err)
+	}
+
+	objects := mock.CreatePolicyAndToken(t, c.s.State(), 1001, "objects",
+		`namespace "default" { object "norca.io/CSIVolumeRequest" { capabilities = ["read", "write"] } }`)
+	volumes := mock.CreatePolicyAndToken(t, c.s.State(), 1003, "volumes", `namespace "default" {
+  object "norca.io/CSIVolumeRequest" { capabilities = ["read", "write"] }
+  capabilities = ["csi-write-volume"]
+}
+plugin { policy = "read" }`)
+
+	noVolume := &certTest{t: t, s: c.s, token: objects.SecretID}
+	for _, name := range []string{"forgotten", "dropped"} {
+		err := noVolume.delete("default", csiVolumeRequestKind, name)
+		must.Eq(t, 403, errCode(t, err), must.Sprintf("%s", name))
+		must.ErrorContains(t, err, "csi-write-volume")
+		must.False(t, c.get("default", csiVolumeRequestKind, name).Deleting())
+	}
+	// With retain the volume is not touched: the right to write the object
+	// is enough.
+	must.NoError(t, noVolume.delete("default", csiVolumeRequestKind, "kept"))
+
+	writer := &certTest{t: t, s: c.s, token: volumes.SecretID}
+	for _, name := range []string{"forgotten", "dropped"} {
+		must.NoError(t, writer.delete("default", csiVolumeRequestKind, name))
+	}
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "dropped-too"))
+}

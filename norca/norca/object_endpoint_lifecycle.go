@@ -239,6 +239,17 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 				return err
 			}
 		}
+		// What the deletion makes the servers delete in the storage.
+		if isSnapshotKind(kind.Group, kind.Kind) {
+			if err := checkSnapshotDelete(aclObj, existing); err != nil {
+				return err
+			}
+		}
+		if isVolumeRequestKind(kind.Group, kind.Kind) {
+			if err := checkVolumeRequestDelete(aclObj, existing); err != nil {
+				return err
+			}
+		}
 
 		if attempt == 1 {
 			if err := c.srv.checkObjectWriteLimits(kind, args); err != nil {

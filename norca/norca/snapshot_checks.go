@@ -40,6 +40,24 @@ func checkSnapshotApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 	return nil
 }
 
+// checkSnapshotDelete checks the deletion of a snapshot schedule through the
+// object API. With delete_snapshots the servers delete the snapshots the
+// schedule took, so the caller needs what the snapshot API asks for that. A
+// spec that can't be read is taken as one that deletes them.
+func checkSnapshotDelete(aclObj *acl.ACL, existing *structs.CustomObject) error {
+	spec := &snapshotScheduleSpec{}
+	if err := structs.DecodeObjectPart(existing.Spec, spec); err == nil && !spec.DeleteSnapshots {
+		return nil
+	}
+	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
+	if !allowVolume(aclObj, existing.Namespace) || !aclObj.AllowPluginRead() {
+		return structs.NewErrRPCCodedf(http.StatusForbidden,
+			"deleting a snapshot schedule with delete_snapshots needs the right %s in the namespace %q and to read CSI plugins",
+			acl.NamespaceCapabilityCSIWriteVolume, existing.Namespace)
+	}
+	return nil
+}
+
 // checkSnapshotStatusWrite refuses status writes through the object API: the
 // status of a schedule is the servers'.
 func checkSnapshotStatusWrite() error {
