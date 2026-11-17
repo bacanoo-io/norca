@@ -666,6 +666,18 @@ func (m *sealManager) reconcile(ctx context.Context, cfg *structs.SealConfig) er
 			}
 		}
 		if s.IsLeader() {
+			// The key of the secret store core is wrapped by the leader
+			// only (rewrapLocal). A server that finished the rewrap as a
+			// follower and leads now has not done it: without the wrap of
+			// the new seals the completed rewrap would leave the core key
+			// wrapped by the old seals alone, and the store sealed until it
+			// is recovered with the old shares. Nothing is written when the
+			// wraps are there already.
+			if slices.Contains(rw.Done, m.localID()) {
+				if err := s.rewrapSecretCoreKey(ctx, true); err != nil {
+					return err
+				}
+			}
 			return m.completeRewrap(cfg)
 		}
 		return nil
