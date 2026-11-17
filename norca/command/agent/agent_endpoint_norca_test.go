@@ -118,7 +118,7 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 		must.Eq(t, "<redacted>", self.Config.Server.Backup.Destinations[0].SecretKey)
 		must.Eq(t, "<redacted>", self.Config.Server.Backup.Destinations[0].SessionToken)
 		must.Eq(t, "AKIAEXAMPLE", self.Config.Server.Backup.Destinations[0].AccessKey)
-		must.Eq(t, "https://hook:xxxxx@hooks.example.com/admit", self.Config.Server.Admission.Webhooks[0].URL)
+		must.Eq(t, "https://xxxxx@hooks.example.com/admit", self.Config.Server.Admission.Webhooks[0].URL)
 		must.Eq(t, "https://hooks.example.com/admit", self.Config.Server.Admission.Webhooks[1].URL)
 		must.Eq(t, "https://hooks.example.com/admit?token=<redacted>&api_key=<redacted>&<redacted>&empty=",
 			self.Config.Server.Admission.Webhooks[2].URL)
@@ -158,12 +158,14 @@ func TestRedactURL(t *testing.T) {
 	cases := map[string]string{
 		"https://hooks.example.com/admit":                   "https://hooks.example.com/admit",
 		"http://10.0.0.1:8080/v1/admit":                     "http://10.0.0.1:8080/v1/admit",
-		"https://u:p@hooks.example.com/admit":               "https://u:xxxxx@hooks.example.com/admit",
+		"https://u:p@hooks.example.com/admit":               "https://xxxxx@hooks.example.com/admit",
+		"https://sk_live_SECRET:@hooks.example.com/x":       "https://xxxxx@hooks.example.com/x",
+		"https://SECRETTOKEN:x-oauth-basic@h.example.com/x": "https://xxxxx@h.example.com/x",
 		"https://tok@hooks.example.com/admit":               "https://xxxxx@hooks.example.com/admit",
 		"https://hooks.example.com/admit?a=1&b=%2F&c=":      "https://hooks.example.com/admit?a=<redacted>&b=<redacted>&c=",
 		"https://hooks.example.com/admit?abc":               "https://hooks.example.com/admit?<redacted>",
 		"https://hooks.example.com/admit#frag":              "https://hooks.example.com/admit#<redacted>",
-		"https://u:p@hooks.example.com:8443/a?token=t#frag": "https://u:xxxxx@hooks.example.com:8443/a?token=<redacted>#<redacted>",
+		"https://u:p@hooks.example.com:8443/a?token=t#frag": "https://xxxxx@hooks.example.com:8443/a?token=<redacted>#<redacted>",
 		"://bad\x7f": "<redacted>",
 	}
 	for in, want := range cases {

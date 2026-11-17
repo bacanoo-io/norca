@@ -83,10 +83,10 @@ func redactAutoscalerPlugins(plugins []*AutoscalerPluginConfig) []*AutoscalerPlu
 }
 
 // redactURL hides the credentials of a URL (a webhook URL) and keeps its
-// scheme, host and path: the password of the user information (or a user
-// name without a password, which is how tokens are usually passed), every
-// query parameter value (the names are kept) and the fragment. A URL that
-// can't be parsed is redacted completely.
+// scheme, host and path: the whole user information (tokens are passed as
+// the user name, with or without a password: "token@", "token:@",
+// "token:x-oauth-basic@"), every query parameter value (the names are kept)
+// and the fragment. A URL that can't be parsed is redacted completely.
 func redactURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -95,11 +95,7 @@ func redactURL(raw string) string {
 
 	changed := false
 	if u.User != nil {
-		if _, ok := u.User.Password(); ok {
-			u.User = url.UserPassword(u.User.Username(), "xxxxx")
-		} else {
-			u.User = url.User("xxxxx")
-		}
+		u.User = url.User("xxxxx")
 		changed = true
 	}
 	if u.RawQuery != "" {
