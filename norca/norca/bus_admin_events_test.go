@@ -179,9 +179,20 @@ cdc {
 		Sources: []*jetstream.StreamSource{{Name: bus.AdminEventStreamName("global")}},
 	})
 	must.Error(t, err)
-	// The event stream stays readable.
+	// The event stream stays readable, over the connection of the token as
+	// the reader: a token with a bus rule has no JetStream in the bus
+	// account. The admin stream is refused there too.
+	asReader, err := nats.Connect(busURL(s1), nats.UserInfo(bus.ReaderUser, readerToken.SecretID))
+	must.NoError(t, err)
+	defer asReader.Close()
+	asReaderJS, err := jetstream.New(asReader)
+	must.NoError(t, err)
 	ctx3, cancel3 := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel3()
-	_, err = readerJS.Stream(ctx3, bus.EventStreamName("global"))
+	_, err = asReaderJS.Stream(ctx3, bus.EventStreamName("global"))
 	must.NoError(t, err)
+	ctx4, cancel4 := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel4()
+	_, err = asReaderJS.Stream(ctx4, bus.AdminEventStreamName("global"))
+	must.Error(t, err)
 }

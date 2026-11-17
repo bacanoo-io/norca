@@ -65,7 +65,11 @@ type cdcLeafStream struct {
 // topics the token may see (the event stream API decides), without a
 // consumer. Subjects that overlap without one containing the other are
 // refused: a leaf would receive their events twice.
-func (s *Server) cdcLeafStreams(aclObj *acl.ACL, grant *acl.CDCGrant) ([]cdcLeafStream, error) {
+//
+// leaf is set for a leaf node, whose consumer gets the subjects as its
+// filters and so takes only as many; a reader that connects directly
+// (busReaderGrant) chooses the filters of its consumer itself.
+func (s *Server) cdcLeafStreams(aclObj *acl.ACL, grant *acl.CDCGrant, leaf bool) ([]cdcLeafStream, error) {
 	prefix, region := s.busEventsPrefix(), s.config.Region
 	// The subjects of a rule never start with a wildcard (busRuleSubjects);
 	// a token with every right receives every change stream.
@@ -107,11 +111,11 @@ func (s *Server) cdcLeafStreams(aclObj *acl.ACL, grant *acl.CDCGrant) ([]cdcLeaf
 		for i, a := range subjects {
 			for _, b := range subjects[:i] {
 				if bus.SubjectsCollide(a, b) {
-					return nil, fmt.Errorf("the subjects %q and %q of the cdc rule overlap: a leaf node would receive their changes twice", b, a)
+					return nil, fmt.Errorf("the subjects %q and %q of the cdc rule overlap: a leaf node or a reader would receive their changes twice", b, a)
 				}
 			}
 		}
-		if st.consumer && len(subjects) > structs.CDCMaxFilters {
+		if leaf && st.consumer && len(subjects) > structs.CDCMaxFilters {
 			return nil, fmt.Errorf("the cdc rule gives %d subjects of the stream %s, a consumer takes at most %d",
 				len(subjects), st.name, structs.CDCMaxFilters)
 		}
@@ -163,7 +167,7 @@ func (s *Server) busLeafGrant(c bus.Credentials) (*bus.Grant, error) {
 	if !grant.All && !grant.Leaf {
 		return nil, errors.New("the cdc rule of the token allows no leaf node (leaf = true)")
 	}
-	streams, err := s.cdcLeafStreams(aclObj, grant)
+	streams, err := s.cdcLeafStreams(aclObj, grant, true)
 	if err != nil {
 		return nil, err
 	}

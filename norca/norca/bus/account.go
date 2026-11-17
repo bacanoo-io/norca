@@ -69,6 +69,13 @@ type ReaderSpec struct {
 	// Leaf limits the account to one leaf node connection and no client
 	// connection, with ReaderMaxSubscriptions and ReaderMaxPayload.
 	Leaf bool
+
+	// Info lets the reader also ask for the information of the bus account
+	// and of the streams of its consumers ($JS.API.INFO,
+	// $JS.API.STREAM.INFO.<stream>), which the JetStream clients ask for
+	// before they read a consumer: a reader that connects directly, not a
+	// leaf node.
+	Info bool
 }
 
 const (
@@ -134,6 +141,9 @@ func ReaderAccountName(spec *ReaderSpec) string {
 		fmt.Fprintf(h, "c:%s.%s\n", c.Stream, c.Name)
 	}
 	fmt.Fprintf(h, "d:%s\nl:%t\n", spec.Domain, spec.Leaf)
+	if spec.Info {
+		fmt.Fprint(h, "i\n")
+	}
 	return ReaderAccountPrefix + spec.Reader + "_" + hex.EncodeToString(h.Sum(nil))[:12]
 }
 
@@ -164,6 +174,34 @@ func (spec *ReaderSpec) consumerImports(c ConsumerRef) []consumerImport {
 		// message, which names no domain.
 		{"$JS.ACK." + consumer + ".>", "$JS.ACK." + consumer + ".>", false},
 	}
+}
+
+// infoImports are the information subjects of the JetStream API a reader
+// account with Info imports: the account and each stream of its consumers.
+func (spec *ReaderSpec) infoImports() []consumerImport {
+	if !spec.Info {
+		return nil
+	}
+	api := spec.APIPrefix()
+	out := []consumerImport{{api + ".INFO", "$JS.API.INFO", false}}
+	var streams []string
+	for _, c := range spec.Consumers {
+		if !slices.Contains(streams, c.Stream) {
+			streams = append(streams, c.Stream)
+			out = append(out, consumerImport{api + ".STREAM.INFO." + c.Stream, "$JS.API.STREAM.INFO." + c.Stream, false})
+		}
+	}
+	return out
+}
+
+// InfoSubjects are the subjects a reader with Info publishes to for the
+// information of the account and of the streams of its consumers.
+func (spec *ReaderSpec) InfoSubjects() []string {
+	var out []string
+	for _, imp := range spec.infoImports() {
+		out = append(out, imp.from)
+	}
+	return out
 }
 
 // ConsumerSubjects are the subjects a reader publishes to for its consumer
@@ -278,8 +316,12 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 			return "", fmt.Errorf("bus: importing %q: %w", sub, err)
 		}
 	}
+	imports := [][]consumerImport{spec.infoImports()}
 	for _, c := range spec.Consumers {
-		for _, imp := range spec.consumerImports(c) {
+		imports = append(imports, spec.consumerImports(c))
+	}
+	for _, group := range imports {
+		for _, imp := range group {
 			resp := natsserver.Singleton
 			if imp.streamed {
 				resp = natsserver.Streamed

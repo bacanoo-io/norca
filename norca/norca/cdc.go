@@ -98,13 +98,11 @@ var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>"
 //   - the bus rule's subjects outside the change streams and outside
 //     JetStream and the other subjects of the servers (busInternalSubjects):
 //     the change streams are read by the cdc rule only, and the JetStream
-//     API of a reader is its own consumer;
-//   - the cdc rule's subjects inside the change streams, to subscribe live;
-//   - for a reader with a consumer name, the JetStream subjects of its own
-//     consumers of the streams it may read: info, next and acknowledgements.
+//     API of a reader is its own consumer, in the reader's account;
+//   - the cdc rule's subjects inside the change streams, to subscribe live.
 //
 // dropped counts the subjects of the rules that were left out.
-func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant, kind, name string) (publish, subscribe []string, dropped int) {
+func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant) (publish, subscribe []string, dropped int) {
 	region := s.config.Region
 	change := bus.ChangeStreamSubjects(s.busEventsPrefix(), region)
 	collides := func(subject string, with []string) bool {
@@ -137,20 +135,65 @@ func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant, kind, name
 	dropped = len(g.Subscribe) + len(g.Publish) + len(cdc.Receive) - len(subscribe) - len(publish) - len(receive)
 	subscribe = append(subscribe, receive...)
 
-	if consumer := cdcConsumerName(kind, name); consumer != "" && len(receive) > 0 {
-		publish = append(publish, "$JS.API.INFO")
-		for _, stream := range cdcReadableStreams(region) {
-			publish = append(publish,
-				"$JS.API.STREAM.INFO."+stream,
-				"$JS.API.CONSUMER.INFO."+stream+"."+consumer,
-				"$JS.API.CONSUMER.MSG.NEXT."+stream+"."+consumer,
-				"$JS.ACK."+stream+"."+consumer+".>",
-			)
-		}
-	}
+	// No subject of JetStream: a request names its reply subject, which
+	// NATS does not check, and JetStream would write its answer to any
+	// subject of this account. The consumers are read in the reader's own
+	// account (busReaderGrant).
 	slices.Sort(publish)
 	slices.Sort(subscribe)
 	return slices.Compact(publish), slices.Compact(subscribe), dropped
+}
+
+// busReaderGrant is the grant of a change data capture reader that connects
+// directly: an identity with a cdc rule and no bus rule, or one that logged
+// in as the reader (bus.ReaderUser). The connection is put into an account
+// of its own (bus.ReaderAccount), as a leaf node is: the account imports the
+// subjects of the cdc rule inside the change streams, live, and the
+// JetStream subjects of the reader's own consumer of each stream it may
+// read (information, fetch, acknowledgements) with the information of the
+// account and of those streams. Nothing the reader publishes reaches a
+// subject of the bus account, and neither does a reply subject it names:
+// the answer of a request across the accounts comes back into the reader's
+// account.
+func (s *Server) busReaderGrant(aclObj *acl.ACL, kind, name string) (*bus.Grant, error) {
+	cdc := aclObj.CDCGrant()
+	if cdc.Empty() {
+		return nil, errors.New("the token has no cdc rights: it is no change data capture reader")
+	}
+	streams, err := s.cdcLeafStreams(aclObj, cdc, false)
+	if err != nil {
+		return nil, err
+	}
+	consumer := cdcConsumerName(kind, name)
+	spec := &bus.ReaderSpec{Reader: consumer, Info: consumer != ""}
+	if consumer == "" {
+		// The anonymous token: the changes live, no consumer.
+		spec.Reader = consumerNameToken(name)
+	}
+	for _, st := range streams {
+		spec.Subjects = append(spec.Subjects, st.subjects...)
+		if st.consumer && consumer != "" {
+			spec.Consumers = append(spec.Consumers, bus.ConsumerRef{Stream: st.name, Name: consumer})
+		}
+	}
+	account, err := s.bus.ReaderAccount(spec)
+	if err != nil {
+		return nil, err
+	}
+	publish := spec.InfoSubjects()
+	for _, c := range spec.Consumers {
+		publish = append(publish, spec.ConsumerSubjects(c)...)
+	}
+	slices.Sort(publish)
+	return &bus.Grant{
+		Kind:    kind,
+		Name:    name,
+		Account: account,
+		// The account holds what the reader may receive and its own
+		// replies, whatever inbox it uses, and nothing else.
+		Publish:   publish,
+		Subscribe: []string{">"},
+	}, nil
 }
 
 // busNonChangeDeny are the subjects under the event prefix that are not

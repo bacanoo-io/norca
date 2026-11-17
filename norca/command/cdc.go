@@ -89,7 +89,11 @@ Usage: norca cdc consumer apply [options] -filter=<subject> [-filter=...]
   command, or the workload identity in NORCA_TOKEN) of a change stream, or
   changes its filters: a change keeps its position. Every filter lies within
   the reader's cdc rule; the filters do not overlap. The reader reads the
-  consumer on the system bus by its name (the accessor ID of the token).
+  consumer on the system bus by its name (the accessor ID of the token),
+  with fetches that wait at most 30 seconds. A token that also has a bus
+  rule reads it over a connection of its own, logged in as the user "cdc"
+  with the token as the password; a token with a cdc rule only connects
+  with the token as before.
 
 General Options:
 

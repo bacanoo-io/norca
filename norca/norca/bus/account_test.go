@@ -70,6 +70,14 @@ func TestReaderAccountName(t *testing.T) {
 	must.Eq(t, ReaderAccountName(a), ReaderAccountName(&ReaderSpec{Reader: "r1", Subjects: []string{"norca.eu.*.Job"}}))
 	must.NotEq(t, ReaderAccountName(a), ReaderAccountName(b))
 	must.NotEq(t, ReaderAccountName(a), ReaderAccountName(&ReaderSpec{Reader: "r2", Subjects: a.Subjects}))
+
+	// The information subjects are imports too: another account.
+	info := &ReaderSpec{Reader: "r1", Subjects: a.Subjects, Info: true,
+		Consumers: []ConsumerRef{{Stream: "S1", Name: "r1"}, {Stream: "S2", Name: "r1"}, {Stream: "S1", Name: "r1"}}}
+	plain := &ReaderSpec{Reader: "r1", Subjects: a.Subjects, Consumers: info.Consumers}
+	must.NotEq(t, ReaderAccountName(plain), ReaderAccountName(info))
+	must.Eq(t, []string{"$JS.API.INFO", "$JS.API.STREAM.INFO.S1", "$JS.API.STREAM.INFO.S2"}, info.InfoSubjects())
+	must.SliceEmpty(t, plain.InfoSubjects())
 }
 
 func TestBus_ReaderAccountRefused(t *testing.T) {

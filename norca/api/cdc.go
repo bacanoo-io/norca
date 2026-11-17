@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// CDCBusUser is the user name of a system bus connection that is the change
+// data capture reader of its token, the password of the connection (see
+// CDCConsumer).
+const CDCBusUser = "cdc"
+
 // The change streams of a region (change data capture).
 const (
 	CDCStreamEvents = "events"
@@ -30,7 +35,14 @@ type CDCConsumerSpec struct {
 // CDCConsumer is the consumer the servers keep for a reader of a change
 // stream. The reader reads it on the system bus by its Name (the accessor ID
 // of its token, or <allocation ID>_<task> of a workload identity) in the
-// stream StreamName.
+// stream StreamName, with fetches that wait at most 30 seconds.
+//
+// The servers put a reader's bus connection into an account of its own. An
+// identity with a cdc rule and no bus rule is a reader with its token; an
+// identity that also has a bus rule reads its consumers over a second
+// connection that logs in as the user CDCBusUser with the token (or the
+// workload identity) as the password, and its plain connection has the bus
+// rule without JetStream.
 type CDCConsumer struct {
 	Stream        string
 	StreamName    string

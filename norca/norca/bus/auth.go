@@ -85,6 +85,13 @@ type Grant struct {
 	Account string
 }
 
+// ReaderUser is the user name a connection logs in with, the ACL token or
+// the workload identity as its password, to be the change data capture
+// reader of that identity: it is put into the reader account of the
+// identity and not into the bus account. An identity with a cdc rule and no
+// bus rule is a reader without it.
+const ReaderUser = "cdc"
+
 // InboxPrefix is the first token of the inbox subjects, as in NATS.
 const InboxPrefix = "_INBOX"
 

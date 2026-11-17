@@ -27,7 +27,6 @@ const (
 	// The request limits of a consumer: one pull can't ask for everything.
 	cdcMaxRequestBatch    = 256
 	cdcMaxRequestMaxBytes = 1 << 20
-	cdcMaxRequestExpires  = time.Minute
 
 	// cdcReaderMeta is the metadata key of a consumer that names its reader
 	// (<kind>:<name>), for the cleanup of consumers whose reader lost its
@@ -256,8 +255,10 @@ func (c *CDC) ConsumerUpsert(args *structs.CDCConsumerUpsertRequest, reply *stru
 			MaxAckPending:      maxAckPending,
 			MaxRequestBatch:    cdcMaxRequestBatch,
 			MaxRequestMaxBytes: cdcMaxRequestMaxBytes,
-			MaxRequestExpires:  cdcMaxRequestExpires,
-			Metadata:           map[string]string{cdcReaderMeta: reader.kind + ":" + reader.name},
+			// A reader fetches across the accounts: a fetch may wait as
+			// long as the bus account keeps its way back.
+			MaxRequestExpires: bus.ReaderMaxFetchExpires,
+			Metadata:          map[string]string{cdcReaderMeta: reader.kind + ":" + reader.name},
 		}
 		cons, err := stream.CreateOrUpdateConsumer(ctx, cfg)
 		if err != nil {

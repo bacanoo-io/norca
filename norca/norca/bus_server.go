@@ -225,6 +225,12 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if c.Leaf {
 		return s.busLeafGrant(c)
 	}
+	// Norca: a change data capture reader logs in as the user "cdc" with
+	// its token or workload identity as the password.
+	asReader := c.Username == bus.ReaderUser
+	if asReader {
+		c.Username, c.Token, c.Password = "", c.Password, ""
+	}
 	if c.Username != "" {
 		node, err := s.fsm.State().NodeByID(nil, c.Username)
 		if err != nil {
@@ -258,6 +264,16 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if g.Empty() && cdc.Empty() {
 		return nil, errors.New("the token has no bus or cdc rights")
 	}
+	// Norca: a reader gets an account of its own (busReaderGrant): the
+	// connection that asked for it, and any connection of an identity with
+	// a cdc rule and no bus rule. An identity with both rules reads its
+	// consumers over a second connection, as the reader; its connection in
+	// the bus account has the bus rule and the changes live, without
+	// JetStream. An identity with every right of the bus stays in the bus
+	// account unless it asks.
+	if asReader || g.Empty() {
+		return s.busReaderGrant(aclObj, kind, name)
+	}
 	grant := &bus.Grant{
 		Kind: kind,
 		Name: name,
@@ -271,7 +287,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		// consumers (cdc.go); the admin events the token may not see, as
 		// the event stream API decides (bus_admin_events.go).
 		var dropped int
-		grant.Publish, grant.Subscribe, dropped = s.busGrantSubjects(g, cdc, kind, name)
+		grant.Publish, grant.Subscribe, dropped = s.busGrantSubjects(g, cdc)
 		grant.PublishDeny, grant.SubscribeDeny = s.busAdminDeny(aclObj)
 		grant.SubscribeDeny = append(grant.SubscribeDeny, s.busNonChangeDeny()...)
 		if dropped > 0 {

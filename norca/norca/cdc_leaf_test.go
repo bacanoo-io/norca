@@ -85,7 +85,7 @@ node { policy = "read" }`),
 		tok.Policies = []string{name}
 		aclObj, err := s1.ResolveACLForToken(tok)
 		must.NoError(t, err)
-		return s1.cdcLeafStreams(aclObj, aclObj.CDCGrant())
+		return s1.cdcLeafStreams(aclObj, aclObj.CDCGrant(), true)
 	}
 	events, kv, admin := bus.EventStreamName("global"), bus.ConsulKVChangesStreamName("global"), bus.AdminEventStreamName("global")
 
@@ -110,7 +110,7 @@ node { policy = "read" }`),
 
 	// A management token: every change stream, with a consumer of the admin
 	// events too.
-	got, err = s1.cdcLeafStreams(acl.ManagementACL, acl.ManagementACL.CDCGrant())
+	got, err = s1.cdcLeafStreams(acl.ManagementACL, acl.ManagementACL.CDCGrant(), true)
 	must.NoError(t, err)
 	must.Eq(t, []cdcLeafStream{
 		{name: events, subjects: []string{"norca.global.*.*"}, consumer: true},
