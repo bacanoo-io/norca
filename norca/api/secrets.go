@@ -146,9 +146,15 @@ type secretWriteResult struct {
 	Secret *Secret
 }
 
-// secretEndpoint returns the URL path of a secret.
+// secretEndpoint returns the URL path of a secret. Each segment of the secret
+// path is escaped: a "?", "#" or "%" in it stays part of the path, which the
+// server refuses, instead of cutting it into the path of another secret.
 func secretEndpoint(path string) string {
-	return "/v1/secret/" + strings.Trim(path, "/")
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return "/v1/secret/" + strings.Join(segments, "/")
 }
 
 // List lists the metadata of the secrets of the namespace of the query
