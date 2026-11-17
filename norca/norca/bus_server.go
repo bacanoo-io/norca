@@ -286,7 +286,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 // authentication does: an ACL token secret (empty: the anonymous token),
 // the secret of the leader, or the workload identity of a task. It returns
 // the ACL object, the kind and name of the connection and the inbox prefix
-// of its replies.
+// of its replies (none for the anonymous token).
 //
 // Norca: a workload identity gets the bus rules of the policies bound to its
 // job, group or task. Its inbox is _INBOX.<allocation ID>.<task>: both IDs
@@ -303,10 +303,14 @@ func (s *Server) busIdentity(secret string) (aclObj *acl.ACL, kind, name, inbox 
 		if err != nil {
 			return nil, "", "", "", err
 		}
-		name = token.AccessorID
 		if token == structs.AnonymousACLToken {
-			name = "anonymous"
+			// Every connection without a token is the anonymous token: an
+			// inbox by that name would be shared by all of them, and each
+			// would read the replies of the others. They get none; a
+			// connection that sends requests needs a token.
+			return aclObj, bus.KindToken, "anonymous", "", nil
 		}
+		name = token.AccessorID
 		return aclObj, bus.KindToken, name, bus.InboxPrefix + "." + structs.BusSubjectToken(name), nil
 
 	case errors.Is(err, structs.ErrTokenInvalid):
