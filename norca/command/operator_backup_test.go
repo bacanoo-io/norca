@@ -304,6 +304,39 @@ func TestOperatorBackup_FullRestoreFlags(t *testing.T) {
 	must.One(t, cmd.Run([]string{"-full", "-job", "web", "-confirm", "global", "20261024T140000Z-1"}))
 	must.StrContains(t, ui.ErrorWriter.String(), "takes no")
 
+	// Every item flag counts: a full restore takes none of them, and one of
+	// them alone is something to restore (the run then gets as far as
+	// reading the age identity).
+	for _, item := range [][]string{
+		{"-quota", "q1"},
+		{"-admission-policy", "p1"},
+		{"-network-policy", "np1"},
+		{"-admin-network-policy", "anp1"},
+		{"-intention", "web"},
+		{"-external-service", "db"},
+		{"-custom-object", "example.com/Widget/w1"},
+		{"-consul-kv", "app/key"},
+	} {
+		ui = cli.NewMockUi()
+		cmd = &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+		must.One(t, cmd.Run(append([]string{"-full", "-confirm", "global"}, append(item, "20261024T140000Z-1")...)))
+		must.StrContains(t, ui.ErrorWriter.String(), "takes no", must.Sprint(item))
+		must.StrContains(t, ui.ErrorWriter.String(), item[0], must.Sprint(item))
+
+		ui = cli.NewMockUi()
+		cmd = &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+		must.One(t, cmd.Run(append(item, "20261024T140000Z-1")))
+		must.StrNotContains(t, ui.ErrorWriter.String(), "Nothing to restore", must.Sprint(item))
+		must.StrContains(t, ui.ErrorWriter.String(), "an age identity is required", must.Sprint(item))
+	}
+
+	// Without an item the message names every item flag.
+	ui = cli.NewMockUi()
+	cmd = &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+	must.One(t, cmd.Run([]string{"-age-identity", "key.txt", "20261024T140000Z-1"}))
+	must.StrContains(t, ui.ErrorWriter.String(), "Nothing to restore")
+	must.StrContains(t, ui.ErrorWriter.String(), "-custom-object")
+
 	ui = cli.NewMockUi()
 	approve := &OperatorBackupApproveCommand{Meta: Meta{Ui: ui}}
 	must.One(t, approve.Run([]string{"abc"}))

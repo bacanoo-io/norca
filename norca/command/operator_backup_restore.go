@@ -195,6 +195,11 @@ func (c *OperatorBackupRestoreCommand) AutocompleteArgs() complete.Predictor {
 	return complete.PredictNothing
 }
 
+// restoreItemFlags names the flags that select the items of a selective
+// restore, but the last one, for the messages of the command.
+const restoreItemFlags = "-job, -variable, -consul-kv, -secret, -restore-namespace, -acl-policy, -acl-role, " +
+	"-quota, -admission-policy, -network-policy, -admin-network-policy, -intention, -external-service"
+
 // splitAt splits "name@number".
 func splitAt(s string) (string, *uint64, error) {
 	name, num, ok := strings.Cut(s, "@")
@@ -313,27 +318,6 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	for _, r := range roles {
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemACLRole, ID: r})
 	}
-	switch {
-	case full && len(items) > 0:
-		c.Ui.Error("A full restore takes no -job, -variable, -secret, -restore-namespace, -acl-policy or -acl-role")
-		return 1
-	case !full && len(items) == 0:
-		c.Ui.Error("Nothing to restore: use -job, -variable, -secret, -restore-namespace, -acl-policy, -acl-role or -full")
-		return 1
-	case !full && confirm != "":
-		c.Ui.Error("-confirm is only used with -full")
-		return 1
-	case full && !dryRun && confirm == "":
-		c.Ui.Error("Confirm the full restore with -confirm <region>, or preview it with -dry-run")
-		return 1
-	}
-
-	identity, err := readAgeIdentity(identityPath)
-	if err != nil {
-		c.Ui.Error(err.Error())
-		return 1
-	}
-
 	for _, group := range []struct {
 		itemType  string
 		namespace string
@@ -350,6 +334,26 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 		for _, name := range group.names {
 			items = append(items, &api.BackupRestoreItem{Type: group.itemType, Namespace: group.namespace, ID: name})
 		}
+	}
+	switch {
+	case full && len(items) > 0:
+		c.Ui.Error("A full restore takes no item: no " + restoreItemFlags + " or -custom-object")
+		return 1
+	case !full && len(items) == 0:
+		c.Ui.Error("Nothing to restore: use " + restoreItemFlags + ", -custom-object or -full")
+		return 1
+	case !full && confirm != "":
+		c.Ui.Error("-confirm is only used with -full")
+		return 1
+	case full && !dryRun && confirm == "":
+		c.Ui.Error("Confirm the full restore with -confirm <region>, or preview it with -dry-run")
+		return 1
+	}
+
+	identity, err := readAgeIdentity(identityPath)
+	if err != nil {
+		c.Ui.Error(err.Error())
+		return 1
 	}
 
 	client, err := c.Meta.Client()
