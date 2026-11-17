@@ -28,6 +28,11 @@ type fakeVolumeCSI struct {
 	expands   []int64
 	deletes   []string
 	createErr error
+	expandErr error
+
+	// onExpand, when set, runs once in the next expansion, as something
+	// that happens while the plugin works.
+	onExpand func()
 }
 
 func (f *fakeVolumeCSI) create(vol *structs.CSIVolume, _ *structs.CSIPlugin) error {
@@ -52,7 +57,18 @@ func (f *fakeVolumeCSI) validate(vol *structs.CSIVolume, _ *structs.CSIPlugin) e
 
 func (f *fakeVolumeCSI) expand(vol *structs.CSIVolume, _ *structs.CSIPlugin, capacity *csi.CapacityRange) error {
 	f.mu.Lock()
+	during := f.onExpand
+	f.onExpand = nil
+	f.mu.Unlock()
+	if during != nil {
+		during()
+	}
+
+	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.expandErr != nil {
+		return f.expandErr
+	}
 	if capacity.RequiredBytes > vol.Capacity {
 		f.expands = append(f.expands, capacity.RequiredBytes)
 		vol.Capacity = capacity.RequiredBytes
@@ -76,10 +92,15 @@ func (f *fakeVolumeCSI) set(change func(f *fakeVolumeCSI)) {
 // volumeRequestTestServer starts a server whose operator of volume requests
 // uses the fake plugin, with a healthy plugin "minnie" that can create and
 // expand volumes.
-func volumeRequestTestServer(t *testing.T, acl bool) (*certTest, *fakeVolumeCSI, func()) {
+func volumeRequestTestServer(t *testing.T, acl bool, cbs ...func(*Config)) (*certTest, *fakeVolumeCSI, func()) {
 	t.Helper()
 	fake := &fakeVolumeCSI{}
-	s, root, cleanup := secretTestServer(t, acl, func(c *Config) { c.volumeCSI = fake })
+	s, root, cleanup := secretTestServer(t, acl, func(c *Config) {
+		c.volumeCSI = fake
+		for _, cb := range cbs {
+			cb(c)
+		}
+	})
 
 	node := mock.Node()
 	node.CSIControllerPlugins = map[string]*structs.CSIInfo{
@@ -320,12 +341,10 @@ func TestVolumeRequest_ConflictAdoptAndRegister(t *testing.T) {
 
 func TestVolumeRequest_FailureAndDeletion(t *testing.T) {
 	ci.Parallel(t)
-	c, fake, cleanup := volumeRequestTestServer(t, false)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = 200 * time.Millisecond
+	})
 	defer cleanup()
-
-	oldBase := volumeRequestRetryBase
-	volumeRequestRetryBase = 200 * time.Millisecond
-	defer func() { volumeRequestRetryBase = oldBase }()
 
 	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("quota of the storage exceeded") })
 	for name, policy := range map[string]string{"keep-me": "retain", "forget-me": "deregister", "drop-me": "delete"} {

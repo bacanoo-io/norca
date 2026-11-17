@@ -410,6 +410,11 @@ type Config struct {
 	// the CSI controller plugins. For tests: a fake plugin.
 	volumeCSI volumeCSI
 
+	// volumeRequestRetryBase, when set, is the first wait of the operator of
+	// volume requests after a failed attempt, instead of
+	// volumeRequestRetryBase of the package. For tests.
+	volumeRequestRetryBase time.Duration
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

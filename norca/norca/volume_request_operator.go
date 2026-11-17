@@ -35,10 +35,10 @@ import (
 // its place would look like the old one to its jobs. The request reports it
 // (VolumeLost) until it is deleted or written again.
 
-var (
+const (
 	// volumeRequestRetryBase and volumeRequestRetryMax bound the wait after
 	// a failed create, register or expansion: it doubles with every failure
-	// in a row.
+	// in a row. A test sets its own base in the configuration of its server.
 	volumeRequestRetryBase = 30 * time.Second
 	volumeRequestRetryMax  = 30 * time.Minute
 
@@ -114,6 +114,9 @@ type volumeRequestOperator struct {
 	srv    *Server
 	logger hclog.Logger
 	csi    volumeCSI
+
+	// retryBase is the wait after the first failed attempt.
+	retryBase time.Duration
 }
 
 func newVolumeRequestOperator(srv *Server, logger hclog.Logger) *volumeRequestOperator {
@@ -121,7 +124,11 @@ func newVolumeRequestOperator(srv *Server, logger hclog.Logger) *volumeRequestOp
 	if srv.config != nil && srv.config.volumeCSI != nil {
 		csi = srv.config.volumeCSI
 	}
-	return &volumeRequestOperator{srv: srv, logger: logger.Named("volumes"), csi: csi}
+	retryBase := volumeRequestRetryBase
+	if srv.config != nil && srv.config.volumeRequestRetryBase > 0 {
+		retryBase = srv.config.volumeRequestRetryBase
+	}
+	return &volumeRequestOperator{srv: srv, logger: logger.Named("volumes"), csi: csi, retryBase: retryBase}
 }
 
 func (o *volumeRequestOperator) kinds() []*structs.ObjectKind { return builtinVolumeRequestKinds() }
@@ -295,7 +302,7 @@ func (o *volumeRequestOperator) failure(p *volumeRequestPass, obj *structs.Custo
 	out *volumeRequestOutcome, what string, err error) {
 
 	st.Failures++
-	wait := min(volumeRequestRetryBase<<min(st.Failures-1, 16), volumeRequestRetryMax)
+	wait := min(o.retryBase<<min(st.Failures-1, 16), volumeRequestRetryMax)
 	retryAt := p.now.Add(wait)
 	st.RetryAt = retryAt.Format(time.RFC3339)
 	out.failed = fmt.Sprintf("%s: %v", what, err)
