@@ -166,11 +166,21 @@ type tenantQuotaLimit struct {
 }
 
 // tenantRole is a role of a tenant: the namespace capabilities of its
-// people, and optionally a full ACL policy for what capabilities can't say.
+// people, their rights on the objects of kinds in the namespace (the kind
+// as "<group>/<Kind>", to the object capabilities), and optionally a full
+// ACL policy for what these can't say.
 type tenantRole struct {
-	Capabilities []string `json:"capabilities"`
-	Policy       string   `json:"policy"`
+	Capabilities []string            `json:"capabilities"`
+	Objects      map[string][]string `json:"objects"`
+	Policy       string              `json:"policy"`
 }
+
+// tenantObjectKindRule is what the kind of a role's object rights may be:
+// "<group>/<Kind>", either part with globs, or "*", as the ACL parser takes
+// the kind of an object block. It is checked before the kind is written
+// into the rules of a policy, so that the kind can't be anything but the
+// key of its block.
+var tenantObjectKindRule = regexp.MustCompile(`^[a-zA-Z0-9.*-]+/[a-zA-Z0-9*]+$|^\*$`)
 
 // tenantResourceRef names a resource a tenant created. Pending marks one
 // the tenant wrote down before it created it and has not seen to exist
@@ -250,12 +260,17 @@ func (s *tenantSpec) roles() (map[string]*tenantRole, error) {
 				return nil, fmt.Errorf("role %q: %v", name, err)
 			}
 			for k := range v {
-				if k != "capabilities" && k != "policy" {
-					return nil, fmt.Errorf("role %q: unknown key %q (capabilities, policy)", name, k)
+				if k != "capabilities" && k != "objects" && k != "policy" {
+					return nil, fmt.Errorf("role %q: unknown key %q (capabilities, objects, policy)", name, k)
+				}
+			}
+			for kind := range role.Objects {
+				if !tenantObjectKindRule.MatchString(kind) {
+					return nil, fmt.Errorf("role %q: objects: the kind %q must be <group>/<Kind>", name, kind)
 				}
 			}
 		default:
-			return nil, fmt.Errorf("role %q: a list of capabilities or an object with capabilities and policy", name)
+			return nil, fmt.Errorf("role %q: a list of capabilities or an object with capabilities, objects and policy", name)
 		}
 		out[name] = role
 	}
@@ -265,12 +280,27 @@ func (s *tenantSpec) roles() (map[string]*tenantRole, error) {
 // policyRules returns the ACL policy of a role in the namespace.
 func (r *tenantRole) policyRules(namespace string) string {
 	var b strings.Builder
-	if len(r.Capabilities) > 0 {
-		caps := make([]string, len(r.Capabilities))
-		for i, c := range r.Capabilities {
-			caps[i] = fmt.Sprintf("%q", c)
+	quoted := func(list []string) string {
+		out := make([]string, len(list))
+		for i, c := range list {
+			out[i] = fmt.Sprintf("%q", c)
 		}
-		fmt.Fprintf(&b, "namespace %q {\n  capabilities = [%s]\n}\n", namespace, strings.Join(caps, ", "))
+		return strings.Join(out, ", ")
+	}
+	if len(r.Capabilities) > 0 || len(r.Objects) > 0 {
+		fmt.Fprintf(&b, "namespace %q {\n", namespace)
+		if len(r.Capabilities) > 0 {
+			fmt.Fprintf(&b, "  capabilities = [%s]\n", quoted(r.Capabilities))
+		}
+		kinds := make([]string, 0, len(r.Objects))
+		for kind := range r.Objects {
+			kinds = append(kinds, kind)
+		}
+		sort.Strings(kinds)
+		for _, kind := range kinds {
+			fmt.Fprintf(&b, "  object %q {\n    capabilities = [%s]\n  }\n", kind, quoted(r.Objects[kind]))
+		}
+		b.WriteString("}\n")
 	}
 	if r.Policy != "" {
 		if b.Len() > 0 {
@@ -329,7 +359,7 @@ func (s *tenantSpec) validate(name string) error {
 		if !tenantNameRule.MatchString(roleName) {
 			return fmt.Errorf("role %q: the name must match %s", roleName, tenantNameRule)
 		}
-		if len(role.Capabilities) == 0 && role.Policy == "" {
+		if len(role.Capabilities) == 0 && len(role.Objects) == 0 && role.Policy == "" {
 			return fmt.Errorf("role %q: no capabilities and no policy", roleName)
 		}
 		if _, err := acl.Parse(role.policyRules(s.Namespace.Name)); err != nil {

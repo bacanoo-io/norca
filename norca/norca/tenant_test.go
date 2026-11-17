@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
@@ -700,5 +701,76 @@ func TestTenant_PendingResources(t *testing.T) {
 	for _, raw := range obj.Status["resources"].([]any) {
 		ref := raw.(map[string]any)
 		must.MapNotContainsKey(t, ref, "pending", must.Sprintf("%v exists and is marked pending", ref))
+	}
+}
+
+// A role grants rights on objects of kinds in the namespace of the tenant:
+// the object blocks of its namespace rule (review finding PLD-2).
+func TestTenantSpec_RoleObjects(t *testing.T) {
+	ci.Parallel(t)
+	spec, err := decodeTenantSpec("t1", map[string]any{
+		"roles": map[string]any{
+			"dev": map[string]any{
+				"capabilities": []any{"submit-job"},
+				"objects": map[string]any{
+					"norca.io/LoadBalancer": []any{"read", "write"},
+					"norca.io/DNSRecord":    []any{"read"},
+				},
+			},
+			"objects-only": map[string]any{
+				"objects": map[string]any{"example.com/*": []any{"read"}},
+			},
+		},
+	})
+	must.NoError(t, err)
+	must.NoError(t, spec.validate("t1"))
+	d, err := spec.desired("t1")
+	must.NoError(t, err)
+	must.Eq(t, "t1-dev", d.policies[0].Name)
+	must.Eq(t, `namespace "t1" {
+  capabilities = ["submit-job"]
+  object "norca.io/DNSRecord" {
+    capabilities = ["read"]
+  }
+  object "norca.io/LoadBalancer" {
+    capabilities = ["read", "write"]
+  }
+}
+`, d.policies[0].Rules)
+
+	// The policy grants the objects in the namespace of the tenant, and
+	// nowhere else.
+	parsed, err := acl.Parse(d.policies[0].Rules)
+	must.NoError(t, err)
+	aclObj, err := acl.NewACL(false, []*acl.Policy{parsed})
+	must.NoError(t, err)
+	must.True(t, aclObj.AllowObjectOperation("t1", "norca.io/LoadBalancer", acl.ObjectCapabilityWrite))
+	must.True(t, aclObj.AllowObjectOperation("t1", "norca.io/DNSRecord", acl.ObjectCapabilityRead))
+	must.False(t, aclObj.AllowObjectOperation("t1", "norca.io/DNSRecord", acl.ObjectCapabilityWrite))
+	must.False(t, aclObj.AllowObjectOperation("other", "norca.io/LoadBalancer", acl.ObjectCapabilityRead))
+	must.False(t, aclObj.AllowObjectOperation(acl.ObjectClusterNamespace, "norca.io/Tenant", acl.ObjectCapabilityRead))
+	must.True(t, aclObj.AllowNsOp("t1", acl.NamespaceCapabilitySubmitJob))
+
+	must.Eq(t, "t1-objects-only", d.policies[1].Name)
+	must.Eq(t, `namespace "t1" {
+  object "example.com/*" {
+    capabilities = ["read"]
+  }
+}
+`, d.policies[1].Rules)
+
+	// What the ACL parser refuses is refused when the tenant is written.
+	for name, objects := range map[string]map[string]any{
+		"bad capability": {"norca.io/LoadBalancer": []any{"no-such-capability"}},
+		"bad kind":       {"LoadBalancer": []any{"read"}},
+		"quote in kind":  {"norca.io/X\" {}\nnode { policy = \"write\" }\n#": []any{"read"}},
+		"no capability":  {"norca.io/LoadBalancer": []any{}},
+		"not a list":     {"norca.io/LoadBalancer": "read"},
+	} {
+		spec, err := decodeTenantSpec("t1", map[string]any{
+			"roles": map[string]any{"dev": map[string]any{"objects": objects}},
+		})
+		must.NoError(t, err)
+		must.ErrorContains(t, spec.validate("t1"), `role "dev"`, must.Sprint(name))
 	}
 }
