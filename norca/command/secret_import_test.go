@@ -174,6 +174,18 @@ func TestSecretImportCommand(t *testing.T) {
 	must.Zero(t, code)
 	must.StrContains(t, out, "app/db: imported as version 2")
 
+	// A secret whose current version was destroyed has nothing to keep: it
+	// is imported again without -overwrite, as the dry run says.
+	_, _, destroyErr := client.Secrets().Destroy("app/db", &api.SecretVersionsOptions{Versions: []uint64{2}}, nil)
+	must.NoError(t, destroyErr)
+	code, out, _ = run("-dry-run", "-from-vault", "kv/app/db")
+	must.Zero(t, code)
+	must.StrContains(t, out, "app/db: would import")
+	code, out, errOut = run("-from-vault", "kv/app/db")
+	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, "app/db: imported as version 3")
+	must.Eq(t, map[string]string{"password": importCanary, "port": "5432"}, read("app/db"))
+
 	// KV v1.
 	code, out, errOut = run("-from-vault", "old/")
 	must.Zero(t, code, must.Sprint(errOut))

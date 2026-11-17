@@ -256,8 +256,14 @@ func (c *SecretImportCommand) Run(args []string) int {
 		if exists {
 			secret, _, err = client.Secrets().Write(it.target, write, nil)
 		} else {
-			// Never overwrite a secret written in the meantime.
-			secret, _, err = client.Secrets().CheckedWrite(it.target, 0, write, nil)
+			// Never overwrite a secret written in the meantime. A secret
+			// whose current version is destroyed is still stored, with its
+			// modify index: that is the index to check, not 0.
+			var checkIndex uint64
+			if existing != nil {
+				checkIndex = existing.ModifyIndex
+			}
+			secret, _, err = client.Secrets().CheckedWrite(it.target, checkIndex, write, nil)
 		}
 		if err != nil {
 			c.Ui.Error(fmt.Sprintf("%s -> %s: failed to write the secret: %s", src, it.target, err))
