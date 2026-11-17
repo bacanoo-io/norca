@@ -104,6 +104,10 @@ type SaveOptions struct {
 	// ID, if set, is the ID of the backup (given by the leader to a backup
 	// an observer takes); otherwise it is made from the snapshot index.
 	ID string
+
+	// superseded, if set, is the failed record of the ID an observer was
+	// asked with, when the leader takes the backup under a new ID instead.
+	superseded *structs.BackupRecord
 }
 
 // Manager takes the scheduled and manual backups of a region on the leader,
@@ -466,7 +470,26 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 
 	tctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
-	return m.finish(ctx, cfg, dests, m.take(tctx, cfg, dests, opts, ""))
+	record, err := m.finish(ctx, cfg, dests, m.take(tctx, cfg, dests, opts, ""))
+	if opts.superseded != nil && record != nil {
+		m.noteReplacement(opts.superseded, record)
+	}
+	return record, err
+}
+
+// noteReplacement names, in the failed record of the ID an observer was
+// asked with, the backup the leader took instead: a caller that was given
+// that ID (a detached Save) finds the real backup through it.
+func (m *Manager) noteReplacement(superseded, record *structs.BackupRecord) {
+	if record.ID == superseded.ID {
+		return
+	}
+	updated := superseded.Copy()
+	updated.StatusDescription += fmt.Sprintf("; the leader took backup %s instead (%s)", record.ID, record.Status)
+	if _, err := m.deps.Apply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
+		&structs.BackupUpsertRequest{Backups: []*structs.BackupRecord{updated}}); err != nil {
+		m.logger.Warn("failed to note the replacement of a backup", "id", superseded.ID, "replacement", record.ID, "error", err)
+	}
 }
 
 // delegate asks an observer to take the backup. It reports done when the
@@ -499,19 +522,13 @@ func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination
 		// An observer may still be uploading under this ID: record it as
 		// failed and take the backup under a new one.
 		m.logger.Warn("the observer did not finish the backup, the leader takes a new one", "id", id, "error", err)
-		failed := &structs.BackupRecord{
-			ID: id, Region: m.deps.Region, AuthoritativeRegion: m.deps.AuthoritativeRegion,
-			Trigger: opts.Trigger, StartedAt: start, NorcaVersion: version.NorcaVersion,
-			NomadVersion: version.Version, Labels: maps.Clone(opts.Labels),
-		}
-		failed.Path, _ = PathFor(id)
-		m.finishFailed(failed, fmt.Errorf("the observer did not finish the backup: %w", err))
-		opts.ID = ""
+		m.supersede(opts, id, start, dests, fmt.Errorf("the observer did not finish the backup: %w", err))
 		return nil, false, nil
 	}
 	if err := m.checkDelegated(record, id, dests); err != nil {
+		// The observer may have uploaded under this ID.
 		m.logger.Warn("invalid record of an observer backup, the leader takes a new one", "id", id, "error", err)
-		opts.ID = ""
+		m.supersede(opts, id, start, dests, fmt.Errorf("invalid record of the observer backup: %w", err))
 		return nil, false, nil
 	}
 	if record.Status == structs.BackupStatusFailed {
@@ -526,6 +543,31 @@ func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination
 	}
 	record, err = m.finish(ctx, cfg, dests, record)
 	return record, true, err
+}
+
+// supersede records the ID an observer was asked with as failed and makes
+// the leader take the backup under a new ID. The caller may have been given
+// the ID already, so it always gets a record. The record lists every
+// destination as failed, so that deleting it (manually or by the retention)
+// removes what the observer uploaded, or still uploads, under the ID.
+func (m *Manager) supersede(opts *SaveOptions, id string, start time.Time, dests []Destination, cause error) {
+	failed := &structs.BackupRecord{
+		ID: id, Region: m.deps.Region, AuthoritativeRegion: m.deps.AuthoritativeRegion,
+		Trigger: opts.Trigger, StartedAt: start, NorcaVersion: version.NorcaVersion,
+		NomadVersion: version.Version, Labels: maps.Clone(opts.Labels),
+	}
+	failed.Path, _ = PathFor(id)
+	for _, d := range dests {
+		failed.Destinations = append(failed.Destinations, &structs.BackupDestinationStatus{
+			Name:     d.Name(),
+			Status:   structs.BackupDestinationStatusFailed,
+			Error:    cause.Error(),
+			Location: d.Location(failed.Path + "/"),
+		})
+	}
+	m.finishFailed(failed, cause)
+	opts.ID = ""
+	opts.superseded = failed
 }
 
 // checkDelegated checks the record an observer returned.

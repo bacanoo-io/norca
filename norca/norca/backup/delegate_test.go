@@ -162,6 +162,14 @@ func TestManager_Delegate(t *testing.T) {
 		must.NotNil(t, failed)
 		must.Eq(t, structs.BackupStatusFailed, failed.Status)
 		must.StrContains(t, failed.StatusDescription, "connection reset")
+
+		// The ID a detached Save returned leads to the backup taken instead,
+		// and what the observer may still upload under it can be deleted
+		// (review finding SRV-31).
+		must.StrContains(t, failed.StatusDescription, record.ID)
+		must.Len(t, 1, failed.Destinations)
+		must.Eq(t, "primary", failed.Destinations[0].Name)
+		must.Eq(t, structs.BackupDestinationStatusFailed, failed.Destinations[0].Status)
 	})
 
 	t.Run("a record of another backup is not accepted", func(t *testing.T) {
@@ -173,8 +181,18 @@ func TestManager_Delegate(t *testing.T) {
 			}
 			return rec, err
 		}
-		record, err := m.Save(SaveOptions{})
+		var started string
+		record, err := m.Save(SaveOptions{Started: func(id string) { started = id }})
 		must.NoError(t, err)
 		must.Eq(t, "srv-1", record.TakenBy)
+
+		// The ID given to the caller is recorded too (review finding SRV-31).
+		must.NotEq(t, started, record.ID)
+		failed, err := env.store.BackupByID(nil, started)
+		must.NoError(t, err)
+		must.NotNil(t, failed)
+		must.Eq(t, structs.BackupStatusFailed, failed.Status)
+		must.StrContains(t, failed.StatusDescription, record.ID)
+		must.Len(t, 1, failed.Destinations)
 	})
 }
