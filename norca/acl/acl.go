@@ -512,8 +512,8 @@ func (a *ACL) AllowNodePoolSearch() bool {
 
 // AllowHostVolumeOperation checks if a given operation is allowed for a host volume
 func (a *ACL) AllowHostVolumeOperation(hv string, op string) bool {
-	// Hot path management tokens
-	if a.management {
+	// Hot path if ACL is not enabled or if it's a management token.
+	if a == nil || a.management {
 		return true
 	}
 
@@ -529,8 +529,8 @@ func (a *ACL) AllowHostVolumeOperation(hv string, op string) bool {
 
 // AllowHostVolume checks if any operations are allowed for a HostVolume
 func (a *ACL) AllowHostVolume(ns string) bool {
-	// Hot path management tokens
-	if a.management {
+	// Hot path if ACL is not enabled or if it's a management token.
+	if a == nil || a.management {
 		return true
 	}
 
@@ -549,7 +549,7 @@ func (a *ACL) AllowHostVolume(ns string) bool {
 }
 
 func (a *ACL) AllowVariableOperation(ns, path, op string, claim *ACLClaim) bool {
-	if a.management {
+	if a == nil || a.management {
 		return true
 	}
 
@@ -573,7 +573,7 @@ type ACLClaim struct {
 // a variables path for the namespace, with an expectation that the actual
 // search result will be filtered by specific paths
 func (a *ACL) AllowVariableSearch(ns string) bool {
-	if a.management {
+	if a == nil || a.management {
 		return true
 	}
 	if ns == "*" {
@@ -759,6 +759,9 @@ func findAllMatchingWildcards(radix *iradix.Tree[capabilitySet], name string) []
 // AllowAgentRead checks if read operations are allowed for an agent
 func (a *ACL) AllowAgentRead() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.agent == PolicyWrite:
@@ -773,6 +776,9 @@ func (a *ACL) AllowAgentRead() bool {
 // AllowAgentWrite checks if write operations are allowed for an agent
 func (a *ACL) AllowAgentWrite() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.agent == PolicyWrite:
@@ -802,6 +808,9 @@ func (a *ACL) AllowNodeRead() bool {
 // AllowNodeWrite checks if write operations are allowed for a node
 func (a *ACL) AllowNodeWrite() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.node == PolicyWrite:
@@ -814,6 +823,9 @@ func (a *ACL) AllowNodeWrite() bool {
 // AllowOperatorRead checks if read operations are allowed for a operator
 func (a *ACL) AllowOperatorRead() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.operator == PolicyWrite:
@@ -828,6 +840,9 @@ func (a *ACL) AllowOperatorRead() bool {
 // AllowOperatorWrite checks if write operations are allowed for a operator
 func (a *ACL) AllowOperatorWrite() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.operator == PolicyWrite:
@@ -901,9 +916,10 @@ func (a *ACL) AllowPluginList() bool {
 	}
 }
 
-// IsManagement checks if this represents a management token
+// IsManagement checks if this represents a management token. A nil ACL
+// object, which means that ACLs are disabled, allows everything like one.
 func (a *ACL) IsManagement() bool {
-	return a.management
+	return a == nil || a.management
 }
 
 // NamespaceValidator returns a func that wraps ACL.AllowNamespaceOperation in
