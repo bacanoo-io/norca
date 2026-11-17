@@ -69,14 +69,18 @@ type operatorManager struct {
 
 	operators []coreOperator
 
-	// mu guards run.
+	// mu guards loops and run.
 	mu sync.Mutex
 
-	// run is closed when the loops of the last start have all ended. A
-	// start waits for it, so the loops of two leaderships, or of a
-	// leadership that is established again, never run side by side: an
-	// operator makes one pass at a time, whatever happens to the
-	// leadership.
+	// loops has a channel per operator, closed when the loop the last
+	// start made for that operator has ended. The next loop of the
+	// operator waits for it, so an operator makes one pass at a time
+	// whatever happens to the leadership, and waits for nothing else: a
+	// pass of one operator that outlives its leadership (in the call of a
+	// CSI plugin, for minutes) does not hold back the others.
+	loops []chan struct{}
+
+	// run is closed when everything the last start began has ended.
 	run chan struct{}
 }
 
@@ -97,19 +101,49 @@ func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
 // may take minutes) does not hold back the others.
 func (m *operatorManager) start(stopCh chan struct{}) {
 	m.mu.Lock()
-	previous := m.run
-	done := make(chan struct{})
-	m.run = done
+	previous := m.loops
+	loops := make([]chan struct{}, len(m.operators))
+	for i := range loops {
+		loops[i] = make(chan struct{})
+	}
+	run := make(chan struct{})
+	m.loops, m.run = loops, run
 	m.mu.Unlock()
 
+	// The kinds are registered beside the loops: that needs the
+	// leadership only, not the end of any earlier pass.
+	registered := make(chan struct{})
+	var all sync.WaitGroup
+	all.Add(1)
 	go func() {
-		defer close(done)
-		if previous != nil {
-			// A pass of the last leadership may still be in flight: it
-			// ends on its own, and no operator is run twice at a time.
-			<-previous
+		defer all.Done()
+		if m.registerKinds(stopCh) {
+			close(registered)
 		}
-		m.runOperators(stopCh)
+	}()
+	for i, op := range m.operators {
+		all.Add(1)
+		go func() {
+			defer all.Done()
+			defer close(loops[i])
+			if previous != nil {
+				// The loop the last start made for this operator: its
+				// pass in flight ends on its own. It is waited for
+				// even when stopCh closes meanwhile, or the start after
+				// this one would not wait for that pass.
+				<-previous[i]
+			}
+			select {
+			case <-stopCh:
+				return
+			case <-registered:
+			}
+			m.operatorLoop(op, stopCh)
+		}()
+	}
+	go func() {
+		all.Wait()
+		close(run)
 	}()
 }
 
@@ -121,9 +155,9 @@ func (m *operatorManager) stopped() <-chan struct{} {
 	return m.run
 }
 
-// runOperators registers the kinds of the built-in operators, runs the loop
-// of each of them, and returns when all the loops have ended.
-func (m *operatorManager) runOperators(stopCh chan struct{}) {
+// registerKinds registers the kinds of the built-in operators, trying again
+// until it is done. It reports false when stopCh was closed first.
+func (m *operatorManager) registerKinds(stopCh chan struct{}) bool {
 	var kinds []*structs.ObjectKind
 	for _, op := range m.operators {
 		kinds = append(kinds, op.kinds()...)
@@ -131,30 +165,20 @@ func (m *operatorManager) runOperators(stopCh chan struct{}) {
 	for {
 		select {
 		case <-stopCh:
-			return
+			return false
 		default:
 		}
 		err := m.srv.registerKinds(kinds)
 		if err == nil {
-			break
+			return true
 		}
 		m.logger.Warn("registering the kinds of the built-in operators failed, will retry", "error", err)
 		select {
 		case <-stopCh:
-			return
+			return false
 		case <-time.After(operatorsRetry):
 		}
 	}
-
-	var loops sync.WaitGroup
-	for _, op := range m.operators {
-		loops.Add(1)
-		go func(op coreOperator) {
-			defer loops.Done()
-			m.operatorLoop(op, stopCh)
-		}(op)
-	}
-	loops.Wait()
 }
 
 // operatorLoop runs one built-in operator while this server is the leader:
