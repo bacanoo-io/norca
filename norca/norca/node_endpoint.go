@@ -508,6 +508,15 @@ func (n *Node) deregister(args *structs.NodeBatchDeregisterRequest,
 	return nil
 }
 
+// callerIsNode reports whether the connection of a request may be kept as
+// the connection of the node: the servers send the node's RPCs over it (alloc
+// exec, fs, logs, with the token of the user who asked), so with ACLs
+// enabled the caller must have authenticated with the secret ID of that
+// node. Without ACLs no caller is identified, as before.
+func (n *Node) callerIsNode(args structs.RequestWithIdentity, nodeID string) bool {
+	return !n.srv.config.ACLEnabled || clientIdentity(args) == nodeID
+}
+
 // UpdateStatus is used to update the status of a client node.
 //
 // Clients with non-terminal allocations must first call UpdateAlloc to be able
@@ -543,7 +552,10 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
+		// Only for the node itself, as this server authenticated the
+		// caller (see callerIsNode).
+		if err == nil && authErr == nil && n.ctx != nil && !isForwarded &&
+			n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -596,8 +608,10 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
-	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
+	// the connection if it is not being forwarded from another server, and
+	// only for the node itself: a caller with an ACL token may set the status
+	// (node write, above), but its connection is not the node's.
+	if n.ctx != nil && !args.IsForwarded() && n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
