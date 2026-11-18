@@ -98,7 +98,7 @@ func (s *Server) getAutoscalerSecret() string {
 // autoscaler's system identity.
 func (s *Server) isAutoscalerSecret(secretID string) bool {
 	secret := s.getAutoscalerSecret()
-	return secret != "" && secretID == secret
+	return secret != "" && constantTimeEqual(secretID, secret)
 }
 
 // isAutoscalerRequest reports whether a request was sent by the built-in
