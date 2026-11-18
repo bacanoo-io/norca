@@ -194,7 +194,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 
 	if originalNode != nil {
 		// Check if the SecretID has been tampered with
-		if args.Node.SecretID != originalNode.SecretID && originalNode.SecretID != "" {
+		if originalNode.SecretID != "" && !constantTimeEqual(args.Node.SecretID, originalNode.SecretID) {
 			return fmt.Errorf("node secret ID does not match. Not registering node.")
 		}
 
@@ -1241,8 +1241,8 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
 		// Only for the node itself, as this server authenticated the
-		// caller (see callerIsNode): another region, where the node does
-		// not exist, answers an empty list without checking a secret.
+		// caller (see callerIsNode): the answer of another server says
+		// nothing about who the caller is.
 		if err == nil && authErr == nil && n.ctx != nil && !isForwarded &&
 			n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
@@ -1278,27 +1278,27 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 				return err
 			}
 
-			var allocs []*structs.Allocation
-			if node != nil {
-				if args.SecretID == "" {
-					return fmt.Errorf("missing node secret ID for client status update")
-				} else if args.SecretID != node.SecretID {
-					return fmt.Errorf("node secret ID does not match")
-				}
+			// A node that does not exist is answered like a wrong secret,
+			// so that the answer does not tell whether a node exists. The
+			// client registers its node again on this error.
+			if args.SecretID == "" {
+				return fmt.Errorf("missing node secret ID for client status update")
+			}
+			if node == nil || !constantTimeEqual(args.SecretID, node.SecretID) {
+				return fmt.Errorf("node secret ID does not match")
+			}
 
-				// We have a valid node connection, so add the mapping to cache the
-				// connection and allow the server to send RPCs to the client. We only cache
-				// the connection if it is not being forwarded from another server, and
-				// only for the node itself (see callerIsNode).
-				if n.ctx != nil && !args.IsForwarded() && n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
-					n.srv.addNodeConn(n.ctx)
-				}
+			// We have a valid node connection, so add the mapping to cache the
+			// connection and allow the server to send RPCs to the client. We only cache
+			// the connection if it is not being forwarded from another server, and
+			// only for the node itself (see callerIsNode).
+			if n.ctx != nil && !args.IsForwarded() && n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
+				n.srv.addNodeConn(n.ctx)
+			}
 
-				var err error
-				allocs, err = state.AllocsByNode(ws, args.NodeID)
-				if err != nil {
-					return err
-				}
+			allocs, err := state.AllocsByNode(ws, args.NodeID)
+			if err != nil {
+				return err
 			}
 
 			reply.Allocs = make(map[string]uint64)
@@ -1935,7 +1935,7 @@ func (n *Node) DeriveVaultToken(args *structs.DeriveVaultTokenRequest, reply *st
 		setError(fmt.Errorf("Node %q does not exist", args.NodeID), false)
 		return nil
 	}
-	if node.SecretID != args.SecretID {
+	if !constantTimeEqual(node.SecretID, args.SecretID) {
 		setError(fmt.Errorf("SecretID mismatch"), false)
 		return nil
 	}
@@ -2159,7 +2159,7 @@ func (n *Node) DeriveSIToken(args *structs.DeriveSITokenRequest, reply *structs.
 		setError(fmt.Errorf("Node %q does not exist", args.NodeID), false)
 		return nil
 	}
-	if node.SecretID != args.SecretID {
+	if !constantTimeEqual(node.SecretID, args.SecretID) {
 		setError(errors.New("SecretID mismatch"), false)
 		return nil
 	}

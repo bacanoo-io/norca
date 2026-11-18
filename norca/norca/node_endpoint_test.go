@@ -2678,17 +2678,22 @@ func TestClientEndpoint_GetClientAllocs(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	// Lookup non-existing node
+	// Lookup non-existing node: answered like a wrong secret, so that the
+	// answer does not tell whether a node exists
 	get.NodeID = uuid.Generate()
 	var resp4 structs.NodeClientAllocsResponse
-	if err := msgpackrpc.CallWithCodec(codec, "Node.GetClientAllocs", get, &resp4); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if resp4.Index != 100 {
-		t.Fatalf("Bad index: %d %d", resp3.Index, 100)
-	}
-	if len(resp4.Allocs) != 0 {
-		t.Fatalf("unexpected node %#v", resp3.Allocs)
+	err4 := msgpackrpc.CallWithCodec(codec, "Node.GetClientAllocs", get, &resp4)
+	must.Error(t, err4)
+	must.EqError(t, err4, err.Error())
+	must.MapEmpty(t, resp4.Allocs)
+
+	// Without a secret, for an existing and a non-existing node alike
+	get.SecretID = ""
+	for _, nodeID := range []string{node.ID, uuid.Generate()} {
+		get.NodeID = nodeID
+		var resp5 structs.NodeClientAllocsResponse
+		err5 := msgpackrpc.CallWithCodec(codec, "Node.GetClientAllocs", get, &resp5)
+		must.ErrorContains(t, err5, "missing node secret ID")
 	}
 
 	// Close the connection and check that we remove the client connections

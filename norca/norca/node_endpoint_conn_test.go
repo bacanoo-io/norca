@@ -176,12 +176,17 @@ func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) 
 	takeovers := []struct {
 		name    string
 		request func(victim *structs.Node) (string, any, any)
+		// refused is the error of a region that does not know the node,
+		// or "" when the call passes there.
+		refused string
 	}{
 		{
 			name: "GetClientAllocs addressed to the other region",
 			request: func(victim *structs.Node) (string, any, any) {
 				return clientAllocs(victim.ID, uuid.Generate(), otherRegion, "", false)
 			},
+			// an unknown node is answered like a wrong secret
+			refused: "node secret ID does not match",
 		},
 		{
 			name: "Register addressed to the other region",
@@ -195,9 +200,15 @@ func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) 
 			t.Run(s.name+"/"+tc.name, func(t *testing.T) {
 				victim := newNode(t)
 				method, req, reply := tc.request(victim)
-				// The other region does not know the node and has nothing to
-				// refuse: that the call passes is what the takeover needed.
-				must.NoError(t, call(t, s.srv, method, req, reply))
+				// The other region does not know the node: where it has
+				// nothing to refuse, that the call passes is what the
+				// takeover needed.
+				err := call(t, s.srv, method, req, reply)
+				if tc.refused != "" {
+					must.ErrorContains(t, err, tc.refused)
+				} else {
+					must.NoError(t, err)
+				}
 				_, ok := s.srv.getNodeConn(victim.ID)
 				must.False(t, ok, must.Sprint("the connection of a caller without the node's secret became the connection of the node"))
 			})
