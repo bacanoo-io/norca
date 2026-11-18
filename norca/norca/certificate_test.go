@@ -140,6 +140,7 @@ func certPool(t *testing.T, bundle string) *x509.CertPool {
 func newCertTest(t *testing.T) (*certTest, func()) {
 	t.Helper()
 	s, _, cleanup := secretTestServer(t, false, nil)
+	waitOperatorKinds(t, s)
 	return &certTest{t: t, s: s}, cleanup
 }
 
@@ -435,6 +436,7 @@ func TestCertificate_ACL(t *testing.T) {
 
 	s, root, cleanup := secretTestServer(t, true, nil)
 	defer cleanup()
+	waitOperatorKinds(t, s)
 	admin := &certTest{t: t, s: s, token: root.SecretID}
 	admin.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
 	_, err := admin.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})

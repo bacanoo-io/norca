@@ -68,6 +68,29 @@ func waitPasses(t *testing.T, o *stubOperator, atLeast int, what string) {
 	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)), must.Sprint(what))
 }
 
+// waitOperatorKinds waits until the kinds of the built-in operators of a
+// server are registered. The leader registers them after it is elected, in
+// a goroutine of its own (operatorManager.start), and nothing orders that
+// before what a test waits for otherwise (the leader, the secret core): an
+// object of such a kind written before is refused with "object kind ... not
+// found" (review finding MUK-14).
+func waitOperatorKinds(t *testing.T, s *Server) {
+	t.Helper()
+	var kinds []*structs.ObjectKind
+	for _, op := range s.operators.operators {
+		kinds = append(kinds, op.kinds()...)
+	}
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		for _, kind := range kinds {
+			if k, err := s.State().ObjectKindByName(nil, kind.Group, kind.Kind); err != nil || k == nil {
+				return false
+			}
+		}
+		return true
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)),
+		must.Sprint("the kinds of the built-in operators are registered"))
+}
+
 // A pass that outlives its leadership holds back only the next loop of its
 // own operator: after the leadership is lost and gained again, the other
 // operators run at once, and the operator of the pass in flight runs when

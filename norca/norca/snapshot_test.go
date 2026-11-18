@@ -214,6 +214,7 @@ func snapshotTestServerWith(t *testing.T, acl bool, canSnapshot bool, setup func
 		PluginID:       "minnie",
 		ExternalID:     "ext-db",
 	}}))
+	waitOperatorKinds(t, s)
 
 	c := &certTest{t: t, s: s}
 	if root != nil {

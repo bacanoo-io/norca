@@ -68,16 +68,7 @@ func dependentsTestServer(t *testing.T, cbs ...func(*Config)) (*certTest, *fakeV
 		ExternalID:     "ext-db",
 	}}))
 
-	// The leader registers the built-in kinds after it is elected, on its
-	// own time.
-	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
-		for _, kind := range []string{csiVolumeRequestKind, volumeSnapshotScheduleKind} {
-			if k, err := s.State().ObjectKindByName(nil, structs.OperatorsGroup, kind); err != nil || k == nil {
-				return false
-			}
-		}
-		return true
-	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the built-in kinds are registered"))
+	waitOperatorKinds(t, s)
 
 	c := &certTest{t: t, s: s, token: root.SecretID}
 	var resp structs.ObjectKindUpsertResponse

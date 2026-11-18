@@ -31,15 +31,11 @@ func newTenantTest(t *testing.T) (*certTest, func()) {
 	return &certTest{t: t, s: s, token: root.SecretID}, cleanup
 }
 
-// waitTenantKind waits for the kind Tenant. The leader registers the
-// built-in kinds after it is elected, on its own time: a tenant written
-// before that is refused.
+// waitTenantKind waits for the kind Tenant, with the other kinds of the
+// built-in operators: see waitOperatorKinds.
 func waitTenantKind(t *testing.T, s *Server) {
 	t.Helper()
-	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
-		kind, err := s.State().ObjectKindByName(nil, structs.OperatorsGroup, structs.TenantKind)
-		return err == nil && kind != nil
-	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the kind Tenant is registered"))
+	waitOperatorKinds(t, s)
 }
 
 // waitTenant waits until the tenant satisfies cond.
