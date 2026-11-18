@@ -1904,6 +1904,14 @@ func TestLeader_ReplicateNamespaces_DeleteRefused(t *testing.T) {
 	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)),
 		must.Sprint("the deletion of the busy namespace held back the empty one"))
 	must.True(t, exists(busy.Name), must.Sprint("the namespace with a job was deleted"))
+
+	// Once the job is gone here, the refused deletion is tried again
+	// without a change in the authoritative region (review finding MUK-19).
+	must.NoError(t, s2.State().DeleteJob(1001, job.Namespace, job.ID))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return !exists(busy.Name)
+	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)),
+		must.Sprint("the refused deletion was not tried again"))
 }
 
 func TestLeader_DiffNamespaces(t *testing.T) {

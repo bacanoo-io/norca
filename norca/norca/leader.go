@@ -564,6 +564,12 @@ func (s *Server) replicateNamespaces(stopCh chan struct{}) {
 	limiter := rate.NewLimiter(replicationRateLimit, int(replicationRateLimit))
 	s.logger.Debug("starting namespace replication from authoritative region", "region", req.Region)
 
+	// Norca: refused are the namespaces whose deletion the state store
+	// refused, with the reason: they are tried again every
+	// ReplicationBackoff, without a change in the authoritative region, and
+	// a reason is logged as an error only when it is new.
+	refused := map[string]string{}
+
 START:
 	for {
 		select {
@@ -591,22 +597,32 @@ START:
 		// as the state store refuses a whole request for one namespace that
 		// still holds something here (a job, a volume, a variable, an
 		// object): the others are deleted all the same.
+		stillRefused := map[string]string{}
 		for _, name := range delete {
 			args := &structs.NamespaceDeleteRequest{
 				Namespaces: []string{name},
 			}
 			_, index, err := s.raftApply(structs.NamespaceDeleteRequestType, args)
-			if err != nil {
+			switch {
+			case err != nil && index == 0:
 				s.logger.Error("failed to delete namespace", "namespace", name, "error", err)
+				goto ERR_WAIT
+			case err != nil:
 				// Norca: an index says the request was applied and the
 				// state store refused it. That must not stop the
 				// replication of the other namespaces: go on, as when
 				// the refusal was not reported.
-				if index == 0 {
-					goto ERR_WAIT
+				if refused[name] != err.Error() {
+					s.logger.Error("failed to delete namespace, will retry", "namespace", name, "error", err)
+				} else {
+					s.logger.Debug("failed to delete namespace, will retry", "namespace", name, "error", err)
 				}
+				stillRefused[name] = err.Error()
+			case refused[name] != "":
+				s.logger.Info("deleted namespace whose deletion was refused before", "namespace", name)
 			}
 		}
+		refused = stillRefused
 
 		// Fetch any outdated namespaces
 		var fetched []*structs.Namespace
@@ -643,7 +659,12 @@ START:
 		}
 
 		// Update the minimum query index, blocks until there is a change.
+		// Norca: while a deletion is refused, at most ReplicationBackoff.
 		req.MinQueryIndex = resp.Index
+		req.MaxQueryTime = 0
+		if len(refused) > 0 {
+			req.MaxQueryTime = s.config.ReplicationBackoff
+		}
 	}
 
 ERR_WAIT:
