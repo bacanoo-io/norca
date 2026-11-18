@@ -28,7 +28,7 @@ func (s *Server) Status() (*structs.BusStatus, error) {
 		Clustered:    s.Clustered(),
 		ClusterPort:  s.config.ClusterPort,
 		LeafNodePort: leafPort(s.config),
-		TLS:          s.config.ClientTLS != nil,
+		TLS:          s.tlsEnabled(),
 		Started:      varz.Start,
 		Connections: &structs.BusConnections{
 			InMsgs:   varz.InMsgs,

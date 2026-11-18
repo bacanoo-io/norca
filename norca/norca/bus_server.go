@@ -156,6 +156,28 @@ func (s *Server) shutdownBus() {
 	}
 }
 
+// reloadBusTLS applies a reloaded agent TLS configuration to the listeners
+// of the system bus, as reloadTLSConnections does to the RPC listener.
+// Turning the TLS of the bus on or off applies only after a restart.
+func (s *Server) reloadBusTLS(conf *config.TLSConfig) error {
+	if s.bus == nil {
+		return nil
+	}
+	var clientTLS, clusterTLS *tls.Config
+	if conf != nil && conf.EnableRPC {
+		var err error
+		if clientTLS, clusterTLS, err = busTLS(conf, s.config.Region); err != nil {
+			return err
+		}
+	}
+	err := s.bus.ReloadTLS(clientTLS, clusterTLS)
+	if errors.Is(err, bus.ErrTLSNeedsRestart) {
+		s.logger.Warn("turning the TLS of the system bus on or off applies only after a restart")
+		return nil
+	}
+	return err
+}
+
 // busTLS returns the TLS configurations of the bus listeners from the agent
 // TLS configuration. Client connections need not present a certificate:
 // they authenticate with node secrets or ACL tokens. Routes require the

@@ -857,6 +857,12 @@ func (s *Server) reloadTLSConnections(newTLSConfig *config.TLSConfig) error {
 	s.raftLayer.ReloadTLS(wrapper)
 	s.raftTransport.CloseStreams()
 
+	// Norca: the listeners of the system bus take the new configuration.
+	if err := s.reloadBusTLS(newTLSConfig); err != nil {
+		s.logger.Error("unable to reload the TLS configuration of the system bus", "error", err)
+		return err
+	}
+
 	s.logger.Debug("finished reloading server connections")
 	return nil
 }

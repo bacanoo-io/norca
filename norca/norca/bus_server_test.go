@@ -453,4 +453,74 @@ func TestBusServer_TLSRoutes(t *testing.T) {
 	nc.Close()
 	_, err = nats.Connect(s1.ClientURL(), nats.Token("nope"), nats.Secure(tlsConf))
 	must.Error(t, err)
+
+	// The TLS of a clustered bus is reloaded in place; turning it off
+	// needs a restart (review finding MUK-2).
+	clientTLS, clusterTLS, err := busTLS(tlsFor("global-server-norca"), "global")
+	must.NoError(t, err)
+	must.NoError(t, s1.ReloadTLS(clientTLS, clusterTLS))
+	must.ErrorIs(t, s1.ReloadTLS(nil, nil), bus.ErrTLSNeedsRestart)
+	nc, err = nats.Connect(s1.ClientURL(), nats.Token("ok"), nats.Secure(tlsConf))
+	must.NoError(t, err)
+	nc.Close()
+	st, err = s1.Status()
+	must.NoError(t, err)
+	must.True(t, st.TLS)
+	must.SliceNotEmpty(t, st.Routes)
+}
+
+// A reloaded TLS configuration reaches the listener of the bus: a new CA
+// and certificate are used by the connections made after the reload
+// (review finding MUK-2).
+func TestBusServer_ReloadTLS(t *testing.T) {
+	ci.Parallel(t)
+
+	const dir = "../helper/tlsutil/testdata/"
+	s1, cleanup := TestServer(t, func(c *Config) {
+		enableBus(t)(c)
+		c.TLSConfig = &config.TLSConfig{
+			EnableRPC:            true,
+			VerifyServerHostname: true,
+			CAFile:               dir + "norca-agent-ca.pem",
+			CertFile:             dir + "global-server-norca.pem",
+			KeyFile:              dir + "global-server-norca-key.pem",
+		}
+	})
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	node := mock.Node()
+	must.NoError(t, s1.fsm.State().UpsertNode(structs.MsgTypeTestSetup, 100, node))
+
+	// connect connects as the node over TLS, trusting the CA of caFile
+	// only, with the client certificate of client when it is not nil.
+	connect := func(caFile string, client *config.TLSConfig) error {
+		pool := x509.NewCertPool()
+		pem, err := os.ReadFile(caFile)
+		must.NoError(t, err)
+		must.True(t, pool.AppendCertsFromPEM(pem))
+		conf := &tls.Config{RootCAs: pool, ServerName: "server.global.norca"}
+		if client != nil {
+			pair, err := tls.LoadX509KeyPair(client.CertFile, client.KeyFile)
+			must.NoError(t, err)
+			conf.Certificates = []tls.Certificate{pair}
+		}
+		nc, err := nats.Connect(busURL(s1), nats.UserInfo(node.ID, node.SecretID), nats.Secure(conf))
+		if err == nil {
+			nc.Close()
+		}
+		return err
+	}
+	must.NoError(t, connect(dir+"norca-agent-ca.pem", nil))
+
+	// The CA and the certificate of the servers are replaced.
+	pki := newBusPKI(t)
+	nodeCA := pki.nodeCA("node CA")
+	server := pki.agent("server", "server.global.norca", nodeCA, "")
+	client := pki.agent("client", "client.global.norca", nodeCA, "")
+	must.NoError(t, s1.reloadTLSConnections(server))
+
+	must.NoError(t, connect(server.CAFile, nil), must.Sprint("the bus kept the certificate of before the reload"))
+	// A client certificate of the new CA is verified with the new CA.
+	must.NoError(t, connect(server.CAFile, client), must.Sprint("the bus kept the CA of before the reload"))
+	must.Error(t, connect(dir+"norca-agent-ca.pem", nil))
 }

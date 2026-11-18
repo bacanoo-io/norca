@@ -20,6 +20,7 @@ package bus
 
 import (
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -283,6 +284,50 @@ func (s *Server) SetRoutes(addrs []string) error {
 	s.routes = addrs
 	s.logger.Debug("routes updated", "routes", addrs)
 	return nil
+}
+
+// ErrTLSNeedsRestart is returned by ReloadTLS for a change that turns the
+// TLS of the bus on or off: that applies only after a restart.
+var ErrTLSNeedsRestart = errors.New("bus: turning TLS on or off needs a restart")
+
+// ReloadTLS replaces the TLS configurations of the listeners (a reloaded
+// agent TLS configuration: a new CA, certificate or setting). The
+// connections made from now on use them; open connections keep the TLS
+// they were made with. A bus that becomes clustered later starts with them.
+func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
+	s.routesLock.Lock()
+	defer s.routesLock.Unlock()
+	s.nsLock.Lock()
+	defer s.nsLock.Unlock()
+
+	if (clientTLS == nil) != (s.config.ClientTLS == nil) || (clusterTLS == nil) != (s.config.ClusterTLS == nil) {
+		return ErrTLSNeedsRestart
+	}
+	if clientTLS == nil {
+		return nil
+	}
+	opts := s.opts.Clone()
+	opts.TLSConfig = clientTLS
+	if s.clustered {
+		opts.Cluster.TLSConfig = clusterTLS
+	}
+	if s.config.LeafNodes.Enabled {
+		opts.LeafNode.TLSConfig = clientTLS
+	}
+	if err := s.ns.ReloadOptions(opts); err != nil {
+		return fmt.Errorf("bus: reloading the TLS configuration: %w", err)
+	}
+	s.opts = opts
+	s.config.ClientTLS, s.config.ClusterTLS = clientTLS, clusterTLS
+	s.logger.Info("TLS configuration reloaded")
+	return nil
+}
+
+// tlsEnabled reports whether the listeners use TLS.
+func (s *Server) tlsEnabled() bool {
+	s.nsLock.RLock()
+	defer s.nsLock.RUnlock()
+	return s.config.ClientTLS != nil
 }
 
 // becomeClustered restarts the standalone server clustered with the given
