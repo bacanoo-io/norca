@@ -581,6 +581,11 @@ type ServerConfig struct {
 	// collection interval.
 	RootKeyRotationThreshold string `hcl:"root_key_rotation_threshold"`
 
+	// ObjectTombstoneGCThreshold is how "old" the tombstone of a deleted
+	// custom object must be to be collected; the event log of the object is
+	// kept as long.
+	ObjectTombstoneGCThreshold string `hcl:"object_tombstone_gc_threshold"`
+
 	// HeartbeatGrace is the grace period beyond the TTL to account for network,
 	// processing delays and clock skew before marking a node as "down".
 	HeartbeatGrace    time.Duration
@@ -2195,6 +2200,9 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	}
 	if b.RootKeyRotationThreshold != "" {
 		result.RootKeyRotationThreshold = b.RootKeyRotationThreshold
+	}
+	if b.ObjectTombstoneGCThreshold != "" {
+		result.ObjectTombstoneGCThreshold = b.ObjectTombstoneGCThreshold
 	}
 	if b.HeartbeatGrace != 0 {
 		result.HeartbeatGrace = b.HeartbeatGrace

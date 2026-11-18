@@ -285,6 +285,7 @@
       "min_heartbeat_ttl": "33s",
       "failover_heartbeat_ttl": "330s",
       "node_gc_threshold": "12h",
+      "object_tombstone_gc_threshold": "2h",
       "role": "observer",
       "num_schedulers": 2,
       "plan_rejection_tracker": {

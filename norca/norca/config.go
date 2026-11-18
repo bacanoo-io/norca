@@ -248,6 +248,11 @@ type Config struct {
 	// to be eligible for GC.
 	RootKeyGCThreshold time.Duration
 
+	// ObjectTombstoneGCThreshold is how "old" the tombstone of a deleted
+	// custom object must be to be collected. The event log of the deleted
+	// object is kept as long as its tombstone.
+	ObjectTombstoneGCThreshold time.Duration
+
 	// RootKeyRotationThreshold is how "old" an active key can be
 	// before it's rotated
 	RootKeyRotationThreshold time.Duration
@@ -621,6 +626,7 @@ func DefaultConfig() *Config {
 		RootKeyGCInterval:                10 * time.Minute,
 		RootKeyGCThreshold:               1 * time.Hour,
 		RootKeyRotationThreshold:         720 * time.Hour, // 30 days
+		ObjectTombstoneGCThreshold:       5 * time.Minute,
 		VariablesRekeyInterval:           10 * time.Minute,
 		EvalNackTimeout:                  60 * time.Second,
 		EvalDeliveryLimit:                3,

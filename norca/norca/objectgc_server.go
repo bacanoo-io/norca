@@ -12,10 +12,19 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
+// objectGCConfig returns the configuration of the garbage collector of custom
+// objects: its defaults, with the tombstone retention of the server
+// configuration (object_tombstone_gc_threshold).
+func objectGCConfig(c *Config) *objectgc.Config {
+	cfg := objectgc.DefaultConfig()
+	cfg.TombstoneRetention = c.ObjectTombstoneGCThreshold
+	return cfg
+}
+
 // setupObjectGC creates the garbage collector of custom objects. It runs only
 // on the leader (see establishLeadership).
 func (s *Server) setupObjectGC() {
-	s.objectGC = objectgc.New(s.logger, objectgc.DefaultConfig(), &objectgc.Deps{
+	s.objectGC = objectgc.New(s.logger, objectGCConfig(s.config), &objectgc.Deps{
 		State:            s.State,
 		DeleteObject:     s.gcDeleteObject,
 		Guarded:          objectDeletionDestroys,

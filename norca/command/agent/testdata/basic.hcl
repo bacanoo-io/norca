@@ -123,6 +123,7 @@ server {
   csi_volume_claim_gc_threshold = "12h"
   csi_plugin_gc_threshold       = "12h"
   acl_token_gc_threshold        = "12h"
+  object_tombstone_gc_threshold = "2h"
   heartbeat_grace               = "30s"
   min_heartbeat_ttl             = "33s"
   max_heartbeats_per_second     = 11.0

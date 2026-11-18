@@ -160,6 +160,7 @@ func TestConfig_Merge(t *testing.T) {
 				NodeThreshold: 100,
 				NodeWindow:    11 * time.Minute,
 			},
+			ObjectTombstoneGCThreshold: "1h",
 		},
 		ACL: &ACLConfig{
 			Enabled:               true,
@@ -374,6 +375,8 @@ func TestConfig_Merge(t *testing.T) {
 			},
 			JobMaxPriority:     pointer.Of(200),
 			JobDefaultPriority: pointer.Of(100),
+
+			ObjectTombstoneGCThreshold: "2h",
 		},
 		ACL: &ACLConfig{
 			Enabled:               true,

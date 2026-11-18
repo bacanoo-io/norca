@@ -517,6 +517,15 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 		}
 		conf.RootKeyRotationThreshold = dur
 	}
+	if gcThreshold := agentConfig.Server.ObjectTombstoneGCThreshold; gcThreshold != "" {
+		dur, err := time.ParseDuration(gcThreshold)
+		if err != nil {
+			return nil, err
+		} else if dur < 0 {
+			return nil, fmt.Errorf("object_tombstone_gc_threshold should be 0s or more")
+		}
+		conf.ObjectTombstoneGCThreshold = dur
+	}
 
 	if heartbeatGrace := agentConfig.Server.HeartbeatGrace; heartbeatGrace != 0 {
 		conf.HeartbeatGrace = heartbeatGrace

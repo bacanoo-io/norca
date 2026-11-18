@@ -201,6 +201,43 @@ func TestAgent_ServerConfig(t *testing.T) {
 	require.Equal(t, 3, out.BootstrapExpect)
 }
 
+// TestAgent_ServerConfig_ObjectTombstoneGCThreshold checks the server option
+// that says how long the tombstone of a deleted custom object, and its event
+// log, is kept (review finding MUK-7).
+func TestAgent_ServerConfig_ObjectTombstoneGCThreshold(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, tc := range []struct {
+		name  string
+		value string
+		want  time.Duration
+		err   string
+	}{
+		{name: "default", want: 5 * time.Minute},
+		{name: "set", value: "2h", want: 2 * time.Hour},
+		{name: "zero", value: "0s", want: 0},
+		{name: "negative", value: "-1m", err: "object_tombstone_gc_threshold should be 0s or more"},
+		{name: "invalid", value: "2x", err: "unknown unit"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := DefaultConfig()
+			conf.DevMode = true
+			conf.Server.Enabled = true
+			conf.Server.ObjectTombstoneGCThreshold = tc.value
+			require.NoError(t, conf.normalizeAddrs())
+			a := &Agent{config: conf}
+
+			out, err := a.serverConfig()
+			if tc.err != "" {
+				require.ErrorContains(t, err, tc.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, out.ObjectTombstoneGCThreshold)
+		})
+	}
+}
+
 func TestAgent_ServerConfig_SchedulerFlags(t *testing.T) {
 	ci.Parallel(t)
 

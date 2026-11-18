@@ -155,6 +155,8 @@ var basicConfig = &Config{
 		LicensePath:        "/tmp/nomad.hclic",
 		JobDefaultPriority: pointer.Of(100),
 		JobMaxPriority:     pointer.Of(200),
+
+		ObjectTombstoneGCThreshold: "2h",
 	},
 	ACL: &ACLConfig{
 		Enabled:                  true,
