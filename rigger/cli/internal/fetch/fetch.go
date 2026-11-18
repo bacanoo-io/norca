@@ -206,10 +206,47 @@ var ErrTagMoved = errors.New("the tag points to another commit than the lock fil
 
 var commitPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
-// gitFetch extracts the tree of the commit of the tag into the cache.
+// TreeDir is the directory of the full tree of a commit in the cache.
+func (f *Fetcher) TreeDir(commit string) string {
+	return filepath.Join(f.cache, "trees", commit)
+}
+
+// BundleDir is the directory of the files of a commit imported from a
+// bundle: the directories of its modules only, kept apart from the full
+// trees.
+func (f *Fetcher) BundleDir(commit string) string {
+	return filepath.Join(f.cache, "bundles", commit)
+}
+
+// cachedTree returns a tree of the commit the request locks when the
+// repository can't be reached: the full tree, else the files of a bundle.
+func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
+	if !commitPattern.MatchString(req.Commit) {
+		return source.Fetched{}, false
+	}
+
+	for _, dir := range []string{f.TreeDir(req.Commit), f.BundleDir(req.Commit)} {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(req.Path), "metadata.hcl")); err == nil {
+			return source.Fetched{
+				FS: os.DirFS(dir), Dir: path.Clean(req.Path),
+				Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: req.Ref, Commit: req.Commit},
+			}, true
+		}
+	}
+
+	return source.Fetched{}, false
+}
+
+// gitFetch extracts the tree of the commit of the tag into the cache. When
+// the repository can't be reached, a cached tree of the commit the lock
+// file records serves (an install without a network, from a bundle).
 func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
 	dir, err := f.mirror(ctx, req.Repository)
 	if err != nil {
+		if cached, ok := f.cachedTree(req); ok {
+			return cached, nil
+		}
+
 		return source.Fetched{}, err
 	}
 

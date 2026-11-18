@@ -11,6 +11,9 @@ import (
 	"testing"
 )
 
+// stackFile is the file of a stack the tests write.
+const stackFile = "stack.hcl"
+
 func writeTree(t *testing.T, files map[string]string) string {
 	t.Helper()
 

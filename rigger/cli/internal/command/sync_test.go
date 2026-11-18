@@ -61,7 +61,7 @@ func TestRun_StackSync(t *testing.T) {
 	t.Setenv("RIG_CACHE_DIR", t.TempDir())
 
 	dir := writeTree(t, map[string]string{
-		"stack.hcl": `rig {
+		stackFile: `rig {
   name = "greet"
 
   registry "local" {
@@ -97,7 +97,7 @@ module "redis" {
 	rigRun(t, exitOK, []string{"stack greet"}, "stack", "validate", dir)
 
 	// -upgrade takes no newer version outside ~> 1.0.0; with ~> 1.0 it does.
-	stack := filepath.Join(dir, "stack.hcl")
+	stack := filepath.Join(dir, stackFile)
 	src, _ := os.ReadFile(stack)
 
 	if err := os.WriteFile(stack, []byte(strings.Replace(string(src), "~> 1.0.0", "~> 1.0", 1)), 0o600); err != nil {

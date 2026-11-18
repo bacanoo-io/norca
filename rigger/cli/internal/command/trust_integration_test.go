@@ -26,7 +26,7 @@ func TestIntegration_TrustedKeys(t *testing.T) {
 
 	keys := t.TempDir()
 	t.Setenv(passwordEnv, "")
-	rigRun(t, exitOK, []string{"wrote"}, "key", "generate", "-out", filepath.Join(keys, "k"))
+	rigRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "k"))
 
 	pub, err := os.ReadFile(filepath.Join(keys, "k.pub"))
 	if err != nil {

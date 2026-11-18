@@ -43,8 +43,10 @@ type Module struct {
 	Sources map[string][]byte
 	// Children are the child modules of modules.hcl, loaded.
 	Children []*Child
-	// FS holds the files of the module, for file() and templatefile().
-	FS fs.FS
+	// FS holds the files of the module, for file() and templatefile();
+	// Root the files it was loaded from, Dir its directory there.
+	FS   fs.FS
+	Root fs.FS
 	// Dir is the directory of the module in the root it was loaded from.
 	Dir string
 }

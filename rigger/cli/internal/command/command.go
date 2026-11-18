@@ -38,6 +38,7 @@ const (
 	cmdInstall = "install"
 	cmdRelease = "release"
 	cmdKey     = "key"
+	cmdBundle  = "bundle"
 
 	cmdRender   = "render"
 	cmdTest     = "test"
@@ -77,6 +78,12 @@ Commands:
                           .rig-signatures directory
   key verify [dir] -key name.pub
                           check that a module is signed by the key
+  bundle create [stack] -o file.rigbundle
+                          the modules of a stack from git sources, as its
+                          lock pins them, in one archive
+  bundle inspect file     what a bundle holds
+  bundle import file      put a bundle into the cache, for an install
+                          without a network
   The cluster is that of NORCA_ADDR and NORCA_TOKEN.
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
@@ -90,6 +97,15 @@ Commands:
 
 Flags:
 `
+
+// command runs a command of the rig program with its arguments.
+type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int
+
+// commands are the commands that take commands or flags of their own.
+var commands = map[string]command{
+	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall,
+	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle,
+}
 
 // Run runs the rig program with its arguments, without the program name,
 // and returns the exit code.
@@ -116,25 +132,18 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	switch name := flags.Arg(0); name {
+	name := flags.Arg(0)
+	if cmd, ok := commands[name]; ok {
+		return cmd(ctx, logger, stdout, stderr, flags.Args()[1:])
+	}
+
+	switch name {
 	case cmdVersion:
 		return run(ctx, logger, stderr, name, func(context.Context) error {
 			_, err := fmt.Fprintf(stdout, "rig %s\n", version())
 
 			return err
 		})
-	case cmdModule:
-		return runModule(ctx, logger, stdout, stderr, flags.Args()[1:])
-	case cmdFmt:
-		return runFmt(ctx, logger, stdout, stderr, flags.Args()[1:])
-	case cmdStack:
-		return runStack(ctx, logger, stdout, stderr, flags.Args()[1:])
-	case cmdInstall:
-		return runInstall(ctx, logger, stdout, stderr, flags.Args()[1:])
-	case cmdRelease:
-		return runRelease(ctx, logger, stdout, stderr, flags.Args()[1:])
-	case cmdKey:
-		return runKey(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)

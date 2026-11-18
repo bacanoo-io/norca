@@ -21,7 +21,7 @@ import (
 // integrationStack is a stack of two releases: a Variable with a generated
 // token, and a job that reads the path of the Variable.
 var integrationStack = map[string]string{
-	"stack.hcl": `rig {
+	stackFile: `rig {
   name      = "rigit"
   region    = "global"
   namespace = "default"
@@ -164,8 +164,8 @@ func checkCluster(t *testing.T, client *api.Client) {
 func prune(t *testing.T, dir string) {
 	t.Helper()
 
-	stack := strings.Replace(integrationStack["stack.hcl"], "module \"worker\"", "module \"worker2\"", 1)
-	if err := os.WriteFile(filepath.Join(dir, "stack.hcl"), []byte(stack), 0o600); err != nil {
+	stack := strings.Replace(integrationStack[stackFile], "module \"worker\"", "module \"worker2\"", 1)
+	if err := os.WriteFile(filepath.Join(dir, stackFile), []byte(stack), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

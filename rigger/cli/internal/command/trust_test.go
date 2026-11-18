@@ -40,8 +40,8 @@ func TestRun_KeyAndTrust(t *testing.T) {
 	t.Setenv("RIG_CACHE_DIR", t.TempDir())
 	t.Setenv(passwordEnv, "secret")
 
-	rigRun(t, exitOK, []string{"wrote", "key sha256:"}, "key", "generate", "-out", filepath.Join(keys, "signer"))
-	rigRun(t, exitOK, []string{"wrote"}, "key", "generate", "-out", filepath.Join(keys, "other"))
+	rigRun(t, exitOK, []string{wroteLock, "key sha256:"}, "key", "generate", "-out", filepath.Join(keys, "signer"))
+	rigRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "other"))
 
 	// The greeter 1.1.1 is signed in the repository and tagged.
 	module := filepath.Join(repo, "modules", "greeter")
@@ -63,7 +63,7 @@ func TestRun_KeyAndTrust(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		return writeTree(t, map[string]string{"stack.hcl": signedStack(repo), "keys/trusted.pub": string(pub)})
+		return writeTree(t, map[string]string{stackFile: signedStack(repo), "keys/trusted.pub": string(pub)})
 	}
 
 	ok := stack("signer.pub")

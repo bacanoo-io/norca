@@ -76,7 +76,7 @@ func loadTree(ctx context.Context, root fs.FS, dir, prefix string, limits Limits
 		}}
 	}
 
-	l := &loader{ctx: ctx, fsys: fsys, limits: limits, prefix: prefix, mod: &Module{Sources: map[string][]byte{}, FS: fsys, Dir: dir}}
+	l := &loader{ctx: ctx, fsys: fsys, limits: limits, prefix: prefix, mod: &Module{Sources: map[string][]byte{}, FS: fsys, Root: root, Dir: dir}}
 	m, diags := l.load()
 
 	if m.Metadata.Library && len(m.Resources) > 0 {

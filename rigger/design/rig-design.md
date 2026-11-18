@@ -1595,6 +1595,16 @@ Phase 4 as built (2026-11-18), signatures and trust:
   them against its `trusted_keys` (checked against a dev agent).
 - A tag whose version is not the version of the module's metadata is
   refused.
+- **Bundles** (`rig bundle create|inspect|import`): a reproducible archive
+  (sorted entries, no times, owners or modes of the machine) of the modules
+  of a stack from git sources as its lock pins them: a manifest with
+  source, version, tag, commit, digest and signers, and the files of the
+  directories of each module and its children, signatures included. An
+  import writes them into the cache, apart from the full trees, and checks
+  each digest; the fetcher takes the cached files of the locked commit when
+  the repository can't be reached. A bundle is therefore not an address of
+  its own: the lock file says what to install, the bundle only brings it.
+  Built-in modules and directories need no bundle.
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
