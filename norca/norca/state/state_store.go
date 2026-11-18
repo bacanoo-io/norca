@@ -6042,11 +6042,12 @@ func (s *StateStore) ACLPolicyByNamePrefix(ws memdb.WatchSet, prefix string) (me
 }
 
 // ACLPolicyByJob is used to lookup policies that have been attached to a
-// specific job
+// specific job. The job ID must match exactly: a prefix lookup would also
+// return the policies of every job whose ID starts with jobID.
 func (s *StateStore) ACLPolicyByJob(ws memdb.WatchSet, ns, jobID string) (memdb.ResultIterator, error) {
 	txn := s.db.ReadTxn()
 
-	iter, err := txn.Get("acl_policy", "job_prefix", ns, jobID)
+	iter, err := txn.Get("acl_policy", "job", ns, jobID)
 	if err != nil {
 		return nil, fmt.Errorf("acl policy lookup failed: %v", err)
 	}
