@@ -297,3 +297,73 @@ func testReaderAccount(t *testing.T, authz *testAuthz, writer, readerSrv *Server
 	_, err = nats.Connect(readerSrv.ClientURL(), nats.Token("ghost"), nats.MaxReconnects(0))
 	must.Error(t, err)
 }
+
+// A route change reloads the options of the embedded server. nats-server
+// then closes the connections the custom authentication registered and
+// deletes the reader accounts made at runtime: the connections reconnect,
+// and a change data capture reader gets its account again and receives
+// what the bus account exports to it (review finding MUK-22).
+func TestBus_RouteChangeKeepsReaders(t *testing.T) {
+	ci.Parallel(t)
+	authz := newTestAuthz()
+	c := testConfig(t, "s1")
+	c.Clustered = true
+	s := startServer(t, c, authz.authorize)
+
+	// The reader's account is made when its connection is authenticated,
+	// as the Norca server does.
+	spec := &ReaderSpec{Reader: "r1", Subjects: []string{"norca.global.*.Job"}}
+	name := ReaderAccountName(spec)
+	authz.withReader(func() (*Grant, error) {
+		if _, err := s.ReaderAccount(spec); err != nil {
+			return nil, err
+		}
+		return &Grant{Kind: KindToken, Name: "r1", All: true, Account: name}, nil
+	})
+
+	connect := func(opts ...nats.Option) *nats.Conn {
+		nc, err := nats.Connect(s.ClientURL(), append(opts, nats.MaxReconnects(-1), nats.ReconnectWait(20*time.Millisecond))...)
+		must.NoError(t, err)
+		t.Cleanup(nc.Close)
+		return nc
+	}
+	conns := map[string]*nats.Conn{
+		"node":   connect(nats.UserInfo("n1", "s1")),
+		"token":  connect(nats.Token("admin")),
+		"reader": connect(nats.Token("cdc")),
+	}
+	internal, err := s.Connect()
+	must.NoError(t, err)
+	defer internal.Close()
+	conns["internal"] = internal
+	live, err := conns["reader"].SubscribeSync(">")
+	must.NoError(t, err)
+	must.NoError(t, conns["reader"].Flush())
+
+	must.NoError(t, s.SetRoutes([]string{"127.0.0.1:1"}))
+
+	testutil.WaitForResult(func() (bool, error) {
+		for what, nc := range conns {
+			if !nc.IsConnected() {
+				return false, fmt.Errorf("%s: %v (%v)", what, nc.Status(), nc.LastError())
+			}
+		}
+		return true, nil
+	}, func(err error) { t.Fatal(err) })
+	_, err = s.server().LookupAccount(name)
+	must.NoError(t, err, must.Sprint("the reader account was not made again"))
+	// The subscription of the reader is made again with its connection.
+	testutil.WaitForResult(func() (bool, error) {
+		if err := internal.Publish("norca.global.default.Job", []byte("job")); err != nil {
+			return false, err
+		}
+		if err := internal.Flush(); err != nil {
+			return false, err
+		}
+		msg, err := live.NextMsg(200 * time.Millisecond)
+		if err != nil {
+			return false, fmt.Errorf("the reader receives nothing: %w", err)
+		}
+		return msg.Subject == "norca.global.default.Job", fmt.Errorf("subject %s", msg.Subject)
+	}, func(err error) { t.Fatal(err) })
+}

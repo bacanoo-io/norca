@@ -274,7 +274,9 @@ func (s *Server) validReaderSpec(spec *ReaderSpec) error {
 // inbox of another connection, no Consul KV value, no telemetry, no
 // JetStream API but its own consumers.
 //
-// The account lives until the embedded server restarts: then the next
+// The account lives until the embedded server restarts, or reloads its
+// options (SetRoutes, ReloadTLS: nats-server deletes the accounts made at
+// runtime and resets the exports of the bus account): then the next
 // connection of the reader makes it again. Calls are serialized, so a
 // connection never lands in an account whose imports are still being made;
 // a leaf account whose making failed half way is made again by the next
@@ -293,8 +295,12 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	if s.readersOf != ns {
 		s.readers, s.readersOf = map[string]*reader{}, ns
 	}
-	if _, ok := s.readers[name]; ok {
-		return name, nil
+	old, ok := s.readers[name]
+	if ok {
+		if _, err := ns.LookupAccount(name); err == nil {
+			return name, nil
+		}
+		// Gone with a reload of the options: made again, its ban kept.
 	}
 
 	bus, err := ns.LookupAccount(AccountName)
@@ -354,7 +360,11 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	}
 	made := *spec
 	made.Subjects, made.Consumers = slices.Clone(spec.Subjects), slices.Clone(spec.Consumers)
-	s.readers[name] = &reader{spec: &made}
+	r := &reader{spec: &made}
+	if old != nil {
+		r.bannedUntil = old.bannedUntil
+	}
+	s.readers[name] = r
 	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects,
 		"consumers", len(spec.Consumers), "leaf", spec.Leaf)
 	return name, nil

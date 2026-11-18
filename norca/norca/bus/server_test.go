@@ -27,6 +27,7 @@ import (
 type testAuthz struct {
 	l      sync.Mutex
 	tokens map[string]*Grant
+	reader func() (*Grant, error)
 }
 
 func newTestAuthz() *testAuthz {
@@ -45,7 +46,18 @@ func (a *testAuthz) authorize(c Credentials) (*Grant, error) {
 	if g, ok := a.tokens[c.Token]; ok {
 		return g, nil
 	}
+	if c.Token == "cdc" && a.reader != nil {
+		return a.reader()
+	}
 	return nil, errors.New("unknown credentials")
+}
+
+// withReader authenticates the token "cdc" with grant, called for each
+// connection.
+func (a *testAuthz) withReader(grant func() (*Grant, error)) {
+	a.l.Lock()
+	defer a.l.Unlock()
+	a.reader = grant
 }
 
 func (a *testAuthz) set(token string, g *Grant) {
