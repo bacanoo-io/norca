@@ -1931,11 +1931,9 @@ func (n *Node) DeriveVaultToken(args *structs.DeriveVaultTokenRequest, reply *st
 		setError(err, false)
 		return nil
 	}
-	if node == nil {
-		setError(fmt.Errorf("Node %q does not exist", args.NodeID), false)
-		return nil
-	}
-	if !constantTimeEqual(node.SecretID, args.SecretID) {
+	// A node that does not exist is answered like a wrong secret, so that
+	// the answer does not tell whether a node exists.
+	if node == nil || !constantTimeEqual(node.SecretID, args.SecretID) {
 		setError(fmt.Errorf("SecretID mismatch"), false)
 		return nil
 	}
@@ -2155,11 +2153,9 @@ func (n *Node) DeriveSIToken(args *structs.DeriveSITokenRequest, reply *structs.
 		setError(err, false)
 		return nil
 	}
-	if node == nil {
-		setError(fmt.Errorf("Node %q does not exist", args.NodeID), false)
-		return nil
-	}
-	if !constantTimeEqual(node.SecretID, args.SecretID) {
+	// A node that does not exist is answered like a wrong secret, so that
+	// the answer does not tell whether a node exists.
+	if node == nil || !constantTimeEqual(node.SecretID, args.SecretID) {
 		setError(errors.New("SecretID mismatch"), false)
 		return nil
 	}

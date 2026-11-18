@@ -89,9 +89,10 @@ func TestClientEndpoint_UpdateStatus_ConnOfNodeOnly(t *testing.T) {
 // Node.Register and Node.GetClientAllocs keep a connection as the node's
 // only for the node itself, as Node.UpdateStatus does (review finding SEC-3).
 // Sent to a server of one region but addressed to another region, where the
-// node does not exist, both return without an error although nobody checked
-// the node's secret; the first server then took the caller's connection for
-// the newest connection of the node. The node itself still registers its
+// node does not exist, both returned without an error although nobody
+// checked the node's secret (GetClientAllocs refuses an unknown node since
+// review finding JOG-5); the first server then took the caller's connection
+// for the newest connection of the node. The node itself still registers its
 // connection through every path: at the server it reaches, and through a
 // follower that forwards to the leader.
 func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) {

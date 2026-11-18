@@ -4221,6 +4221,49 @@ func TestClientEndpoint_DeriveVaultToken_Bad(t *testing.T) {
 
 }
 
+// TestClientEndpoint_DeriveTokens_UnknownNode: the token derivations answer
+// a node that does not exist like a wrong secret, so that the answer does
+// not tell whether a node exists (review finding JOG-9).
+func TestClientEndpoint_DeriveTokens_UnknownNode(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	node := mock.Node()
+	must.NoError(t, s1.fsm.State().UpsertNode(structs.MsgTypeTestSetup, 2, node))
+	alloc := mock.Alloc()
+	alloc.NodeID = node.ID
+	must.NoError(t, s1.fsm.State().UpsertAllocs(structs.MsgTypeTestSetup, 3, []*structs.Allocation{alloc}))
+	tasks := []string{alloc.Job.TaskGroups[0].Tasks[0].Name}
+
+	vault := func(nodeID string) string {
+		t.Helper()
+		req := &structs.DeriveVaultTokenRequest{NodeID: nodeID, SecretID: uuid.Generate(), AllocID: alloc.ID,
+			Tasks: tasks, QueryOptions: structs.QueryOptions{Region: "global"}}
+		var resp structs.DeriveVaultTokenResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.DeriveVaultToken", req, &resp))
+		must.NotNil(t, resp.Error)
+		return resp.Error.Error()
+	}
+	si := func(nodeID string) string {
+		t.Helper()
+		req := &structs.DeriveSITokenRequest{NodeID: nodeID, SecretID: uuid.Generate(), AllocID: alloc.ID,
+			Tasks: tasks, QueryOptions: structs.QueryOptions{Region: "global"}}
+		var resp structs.DeriveSITokenResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.DeriveSIToken", req, &resp))
+		must.NotNil(t, resp.Error)
+		return resp.Error.Error()
+	}
+
+	must.StrContains(t, vault(node.ID), "SecretID mismatch")
+	must.Eq(t, vault(node.ID), vault(uuid.Generate()))
+	must.StrContains(t, si(node.ID), "SecretID mismatch")
+	must.Eq(t, si(node.ID), si(uuid.Generate()))
+}
+
 func TestClientEndpoint_DeriveVaultToken(t *testing.T) {
 	ci.Parallel(t)
 
