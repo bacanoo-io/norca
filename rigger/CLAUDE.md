@@ -22,6 +22,16 @@ file points to it instead of repeating it.
 - Rules the core keeps because a server embeds it: section 12.4 (no global
   state, no environment or working directory, nothing outside the module
   reachable from a module, limits set by the host).
+- **No code from source that is not open** (set by the maintainer,
+  2026-11-18): nothing is taken over directly from code under the Business
+  Source License (Terraform since 1.6, Nomad since 1.7, Vault, Consul) or any
+  other license that is not open source, neither copied nor closely
+  rewritten. Names of functions and their behaviour may be like those of
+  other tools (`coalesce`, `length`); their implementation is Rig's own, or
+  comes from an open-source dependency (go-cty: MIT, hcl: MPL-2.0). Code
+  from Norca and from Nomad before its license change is MPL-2.0 and keeps
+  its headers. `make check-licenses` fails on a dependency or a file under
+  the Business Source License; a new dependency is checked by hand too.
 - Go path and license: `github.com/bacanoo-io/norca-rig`, MPL-2.0.
 - hcl/v2 stays at the commit Norca pins (`go.mod`): Rig's evaluation needs
   `hcl.EvalContext.UndefinedVariable`, which upstream hcl does not have, and
