@@ -401,3 +401,67 @@ func TestBusServer_RouteDistrustedCA(t *testing.T) {
 	must.NoError(t, connect("s2"))
 	must.Error(t, connect("s4"))
 }
+
+// TestBusServer_ReloadTLSDistrustedCA checks that after a TLS reload that
+// distrusts a CA, no open bus connection whose certificate that CA issued
+// stays usable, a client's or a route's, and that they do not come back,
+// while the others are usable again (review finding SEC-29). NATS closes
+// the client connections on any reload of its options; the routes it
+// keeps, and those the bus checks itself.
+func TestBusServer_ReloadTLSDistrustedCA(t *testing.T) {
+	ci.Parallel(t)
+	p := newBusPKI(t)
+	good, stolen, other := p.nodeCA("node CA 1"), p.nodeCA("node CA 2"), p.nodeCA("node CA 3")
+	list := p.distrust(0, other)
+	conf1 := p.agent("s1", "server.global.norca", good, list)
+	s1, addr1 := startTLSBus(t, "s1", conf1)
+	s2, addr2 := startTLSBus(t, "s2", p.agent("s2", "server.global.norca", stolen, ""))
+	must.NoError(t, s1.SetRoutes([]string{addr2}))
+	must.NoError(t, s2.SetRoutes([]string{addr1}))
+	waitBus(t, func() (bool, error) {
+		names := busRouteNames(t, s1)
+		return slices.Equal(names, []string{"s2"}), fmt.Errorf("routes of s1: %v", names)
+	})
+
+	pool := x509.NewCertPool()
+	pool.AddCert(p.ca)
+	connect := func(certFile string) *nats.Conn {
+		tlsConf := &tls.Config{RootCAs: pool, ServerName: "server.global.norca", MinVersion: tls.VersionTLS12}
+		if certFile != "" {
+			cert, err := tls.LoadX509KeyPair(filepath.Join(p.dir, certFile+".pem"), filepath.Join(p.dir, certFile+"-key.pem"))
+			must.NoError(t, err)
+			tlsConf.Certificates = []tls.Certificate{cert}
+		}
+		// It connects to s1 only: s2 does not distrust the CA.
+		nc, err := nats.Connect(s1.ClientURL(), nats.Token("ok"), nats.Secure(tlsConf), nats.IgnoreDiscoveredServers(),
+			nats.MaxReconnects(-1), nats.ReconnectWait(50*time.Millisecond))
+		must.NoError(t, err)
+		t.Cleanup(nc.Close)
+		return nc
+	}
+	thief := connect("s2")
+	trusted := connect("s1")
+	plain := connect("")
+
+	// The CA of s2 is distrusted, and s1 reloads its TLS configuration.
+	p.distrust(1, stolen)
+	clientTLS, clusterTLS, err := busTLS(conf1, "global")
+	must.NoError(t, err)
+	must.NoError(t, s1.ReloadTLS(clientTLS, clusterTLS))
+
+	waitBus(t, func() (bool, error) {
+		names := busRouteNames(t, s1)
+		return len(names) == 0, fmt.Errorf("the route of the distrusted CA stayed: %v", names)
+	})
+	waitBus(t, func() (bool, error) {
+		return !thief.IsConnected() && trusted.IsConnected() && plain.IsConnected(),
+			fmt.Errorf("thief %v, trusted %v, plain %v", thief.Status(), trusted.Status(), plain.Status())
+	})
+	// Give the connections time to be tried again: the routes from both
+	// sides, the client of the distrusted CA every 50ms.
+	time.Sleep(2 * time.Second)
+	must.SliceEmpty(t, busRouteNames(t, s1))
+	must.False(t, thief.IsConnected(), must.Sprint("the client of the distrusted CA is connected"))
+	must.True(t, trusted.IsConnected(), must.Sprint("the client of a trusted CA is not connected"))
+	must.True(t, plain.IsConnected(), must.Sprint("the client without a certificate is not connected"))
+}

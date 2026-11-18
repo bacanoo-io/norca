@@ -88,6 +88,9 @@ type Server struct {
 	responseThreshold   time.Duration
 	leafBanTime         time.Duration
 
+	// trust remembers the routes with their TLS state, for ReloadTLS.
+	trust routeTrust
+
 	// stopCh is closed by Shutdown.
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -174,7 +177,7 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 			Compression: natsserver.CompressionOpts{Mode: natsserver.CompressionS2Auto},
 		}
 		if config.ClusterTLS != nil {
-			opts.Cluster.TLSConfig = config.ClusterTLS
+			opts.Cluster.TLSConfig = s.trust.wrap(config.ClusterTLS)
 			opts.Cluster.TLSTimeout = 5
 		}
 		opts.Routes = s.routeURLs(routes)
@@ -257,6 +260,12 @@ func (s *Server) SetRoutes(addrs []string) error {
 
 	s.routesLock.Lock()
 	defer s.routesLock.Unlock()
+	// The routes that are gone are forgotten by the TLS checks.
+	s.nsLock.RLock()
+	if s.clustered {
+		s.trust.prune(s.liveRoutes())
+	}
+	s.nsLock.RUnlock()
 	if slices.Equal(addrs, s.routes) {
 		return nil
 	}
@@ -292,8 +301,10 @@ var ErrTLSNeedsRestart = errors.New("bus: turning TLS on or off needs a restart"
 
 // ReloadTLS replaces the TLS configurations of the listeners (a reloaded
 // agent TLS configuration: a new CA, certificate or setting). The
-// connections made from now on use them; open connections keep the TLS
-// they were made with. A bus that becomes clustered later starts with them.
+// connections made from now on use them. The open connections are checked
+// against them, and those a new handshake would refuse (a certificate of a
+// distrusted or removed CA) are closed; the others keep the TLS they were
+// made with. A bus that becomes clustered later starts with them.
 func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
 	s.routesLock.Lock()
 	defer s.routesLock.Unlock()
@@ -309,7 +320,7 @@ func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
 	opts := s.opts.Clone()
 	opts.TLSConfig = clientTLS
 	if s.clustered {
-		opts.Cluster.TLSConfig = clusterTLS
+		opts.Cluster.TLSConfig = s.trust.wrap(clusterTLS)
 	}
 	if s.config.LeafNodes.Enabled {
 		opts.LeafNode.TLSConfig = clientTLS
@@ -320,6 +331,9 @@ func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
 	s.opts = opts
 	s.config.ClientTLS, s.config.ClusterTLS = clientTLS, clusterTLS
 	s.logger.Info("TLS configuration reloaded")
+	if err := s.recheckTrust(clientTLS, clusterTLS); err != nil {
+		return fmt.Errorf("bus: checking the open connections against the reloaded TLS configuration: %w", err)
+	}
 	return nil
 }
 
