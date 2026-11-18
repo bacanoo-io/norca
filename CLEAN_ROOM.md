@@ -450,8 +450,9 @@ request reach the plugin. Without the change the check fails with an empty
 
 ## The fixes of the code review of November 2026 in files from v1.6.5
 
-A review of Norca's own code (2026-11-16) found defects, and some of their
-fixes (2026-11-17, `Source-Rule: independent-development`) change lines of
+A review of Norca's own code (2026-11-16) found defects, and a second review
+of the fixes (2026-11-17, for concurrency and security) found more. Some of
+the fixes (2026-11-17 and 18, `Source-Rule: independent-development`) change lines of
 files that come from Nomad v1.6.5 (MPL 2.0), or of the pack code that comes
 from nomad-pack (MPL 2.0). Each was found by reading or testing the Norca
 tree, and written from the Norca tree and public standards alone. Whether a
@@ -475,10 +476,18 @@ each names the failing test and its output before the change.
 | `3b73d2ac2` | `pack/internal/pkg/renderer`, `pack/internal/pkg/variable/parser` | A render by the servers has no environment functions and reads files only inside the pack |
 | `73b09bec4` | `norca/node_endpoint.go` | `Node.UpdateStatus` registers a connection as the node's only for a caller that is the node |
 | `6cf548ae0` | `norca/structs/structs.go`, `client/allocrunner/taskrunner/validate_hook.go`, `helper/users/lookup.go` | A task user in the dynamic form `norca:<id>` is refused |
+| `8b7c382fe` | `norca/namespace_endpoint.go` | The leader asks the other regions for the jobs of a namespace with the replication token |
+| `d883afe18` | `norca/state/state_store.go`, `norca/fsm.go` | `UpsertCSIVolume` became a wrapper of a check-and-set variant; a register request may carry the modify index it expects |
+| `0074d6c9c` | `norca/fsm.go`, `norca/leader.go`, `norca/namespace_endpoint.go` | A namespace deletion the state store refuses returns its error; the namespace replication goes on after a refused deletion; a missing namespace is a 404 |
+| `f30dd5e41` | `norca/node_endpoint.go` | `Node.Register` and `Node.GetClientAllocs` register a connection as the node's only for a caller that is the node |
+| `16f362344` | `lib/auth/jwt/validator.go`, `lib/auth/oidc/provider.go` | The error of a failed call does not name the URL it called; also `norca/autoscaler/plugins/apm/prometheus/plugin.go`, which comes from Nomad Autoscaler v0.6.0 (MPL 2.0) |
+| `3984e3207` | `command/agent/agent_endpoint_redact.go` (a Norca file) | Fields of the v1.6.5 agent configuration are redacted in `/v1/agent/self`: `Consul.Auth`, the join lists, addresses given as URLs, plugin and client options |
+| `703d69c3e`, `eecfe38f4` | `pack/internal/cli/testhelper/testhelper.go` | The test agent's client node is ready before a test runs; the TLS fixtures are found under their Norca names |
 
 Two defects of the v1.6.5 code that the review met were left as they are:
 `CSIMountOptions.Equal` treats a missing and an empty block as different
 (`norca/structs/csi.go`; the operator of volume requests sets an empty
 block before it merges), and `UpsertCSIVolume` writes a volume as given
 (`norca/state/state_store.go`; the operator reads the volume again before
-it registers it).
+it registers it; since `d883afe18` its register is a check-and-set, the
+volume register API still writes without one).
