@@ -869,6 +869,116 @@ func TestSnapshotSchedule_DeleteWithVolumeSecrets(t *testing.T) {
 	})
 }
 
+// A status that can't be decoded is the only record of the snapshots of the
+// schedule: it is not written over with an empty one, and the schedule says
+// why it does nothing. A deleted schedule that is to delete its snapshots
+// waits for it; one that keeps them goes (review finding MUK-5).
+func TestSnapshotSchedule_UndecodableStatusIsKept(t *testing.T) {
+	ci.Parallel(t)
+	c, _, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	for _, name := range []string{"broken", "drop-them", "keep-them"} {
+		_, err := c.apply("default", volumeSnapshotScheduleKind, name, map[string]any{
+			"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1},
+			"delete_snapshots": name == "drop-them",
+		})
+		must.NoError(t, err)
+	}
+	broken := func(name string) {
+		t.Helper()
+		var obj *structs.CustomObject
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			obj = c.get("default", volumeSnapshotScheduleKind, name)
+			return obj != nil && slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s has the finalizer", name))
+		// Only the servers write the status: it is written as by a
+		// server of another version, whose counter does not fit an int.
+		for range 20 {
+			cur := c.get("default", volumeSnapshotScheduleKind, name)
+			changed := cur.Copy()
+			changed.Status = map[string]any{"taken": 1e30, "snapshots": []any{map[string]any{
+				"id": "snap-db-1", "name": "db-1", "volume": "db", "plugin": "minnie", "ready": true,
+				"scheduled": time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)}}}
+			resp, _, err := c.s.raftApply(structs.CustomObjectUpsertRequestType, &structs.CustomObjectUpsertStateRequest{
+				Object: changed, ExpectedModifyIndex: cur.ModifyIndex,
+				WriteRequest: structs.WriteRequest{Region: "global"},
+			})
+			if respErr, ok := resp.(error); ok && err == nil {
+				err = respErr
+			}
+			if err == nil {
+				return
+			}
+			must.True(t, structs.IsObjectConflictError(err), must.Sprintf("%v", err))
+		}
+		t.Fatal("status of the schedule could not be written")
+	}
+	for _, name := range []string{"broken", "drop-them", "keep-them"} {
+		broken(name)
+	}
+
+	kept := func(obj *structs.CustomObject) bool {
+		listed, _ := obj.Status["snapshots"].([]any)
+		return len(listed) == 1 && fmt.Sprint(obj.Status["taken"]) == "1e+30"
+	}
+	var obj *structs.CustomObject
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		obj = c.get("default", volumeSnapshotScheduleKind, "broken")
+		return readyReason(obj) == "InvalidStatus" || !kept(obj)
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+	must.True(t, kept(obj), must.Sprintf("the status was written over: %v", obj.Status))
+	must.Eq(t, "InvalidStatus", readyReason(obj))
+	must.True(t, objectConditionTrue(obj.Status, structs.CertificateConditionDegraded))
+
+	must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "keep-them"))
+	must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "drop-them"))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("default", volumeSnapshotScheduleKind, "keep-them") == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("keep-them gone"))
+	time.Sleep(500 * time.Millisecond)
+	held := c.get("default", volumeSnapshotScheduleKind, "drop-them")
+	must.NotNil(t, held, must.Sprint("a schedule whose snapshots are not known went without deleting them"))
+	must.True(t, kept(held), must.Sprintf("the status was written over: %v", held.Status))
+}
+
+// A snapshot the plugin has not answered for when its schedule is deleted
+// is asked for once more by its name, and deleted with the others: the
+// plugin may have made it when its answer was lost. One whose volume is gone
+// can't be asked for, and does not hold the schedule (review finding MUK-5).
+func TestSnapshotSchedule_DeletionAsksForUnansweredSnapshots(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	// Suspended: the schedule does not ask for the snapshots itself.
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1},
+		"delete_snapshots": true, "suspend": true,
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	now := time.Now().UTC()
+	lost := &scheduledSnapshot{Name: "db-lost", Volume: "db", Plugin: "minnie",
+		Scheduled: now.Add(-time.Hour).Format(time.RFC3339)}
+	gone := &scheduledSnapshot{Name: "db-gone", Volume: "gone", Plugin: "minnie",
+		Scheduled: now.Add(-2 * time.Hour).Format(time.RFC3339)}
+	fake.set(func(f *fakeSnapshotCSI) {
+		f.byName["db-lost"] = &structs.CSISnapshot{ID: "snap-db-lost", IsReady: true}
+	})
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: []*scheduledSnapshot{lost, gone}})
+
+	must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "db"))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("default", volumeSnapshotScheduleKind, "db") == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("schedule gone"))
+	must.SliceNotContains(t, fake.existing(), "snap-db-lost",
+		must.Sprint("a snapshot the plugin made without an answer is left in the storage"))
+}
+
 // The secrets of the volume go only to the plugin of the volume: a snapshot
 // taken by another plugin (the volume of the ID was registered again since,
 // of another plugin) is deleted with the secrets of secret_path alone

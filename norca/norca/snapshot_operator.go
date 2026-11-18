@@ -418,7 +418,13 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	}
 	st := &snapshotScheduleStatus{}
 	if err := structs.DecodeObjectPart(obj.Status, st); err != nil {
-		st = &snapshotScheduleStatus{}
+		if obj.Deleting() && !spec.DeleteSnapshots {
+			// The snapshots stay: the list is not needed to let it go.
+			o.finishDeletion(p, obj, spec, &snapshotScheduleStatus{})
+			return
+		}
+		o.holdUndecodableStatus(p, obj, err)
+		return
 	}
 
 	if obj.Deleting() {
@@ -484,6 +490,25 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 
 	finalizers := withOperatorsFinalizer(r.obj.Finalizers)
 	o.writeSchedule(p, r.obj, st, out, spec.Suspend, &finalizers)
+}
+
+// holdUndecodableStatus leaves a schedule whose status can't be decoded (a
+// server of another version wrote it) as it is: the status is the only
+// record of the snapshots of the schedule, and a status written over would
+// lose them. The schedule takes, retains and deletes nothing, and a deleted
+// one that is to delete its snapshots is not let go, until a status that
+// can be decoded is written; the conditions say so.
+func (o *snapshotOperator) holdUndecodableStatus(p *snapshotPass, obj *structs.CustomObject, err error) {
+	o.logger.Warn("snapshot schedule with a status that can't be decoded is left alone", "namespace", obj.Namespace,
+		"schedule", obj.Name, "error", err)
+	status := structs.CopyObjectMap(obj.Status)
+	conditions := newConditionSet(obj.Status, p.now)
+	conditions.set(structs.CertificateConditionReady, false, "InvalidStatus",
+		fmt.Sprintf("the status can't be decoded (%v): it lists the snapshots of the schedule, so it is kept, "+
+			"and no snapshot is taken or deleted until it can be", err))
+	conditions.set(structs.CertificateConditionDegraded, true, "", "")
+	status[structs.ObjectStatusConditions] = conditions.list()
+	_, _ = o.writeStatus(obj, status, nil)
 }
 
 // schedule begins the snapshot of the latest scheduled time that has come,
@@ -791,6 +816,47 @@ func (o *snapshotOperator) deleteSnapshot(p *snapshotPass, namespace string, s *
 	return o.csi.delete(p.snap, &structs.CSISnapshot{ID: s.ID, PluginID: s.Plugin, Secrets: secrets})
 }
 
+// askForUnanswered asks the plugin once more for a snapshot of a deleted
+// schedule that it has not answered for, by its name, and sets its ID: the
+// plugin may have made it when its answer was lost, and CSI answers a create
+// of the same name with the snapshot it has (or makes it now, and it is
+// deleted next). A failed call is an error, and the deletion waits as for a
+// failed deletion. When the plugin can't be asked, because the volume the
+// snapshot was taken of is gone or of another plugin now, unknown is true:
+// whatever the plugin made is left in the storage, which a warning says, and
+// the snapshot does not hold the schedule.
+func (o *snapshotOperator) askForUnanswered(p *snapshotPass, obj *structs.CustomObject, spec *snapshotScheduleSpec,
+	s *scheduledSnapshot, secrets structs.CSISecrets) (unknown bool, err error) {
+
+	vol, err := p.snap.CSIVolumeByID(nil, obj.Namespace, s.Volume)
+	if err != nil {
+		return false, fmt.Errorf("volume lookup failed: %v", err)
+	}
+	if vol == nil || vol.PluginID != s.Plugin {
+		message := fmt.Sprintf("the CSI plugin %q did not answer for the snapshot %s, and can't be asked for it again: "+
+			"the volume %q is gone or of another plugin; a snapshot of the name may be left in the storage", s.Plugin, s.Name, s.Volume)
+		o.logger.Warn("a snapshot the plugin did not answer for may be left when its schedule is deleted",
+			"schedule", obj.Name, "namespace", obj.Namespace, "snapshot", s.Name, "plugin", s.Plugin, "volume", s.Volume)
+		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "SnapshotMayBeLeft", message)
+		return true, nil
+	}
+	got, err := o.csi.create(p.snap, obj.Namespace, &structs.CSISnapshot{
+		SourceVolumeID: vol.ID,
+		PluginID:       vol.PluginID,
+		Name:           s.Name,
+		Secrets:        secrets,
+		Parameters:     spec.Parameters,
+	})
+	if err == nil && got.ID == "" {
+		err = errors.New("the plugin answered with a snapshot that has no ID")
+	}
+	if err != nil {
+		return false, fmt.Errorf("asking the plugin for the snapshot to delete it failed: %v", err)
+	}
+	s.ID = got.ID
+	return false, nil
+}
+
 // secrets reads the CSI secrets of a schedule from the secret store.
 func (o *snapshotOperator) secrets(obj *structs.CustomObject, spec *snapshotScheduleSpec) (structs.CSISecrets, error) {
 	if spec.SecretPath == "" {
@@ -905,13 +971,6 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		var failed []string
 		var left []*scheduledSnapshot
 		for _, s := range st.Snapshots {
-			if s.ID == "" {
-				// The plugin never answered for it: there is no ID to
-				// delete it by.
-				o.logger.Warn("a snapshot the plugin did not answer for is left when its schedule is deleted",
-					"schedule", obj.Name, "namespace", obj.Namespace, "snapshot", s.Name)
-				continue
-			}
 			err := secretErr
 			switch {
 			case err != nil:
@@ -932,7 +991,24 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 					continue
 				}
 				tried = true
-				if err = o.deleteSnapshot(p, obj.Namespace, s, secrets); err != nil {
+				if s.ID == "" {
+					var unknown bool
+					if unknown, err = o.askForUnanswered(p, obj, spec, s, secrets); unknown {
+						continue
+					}
+					// The call may have taken long: as before any
+					// deletion.
+					if err == nil && !o.srv.operatorObjectCurrent(obj) {
+						stale = true
+						left = append(left, s)
+						failed = append(failed, s.Name)
+						continue
+					}
+				}
+				if err == nil {
+					err = o.deleteSnapshot(p, obj.Namespace, s, secrets)
+				}
+				if err != nil {
 					pluginFailed = true
 				}
 			}
