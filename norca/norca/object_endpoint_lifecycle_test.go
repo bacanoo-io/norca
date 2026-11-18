@@ -171,6 +171,61 @@ func TestCustomObjectEndpoint_Finalizers(t *testing.T) {
 	must.Eq(t, 404, errCode(t, err))
 }
 
+// TestCustomObjectEndpoint_OperatorsFinalizerReserved checks that the
+// finalizer of the built-in operators is the servers': a token with
+// manage-finalizers removing it would let a tenant or a volume request go
+// without the clean-up of the servers, and one adding it would hold back
+// a deletion that no operator finishes. Other finalizers, also the
+// norca.io/ ones of the operators that run as jobs, stay the token's.
+func TestCustomObjectEndpoint_OperatorsFinalizerReserved(t *testing.T) {
+	ci.Parallel(t)
+
+	s, root, cleanupS := TestACLServer(t, nil)
+	defer cleanupS()
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	testutil.WaitForLeader(t, s.RPC)
+
+	controller := mock.CreatePolicyAndToken(t, s.State(), 1001, "controller", `
+namespace "default" {
+  object "db.example.com/*" { capabilities = ["read", "write", "manage-finalizers"] }
+}`)
+
+	_, err := c.upsertKind(testPGKind(true), false, root.SecretID)
+	must.NoError(t, err)
+
+	const jobFin = "norca.io/dns-records"
+	obj := testPGObject("default", "billing", map[string]any{"version": "16"})
+	obj.Finalizers = []string{structs.OperatorsFinalizer}
+	_, err = c.apply(obj, nil, false, root.SecretID)
+	must.NoError(t, err)
+	_, err = c.apply(testPGObject("default", "plain", map[string]any{"version": "16"}), nil, false, root.SecretID)
+	must.NoError(t, err)
+
+	// The token can't remove the finalizer of the servers, nor add it.
+	_, err = c.finalizers("default", "billing", nil, []string{structs.OperatorsFinalizer}, controller.SecretID)
+	must.Error(t, err, must.Sprint("the finalizer of the servers was removed with manage-finalizers"))
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, structs.OperatorsFinalizer)
+	stored, err := c.get("default", "billing", root.SecretID)
+	must.NoError(t, err)
+	must.Eq(t, []string{structs.OperatorsFinalizer}, stored.Finalizers)
+	_, err = c.finalizers("default", "plain", []string{structs.OperatorsFinalizer}, nil, controller.SecretID)
+	must.Eq(t, 403, errCode(t, err))
+
+	// Its own finalizers, norca.io/ ones too, it adds and removes.
+	fresp, err := c.finalizers("default", "billing", []string{jobFin}, nil, controller.SecretID)
+	must.NoError(t, err)
+	must.Eq(t, []string{structs.OperatorsFinalizer, jobFin}, fresp.Object.Finalizers)
+	fresp, err = c.finalizers("default", "billing", nil, []string{jobFin}, controller.SecretID)
+	must.NoError(t, err)
+	must.Eq(t, []string{structs.OperatorsFinalizer}, fresp.Object.Finalizers)
+
+	// A management token may remove it.
+	fresp, err = c.finalizers("default", "billing", nil, []string{structs.OperatorsFinalizer}, root.SecretID)
+	must.NoError(t, err)
+	must.SliceEmpty(t, fresp.Object.Finalizers)
+}
+
 // TestCustomObjectEndpoint_DeletionModes is the acceptance test of the
 // deletion modes: with foreground deletion the object disappears only after
 // the jobs it owns are deleted; with orphan deletion the jobs remain.

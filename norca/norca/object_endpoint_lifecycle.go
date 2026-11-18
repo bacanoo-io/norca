@@ -33,6 +33,28 @@ func errObjectDeleting(obj *structs.CustomObject) error {
 		"%s %q is being deleted; finalizers can't be added", obj.KindRef(), obj.Name)
 }
 
+// checkOperatorsFinalizerChange refuses adding or removing the finalizer of
+// the built-in operators (structs.OperatorsFinalizer) on the finalizers
+// endpoint, except to management tokens (and clusters without ACLs). The
+// servers put it on and take it off themselves, through Raft: removed by
+// another caller, a tenant or a volume request goes without the clean-up of
+// the servers; added to an object no built-in operator works on, it holds
+// back the deletion for good. The other norca.io/ finalizers belong to the
+// operators that run as jobs with their own tokens and stay unrestricted.
+func checkOperatorsFinalizerChange(aclObj *acl.ACL, existing *structs.CustomObject, add, remove []string) error {
+	if aclObj == nil || aclObj.IsManagement() {
+		return nil
+	}
+	has := slices.Contains(existing.Finalizers, structs.OperatorsFinalizer)
+	if (has && slices.Contains(remove, structs.OperatorsFinalizer)) ||
+		(!has && slices.Contains(add, structs.OperatorsFinalizer)) {
+		return structs.NewErrRPCCodedf(http.StatusForbidden,
+			"the finalizer %q is managed by the servers; only a management token may add or remove it",
+			structs.OperatorsFinalizer)
+	}
+	return nil
+}
+
 // checkObjectManagedBy enforces the managed_by identity of an object.
 // Management tokens (and clusters without ACLs) are not restricted.
 func checkObjectManagedBy(aclObj *acl.ACL, args structs.RequestWithIdentity, obj *structs.CustomObject) error {
@@ -423,9 +445,12 @@ func (c *CustomObject) UpdateFinalizers(args *structs.CustomObjectFinalizersRequ
 		dryRun:       args.DryRun,
 		capability:   acl.ObjectCapabilityManageFinalizers,
 		metadataOnly: true,
-		build: func(kind *structs.ObjectKind, _ string, existing *structs.CustomObject, _ *acl.ACL, _ *state.StateSnapshot) (*structs.CustomObject, string, error) {
+		build: func(kind *structs.ObjectKind, _ string, existing *structs.CustomObject, aclObj *acl.ACL, _ *state.StateSnapshot) (*structs.CustomObject, string, error) {
 			if existing == nil {
 				return nil, "", structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kind.KindRef(), args.Name)
+			}
+			if err := checkOperatorsFinalizerChange(aclObj, existing, args.Add, args.Remove); err != nil {
+				return nil, "", err
 			}
 			obj := existing.Copy()
 			obj.Finalizers = slices.DeleteFunc(obj.Finalizers, func(f string) bool {
