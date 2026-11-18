@@ -44,8 +44,8 @@ func (w *walker) value(body hcl.Body, ctx *hcl.EvalContext) (cty.Value, hcl.Diag
 
 func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.Value, hcl.Diagnostics) {
 	// The walk leaves null attributes out by itself.
-	if nn, ok := body.(*withoutNulls); ok {
-		body = nn.body
+	if nn, ok := body.(*withoutNulls); ok && nn.source != nil {
+		body = nn.source
 	}
 
 	syntax, ok := body.(*hclsyntax.Body)

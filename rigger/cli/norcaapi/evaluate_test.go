@@ -5,6 +5,8 @@ package norcaapi_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -16,8 +18,11 @@ import (
 	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
 )
 
-// metadataFile is the metadata file of a module.
-const metadataFile = "metadata.hcl"
+// The files of the modules of the tests.
+const (
+	metadataFile = "metadata.hcl"
+	appFile      = "app.norca.hcl"
+)
 
 // install is the install of the tests.
 var install = rig.Install{Release: "shop", Namespace: "apps", Region: "eu"}
@@ -61,7 +66,7 @@ func TestEngine_Evaluate(t *testing.T) {
 		"metadata.hcl":  {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
 		"variables.hcl": {Data: []byte("variable \"count\" {\n  default = 2\n}\n")},
 		"locals.hcl":    {Data: []byte("locals {\n  job = \"${rig.release}-app\"\n}\n")},
-		"app.norca.hcl": {Data: []byte(`job "app" {
+		appFile: {Data: []byte(`job "app" {
   count       = 2
   id          = "${local.job}-${count.index}"
   datacenters = ["dc1"]
@@ -136,7 +141,7 @@ func TestEngine_Evaluate_TemplateOnly(t *testing.T) {
 
 	fsys := fstest.MapFS{
 		"metadata.hcl": {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
-		"app.norca.hcl": {Data: []byte(`job "app" {
+		appFile: {Data: []byte(`job "app" {
   group "app" {
     task "app" {
       driver = "docker"
@@ -208,7 +213,7 @@ func TestEngine_Evaluate_NullAttributes(t *testing.T) {
 	fsys := fstest.MapFS{
 		metadataFile:    {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
 		"variables.hcl": {Data: []byte("variable \"bridge\" {\n  default = false\n}\n")},
-		"app.norca.hcl": {Data: []byte(`job "app" {
+		appFile: {Data: []byte(`job "app" {
   datacenters = ["dc1"]
   node_pool   = var.bridge ? "edge" : null
 
@@ -268,5 +273,59 @@ func TestEngine_Evaluate_NullAttributes(t *testing.T) {
 
 	if _, ok := tg.Tasks[0].Config["args"]; ok {
 		t.Errorf("config = %v, want no args", tg.Tasks[0].Config)
+	}
+}
+
+// An object given where a block without labels is taken is that block, and
+// the content of a dynamic block is evaluated with its iterator: an env
+// block of names the module computes, a null that depends on the iterator.
+func TestEngine_Evaluate_ObjectAsBlock(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		metadataFile:    {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
+		"variables.hcl": {Data: []byte("variable \"dbs\" {\n  default = [\"a\", \"b\"]\n}\n")},
+		appFile: {Data: []byte(`job "app" {
+  datacenters = ["dc1"]
+
+  group "app" {
+    task "app" {
+      driver = "docker"
+
+      config {
+        image = "busybox"
+      }
+
+      dynamic "secret" {
+        for_each = var.dbs
+        labels   = ["db-${secret.key}"]
+
+        content {
+          path     = "db/${secret.value}"
+          optional = secret.key == 0 ? true : null
+          env      = { "DB_${secret.key}_PASSWORD" = "password", SKIPPED = null }
+        }
+      }
+    }
+  }
+}
+`)},
+	}
+
+	res, diags := evaluate(t, fsys)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	secrets := firstJob(t, res).TaskGroups[0].Tasks[0].Secrets
+	if len(secrets) != 2 {
+		t.Fatalf("secrets = %+v", secrets)
+	}
+
+	for i, s := range secrets {
+		want := map[string]string{fmt.Sprintf("DB_%d_PASSWORD", i): "password"}
+		if s.Name != fmt.Sprintf("db-%d", i) || !maps.Equal(s.Env, want) || s.Optional != (i == 0) {
+			t.Errorf("secret %d = %+v, want env %v", i, s, want)
+		}
 	}
 }
