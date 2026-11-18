@@ -123,8 +123,8 @@ func TestVariables_Constraints(t *testing.T) {
 	t.Parallel()
 
 	m := load(t, fstest.MapFS{
-		"metadata.hcl":  {Data: []byte(metadata)},
-		"variables.hcl": {Data: []byte(variables)},
+		"metadata.hcl": {Data: []byte(metadata)},
+		variablesHCL:   {Data: []byte(variables)},
 	})
 
 	tests := []struct {

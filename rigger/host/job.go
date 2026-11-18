@@ -12,8 +12,10 @@ import (
 
 // JobSpec is a job block of a module, ready to be decoded.
 //
-// Block is the block as parsed; its label is the ID of the job and its
-// ranges place the diagnostics. EvalContext holds the install-time values
+// Block is the block as parsed, without the meta-arguments of Rig (enabled,
+// for_each, count); its label is the name the module refers to the job by,
+// the ID when the block has no id attribute (design 4.5), and its ranges
+// place the diagnostics. EvalContext holds the install-time values
 // (var.*, local.*, module.*, rig.*) and the functions of the engine. A
 // reference the context does not hold, such as a node attribute or a task
 // variable, is a runtime reference: the context gives it back as its text
