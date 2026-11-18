@@ -4,10 +4,22 @@ Rig is the package manager of Norca. It installs modules (packages written
 in typed HCL) and stacks (the modules of a region with their values) into a
 Norca cluster, with versions, registries, a lock file, signatures and trust.
 
-**Status:** phase 0 of the design. The library has its ports and its
-constructor; nothing loads or evaluates a module yet. The design is in
+**Status:** phase 1 of the design. Modules load, validate and evaluate;
+nothing is installed yet. The design is in
 [design/rig-design.md](design/rig-design.md); [examples/](examples/) shows
-the language, which nothing parses yet.
+the language.
+
+## Use
+
+```shell
+rig module validate examples/registry/modules/redis
+rig module render examples/registry/modules/redis \
+    -f examples/registry/modules/redis/examples/auth.vars.hcl \
+    -var count=2 -release cache -namespace apps -region eu
+```
+
+`render` prints the evaluated resources and outputs as JSON; a job is
+decoded by Norca's own job decoder. Secret items are named, never shown.
 
 ## Layout
 

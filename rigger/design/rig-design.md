@@ -2,9 +2,11 @@
 
 Status: draft for discussion, 2026-11-15; phase 0 done 2026-11-18 (section 15:
 the library's ports and constructor, the CLI host, the spikes of the job
-decoder and of the release API, redis and nats converted on paper).
-`examples/` shows a module, a registry with three larger modules and a stack
-in this language; nothing parses them yet. It starts from the
+decoder and of the release API, redis and nats converted on paper); phase 1
+under way: modules load, validate and evaluate (`rig module validate`,
+`rig module render`). `examples/` shows a module, a registry with three larger
+modules and a stack in this language; redis and web render, nats and
+postgres wait for child modules and encoders. It starts from the
 maintainer's first sketch (`rig.md`, not in this repository) and from an inventory of
 what exists today: the pack manager in norca (about 32k lines, plus about
 13k on the server for registries and releases), the 14 packs of norca-registry,
@@ -152,7 +154,9 @@ a task template). Rig evaluates these namespaces at install time:
 Any other reference inside a string of a `job` is a runtime reference and is
 passed through untouched, as jobspec2 does today. Nothing is written `$${}`
 because of Rig. A runtime name that is misspelled as an install-time one
-(`${vars.x}`) is an error with a hint.
+(`${vars.x}`, `local` for `locals`: one letter away) is an error with a hint,
+and so is `each.*` or `count.*` outside a resource with `for_each` or
+`count`.
 
 Outside a `job` block (in `locals`, in a child module that only computes
 values) nothing passes through by itself, so runtime values are named with
@@ -361,7 +365,16 @@ kind, admission policy, external service, object, job.
 - The kind comes from the file extension, so the `variable` block of a
   `.var.hcl` file (a Norca Variable) and the `variable` block of
   `variables.hcl` (an input of the module) do not meet.
-- Every resource takes `enabled` (bool), `for_each` or `count`.
+- Every resource takes `enabled` (bool), `for_each` or `count`. `for_each`
+  takes a map or an object (`each.key`, `each.value`) or a collection of
+  strings (both are the string); the copies are named `x["key"]` and `x[0]`.
+  The meta-arguments are taken off the block before the job decoder sees it.
+- An attribute that evaluates to null is left out, as if it were not
+  written: `args = cond ? [...] : null` replaces `[[ if ]]` around one line.
+- A resource that is not a job is, until its kind is implemented, the value
+  of its block as JSON: attributes as they are, blocks by type, labelled
+  blocks as an object by label, a block type written more than once (or a
+  `dynamic` block) as a list.
 - Hooks stay jobs with a `hook { on = "post-install", weight, timeout,
   delete }` block instead of meta keys.
 - `check "<name>" { condition, error_message }` inside a module: a condition
@@ -412,6 +425,10 @@ module loads. The hints of the form (`ui`) are `tab`, `group`, `order`,
   the redis pack). The mark goes with the value, so an item of a Variable
   resource that takes it becomes a secret item of the release
   (`SecretKeys`, `Secrets` of the release API), never stored in a revision.
+  Anywhere else a sensitive value is an error: in a job (the decoder would
+  write it into the job, which is stored), in another kind, in a
+  meta-argument, and in an output that does not say `sensitive = true`.
+  `rig module render` names the secret items and never writes their values.
 - A stack may *create* secrets once, as the deployer's `secrets.bootstrap`
   does (create-once unless `overwrite`).
 
@@ -856,7 +873,8 @@ rig fmt [-check]                 format (all files are HCL, nothing is skipped)
 rig module validate [dir]        schemas, values of the examples, icon, tests
 rig module show <source>         variables, outputs, requires, versions
 rig module test [dir]            tests/*.rigtest.hcl: values in, assertions over resources
-rig module render <source>       the evaluated resources (JSON or HCL), for review
+rig module render <source>       the evaluated resources and outputs as JSON, for review
+                                 (-f values, -var name=value, -release, -namespace, -region)
 rig module publish               tag, sign, (entry of the global registry)
 rig registry add|list|remove     registries of the user configuration
 rig login <host>
@@ -1413,6 +1431,14 @@ Phase 0 is done (2026-11-18): the ports of section 12.2 as Go, `rig.New`
 with functional options, the log as a tree (section 9.5), the `rig` program
 as the first host, `DecodeJob` and the job decoder (question 4), the release
 API spike (section 12.2), and redis and nats on paper (section 14.1).
+
+Phase 1 so far: load and schemas, values with validation and rules,
+`module validate`; evaluation (facts, locals in the order of their
+references, checks, the module's functions, runtime references passed
+through in jobs, resources with `enabled`/`for_each`/`count`, sensitive
+values, outputs) through `Engine.Evaluate`, and `module render` with Norca's
+job decoder. Next: child modules and local sources, the encoders
+(`natsconf`), `service_addresses`, `module test`, `fmt`.
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).

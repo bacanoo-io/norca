@@ -6,6 +6,7 @@ package command
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,13 +24,26 @@ var errReported = errors.New("reported")
 // runModule runs a module command: rig module <command> [args].
 func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
-		warn(stderr, "module needs a command: validate")
+		warn(stderr, "module needs a command: render or validate")
 
 		return exitError
 	}
 
 	switch args[0] {
-	case "validate":
+	case cmdRender:
+		f, err := parseRenderFlags(stderr, args[1:])
+		if err != nil {
+			if !errors.Is(err, flag.ErrHelp) {
+				warn(stderr, "%v", err)
+			}
+
+			return exitError
+		}
+
+		return run(ctx, logger, stderr, "module.render", func(ctx context.Context) error {
+			return renderModule(ctx, logger, stdout, stderr, f)
+		})
+	case cmdValidate:
 		dir := "."
 		if len(args) > 1 {
 			dir = args[1]
@@ -98,14 +112,25 @@ func writeDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 	return hcl.NewDiagnosticTextWriter(w, sources(dir, diags), 0, false).WriteDiagnostics(diags)
 }
 
-// sources reads the files diagnostics name, inside dir only, for the lines
-// they show. A file that can't be read is shown without its lines.
+// sources reads the files diagnostics name, for the lines they show: the
+// files of the module inside dir, the files of values inside the working
+// directory. A file that can't be read is shown without its lines.
 func sources(dir string, diags hcl.Diagnostics) map[string]*hcl.File {
 	files := map[string]*hcl.File{}
 
+	for _, d := range []string{dir, "."} {
+		readSources(files, d, diags)
+	}
+
+	return files
+}
+
+// readSources reads into files the files of diags that are inside dir and
+// not read yet.
+func readSources(files map[string]*hcl.File, dir string, diags hcl.Diagnostics) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return files
+		return
 	}
 	defer root.Close() //nolint:errcheck // read only: closing can lose nothing
 
@@ -118,6 +143,4 @@ func sources(dir string, diags hcl.Diagnostics) map[string]*hcl.File {
 			files[d.Subject.Filename] = &hcl.File{Bytes: src}
 		}
 	}
-
-	return files
 }

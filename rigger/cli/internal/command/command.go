@@ -32,6 +32,9 @@ const (
 	cmdHelp    = "help"
 	cmdVersion = "version"
 	cmdModule  = "module"
+
+	cmdRender   = "render"
+	cmdValidate = "validate"
 )
 
 const usage = `Usage: rig [flags] <command>
@@ -41,6 +44,10 @@ Commands:
   version                 print the version of rig
   module validate [dir]   check a module without a cluster: its files, its
                           icon, and its example values (dir: the current one)
+  module render [dir] [-f values.vars.hcl] [-var name=value]
+         [-release name] [-namespace ns] [-region region]
+                          evaluate a module and print its resources and
+                          outputs as JSON; secret items are named, not shown
 
 Flags:
 `

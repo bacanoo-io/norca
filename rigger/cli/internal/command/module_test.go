@@ -41,24 +41,24 @@ func TestRun_ModuleValidate(t *testing.T) {
 	}{
 		{
 			name:           "a valid module",
-			args:           []string{cmdModule, "validate", "../../../examples/registry/modules/redis"},
+			args:           []string{cmdModule, cmdValidate, "../../../examples/registry/modules/redis"},
 			expectedCode:   exitOK,
 			expectedStdout: "module redis 0.3.0 in ../../../examples/registry/modules/redis is valid",
 		},
 		{
 			name:           "an invalid example",
-			args:           []string{cmdModule, "validate", broken},
+			args:           []string{cmdModule, cmdValidate, broken},
 			expectedCode:   exitError,
 			expectedStderr: `Error: Invalid value on examples/bad.vars.hcl line 1: 1: mode = "c" var.mode is "c", not one of "a", "b".`,
 		},
 		{
 			name:           "no directory",
-			args:           []string{cmdModule, "validate", filepath.Join(broken, "missing")},
+			args:           []string{cmdModule, cmdValidate, filepath.Join(broken, "missing")},
 			expectedCode:   exitError,
 			expectedStderr: "no such file or directory",
 		},
 		{name: "no module command", args: []string{cmdModule}, expectedCode: exitError, expectedStderr: "module needs a command"},
-		{name: "unknown module command", args: []string{cmdModule, "render"}, expectedCode: exitError, expectedStderr: `unknown module command "render"`},
+		{name: "unknown module command", args: []string{cmdModule, "publish"}, expectedCode: exitError, expectedStderr: `unknown module command "publish"`},
 	}
 
 	for _, tt := range tests {
