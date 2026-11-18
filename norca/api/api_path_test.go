@@ -114,3 +114,21 @@ func TestClient_IdentifierIsEscaped(t *testing.T) {
 		"PUT /v1/deployment/fail/dep%3F1",
 	}, requests())
 }
+
+// A node ID with "&" or "#" stays one query value: it does not add
+// parameters or cut the query (review finding SEC-28, query values).
+func TestNodes_QueryValueIsEscaped(t *testing.T) {
+	testutil.Parallel(t)
+	c, requests := recordingServer(t, `{}`)
+
+	// the recording server answers {}, not a list: only the request counts
+	_, _ = c.Nodes().CSIVolumes("n1&type=host", nil)
+	_, _ = c.Nodes().Stats("n2#x", nil)
+	_ = c.Nodes().GC("n3&node_id=n4", nil)
+
+	must.Eq(t, []string{
+		"GET /v1/volumes?node_id=n1%26type%3Dhost&type=csi",
+		"GET /v1/client/stats?node_id=n2%23x",
+		"GET /v1/client/gc?node_id=n3%26node_id%3Dn4",
+	}, requests())
+}

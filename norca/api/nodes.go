@@ -445,7 +445,7 @@ func (n *Nodes) Allocations(nodeID string, q *QueryOptions) ([]*Allocation, *Que
 
 func (n *Nodes) CSIVolumes(nodeID string, q *QueryOptions) ([]*CSIVolumeListStub, error) {
 	var resp []*CSIVolumeListStub
-	path := fmt.Sprintf("/v1/volumes?type=csi&node_id=%s", nodeID)
+	path := "/v1/volumes?" + url.Values{"type": {"csi"}, "node_id": {nodeID}}.Encode()
 	if _, err := n.client.query(path, &resp, q); err != nil {
 		return nil, err
 	}
@@ -465,7 +465,7 @@ func (n *Nodes) ForceEvaluate(nodeID string, q *WriteOptions) (string, *WriteMet
 
 func (n *Nodes) Stats(nodeID string, q *QueryOptions) (*HostStats, error) {
 	var resp HostStats
-	path := fmt.Sprintf("/v1/client/stats?node_id=%s", nodeID)
+	path := "/v1/client/stats?" + url.Values{"node_id": {nodeID}}.Encode()
 	if _, err := n.client.query(path, &resp, q); err != nil {
 		return nil, err
 	}
@@ -474,7 +474,7 @@ func (n *Nodes) Stats(nodeID string, q *QueryOptions) (*HostStats, error) {
 }
 
 func (n *Nodes) GC(nodeID string, q *QueryOptions) error {
-	path := fmt.Sprintf("/v1/client/gc?node_id=%s", nodeID)
+	path := "/v1/client/gc?" + url.Values{"node_id": {nodeID}}.Encode()
 	_, err := n.client.query(path, nil, q)
 	return err
 }
