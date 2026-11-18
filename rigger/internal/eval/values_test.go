@@ -237,3 +237,16 @@ func TestCoalesce(t *testing.T) {
 		}
 	}
 }
+
+// strlen counts the characters of a string, as the rules of the packs use
+// it.
+func TestStrlen(t *testing.T) {
+	t.Parallel()
+
+	for in, want := range map[string]int64{"": 0, "https://a": 9, "árvíztűrő": 9} {
+		got, err := eval.Functions()["strlen"].Call([]cty.Value{cty.StringVal(in)})
+		if err != nil || !got.RawEquals(cty.NumberIntVal(want)) {
+			t.Errorf("strlen(%q) = %#v, %v; want %d", in, got, err, want)
+		}
+	}
+}

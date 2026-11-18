@@ -26,7 +26,7 @@ func Functions() map[string]function.Function {
 		"chomp": stdlib.ChompFunc, "format": stdlib.FormatFunc, "formatlist": stdlib.FormatListFunc,
 		"indent": stdlib.IndentFunc, "join": stdlib.JoinFunc, "lower": stdlib.LowerFunc,
 		"regex": stdlib.RegexFunc, "regexall": stdlib.RegexAllFunc, "regex_replace": stdlib.RegexReplaceFunc,
-		"replace": stdlib.ReplaceFunc, "split": stdlib.SplitFunc, "strrev": stdlib.ReverseFunc,
+		"replace": stdlib.ReplaceFunc, "split": stdlib.SplitFunc, "strlen": stdlib.StrlenFunc, "strrev": stdlib.ReverseFunc,
 		"substr": stdlib.SubstrFunc, "title": stdlib.TitleFunc, "trim": stdlib.TrimFunc,
 		"trimprefix": stdlib.TrimPrefixFunc, "trimsuffix": stdlib.TrimSuffixFunc,
 		"trimspace": stdlib.TrimSpaceFunc, "upper": stdlib.UpperFunc,
