@@ -246,10 +246,16 @@ namespace "default" {
 		fromItems, fromResults := seen(read(reader.SecretID))
 		must.Eq(t, readable, fromItems, must.Sprintf("%s: items", name))
 		must.SliceContainsAll(t, readable, fromResults, must.Sprintf("%s: results", name))
+		// The status counts what the caller sees (review finding SEC-30):
+		// the Variable is not in the backup, the job is restored.
+		must.Eq(t, "1 of 2 items failed", read(reader.SecretID).StatusDescription,
+			must.Sprintf("%s: status description", name))
 
 		fromItems, fromResults = seen(read(root.SecretID))
 		must.Len(t, len(items), fromItems, must.Sprintf("%s: items of the management token", name))
 		must.Len(t, len(items), fromResults, must.Sprintf("%s: results of the management token", name))
+		must.Eq(t, "4 of 6 items failed", read(root.SecretID).StatusDescription,
+			must.Sprintf("%s: status description of the management token", name))
 	}
 
 	// The stored record keeps everything.

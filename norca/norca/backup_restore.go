@@ -121,7 +121,7 @@ func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.Back
 		record.Status = structs.BackupRestoreStatusComplete
 		if failed > 0 {
 			record.Status = structs.BackupRestoreStatusFailed
-			record.StatusDescription = fmt.Sprintf("%d of %d items failed", failed, len(args.Items))
+			record.StatusDescription = backupRestoreFailedDescription(failed, len(args.Items))
 		}
 		index, err := b.writeRestoreRecord(record)
 		if err != nil {
@@ -328,6 +328,7 @@ func backupRestoreForReader(store *state.StateStore, aclObj *acl.ACL, record *st
 		}
 	}
 	out.Results = out.Results[:0]
+	failed := 0
 	for _, res := range record.Results {
 		if res == nil {
 			continue
@@ -338,9 +339,23 @@ func backupRestoreForReader(store *state.StateStore, aclObj *acl.ACL, record *st
 		}
 		if ok {
 			out.Results = append(out.Results, res)
+			if res.Error != "" {
+				failed++
+			}
 		}
 	}
+	// The status of a failed selective restore counts the items the caller
+	// sees, not all of them (review finding SEC-30).
+	if out.Mode == structs.BackupRestoreModeSelective && out.Status == structs.BackupRestoreStatusFailed {
+		out.StatusDescription = backupRestoreFailedDescription(failed, len(out.Items))
+	}
 	return out, nil
+}
+
+// backupRestoreFailedDescription is the status description of a selective
+// restore with failed items.
+func backupRestoreFailedDescription(failed, items int) string {
+	return fmt.Sprintf("%d of %d items failed", failed, items)
 }
 
 func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.BackupRestoreItemResult {
