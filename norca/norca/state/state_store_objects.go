@@ -79,6 +79,12 @@ func customObjectsTableSchema() *memdb.TableSchema {
 					Field: "Labels",
 				},
 			},
+			indexObjectOwners: {
+				Name:         indexObjectOwners,
+				AllowMissing: true,
+				Unique:       false,
+				Indexer:      objectOwnersIndexer{},
+			},
 		},
 	}
 }

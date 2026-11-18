@@ -4,12 +4,15 @@
 package norca
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
@@ -469,4 +472,145 @@ func TestObjectDelete_DependentJobs(t *testing.T) {
 	c.waitGone(testOwnerGroup, testOwnerKind, "late-part")
 	must.False(t, c.job("late-job").Stop, must.Sprint("a job attached after the deletion of its owner was stopped"))
 	must.False(t, c.job("loose-job").Stop, must.Sprint("the job of an owner deleted in the orphan mode was stopped"))
+}
+
+// dependentsTestStore is a state store with the kind example.com/Database
+// and the objects and jobs of the dependents tests below. index is the last
+// Raft index used.
+type dependentsTestStore struct {
+	tb    testing.TB
+	store *state.StateStore
+	index uint64
+}
+
+func newDependentsTestStore(tb testing.TB) *dependentsTestStore {
+	tb.Helper()
+	d := &dependentsTestStore{tb: tb, store: state.TestStateStore(tb), index: 1000}
+	must.NoError(tb, d.store.UpsertObjectKind(structs.MsgTypeTestSetup, d.next(),
+		&structs.ObjectKind{Group: testOwnerGroup, Kind: testOwnerKind, Namespaced: true, Schema: `{"type": "object"}`}))
+	return d
+}
+
+func (d *dependentsTestStore) next() uint64 {
+	d.index++
+	return d.index
+}
+
+// object writes an object of the default namespace with its owners.
+func (d *dependentsTestStore) object(name string, owners ...string) *structs.CustomObject {
+	d.tb.Helper()
+	obj := &structs.CustomObject{ID: uuid.Generate(), Group: testOwnerGroup, Kind: testOwnerKind,
+		Namespace: "default", Name: name, Generation: 1}
+	for _, owner := range owners {
+		obj.Owners = append(obj.Owners, &structs.ObjectOwnerReference{
+			Kind: structs.ObjectKindRef(testOwnerGroup, testOwnerKind), Namespace: "default", Name: owner})
+	}
+	must.NoError(d.tb, d.store.UpsertCustomObject(structs.MsgTypeTestSetup, d.next(), obj, 0))
+	return obj
+}
+
+// job writes a job of the default namespace owned by the named object, with
+// the kind of the owner in its meta.
+func (d *dependentsTestStore) job(id, owner, ownerKind string, stop bool) *structs.Job {
+	d.tb.Helper()
+	job := mock.Job()
+	job.ID, job.Name, job.Stop = id, id, stop
+	job.Meta = map[string]string{
+		structs.JobMetaOwner:     structs.ObjectOwnerMetaValue(testOwnerGroup, testOwnerKind, "default", owner),
+		structs.JobMetaOwnerKind: ownerKind,
+	}
+	must.NoError(d.tb, d.store.UpsertJob(structs.MsgTypeTestSetup, d.next(), nil, job))
+	stored, err := d.store.JobByID(nil, job.Namespace, id)
+	must.NoError(d.tb, err)
+	return stored
+}
+
+// TestCheckObjectDependentsDelete_Jobs checks which jobs the deletion of an
+// owner is checked for: the jobs that name the owner, and the jobs of the
+// objects that depend on it directly or through other objects; not stopped
+// jobs, jobs of other objects, or jobs whose owner kind is another one.
+func TestCheckObjectDependentsDelete_Jobs(t *testing.T) {
+	ci.Parallel(t)
+	d := newDependentsTestStore(t)
+	kindRef := structs.ObjectKindRef(testOwnerGroup, testOwnerKind)
+
+	web := d.object("web")
+	d.object("web-part", "web")
+	d.object("web-part-db", "web-part")
+	d.object("shared", "other", "web-part-db")
+	d.object("other")
+	d.object("other-part", "other")
+	// A cycle below the owner ends.
+	d.object("loop-a", "web-part", "loop-b")
+	d.object("loop-b", "loop-a")
+
+	want := []*structs.Job{
+		d.job("direct", "web", kindRef, false),
+		d.job("via-part", "web-part", kindRef, false),
+		d.job("via-grand", "web-part-db", kindRef, false),
+		d.job("via-shared", "shared", kindRef, false),
+		d.job("via-loop", "loop-b", kindRef, false),
+	}
+	d.job("stopped", "web-part", kindRef, true)
+	d.job("unrelated", "other-part", kindRef, false)
+	d.job("wrong-kind", "web", "example.com/Other", false)
+	plain := mock.Job()
+	must.NoError(t, d.store.UpsertJob(structs.MsgTypeTestSetup, d.next(), nil, plain))
+
+	snap, err := d.store.Snapshot()
+	must.NoError(t, err)
+	approved, err := checkObjectDependentsDelete(snap, nil, web)
+	must.NoError(t, err)
+	var expected []string
+	for _, job := range want {
+		expected = append(expected, structs.ObjectApprovedJob(job.Namespace, job.ID, job.CreateIndex))
+	}
+	slices.Sort(expected)
+	must.Eq(t, expected, approved)
+
+	// Another owner is checked for its own job only.
+	other, err := snap.CustomObjectByName(nil, testOwnerGroup, testOwnerKind, "default", "other-part")
+	must.NoError(t, err)
+	approved, err = checkObjectDependentsDelete(snap, nil, other)
+	must.NoError(t, err)
+	must.Eq(t, []string{structs.ObjectApprovedJob("default", "unrelated", d.mustJob("unrelated").CreateIndex)}, approved)
+}
+
+func (d *dependentsTestStore) mustJob(id string) *structs.Job {
+	d.tb.Helper()
+	job, err := d.store.JobByID(nil, "default", id)
+	must.NoError(d.tb, err)
+	must.NotNil(d.tb, job)
+	return job
+}
+
+// BenchmarkCheckObjectDependentsDelete measures the check of a deletion of
+// an owner with one dependent object and two jobs, in a store with many
+// other owned objects and jobs (review finding MUK-9).
+func BenchmarkCheckObjectDependentsDelete(b *testing.B) {
+	for _, n := range []int{1000, 10000} {
+		b.Run(fmt.Sprintf("others=%d", n), func(b *testing.B) {
+			d := newDependentsTestStore(b)
+			kindRef := structs.ObjectKindRef(testOwnerGroup, testOwnerKind)
+			for i := range n {
+				name := fmt.Sprintf("db-%d", i)
+				d.object(name)
+				d.object(name+"-part", name)
+				d.job("job-"+name, name+"-part", kindRef, false)
+			}
+			web := d.object("web")
+			d.object("web-part", "web")
+			d.job("direct", "web", kindRef, false)
+			d.job("via-part", "web-part", kindRef, false)
+			snap, err := d.store.Snapshot()
+			must.NoError(b, err)
+
+			for b.Loop() {
+				approved, err := checkObjectDependentsDelete(snap, nil, web)
+				if err != nil || len(approved) != 2 {
+					b.Fatalf("approved %v, error %v", approved, err)
+				}
+			}
+		})
+	}
 }

@@ -6,6 +6,7 @@ package norca
 import (
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -36,143 +37,90 @@ func objectDeletionDestroys(obj *structs.CustomObject) bool {
 	return false
 }
 
-// objectDestroyingKinds are the kinds objectDeletionDestroys knows.
-var objectDestroyingKinds = []string{csiVolumeRequestKind, volumeSnapshotScheduleKind}
-
 // objectRefKey is the key of an object or of a reference to it.
 func objectRefKey(kindRef, namespace, name string) string {
 	return kindRef + "\x00" + namespace + "\x00" + name
 }
 
-// objectDependsOn reports whether dep is a dependent of owner, directly or
-// through other objects. It follows every owner reference: the garbage
-// collector deletes a dependent only when all its owners are gone, but two
-// deletions that run at the same time don't see each other, so every owner
-// of a dependent counts as the one whose deletion takes it.
-func objectDependsOn(snap *state.StateSnapshot, dep, owner *structs.CustomObject) (bool, error) {
-	target := objectRefKey(owner.KindRef(), owner.Namespace, owner.Name)
-	self := objectRefKey(dep.KindRef(), dep.Namespace, dep.Name)
-	if self == target {
-		return false, nil
-	}
-	seen := map[string]struct{}{self: {}}
-	queue := dep.Owners
-	for len(queue) > 0 {
-		ref := queue[0]
-		queue = queue[1:]
-		if ref == nil || !ref.IsObject() {
-			continue
-		}
-		key := objectRefKey(ref.Kind, ref.Namespace, ref.Name)
-		if key == target {
-			return true, nil
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		group, kind, err := structs.ParseObjectKindRef(ref.Kind)
-		if err != nil {
-			continue
-		}
-		up, err := snap.CustomObjectByName(nil, group, kind, ref.Namespace, ref.Name)
-		if err != nil {
-			return false, err
-		}
-		if up != nil {
-			queue = append(queue, up.Owners...)
-		}
-	}
-	return false, nil
-}
-
-// destroyingDependents returns the dependents of owner, direct or through
-// other objects, whose deletion destroys data in the storage.
-func destroyingDependents(snap *state.StateSnapshot, owner *structs.CustomObject) ([]*structs.CustomObject, error) {
+// objectDependents returns the dependents of owner, directly or through
+// other objects, sorted by kind, namespace and name. It follows every owner
+// reference: the garbage collector deletes a dependent only when all its
+// owners are gone, but two deletions that run at the same time don't see
+// each other, so every owner of a dependent counts as the one whose deletion
+// takes it. The owner index of the state store finds them, without a scan of
+// all objects (review finding MUK-9).
+func objectDependents(snap *state.StateSnapshot, owner *structs.CustomObject) ([]*structs.CustomObject, error) {
+	seen := map[string]struct{}{objectRefKey(owner.KindRef(), owner.Namespace, owner.Name): {}}
 	var out []*structs.CustomObject
-	for _, kind := range objectDestroyingKinds {
-		iter, err := snap.CustomObjects(nil, structs.OperatorsGroup, kind, structs.AllNamespacesSentinel, state.SortDefault)
+	for queue := []*structs.CustomObject{owner}; len(queue) > 0; {
+		up := queue[0]
+		queue = queue[1:]
+		iter, err := snap.CustomObjectsByOwner(nil, up.KindRef(), up.Namespace, up.Name)
 		if err != nil {
 			return nil, err
 		}
 		for raw := iter.Next(); raw != nil; raw = iter.Next() {
 			dep := raw.(*structs.CustomObject)
-			if len(dep.Owners) == 0 || !objectDeletionDestroys(dep) {
+			key := objectRefKey(dep.KindRef(), dep.Namespace, dep.Name)
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			depends, err := objectDependsOn(snap, dep, owner)
-			if err != nil {
-				return nil, err
-			}
-			if depends {
-				out = append(out, dep)
-			}
+			seen[key] = struct{}{}
+			out = append(out, dep)
+			queue = append(queue, dep)
 		}
 	}
+	slices.SortFunc(out, func(a, b *structs.CustomObject) int {
+		return strings.Compare(objectRefKey(a.KindRef(), a.Namespace, a.Name), objectRefKey(b.KindRef(), b.Namespace, b.Name))
+	})
 	return out, nil
 }
 
-// dependentJobs returns the running jobs that the deletion of owner may
-// stop: the jobs whose meta names owner, or an object that depends on owner.
-// A job that is stopped already is not one of them: nothing is done to it.
-func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject) ([]*structs.Job, error) {
-	iter, err := snap.Jobs(nil)
-	if err != nil {
-		return nil, err
-	}
-	var out, indirect []*structs.Job
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		job := raw.(*structs.Job)
-		if _, owned := job.Meta[structs.JobMetaOwner]; !owned || job.Stop {
-			continue
-		}
-		if structs.JobOwnedBy(job.Meta, owner.Group, owner.Kind, owner.Namespace, owner.Name) {
-			out = append(out, job)
-		} else {
-			indirect = append(indirect, job)
+// destroyingDependents returns the dependents of owner, direct or through
+// other objects, whose deletion destroys data in the storage. deps are the
+// dependents of owner (objectDependents).
+func destroyingDependents(deps []*structs.CustomObject) []*structs.CustomObject {
+	var out []*structs.CustomObject
+	for _, dep := range deps {
+		if objectDeletionDestroys(dep) {
+			out = append(out, dep)
 		}
 	}
-	if len(indirect) == 0 {
-		return out, nil
-	}
+	return out
+}
 
-	// The owners of the other jobs: the meta of a job names its owner in a
-	// form that is not read back into a kind, so the objects that can
-	// depend on owner (they have owners themselves) are looked up by it.
-	byMeta := map[string][]*structs.CustomObject{}
-	kinds, err := snap.ObjectKinds(nil, "", state.SortDefault)
-	if err != nil {
-		return nil, err
-	}
-	for raw := kinds.Next(); raw != nil; raw = kinds.Next() {
-		kind := raw.(*structs.ObjectKind)
-		objs, err := snap.CustomObjects(nil, kind.Group, kind.Kind, structs.AllNamespacesSentinel, state.SortDefault)
+// dependentJobs returns the running jobs that the deletion of owner may
+// stop: the jobs whose meta names owner, or an object that depends on owner,
+// sorted by namespace and ID. deps are the dependents of owner
+// (objectDependents). A job that is stopped already is not one of them:
+// nothing is done to it.
+func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject, deps []*structs.CustomObject) ([]*structs.Job, error) {
+	seen := map[structs.NamespacedID]struct{}{}
+	var out []*structs.Job
+	for _, obj := range append([]*structs.CustomObject{owner}, deps...) {
+		iter, err := snap.JobsByOwner(nil, structs.ObjectOwnerMetaValue(obj.Group, obj.Kind, obj.Namespace, obj.Name))
 		if err != nil {
 			return nil, err
 		}
-		for raw := objs.Next(); raw != nil; raw = objs.Next() {
-			obj := raw.(*structs.CustomObject)
-			if len(obj.Owners) > 0 {
-				value := structs.ObjectOwnerMetaValue(obj.Group, obj.Kind, obj.Namespace, obj.Name)
-				byMeta[value] = append(byMeta[value], obj)
-			}
-		}
-	}
-	for _, job := range indirect {
-		for _, obj := range byMeta[job.Meta[structs.JobMetaOwner]] {
-			if !structs.JobOwnedBy(job.Meta, obj.Group, obj.Kind, obj.Namespace, obj.Name) {
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			job := raw.(*structs.Job)
+			if job.Stop || !structs.JobOwnedBy(job.Meta, obj.Group, obj.Kind, obj.Namespace, obj.Name) {
 				continue
 			}
-			depends, err := objectDependsOn(snap, obj, owner)
-			if err != nil {
-				return nil, err
+			id := job.NamespacedID()
+			if _, ok := seen[id]; ok {
+				continue
 			}
-			if depends {
-				out = append(out, job)
-				break
-			}
+			seen[id] = struct{}{}
+			out = append(out, job)
 		}
 	}
+	slices.SortFunc(out, func(a, b *structs.Job) int {
+		if c := strings.Compare(a.Namespace, b.Namespace); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
 	return out, nil
 }
 
@@ -189,7 +137,11 @@ func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject) ([]*s
 func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, owner *structs.CustomObject) ([]string, error) {
 	var approved []string
 
-	jobs, err := dependentJobs(snap, owner)
+	dependents, err := objectDependents(snap, owner)
+	if err != nil {
+		return nil, err
+	}
+	jobs, err := dependentJobs(snap, owner, dependents)
 	if err != nil {
 		return nil, err
 	}
@@ -210,10 +162,7 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, own
 			owner.KindRef(), owner.Name, which, job.Namespace, acl.NamespaceCapabilitySubmitJob, structs.ObjectPropagationOrphan)
 	}
 
-	deps, err := destroyingDependents(snap, owner)
-	if err != nil {
-		return nil, err
-	}
+	deps := destroyingDependents(dependents)
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
 	for _, dep := range deps {
 		if allowVolume(aclObj, dep.Namespace) && aclObj.AllowPluginRead() {

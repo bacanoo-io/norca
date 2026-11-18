@@ -254,6 +254,8 @@ func jobTableSchema() *memdb.TableSchema {
 					Field: "NodePool",
 				},
 			},
+			// The jobs an object owns (state_store_object_owners.go).
+			indexJobOwner: jobOwnerIndexSchema(),
 		},
 	}
 }
