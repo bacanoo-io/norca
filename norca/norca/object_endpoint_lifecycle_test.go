@@ -215,6 +215,16 @@ namespace "default" {
 	events, err = c.events("default", "billing", root.SecretID)
 	must.NoError(t, err)
 	must.SliceEmpty(t, events)
+
+	// The events of an object deleted in the orphan mode stay too.
+	_, err = c.apply(testPGObject("default", "loose", map[string]any{"version": "16"}), nil, false, root.SecretID)
+	must.NoError(t, err)
+	must.NoError(t, c.recordEvents("default", "loose", root.SecretID, &structs.ObjectEvent{Reason: "Reconciled"}))
+	_, err = c.deleteWith("default", "loose", structs.ObjectPropagationOrphan, root.SecretID)
+	must.NoError(t, err)
+	events, err = c.events("default", "loose", root.SecretID)
+	must.NoError(t, err)
+	must.Len(t, 1, events, must.Sprint("the events of the object deleted in the orphan mode are gone"))
 }
 
 // TestCustomObjectEndpoint_OperatorsFinalizerReserved checks that the

@@ -20,8 +20,9 @@ const (
 	// tombstone is kept.
 	TableObjectEvents = "object_events"
 
-	// TableObjectTombstones holds the tombstones of deleted objects whose
-	// dependents the garbage collector has to delete.
+	// TableObjectTombstones holds the tombstones of deleted objects: for the
+	// garbage collector, which deletes their dependents (not for an orphan
+	// deletion), and for their event logs, which are kept as long.
 	TableObjectTombstones = "object_tombstones"
 )
 

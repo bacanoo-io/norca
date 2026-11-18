@@ -454,10 +454,11 @@ func (s *StateStore) DeleteCustomObject(msgType structs.MessageType, index uint6
 }
 
 // DeleteCustomObjectRequest removes an object. A non-zero expected modify
-// index must match the stored object. With the background and foreground
-// deletion modes it records a tombstone for the garbage collector, and the
-// event log of the object stays until the tombstone is removed; otherwise
-// the event log is removed with the object.
+// index must match the stored object. With the background, foreground and
+// orphan deletion modes it records a tombstone with the mode for the garbage
+// collector (which takes no dependent for an orphan one), and the event log
+// of the object stays until the tombstone is removed; without a mode (the
+// servers' own removals) the event log is removed with the object.
 func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, index uint64, req *structs.CustomObjectDeleteStateRequest) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
@@ -489,7 +490,7 @@ func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, inde
 	}
 	tombstone := false
 	switch req.Propagation {
-	case structs.ObjectPropagationBackground, structs.ObjectPropagationForeground:
+	case structs.ObjectPropagationBackground, structs.ObjectPropagationForeground, structs.ObjectPropagationOrphan:
 		// The dependents the deleter was checked for: of an object that was
 		// marked for deletion the list of its mark, whoever removes it.
 		approved := req.ApprovedDependents

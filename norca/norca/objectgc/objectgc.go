@@ -13,14 +13,15 @@
 //     the objects and jobs the deleted object owned are deleted. A tombstone
 //     is kept for a retention period after its dependents are gone, so
 //     dependents created late (by a controller racing the deletion) are
-//     collected too.
+//     collected too. The event log of the deleted object is kept with it.
 //
 // An object depends on an owner when its Owners reference the owner (kind,
 // namespace and name); it is deleted only when all its custom object owners
 // are gone. A job depends on an owner when its meta references the owner
 // under the reserved key structs.JobMetaOwner. Jobs are stopped, not purged;
-// the job garbage collector purges them later. Objects deleted in the orphan
-// mode leave no tombstone, so what they owned stays.
+// the job garbage collector purges them later. The tombstone of an object
+// deleted in the orphan mode only keeps its event log for the retention: no
+// dependent is collected for it, so what the object owned stays.
 //
 // Dependents of a deleted owner are never collected while an object with the
 // owner's kind, namespace and name exists again (a re-created or restored
@@ -374,8 +375,10 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 			foreground: t.Propagation == structs.ObjectPropagationForeground,
 			approved:   t.ApprovedDependents}
 		remaining := 0
-		// A re-created owner adopts the dependents.
-		if _, exists := w.objects[o.ref()]; !exists {
+		// A re-created owner adopts the dependents. The tombstone of an
+		// orphan deletion takes none: it only keeps the event log of the
+		// object for the retention.
+		if _, exists := w.objects[o.ref()]; !exists && t.Propagation != structs.ObjectPropagationOrphan {
 			remaining = c.collectDependents(w, o)
 		}
 		if remaining > 0 {

@@ -328,12 +328,39 @@ func TestCollector_OrphanAndAdoption(t *testing.T) {
 	ci.Parallel(t)
 	h := newHarness(t)
 
-	// Orphan: no tombstone, the job stays.
+	// Orphan: the tombstone (kept for the event log) takes no dependent,
+	// late ones neither, and it is not pending work.
 	orphaner := h.object("orphaner")
+	h.object("orphaned", "orphaner")
 	h.job("kept", "orphaner")
 	must.NoError(t, h.remove(orphaner, structs.ObjectPropagationOrphan))
+	must.Eq(t, []string{"id-orphaner"}, h.tombstones())
 	must.False(t, h.collect())
 	must.False(t, h.getJob("kept").Stop)
+	must.NotNil(t, h.get("orphaned"))
+	h.object("orphaned-late", "orphaner")
+	must.False(t, h.collect())
+	must.NotNil(t, h.get("orphaned-late"))
+
+	// Re-created, the owner has its dependents again; deleted again in
+	// the background mode, it takes them.
+	again := h.object("orphaner")
+	must.False(t, h.collect())
+	must.NotNil(t, h.get("orphaned"))
+	must.NoError(t, h.remove(again, structs.ObjectPropagationBackground))
+	must.True(t, h.collect())
+	must.Nil(t, h.get("orphaned"))
+	must.Nil(t, h.get("orphaned-late"))
+
+	// After the retention the orphan tombstone goes, the dependents of
+	// another orphan-deleted owner stay.
+	loner := h.object("loner")
+	h.object("loner-child", "loner")
+	must.NoError(t, h.remove(loner, structs.ObjectPropagationOrphan))
+	h.now = h.now.Add(DefaultConfig().TombstoneRetention + time.Second)
+	h.collect()
+	must.SliceNotContains(t, h.tombstones(), "id-loner")
+	must.NotNil(t, h.get("loner-child"))
 
 	// A re-created owner adopts the dependents of the deleted one.
 	owner := h.object("owner")

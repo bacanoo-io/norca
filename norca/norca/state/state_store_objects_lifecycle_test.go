@@ -205,15 +205,18 @@ func TestStateStore_ObjectTombstonePropagation(t *testing.T) {
 		}))
 	}
 
-	// Only the foreground deletion left a tombstone: the empty mode (old
-	// servers) and orphan don't.
+	// The orphan and the foreground deletion left a tombstone, with their
+	// mode: the event log of the object stays with it. The empty mode (the
+	// servers' own removals without a mode) leaves none.
 	iter, err := store.ObjectTombstones(nil)
 	must.NoError(t, err)
-	var ids []string
+	var ids, modes []string
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		ids = append(ids, raw.(*structs.ObjectTombstone).ID)
+		modes = append(modes, raw.(*structs.ObjectTombstone).Propagation)
 	}
-	must.Eq(t, []string{"id-2"}, ids)
+	must.Eq(t, []string{"id-1", "id-2"}, ids)
+	must.Eq(t, []string{structs.ObjectPropagationOrphan, structs.ObjectPropagationForeground}, modes)
 }
 
 func TestStateStore_ObjectEventLogStreamEvent(t *testing.T) {
