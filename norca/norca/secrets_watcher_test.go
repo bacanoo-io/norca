@@ -5,6 +5,7 @@ package norca
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-memdb"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 // watcherTestServer starts a server whose leader runs no secrets watcher, so
@@ -371,6 +373,52 @@ func TestSecretsWatcher_Leader(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The watcher of a leader term that ends after the watcher of the next term
+// started (a reasserted leadership) leaves the gauges to the new one: its
+// reset does not zero them (review finding MUK-20).
+func TestSecretsWatcher_GaugesOfTheNextTerm(t *testing.T) {
+	ci.Parallel(t)
+	s, cleanup := watcherTestServer(t)
+	defer cleanup()
+	exp := time.Now().Add(24 * time.Hour)
+	writeSecretMeta(t, s, "app/cert", structs.SecretItems{"cert": "x"}, &structs.SecretMeta{ExpiresAt: &exp})
+
+	stopOld, oldDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(oldDone)
+		newSecretsWatcher(s).run(stopOld)
+	}()
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return s.secretsGauges.expiring.Load() == 1
+	}), wait.Timeout(10*time.Second), wait.Gap(10*time.Millisecond)), must.Sprint("the old watcher counts the secret"))
+
+	// The watcher of the next term starts and holds in its first
+	// evaluation, before it sets the gauges.
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	next := newSecretsWatcher(s)
+	next.now = func() time.Time {
+		once.Do(func() { close(entered) })
+		<-release
+		return time.Now()
+	}
+	stopNext, nextDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(nextDone)
+		next.run(stopNext)
+	}()
+	defer func() {
+		close(release)
+		close(stopNext)
+		<-nextDone
+	}()
+	<-entered
+
+	close(stopOld)
+	<-oldDone
+	must.Eq(t, 1, s.secretsGauges.expiring.Load(), must.Sprint("the watcher of the old term zeroed the gauges of the new one"))
 }
 
 // TestSecretEndpoint_RotateJobACL checks that naming a rotation job requires

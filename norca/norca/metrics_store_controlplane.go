@@ -53,6 +53,37 @@ type secretsGaugeValues struct {
 	expiring     atomic.Int64
 	expired      atomic.Int64
 	rotationDue  atomic.Int64
+
+	// watcher and leases hand the gauges of the secrets watcher and of
+	// the lease watcher to the watcher of the newest leader term.
+	watcher gaugeOwner
+	leases  gaugeOwner
+}
+
+// gaugeOwner hands a group of gauges to one writer at a time: the watcher
+// of the newest leader term. The watcher of a term before it, still ending
+// after a reasserted leadership, writes nothing more, so its reset does not
+// zero the gauges of the new one.
+type gaugeOwner struct {
+	mu     sync.Mutex
+	ticket uint64
+}
+
+// claim makes the caller the writer and returns its ticket.
+func (o *gaugeOwner) claim() uint64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.ticket++
+	return o.ticket
+}
+
+// write runs fn if ticket is still the writer's.
+func (o *gaugeOwner) write(ticket uint64, fn func()) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ticket == ticket {
+		fn()
+	}
 }
 
 // counterSampler turns counters into their increase since the previous

@@ -74,6 +74,10 @@ type secretLeaseWatcher struct {
 	now func() time.Time
 
 	synced map[secretEngineKey]*secretEngineSyncState
+
+	// gaugeTicket lets run write the gauge while its term is the newest
+	// (gaugeOwner).
+	gaugeTicket uint64
 }
 
 func newSecretLeaseWatcher(s *Server) *secretLeaseWatcher {
@@ -97,8 +101,8 @@ func (s *Server) runSecretLeaseWatcher(stopCh chan struct{}) {
 }
 
 func (w *secretLeaseWatcher) run(stopCh <-chan struct{}) {
-	defer w.srv.secretsGauges.leasesActive.Store(0)
-	defer metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, 0)
+	w.gaugeTicket = w.srv.secretsGauges.leases.claim()
+	defer w.setGauge(0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -179,8 +183,7 @@ func (w *secretLeaseWatcher) evaluate(ctx context.Context, ws memdb.WatchSet) ti
 			soon(time.Unix(0, l.ExpireTime))
 		}
 	}
-	w.srv.secretsGauges.leasesActive.Store(int64(active))
-	metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, float32(active))
+	w.setGauge(active)
 
 	if len(revoke) > 0 {
 		if err := w.revoke(revoke); err != nil {
@@ -346,4 +349,13 @@ func secretEngineFingerprint(s *Server, engine *structs.SecretEngine, revoked ma
 	sort.Strings(keys)
 	b.WriteString("|" + strings.Join(keys, ","))
 	return b.String()
+}
+
+// setGauge publishes the number of active leases. A watcher whose term is
+// not the newest any more writes nothing.
+func (w *secretLeaseWatcher) setGauge(active int) {
+	w.srv.secretsGauges.leases.write(w.gaugeTicket, func() {
+		w.srv.secretsGauges.leasesActive.Store(int64(active))
+		metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, float32(active))
+	})
 }

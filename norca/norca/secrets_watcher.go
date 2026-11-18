@@ -118,6 +118,10 @@ type secretsWatcher struct {
 
 	// counts are the gauges of the last evaluation.
 	counts secretsWatcherCounts
+
+	// gaugeTicket lets run write the gauges while its term is the newest
+	// (gaugeOwner).
+	gaugeTicket uint64
 }
 
 func newSecretsWatcher(s *Server) *secretsWatcher {
@@ -149,6 +153,7 @@ func (s *Server) runSecretsWatcher(stopCh chan struct{}) {
 func (w *secretsWatcher) run(stopCh <-chan struct{}) {
 	// Followers report no secrets, so that the gauges of a former leader do
 	// not add to the current leader's.
+	w.gaugeTicket = w.srv.secretsGauges.watcher.claim()
 	defer w.setGauges(secretsWatcherCounts{})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -371,13 +376,16 @@ func (w *secretsWatcher) rotate(sec *structs.Secret, dueAt time.Time, st *secret
 }
 
 // setGauges publishes the numbers of secrets per condition.
+// A watcher whose term is not the newest any more writes nothing.
 func (w *secretsWatcher) setGauges(c secretsWatcherCounts) {
-	w.srv.secretsGauges.expiring.Store(int64(c.expiring))
-	w.srv.secretsGauges.expired.Store(int64(c.expired))
-	w.srv.secretsGauges.rotationDue.Store(int64(c.rotationDue))
-	metrics.SetGauge([]string{"nomad", "secrets", "expiring"}, float32(c.expiring))
-	metrics.SetGauge([]string{"nomad", "secrets", "expired"}, float32(c.expired))
-	metrics.SetGauge([]string{"nomad", "secrets", "rotation_due"}, float32(c.rotationDue))
+	w.srv.secretsGauges.watcher.write(w.gaugeTicket, func() {
+		w.srv.secretsGauges.expiring.Store(int64(c.expiring))
+		w.srv.secretsGauges.expired.Store(int64(c.expired))
+		w.srv.secretsGauges.rotationDue.Store(int64(c.rotationDue))
+		metrics.SetGauge([]string{"nomad", "secrets", "expiring"}, float32(c.expiring))
+		metrics.SetGauge([]string{"nomad", "secrets", "expired"}, float32(c.expired))
+		metrics.SetGauge([]string{"nomad", "secrets", "rotation_due"}, float32(c.rotationDue))
+	})
 }
 
 // publishEvents publishes lifecycle events on this server's event broker.
