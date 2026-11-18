@@ -71,7 +71,7 @@ func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnosti
 		r.Module, r.Locked = fm.module, entry
 	}
 
-	return diags
+	return append(diags, e.resolveLockedParts(ctx, s, rules)...)
 }
 
 // trustRule is the rule of a registry, else the default rule (a trust
@@ -128,51 +128,75 @@ var ErrNotTrusted = errors.New("not signed by a key the stack trusts")
 // trust checks the signatures of a fetched module against the trust of the
 // stack: the rule of its registry, else the default rule. A version an
 // index lists needs a signature of a key of its namespace or of the rule.
-// A built-in module is part of the program and needs none. locked are the signers the lock
-// file records, which must still sign. It sets the signatures and signers
-// of the release.
+// A built-in module is part of the program and needs none. locked are the
+// signers the lock file records, which must still sign. It sets the
+// signatures and signers of the release.
 func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetchedModule, locked []string) error {
 	if r.Address.Kind == source.KindBuiltin {
 		return nil
 	}
 
-	rule := trustRule(rules, r.Address.Registry)
-
-	keys := make([]sign.PublicKey, 0, len(rule.Keys)+len(fm.keys))
-
-	for _, text := range rule.Keys {
-		k, err := sign.ParsePublicKey([]byte(text))
-		if err != nil {
-			return fmt.Errorf("a public key of the trust of the stack: %w", err)
-		}
-
-		keys = append(keys, k)
-	}
-
-	for _, text := range fm.keys {
-		k, err := sign.ParsePublicKey(text)
-		if err != nil {
-			return fmt.Errorf("a public key of the namespace of %s: %w", r.Source, err)
-		}
-
-		keys = append(keys, k)
-	}
-
-	signers := sign.Verify(fm.origin.Digest, fm.signatures, keys)
-
-	if (rule.Require || fm.listed) && len(signers) == 0 {
-		return fmt.Errorf("%s %s: %w", r.Source, fm.origin.Version, ErrNotTrusted)
-	}
-
-	for _, id := range locked {
-		if !slices.Contains(signers, id) {
-			return fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rig stack sync", r.Source, fm.origin.Version, id)
-		}
+	signers, err := verifyTrust(trustRule(rules, r.Address.Registry), signedContent{
+		source: r.Source, version: fm.origin.Version, digest: fm.origin.Digest,
+		signatures: fm.signatures, keys: fm.keys, listed: fm.listed,
+	}, locked)
+	if err != nil {
+		return err
 	}
 
 	r.Signatures, r.Signers = fm.signatures, signers
 
 	return nil
+}
+
+// signedContent is a fetched module or stack and what signs it.
+type signedContent struct {
+	source, version, digest string
+	signatures              []sign.Signature
+	// keys are the keys of the namespace of a version an index lists.
+	keys   [][]byte
+	listed bool
+}
+
+// verifyTrust verifies the signatures of fetched content with the keys of
+// a trust rule and of its namespace; it returns the keys that sign it. A
+// rule that requires a signature, or an index that lists the version,
+// needs one; locked are the signers the lock file records, which must
+// still sign.
+func verifyTrust(rule eval.TrustRule, c signedContent, locked []string) ([]string, error) {
+	keys := make([]sign.PublicKey, 0, len(rule.Keys)+len(c.keys))
+
+	for _, text := range rule.Keys {
+		k, err := sign.ParsePublicKey([]byte(text))
+		if err != nil {
+			return nil, fmt.Errorf("a public key of the trust of the stack: %w", err)
+		}
+
+		keys = append(keys, k)
+	}
+
+	for _, text := range c.keys {
+		k, err := sign.ParsePublicKey(text)
+		if err != nil {
+			return nil, fmt.Errorf("a public key of the namespace of %s: %w", c.source, err)
+		}
+
+		keys = append(keys, k)
+	}
+
+	signers := sign.Verify(c.digest, c.signatures, keys)
+
+	if (rule.Require || c.listed) && len(signers) == 0 {
+		return nil, fmt.Errorf("%s %s: %w", c.source, c.version, ErrNotTrusted)
+	}
+
+	for _, id := range locked {
+		if !slices.Contains(signers, id) {
+			return nil, fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rig stack sync", c.source, c.version, id)
+		}
+	}
+
+	return signers, nil
 }
 
 // meets checks that a version meets a constraint; an empty constraint
@@ -390,6 +414,8 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 		r.Module, r.Locked = fm.module, entry
 		lock.Modules = append(lock.Modules, entry)
 	}
+
+	diags = append(diags, e.syncParts(ctx, s, lock, rules, upgrade)...)
 
 	if diags.HasErrors() {
 		return nil, nil, diags

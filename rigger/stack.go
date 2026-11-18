@@ -298,7 +298,7 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 	inStack := map[host.ReleaseRef]bool{}
 
 	for _, rr := range res.Releases {
-		ref := host.ReleaseRef{Namespace: rr.Namespace, Name: rr.Release.Name}
+		ref := host.ReleaseRef{Namespace: rr.Namespace, Name: rr.Name}
 
 		var (
 			rp  ReleasePlan
@@ -313,7 +313,7 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 		}
 
 		if err != nil {
-			return fmt.Errorf("release %s: %w", rr.Release.Name, err)
+			return fmt.Errorf("release %s: %w", rr.Name, err)
 		}
 
 		rp.DependsOn = rr.DependsOn

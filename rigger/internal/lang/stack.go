@@ -35,6 +35,9 @@ type Stack struct {
 	Outputs []*hcl.Block
 	// Releases are the module blocks of stack.hcl, in the order written.
 	Releases []*StackRelease
+	// Parts are the stack blocks of stack.hcl: published stacks taken as
+	// parts (design 7.5).
+	Parts []*StackPart
 	// Secrets are the secret blocks of secrets.hcl.
 	Secrets []*hcl.Block
 	// ValueFiles are the paths of the value files under values/.
@@ -47,6 +50,8 @@ type Stack struct {
 	Sources map[string][]byte
 	FS      fs.FS
 	Dir     string
+	// Root is what the stack was loaded from; FS is Dir of it.
+	Root fs.FS
 }
 
 // RigBlock is the rig block of stack.hcl.
@@ -75,8 +80,10 @@ type StackRelease struct {
 	Namespace hcl.Expression
 	Values    hcl.Expression
 	Enabled   hcl.Expression
-	// DependsOn are the names of the releases written in depends_on.
-	DependsOn []string
+	// DependsOn are the names of the releases written in depends_on,
+	// DependsOnParts those of the parts.
+	DependsOn      []string
+	DependsOnParts []string
 	// The settings of the release (design 6.4). Wait is false only when
 	// written so: a stack waits until a release is ready.
 	Wait       *bool
@@ -97,6 +104,37 @@ type StackRelease struct {
 	Signers    []string
 }
 
+// StackPart is a stack block of a stack: a published stack of a registry
+// taken as a part (design 7.5). Its releases are named <part>-<release>;
+// the modules of the stack read its outputs as stack.<part>.<output>. A
+// part has no parts of its own.
+type StackPart struct {
+	// Name is the label.
+	Name    string
+	Source  string
+	Version string
+	// Values are the values of the variables of the part, an expression
+	// over var.*, local.*, module.* and stack.*; nil when not written.
+	Values hcl.Expression
+	// DependsOn and DependsOnParts are the releases and parts written in
+	// depends_on.
+	DependsOn      []string
+	DependsOnParts []string
+	Block          *hcl.Block
+	Address        *source.Request
+	// Stack is the published stack, Locked its entry of the lock file,
+	// both set by the engine.
+	Stack  *Stack
+	Locked *LockedModule
+	// Signatures and Signers are those of the published stack.
+	Signatures []sign.Signature
+	Signers    []string
+}
+
+// blockStack is the stack block of a stack, a part, and the root of the
+// references to its outputs.
+const blockStack = "stack"
+
 // The attributes of a module block of a stack that are expressions.
 const (
 	attrNamespace = "namespace"
@@ -111,7 +149,7 @@ var stackDirs = map[string]bool{"modules": true, "values": true, "keys": true, "
 
 var (
 	stackSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
-		{Type: "rig"}, {Type: "module", LabelNames: []string{labelName}},
+		{Type: "rig"}, {Type: "module", LabelNames: []string{labelName}}, {Type: blockStack, LabelNames: []string{labelName}},
 	}}
 	secretsSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
 		{Type: "secret", LabelNames: []string{labelName}},
@@ -135,7 +173,7 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Stack not read", Detail: err.Error() + "."}}
 	}
 
-	s := &Stack{Sources: map[string][]byte{}, FS: fsys, Dir: dir, Vars: &Module{Sources: map[string][]byte{}}}
+	s := &Stack{Sources: map[string][]byte{}, FS: fsys, Dir: dir, Root: root, Vars: &Module{Sources: map[string][]byte{}}}
 
 	diags := s.readFiles(ctx, fsys)
 	if diags.HasErrors() {
@@ -155,6 +193,10 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 		diags = append(diags, s.loadRelease(ctx, root, r, limits)...)
 	}
 
+	for _, p := range s.Parts {
+		diags = append(diags, s.parsePart(p)...)
+	}
+
 	if s.Metadata != nil && !diags.HasErrors() {
 		diags = append(diags, s.checkPublished()...)
 	}
@@ -167,6 +209,11 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 // their children lie in its directory, so that its digest covers them.
 func (s *Stack) checkPublished() hcl.Diagnostics {
 	var diags hcl.Diagnostics
+
+	for _, p := range s.Parts {
+		diags = append(diags, errorAt(p.Block.DefRange, "Part of a published stack",
+			"A published stack has no stack blocks: parts are one level, a local stack over published stacks (design 7.5)."))
+	}
 
 	if s.Metadata.Name != s.Rig.Name {
 		diags = append(diags, errorAt(s.Rig.Range, "Names differ",
@@ -355,6 +402,13 @@ func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 			rigs++
 
 			diags = append(diags, s.decodeRig(b)...)
+		case blockStack:
+			p, moreDiags := decodePart(b)
+			diags = append(diags, moreDiags...)
+
+			if p != nil {
+				s.Parts = append(s.Parts, p)
+			}
 		default:
 			r, moreDiags := decodeRelease(b)
 			diags = append(diags, moreDiags...)
@@ -491,33 +545,124 @@ func (r *StackRelease) decodeConstant(name string, attr *hcl.Attribute) hcl.Diag
 	return diags
 }
 
-// decodeDependsOn decodes depends_on: a list of module.<name>.
+// decodeDependsOn decodes depends_on: a list of module.<name> and
+// stack.<name>.
 func (r *StackRelease) decodeDependsOn(attr *hcl.Attribute) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	r.DependsOn, r.DependsOnParts, diags = decodeDependsOn(attr)
+
+	return diags
+}
+
+// decodeDependsOn decodes depends_on: the names of the modules and of the
+// parts it lists.
+func decodeDependsOn(attr *hcl.Attribute) (modules, parts []string, diags hcl.Diagnostics) {
 	exprs, diags := hcl.ExprList(attr.Expr)
 	if diags.HasErrors() {
-		return diags
+		return nil, nil, diags
 	}
+
+	const detail = "depends_on lists modules and parts of the stack: [module.postgres, stack.data]."
 
 	for _, e := range exprs {
 		t, moreDiags := hcl.AbsTraversalForExpr(e)
-		if moreDiags.HasErrors() || len(t) != 2 || t.RootName() != "module" {
-			diags = append(diags, errorAt(e.Range(), "Invalid depends_on",
-				"depends_on lists modules of the stack: [module.postgres, module.nats]."))
+		if moreDiags.HasErrors() || len(t) != 2 || (t.RootName() != "module" && t.RootName() != blockStack) {
+			diags = append(diags, errorAt(e.Range(), "Invalid depends_on", detail))
 
 			continue
 		}
 
 		attr, ok := t[1].(hcl.TraverseAttr)
 		if !ok {
-			diags = append(diags, errorAt(e.Range(), "Invalid depends_on", "depends_on lists modules of the stack: [module.postgres, module.nats]."))
+			diags = append(diags, errorAt(e.Range(), "Invalid depends_on", detail))
 
 			continue
 		}
 
-		r.DependsOn = append(r.DependsOn, attr.Name)
+		if t.RootName() == blockStack {
+			parts = append(parts, attr.Name)
+		} else {
+			modules = append(modules, attr.Name)
+		}
 	}
 
-	return diags
+	return modules, parts, diags
+}
+
+// decodePart decodes a stack block of a stack: source, version, values,
+// depends_on.
+func decodePart(b *hcl.Block) (*StackPart, hcl.Diagnostics) {
+	name := b.Labels[0]
+	if !releaseName.MatchString(name) {
+		return nil, hcl.Diagnostics{errorAt(b.LabelRanges[0], "Invalid part name",
+			fmt.Sprintf("%q is not a name of a part: lower case letters, digits and -, at most 63.", name))}
+	}
+
+	attrs, diags := b.Body.JustAttributes()
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	p := &StackPart{Name: name, Block: b}
+
+	for n, attr := range attrs {
+		var moreDiags hcl.Diagnostics
+
+		switch n {
+		case attrSource:
+			moreDiags = gohcl.DecodeExpression(attr.Expr, nil, &p.Source)
+		case attrVersion:
+			moreDiags = gohcl.DecodeExpression(attr.Expr, nil, &p.Version)
+		case attrValues:
+			p.Values = attr.Expr
+		case "depends_on":
+			p.DependsOn, p.DependsOnParts, moreDiags = decodeDependsOn(attr)
+		default:
+			moreDiags = hcl.Diagnostics{errorAt(attr.NameRange, "Unknown attribute",
+				"A stack block takes source, version, values and depends_on, not "+n+".")}
+		}
+
+		diags = append(diags, moreDiags...)
+	}
+
+	if p.Source == "" && !diags.HasErrors() {
+		diags = append(diags, errorAt(b.DefRange, "Missing source", "A part names the source of a published stack."))
+	}
+
+	return p, diags
+}
+
+// parsePart parses the source of a part: a published stack of the global
+// registry or of a git repository.
+func (s *Stack) parsePart(p *StackPart) hcl.Diagnostics {
+	registries, diags := s.Registries()
+	if diags.HasErrors() {
+		return diags
+	}
+
+	req, err := source.Parse(p.Source, registries)
+
+	switch {
+	case err != nil:
+		return hcl.Diagnostics{errorAt(p.Block.DefRange, "Invalid source", err.Error()+".")}
+	case req.Kind != source.KindGlobal && req.Kind != source.KindGit:
+		return hcl.Diagnostics{errorAt(p.Block.DefRange, "Invalid source",
+			p.Source+" is not a published stack of a registry: <namespace>/<name> or a git address (design 7.5).")}
+	}
+
+	req.Stack = true
+
+	switch {
+	case req.Kind == source.KindGlobal:
+		req.Path = "stacks/" + req.Name
+	case req.Registry != "":
+		req.Path = "stacks/" + path.Base(req.Path)
+	}
+
+	p.Address = &req
+
+	return nil
 }
 
 // Registries returns the repositories of the registries of the stack by

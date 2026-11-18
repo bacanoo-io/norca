@@ -23,6 +23,8 @@ const (
 	eachRoot   = "each"
 	attrKey    = "key"
 	attrValue  = "value"
+	// stackRoot holds the outputs of the parts of a stack (design 7.5).
+	stackRoot = "stack"
 )
 
 // node is a value of a module or a stack that others may read: a local, a
@@ -33,6 +35,7 @@ type node struct {
 	local   *hcl.Attribute
 	child   *lang.Child
 	release *lang.StackRelease
+	part    *lang.StackPart
 	rng     hcl.Range
 }
 
@@ -47,6 +50,18 @@ func (n *node) refs() []string {
 		for _, attr := range n.child.Args {
 			out = append(out, valueRefs(attr.Expr)...)
 		}
+	case n.part != nil:
+		if n.part.Values != nil {
+			out = append(out, valueRefs(n.part.Values)...)
+		}
+
+		for _, dep := range n.part.DependsOn {
+			out = append(out, moduleRoot+"."+dep)
+		}
+
+		for _, dep := range n.part.DependsOnParts {
+			out = append(out, stackRoot+"."+dep)
+		}
 	default:
 		for _, e := range []hcl.Expression{n.release.Values, n.release.Enabled, n.release.Namespace} {
 			if e != nil {
@@ -56,6 +71,10 @@ func (n *node) refs() []string {
 
 		for _, dep := range n.release.DependsOn {
 			out = append(out, moduleRoot+"."+dep)
+		}
+
+		for _, dep := range n.release.DependsOnParts {
+			out = append(out, stackRoot+"."+dep)
 		}
 	}
 
@@ -69,7 +88,7 @@ func valueRefs(expr hcl.Expression) []string {
 
 	for _, t := range expr.Variables() {
 		root := t.RootName()
-		if (root != localsRoot && root != moduleRoot) || len(t) < 2 {
+		if (root != localsRoot && root != moduleRoot && root != stackRoot) || len(t) < 2 {
 			continue
 		}
 

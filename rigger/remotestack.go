@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
+	"github.com/bacanoo-io/norca-rig/internal/eval"
 	"github.com/bacanoo-io/norca-rig/internal/lang"
 	"github.com/bacanoo-io/norca-rig/oplog"
 	"github.com/bacanoo-io/norca-rig/sign"
@@ -24,11 +25,14 @@ var ErrNotStackSource = errors.New("a published stack comes from the global regi
 
 // StackOrigin is where a published stack was fetched from.
 type StackOrigin struct {
-	Source  string   `json:"source"`
-	Version string   `json:"version"`
-	Commit  string   `json:"commit,omitempty"`
-	Digest  string   `json:"digest"`
-	Signers []string `json:"signers,omitempty"`
+	Source     string   `json:"source"`
+	Version    string   `json:"version"`
+	Repository string   `json:"repository,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	Ref        string   `json:"ref,omitempty"`
+	Commit     string   `json:"commit,omitempty"`
+	Digest     string   `json:"digest"`
+	Signers    []string `json:"signers,omitempty"`
 }
 
 // FetchStack fetches a published stack (design 7.5): the newest version
@@ -55,30 +59,101 @@ func (e *Engine) fetchStack(ctx context.Context, address, constraint string) (*S
 		return nil, errorDiags("Invalid stack source", err)
 	}
 
-	if e.fetcher == nil {
-		return nil, errorDiags("Stack not fetched", ErrNoFetcher)
-	}
-
 	req.Stack = true
 	if req.Kind == source.KindGlobal {
 		req.Path = "stacks/" + req.Name
 	}
 
-	available, err := e.fetcher.Versions(ctx, req)
+	fs, err := e.fetchNewestStack(ctx, req, constraint)
+	if err == nil {
+		fs.origin.Signers, err = verifyTrust(eval.TrustRule{}, fs.signed(), nil)
+	}
+
 	if err != nil {
 		return nil, errorDiags("Stack not fetched", err)
+	}
+
+	diags := e.resolveLocked(ctx, fs.stack)
+	diags = append(diags, fs.advisories(hcl.Range{})...)
+
+	return &Stack{s: fs.stack, origin: fs.origin}, diags
+}
+
+// fetchedStack is a published stack fetched from a source.
+type fetchedStack struct {
+	stack      *lang.Stack
+	origin     *StackOrigin
+	signatures []sign.Signature
+	listing    *source.Listing
+}
+
+// signed is what signs the stack.
+func (fs *fetchedStack) signed() signedContent {
+	c := signedContent{source: fs.origin.Source, version: fs.origin.Version, digest: fs.origin.Digest, signatures: fs.signatures}
+	if fs.listing != nil {
+		c.keys, c.listed = fs.listing.Keys, true
+	}
+
+	return c
+}
+
+// advisories are the warnings the index records on the version.
+func (fs *fetchedStack) advisories(rng hcl.Range) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if fs.listing == nil {
+		return nil
+	}
+
+	for _, w := range fs.listing.Warnings {
+		d := &hcl.Diagnostic{
+			Severity: hcl.DiagWarning, Summary: "Advisory",
+			Detail: fmt.Sprintf("%s %s: %s", fs.origin.Source, fs.origin.Version, w),
+		}
+
+		if rng.Filename != "" {
+			d.Subject = rng.Ptr()
+		}
+
+		diags = append(diags, d)
+	}
+
+	return diags
+}
+
+// fetchNewestStack fetches the newest version of a published stack that
+// meets the constraint.
+func (e *Engine) fetchNewestStack(ctx context.Context, req source.Request, constraint string) (*fetchedStack, error) {
+	if e.fetcher == nil {
+		return nil, ErrNoFetcher
+	}
+
+	available, err := e.fetcher.Versions(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	pick, err := newest(available, constraint)
 	if err != nil {
-		return nil, errorDiags("Stack not fetched", fmt.Errorf("%s: %w", address, err))
+		return nil, fmt.Errorf("%s: %w", req.Source, err)
 	}
 
 	req.Version, req.Ref, req.Commit = pick.Version, pick.Ref, pick.Commit
 
+	return e.fetchPublished(ctx, req)
+}
+
+// fetchPublished fetches a version of a published stack and loads it,
+// without the modules of its sources: published, of the name and version of
+// its address, and, listed in an index, of the listed digest.
+func (e *Engine) fetchPublished(ctx context.Context, req source.Request) (*fetchedStack, error) {
+	if e.fetcher == nil {
+		return nil, ErrNoFetcher
+	}
+
 	fetched, err := e.fetcher.Fetch(ctx, req)
 	if err != nil {
-		return nil, errorDiags("Stack not fetched", err)
+		return nil, err
 	}
 
 	s, diags := lang.LoadStack(ctx, fetched.FS, fetched.Dir, e.langLimits())
@@ -86,46 +161,8 @@ func (e *Engine) fetchStack(ctx context.Context, address, constraint string) (*S
 		return nil, diags
 	}
 
-	origin, err := checkFetchedStack(s, req, fetched)
-	if err != nil {
-		return nil, errorDiags("Stack not taken", err)
-	}
-
-	diags = append(diags, e.resolveLocked(ctx, s)...)
-
-	for _, w := range listingWarnings(fetched.Listing) {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagWarning, Summary: "Advisory",
-			Detail: fmt.Sprintf("%s %s: %s", address, origin.Version, w),
-		})
-	}
-
-	return &Stack{s: s, origin: origin}, diags
-}
-
-func listingWarnings(l *source.Listing) []string {
-	if l == nil {
-		return nil
-	}
-
-	return l.Warnings
-}
-
-// checkFetchedStack checks a fetched stack: published, of the name and
-// version of its address, and, listed in an index, of the listed digest
-// and signed by a key of its namespace.
-func checkFetchedStack(s *lang.Stack, req source.Request, fetched source.Fetched) (*StackOrigin, error) {
-	if s.Metadata == nil {
-		return nil, fmt.Errorf("%s has no metadata.hcl: it is not a published stack", req.Source)
-	}
-
-	name := path.Base(fetched.Dir)
-	if req.Kind == source.KindGlobal {
-		name = req.Name
-	}
-
-	if (name != "." && s.Metadata.Name != name) || s.Metadata.Version != req.Version {
-		return nil, fmt.Errorf("%s %s holds the stack %s %s", req.Source, req.Version, s.Metadata.Name, s.Metadata.Version)
+	if err := checkPublished(s, req, fetched.Dir); err != nil {
+		return nil, err
 	}
 
 	digest, err := lang.StackDigest(s)
@@ -133,57 +170,71 @@ func checkFetchedStack(s *lang.Stack, req source.Request, fetched source.Fetched
 		return nil, err
 	}
 
-	origin := &StackOrigin{Source: req.Source, Version: req.Version, Commit: fetched.Origin.Commit, Digest: digest}
-
-	l := fetched.Listing
-	if l == nil {
-		return origin, nil
-	}
-
-	if l.Name != s.Metadata.Name || l.Digest != digest {
-		return nil, fmt.Errorf("the content of %s %s is not what the index lists (%s, now %s)", req.Source, req.Version, l.Digest, digest)
-	}
-
-	signers, err := verifyListed(l, req.Version)
-	if err != nil {
-		return nil, fmt.Errorf("%s %s: %w", req.Source, req.Version, err)
-	}
-
-	origin.Signers = signers
-
-	return origin, nil
-}
-
-// verifyListed verifies the signatures an index lists of a version with
-// the keys of its namespace; it returns the keys that sign it.
-func verifyListed(l *source.Listing, version string) ([]string, error) {
-	statement, err := sign.Statement(l.Digest, l.Name, version)
+	sigs, err := sign.ReadSignatures(fetched.FS, fetched.Dir)
 	if err != nil {
 		return nil, err
 	}
 
-	sigs := make([]sign.Signature, 0, len(l.Signatures))
-	for _, s := range l.Signatures {
-		sigs = append(sigs, sign.Signature{Payload: statement, Signature: s.Signature})
+	repository := req.Repository
+	if fetched.Origin.Repository != "" {
+		repository = fetched.Origin.Repository
 	}
 
-	keys := make([]sign.PublicKey, 0, len(l.Keys))
+	fs := &fetchedStack{
+		stack: s, signatures: sigs, listing: fetched.Listing,
+		origin: &StackOrigin{
+			Source: req.Source, Version: req.Version, Repository: repository, Path: path.Clean(fetched.Dir),
+			Ref: fetched.Origin.Ref, Commit: fetched.Origin.Commit, Digest: digest,
+		},
+	}
 
-	for _, text := range l.Keys {
-		k, err := sign.ParsePublicKey(text)
-		if err != nil {
-			return nil, fmt.Errorf("a public key of the namespace: %w", err)
+	if fetched.Listing != nil {
+		if err := fs.checkListing(); err != nil {
+			return nil, err
 		}
-
-		keys = append(keys, k)
 	}
 
-	signers := sign.Verify(l.Digest, sigs, keys)
-	if len(signers) == 0 {
-		return nil, ErrNotTrusted
+	return fs, nil
+}
+
+// checkPublished checks that a fetched stack is the published stack of
+// its address: its name, by the address or the directory, and its version.
+func checkPublished(s *lang.Stack, req source.Request, dir string) error {
+	if s.Metadata == nil {
+		return fmt.Errorf("%s has no metadata.hcl: it is not a published stack", req.Source)
 	}
 
-	return signers, nil
+	name := path.Base(dir)
+	if req.Kind == source.KindGlobal {
+		name = req.Name
+	}
+
+	if (name != "." && s.Metadata.Name != name) || s.Metadata.Version != req.Version {
+		return fmt.Errorf("%s %s holds the stack %s %s", req.Source, req.Version, s.Metadata.Name, s.Metadata.Version)
+	}
+
+	return nil
+}
+
+// checkListing checks a fetched stack against what the index lists of it,
+// and adds the signatures of the index.
+func (fs *fetchedStack) checkListing() error {
+	l, o := fs.listing, fs.origin
+
+	if l.Name != fs.stack.Metadata.Name || l.Digest != o.Digest {
+		return fmt.Errorf("the content of %s %s is not what the index lists (%s, now %s)", o.Source, o.Version, l.Digest, o.Digest)
+	}
+
+	statement, err := sign.Statement(l.Digest, l.Name, o.Version)
+	if err != nil {
+		return err
+	}
+
+	for _, ls := range l.Signatures {
+		fs.signatures = append(fs.signatures, sign.Signature{Payload: statement, Signature: ls.Signature})
+	}
+
+	return nil
 }
 
 // Origin is where a published stack was fetched from; nil for a stack

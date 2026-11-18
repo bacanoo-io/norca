@@ -953,7 +953,7 @@ rig module show <source>         variables, outputs, requires, versions
 rig module test [dir]            tests/*.rigtest.hcl: values in, assertions over resources
 rig module render <source>       the evaluated resources and outputs as JSON, for review
                                  (-f values, -var name=value, -release, -namespace, -region)
-rig module publish               tag, sign, (entry of the global registry)
+rig module publish               sign, commit the signature, tag (-to oci://: push)
 rig registry add|list|remove     registries of the user configuration
 rig login <host>
 rig key generate / sign / verify
@@ -966,7 +966,8 @@ rig stack status                 releases of the stack, readiness, drift
 rig stack destroy                uninstall the releases of the stack
 rig stack validate [dir]         schemas, values of the examples, lock, icon
 rig stack show <source>          variables, outputs, the modules a version locks
-rig stack publish                tag, sign, (entry of the global registry); needs a matching lock
+rig stack publish                sign, commit the signature, tag; needs a matching lock
+rig index update|check           list new versions in the global registry; check its files
 
 Every `rig stack` command takes a directory (default: the current one) or a
 registry address with `--version`.
@@ -1578,7 +1579,8 @@ Phase 3 as built (2026-11-18):
   tagged `<name>/v<version>`; a git address (`<host>/<path>[//<dir>]`,
   `https://`, `file://`, an absolute path) tagged `<dir>/v<version>` or
   `v<version>`; `builtin/<name>`; `dir://<path>`. Any other `<a>/<b>` is the
-  global registry, refused until phase 6. OCI and bundles come with phase 4.
+  global registry, refused until phase 6, which resolves it. OCI and
+  bundles come with phase 4.
 - **Versions** (package `version`, Rig's own): semver with pre-releases,
   constraints `=`, `!=`, `>`, `>=`, `<`, `<=`, `~>` joined with commas;
   `~> 1.2` is `< 2.0.0`, `~> 1.2.3` is `< 1.3.0`; a pre-release meets only a
@@ -1715,6 +1717,85 @@ Phase 5 as built (2026-11-18):
 - Open: a variable that only rules read is reported as unused (14.1), also
   when it is a gate the installer must set (`consul_license_accepted`,
   `allow_single_datacenter`).
+
+Phase 6 as built (2026-11-18), the global registry:
+
+- **The format is the package `index`** of the library: the entries of
+  7.3 as JSON, one file per module or stack with its versions in ascending
+  order (version, repository, path, tag, commit, tree digest, signatures as
+  key ID and signature, `requires`, icon digest, for a stack the modules
+  its lock pins, the day it was listed); `namespaces/<ns>.json` with the
+  owner and the repositories, each of a layout (`registry`: modules in
+  `modules/<name>`, stacks in `stacks/<name>`, tags `<name>/v<version>`;
+  `module`: one module or stack at the root, tags `v<version>`);
+  `keys/<ns>/*.pub`; `advisories.json` (kind, namespace, name, version,
+  level `warning` or `blocked`, reason, and the decision of a block).
+  Unknown fields are refused. An entry keeps only the signature: the signed
+  statement is that of 8.1 and is built again from the digest, the name and
+  the version (`sign.Statement`).
+- **`<namespace>/<name>` resolves through the global registry** when the
+  stack names no registry of that name: by default
+  `github.com/bacanoo-io/norca-global-registry`, mirrored into the cache
+  like a git source and read at its default branch; `RIG_GLOBAL_REGISTRY`
+  names another (a git address, or a directory read as it is). A blocked
+  version is not offered and a lock file that names it fails with the
+  reason; the module is fetched from its author's repository at the listed
+  commit, and refused unless its name and tree digest are the listed ones
+  and a key of its namespace signs it (whatever the trust of the stack
+  says, which may add keys). The lock file records the author's repository
+  and commit, so a bundle carries the module like a git source; without
+  the registry (a machine without a network) such a module is taken by its
+  lock entry, with the keys the trust of the stack names. Warnings are
+  shown by `rig stack sync` and `plan`.
+- **The registry repository is kept by rig itself.** `rig index update`
+  lists, per namespace, the tags of its repositories that are not listed
+  yet: each one validated (a module with its examples rendered, a stack
+  with its value files and the modules its lock pins), its metadata naming
+  the name and version of the tag, signed by a key of the namespace, not
+  blocked; a tag that fails stays out with its reason, a listed tag that
+  moved is reported. `rig index check` checks every file, and with
+  `-base <revision>` that a change only adds (no listed version or advisory
+  changed or removed) and every added version against its source; without
+  it, every version. `-replace url=path` reads a repository from a clone.
+  The workflows of `norca-global-registry` run them: `check.yml` on every
+  pull request and push and weekly in full, `update.yml` every hour, which
+  commits what passed; issue forms ask for a namespace and report a
+  version.
+- **Publishing:** `rig module publish [dir] -key <key>` (without `-to`)
+  validates the module, signs its tree digest, commits the signature and
+  tags the version (`<name>/v<version>`, `v<version>` at the root of a
+  repository); `rig stack publish [dir] -key <key>` does the same for a
+  stack, validated with its lock file. A tag is never made twice, and a
+  module with changes not committed is refused. Nothing is pushed.
+- **Stacks in a registry (7.5):** a stack with `metadata.hcl` (a `stack`
+  block with the name of its `rig` block and a version) is published; its
+  own modules and their children lie in its `modules/`, and its tree digest
+  covers its directory with the lock file. `rig key sign|verify` take it
+  like a module. The stack commands but `sync` and `publish` take the
+  source of a published stack instead of a directory, with `-version`.
+  A stack of the global registry uses only modules of the global registry,
+  its own and built-in ones; `rig index` resolves them from the checkout it
+  works on, so a stack and the modules it pins are checked together.
+- **Parts:** a local stack takes a published stack as a part, `stack
+  "<part>" { source, version, values, depends_on }`, one level (a published
+  stack has none). The lock file records the part as a `stack` block (its
+  version, source, commit, digest and signers), the modules of the part come
+  from the part's own lock file. The releases of a part are named
+  `<part>-<release>`, its generated values `<part>-<name>`; it runs in the
+  region of the stack and in its namespace unless the part names one; a
+  release of the stack reads its outputs as `stack.<part>.<output>` and
+  waits for all its releases, and the releases of the part wait for what
+  the part reads.
+- **The namespace `norca`** lists `norca-rig-registry`. Its signing key is
+  for the maintainers to make (`rig key generate -out norca`, the public
+  half into `keys/norca/`); until then the update lists nothing of it:
+  every tag of the registry validates and is reported as not signed.
+  Checked on a copy with a key of its own: nats 2.0.0 signed, listed, and
+  installed by a stack from `norca/nats` through the registry.
+- Not in this phase: icons in the user interface (phase 7, in norca); the
+  user configuration of registries (`rig registry add`), `rig login` and
+  credentials of OCI registries; a registry stack used by name of a
+  registry block (`<registry>/<name>`) works for parts only.
 
 ## 16. Open questions for the maintainer
 

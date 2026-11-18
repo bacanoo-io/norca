@@ -30,31 +30,52 @@ type SourcedModule struct {
 	Root fs.FS    `json:"-"`
 }
 
-// SourcedModules returns the modules of the stack from git sources, each
-// version once.
+// SourcedModules returns the modules of the stack from git sources and
+// the global registry, each version once, with the published stacks of its
+// parts and their modules.
 func (s *Stack) SourcedModules() []SourcedModule {
 	var out []SourcedModule
 
-	for _, r := range s.s.Releases {
-		if r.Address == nil || (r.Address.Kind != source.KindGit && r.Address.Kind != source.KindGlobal) || r.Locked == nil || r.Module == nil {
+	add := func(m SourcedModule) {
+		if !slices.ContainsFunc(out, func(o SourcedModule) bool { return o.Commit == m.Commit && o.Path == m.Path }) {
+			out = append(out, m)
+		}
+	}
+
+	stacks := []*lang.Stack{s.s}
+
+	for _, p := range s.s.Parts {
+		if p.Stack == nil || p.Locked == nil {
 			continue
 		}
 
-		if slices.ContainsFunc(out, func(m SourcedModule) bool { return m.Commit == r.Locked.Commit && m.Path == r.Locked.Path }) {
-			continue
-		}
-
-		l := r.Locked
-		out = append(out, SourcedModule{
+		// The published stack of a part, with its own modules.
+		l := p.Locked
+		add(SourcedModule{
 			Source: l.Source, Version: l.Version, Repository: l.Repository, Path: l.Path, Ref: l.Ref,
-			Commit: l.Commit, Digest: l.Digest, Signers: l.Signers, Dirs: moduleDirs(r.Module), Root: r.Module.Root,
+			Commit: l.Commit, Digest: l.Digest, Signers: l.Signers, Dirs: []string{p.Stack.Dir}, Root: p.Stack.Root,
 		})
+
+		stacks = append(stacks, p.Stack)
+	}
+
+	for _, st := range stacks {
+		for _, r := range st.Releases {
+			if r.Address == nil || (r.Address.Kind != source.KindGit && r.Address.Kind != source.KindGlobal) || r.Locked == nil || r.Module == nil {
+				continue
+			}
+
+			l := r.Locked
+			add(SourcedModule{
+				Source: l.Source, Version: l.Version, Repository: l.Repository, Path: l.Path, Ref: l.Ref,
+				Commit: l.Commit, Digest: l.Digest, Signers: l.Signers, Dirs: moduleDirs(r.Module), Root: r.Module.Root,
+			})
+		}
 	}
 
 	return out
 }
 
-// moduleDirs are the directories of a module and of its child modules.
 func moduleDirs(m *lang.Module) []string {
 	dirs := []string{m.Dir}
 

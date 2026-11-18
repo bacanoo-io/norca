@@ -42,6 +42,9 @@ type StackResult struct {
 // ReleaseResult is an evaluated release of a stack.
 type ReleaseResult struct {
 	Release *lang.StackRelease
+	// Name is the name of the release: that of the module block, after
+	// <part>- for a release of a part (design 7.5).
+	Name string
 	// Enabled is false for a release written with enabled = false: it is
 	// not installed (design 6.4).
 	Enabled   bool
@@ -75,6 +78,10 @@ type stackRun struct {
 	base      *hcl.EvalContext
 	res       *StackResult
 	used      map[string]bool
+	// prefix goes before the names of the releases: <part>- for a part.
+	prefix string
+	// partReleases are the names of the releases of each part evaluated.
+	partReleases map[string][]string
 }
 
 // EvaluateStack evaluates a stack with the values of its variables (from
@@ -82,35 +89,48 @@ type stackRun struct {
 // references, each release a module evaluated with the values the stack
 // gives it, then its checks, secrets and outputs.
 func EvaluateStack(ctx context.Context, s *lang.Stack, vars cty.Value, generated Generated, cfg Config) (*StackResult, hcl.Diagnostics) {
-	r := &stackRun{
+	res, _, diags := newStackRun(ctx, s, vars, generated, cfg, "").run()
+
+	return res, diags
+}
+
+func newStackRun(ctx context.Context, s *lang.Stack, vars cty.Value, generated Generated, cfg Config, prefix string) *stackRun {
+	return &stackRun{
 		ctx: ctx, stack: s, cfg: cfg, generated: generated, res: &StackResult{}, used: map[string]bool{},
+		prefix: prefix, partReleases: map[string][]string{},
 		base: &hcl.EvalContext{
 			Variables: map[string]cty.Value{
 				varRoot:    vars,
 				rigRoot:    stackFacts(s),
 				moduleRoot: cty.EmptyObjectVal,
 				localsRoot: cty.EmptyObjectVal,
+				stackRoot:  cty.EmptyObjectVal,
 			},
 			Functions: moduleFunctions(s.FS, cfg.FileBytes),
 		},
 	}
+}
+
+// run evaluates the stack; it returns its outputs as an object too.
+func (r *stackRun) run() (*StackResult, cty.Value, hcl.Diagnostics) {
+	s := r.stack
 
 	diags := r.values()
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, cty.NilVal, diags
 	}
 
 	if diags = append(diags, evalChecks(s.Checks, r.base)...); diags.HasErrors() {
-		return nil, diags
+		return nil, cty.NilVal, diags
 	}
 
 	diags = append(diags, r.secrets()...)
 
-	outputs, _, moreDiags := evalOutputs(s.Outputs, r.base)
+	outputs, outputValues, moreDiags := evalOutputs(s.Outputs, r.base)
 	diags = append(diags, moreDiags...)
 
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, cty.NilVal, diags
 	}
 
 	r.res.Outputs = outputs
@@ -125,8 +145,11 @@ func EvaluateStack(ctx context.Context, s *lang.Stack, vars cty.Value, generated
 	slices.Sort(r.res.Generated)
 	slices.Sort(r.res.Missing)
 
-	return r.res, diags
+	return r.res, outputValues, diags
 }
+
+// maxReleaseName is the longest name of a release.
+const maxReleaseName = 63
 
 // stackFacts is the object rig.* of a stack.
 func stackFacts(s *lang.Stack) cty.Value {
@@ -147,9 +170,8 @@ func StackNamespace(s *lang.Stack) string {
 	return or(s.Rig.Namespace, "default")
 }
 
-// values evaluates the locals and the releases in the order of their
-// references.
-func (r *stackRun) values() hcl.Diagnostics {
+// nodes gathers the locals, releases and parts of the stack.
+func (r *stackRun) nodes() (map[string]*node, hcl.Diagnostics) {
 	nodes, diags := localNodes(r.stack.Locals)
 
 	for _, rel := range r.stack.Releases {
@@ -166,6 +188,20 @@ func (r *stackRun) values() hcl.Diagnostics {
 		nodes[key] = &node{key: key, release: rel, rng: rel.Block.LabelRanges[0]}
 	}
 
+	for _, p := range r.stack.Parts {
+		key := stackRoot + "." + p.Name
+		if _, dup := nodes[key]; dup {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Duplicate part",
+				Detail: fmt.Sprintf("The part %q is in the stack twice.", p.Name), Subject: p.Block.DefRange.Ptr(),
+			})
+
+			continue
+		}
+
+		nodes[key] = &node{key: key, part: p, rng: p.Block.LabelRanges[0]}
+	}
+
 	for _, rel := range r.stack.Releases {
 		for _, dep := range rel.DependsOn {
 			if _, ok := nodes[moduleRoot+"."+dep]; !ok {
@@ -177,6 +213,13 @@ func (r *stackRun) values() hcl.Diagnostics {
 		}
 	}
 
+	return nodes, diags
+}
+
+// values evaluates the locals and the releases in the order of their
+// references.
+func (r *stackRun) values() hcl.Diagnostics {
+	nodes, diags := r.nodes()
 	if diags.HasErrors() {
 		return diags
 	}
@@ -188,7 +231,7 @@ func (r *stackRun) values() hcl.Diagnostics {
 		return diags
 	}
 
-	locals, modules := map[string]cty.Value{}, map[string]cty.Value{}
+	locals, modules, parts := map[string]cty.Value{}, map[string]cty.Value{}, map[string]cty.Value{}
 
 	for _, key := range order {
 		n := nodes[key]
@@ -199,6 +242,15 @@ func (r *stackRun) values() hcl.Diagnostics {
 			diags = append(diags, moreDiags...)
 			locals[name] = v
 			r.base.Variables[localsRoot] = cty.ObjectVal(locals)
+
+			continue
+		}
+
+		if n.part != nil {
+			v, moreDiags := r.part(n)
+			diags = append(diags, moreDiags...)
+			parts[name] = v
+			r.base.Variables[stackRoot] = cty.ObjectVal(parts)
 
 			continue
 		}
@@ -218,22 +270,134 @@ func (r *stackRun) values() hcl.Diagnostics {
 		r.base.Variables[moduleRoot] = cty.ObjectVal(modules)
 	}
 
+	return append(diags, r.uniqueNames()...)
+}
+
+// uniqueNames reports two releases of one name: a release of the stack and
+// one of a part, <part>-<release>.
+func (r *stackRun) uniqueNames() hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	seen := map[string]bool{}
+
+	for _, rr := range r.res.Releases {
+		if seen[rr.Name] {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Duplicate release",
+				Detail:  fmt.Sprintf("Two releases of the stack are named %q: one of a part is named <part>-<release>.", rr.Name),
+				Subject: rr.Release.Block.DefRange.Ptr(),
+			})
+		}
+
+		seen[rr.Name] = true
+	}
+
 	return diags
+}
+
+// dependencies are the releases a node reads or names in depends_on: the
+// releases of the stack, and every release of a part.
+func (r *stackRun) dependencies(n *node) []string {
+	var deps []string
+
+	for _, ref := range n.refs() {
+		if dep, ok := strings.CutPrefix(ref, moduleRoot+"."); ok {
+			deps = append(deps, r.prefix+dep)
+		} else if part, ok := strings.CutPrefix(ref, stackRoot+"."); ok {
+			deps = append(deps, r.partReleases[part]...)
+		}
+	}
+
+	slices.Sort(deps)
+
+	return slices.Compact(deps)
+}
+
+// part evaluates a part of the stack (design 7.5): its published stack
+// with the values the stack gives it, in the region of the stack and its
+// namespace unless the part names one. Its releases are named
+// <part>-<release> and depend on what the part reads; its generated values
+// are <part>-<name>. It returns the outputs of the part.
+func (r *stackRun) part(n *node) (cty.Value, hcl.Diagnostics) {
+	p := n.part
+	if p.Stack == nil {
+		return cty.DynamicVal, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Part not loaded",
+			Detail: fmt.Sprintf("The published stack of the part %q is not loaded; run rig stack sync.", p.Name), Subject: p.Block.DefRange.Ptr(),
+		}}
+	}
+
+	inputs := map[string]Input{}
+
+	if p.Values != nil {
+		v, diags := p.Values.Value(r.base)
+		if diags.HasErrors() {
+			return cty.DynamicVal, diags
+		}
+
+		rng := p.Values.Range()
+		if v.IsNull() || !v.IsWhollyKnown() || !isObject(v) {
+			return cty.DynamicVal, hcl.Diagnostics{{
+				Severity: hcl.DiagError, Summary: "Invalid values",
+				Detail: "The values of a part are an object: one attribute per variable of its stack.", Subject: rng.Ptr(),
+			}}
+		}
+
+		for name, value := range v.AsValueMap() {
+			inputs[name] = Input{Value: value, Range: &rng}
+		}
+	}
+
+	vars, diags := Variables(p.Stack.Vars, inputs)
+	if diags.HasErrors() {
+		return cty.DynamicVal, diags
+	}
+
+	view := *p.Stack
+	view.Rig.Name, view.Rig.Region = r.stack.Rig.Name, StackRegion(r.stack)
+
+	if view.Rig.Namespace == "" {
+		view.Rig.Namespace = StackNamespace(r.stack)
+	}
+
+	sub := newStackRun(r.ctx, &view, vars, func(name string) (string, bool) { return r.generated(p.Name + "-" + name) },
+		r.cfg, r.prefix+p.Name+"-")
+
+	res, outputs, moreDiags := sub.run()
+	if diags = append(diags, moreDiags...); moreDiags.HasErrors() {
+		return cty.DynamicVal, diags
+	}
+
+	deps := r.dependencies(n)
+
+	for _, rr := range res.Releases {
+		rr.DependsOn = slices.Compact(slices.Sorted(slices.Values(append(rr.DependsOn, deps...))))
+		r.partReleases[p.Name] = append(r.partReleases[p.Name], rr.Name)
+	}
+
+	r.res.Releases = append(r.res.Releases, res.Releases...)
+	r.res.Secrets = append(r.res.Secrets, res.Secrets...)
+
+	for name := range sub.used {
+		r.used[p.Name+"-"+name] = true
+	}
+
+	return outputs, diags
 }
 
 // release evaluates a release of the stack.
 func (r *stackRun) release(n *node) (*ReleaseResult, hcl.Diagnostics) {
 	rel := n.release
-	rr := &ReleaseResult{Release: rel, Enabled: true, Namespace: StackNamespace(r.stack)}
-
-	for _, ref := range n.refs() {
-		if dep, ok := strings.CutPrefix(ref, moduleRoot+"."); ok && !slices.Contains(rr.DependsOn, dep) {
-			rr.DependsOn = append(rr.DependsOn, dep)
-		}
-	}
-
-	slices.Sort(rr.DependsOn)
+	rr := &ReleaseResult{Release: rel, Name: r.prefix + rel.Name, Enabled: true, Namespace: StackNamespace(r.stack), DependsOn: r.dependencies(n)}
 	r.res.Releases = append(r.res.Releases, rr)
+
+	if len(rr.Name) > maxReleaseName {
+		return rr, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Release name too long",
+			Detail:  fmt.Sprintf("The release %q is longer than %d characters.", rr.Name, maxReleaseName),
+			Subject: rel.Block.DefRange.Ptr(),
+		}}
+	}
 
 	diags := r.settings(rr)
 	if diags.HasErrors() || !rr.Enabled {
@@ -258,7 +422,7 @@ func (r *stackRun) release(n *node) (*ReleaseResult, hcl.Diagnostics) {
 
 	md := rel.Module.Metadata
 	facts := Facts{
-		Release: rel.Name, Namespace: rr.Namespace, Region: StackRegion(r.stack),
+		Release: rr.Name, Namespace: rr.Namespace, Region: StackRegion(r.stack),
 		ModuleName: md.Name, ModuleVersion: md.Version,
 	}
 

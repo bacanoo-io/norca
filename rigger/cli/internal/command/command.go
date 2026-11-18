@@ -69,6 +69,13 @@ Commands:
   stack status [dir] [-json]
                           the releases of the stack, their revision, drift
   stack destroy [dir]     uninstall the releases of the stack
+  stack publish [dir] [-key name.key]
+                          validate a stack with metadata.hcl and its lock
+                          file, sign it, commit the signature and tag the
+                          version in its git repository (not pushed)
+  Every stack command but sync and publish takes, instead of a directory,
+  a published stack: <namespace>/<name> of the global registry or a git
+  address, with -version "~> 1.2".
   install <dir> -name release [-namespace ns] [-f values] [-var name=value]
                           install or upgrade one release of a module
   release list|status|history|rollback|uninstall [name] [-namespace ns]

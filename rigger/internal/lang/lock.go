@@ -21,6 +21,9 @@ const LockFile = "rig.lock.hcl"
 // content.
 type Lock struct {
 	Modules []*LockedModule `hcl:"module,block"`
+	// Stacks are the published stacks the stack takes as parts (design
+	// 7.5); their modules are pinned by their own lock files.
+	Stacks []*LockedModule `hcl:"stack,block"`
 }
 
 // LockedModule is the entry of one source.
@@ -54,6 +57,21 @@ func (l *Lock) Module(source string) *LockedModule {
 	return nil
 }
 
+// Stack returns the entry of the source of a part, nil for none.
+func (l *Lock) Stack(source string) *LockedModule {
+	if l == nil {
+		return nil
+	}
+
+	for _, m := range l.Stacks {
+		if m.Source == source {
+			return m
+		}
+	}
+
+	return nil
+}
+
 // ParseLock parses a lock file.
 func ParseLock(src []byte) (*Lock, hcl.Diagnostics) {
 	file, diags := hclsyntax.ParseConfig(src, LockFile, hcl.InitialPos)
@@ -75,8 +93,16 @@ func (l *Lock) Bytes() []byte {
 		Bytes: []byte("# Written by rig stack sync: the versions of the modules of the stack and\n# where they were found (design 8.3). Kept in version control; not edited.\n"),
 	}})
 
-	modules := slices.Clone(l.Modules)
-	slices.SortFunc(modules, func(a, b *LockedModule) int {
+	writeEntries(body, "module", l.Modules)
+	writeEntries(body, "stack", l.Stacks)
+
+	return hclwrite.Format(f.Bytes())
+}
+
+// writeEntries writes the entries of a block type, by source.
+func writeEntries(body *hclwrite.Body, typ string, entries []*LockedModule) {
+	entries = slices.Clone(entries)
+	slices.SortFunc(entries, func(a, b *LockedModule) int {
 		switch {
 		case a.Source < b.Source:
 			return -1
@@ -87,10 +113,10 @@ func (l *Lock) Bytes() []byte {
 		}
 	})
 
-	for _, m := range modules {
+	for _, m := range entries {
 		body.AppendNewline()
 
-		b := body.AppendNewBlock("module", []string{m.Source}).Body()
+		b := body.AppendNewBlock(typ, []string{m.Source}).Body()
 		for _, kv := range [][2]string{
 			{"version", m.Version},
 			{"constraint", m.Constraint},
@@ -114,6 +140,4 @@ func (l *Lock) Bytes() []byte {
 			b.SetAttributeValue("signers", cty.ListVal(signers))
 		}
 	}
-
-	return hclwrite.Format(f.Bytes())
 }
