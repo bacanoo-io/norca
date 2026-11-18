@@ -22,8 +22,11 @@ import (
 // job (review findings JOG-2 and JOG-8, checked 2026-11-18): a policy bound to
 // a job goes to every allocation whose job, or whose job's parent, has the
 // bound job ID (resolvePoliciesForClaims). The children of a parameterized or
-// a periodic job have that parent. Assertions marked CURRENT BEHAVIOUR record
-// what the code does today, not a decision; change them with the decision.
+// a periodic job have that parent. JOG-8 is decided as it is (the children
+// get the parent's policies); JOG-2 refuses a change of a job with bound
+// policies by a token without them. Assertions marked CURRENT BEHAVIOUR
+// record what the code does for findings still open (MUK-24), not a
+// decision; change them with the decision.
 
 // jobBoundFixture is a server with ACLs and helpers to bind policies to a
 // job, call its RPCs, place an allocation and read its bound policies.
@@ -212,9 +215,9 @@ func TestJobBoundPolicies_DispatchChildRunsUnderParentPolicies(t *testing.T) {
 // A new version of a child keeps its parent (JOG-7 allows it), so a token
 // with submit-job but without the bound policies can change the tasks of a
 // dispatched or a periodic child over RPC and run them under the parent's
-// policies. CURRENT BEHAVIOUR: a JOG-2 rule that looks only at the job's own
-// ID misses this path; one that uses the parent's ID, as
-// resolvePoliciesForClaims does, refuses both registrations below.
+// policies. JOG-2 looks the bound policies up by the parent's ID, as
+// resolvePoliciesForClaims does, so both registrations below are refused
+// and the children stay as they were.
 func TestJobBoundPolicies_ChildNewVersionKeepsParentPolicies(t *testing.T) {
 	ci.Parallel(t)
 	f, cleanup := newJobBoundFixture(t)
@@ -261,12 +264,13 @@ func TestJobBoundPolicies_ChildNewVersionKeepsParentPolicies(t *testing.T) {
 			update := child.Copy()
 			update.Payload = nil // a payload is only dispatched
 			update.TaskGroups[0].Tasks[0].Config = map[string]interface{}{"run_for": "1h", "chosen_by": "team"}
-			// CURRENT BEHAVIOUR: accepted for a token without the bound policy.
-			must.NoError(t, f.register(update, team.SecretID))
+			err := f.register(update, team.SecretID)
+			must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+			must.ErrorContains(t, err, tc.policy)
 
 			stored := f.job(ns, tc.childID)
 			must.Eq(t, tc.parent, stored.ParentID)
-			must.Eq(t, "team", stored.TaskGroups[0].Tasks[0].Config["chosen_by"])
+			must.MapNotContainsKey(t, stored.TaskGroups[0].Tasks[0].Config, "chosen_by")
 			claims, names := f.boundPolicies(stored)
 			must.Eq(t, tc.parent, claims.JobID)
 			must.SliceContains(t, names, tc.policy)
@@ -346,8 +350,8 @@ func TestJobBoundPolicies_PeriodicDispatchGrandchildLosesPolicies(t *testing.T) 
 
 // A policy stays bound to a namespace and a job ID when the job is gone: a
 // token with submit-job registers a new job of that ID and its allocations
-// run under the policy. CURRENT BEHAVIOUR: a JOG-2 rule has to cover the
-// first registration of a job ID, not only an update of a stored job.
+// run under the policy. JOG-2 covers the first registration of a job ID too:
+// a token without the bound policy is refused, a holder (root) may.
 func TestJobBoundPolicies_NewJobOfBoundIDGetsPolicies(t *testing.T) {
 	ci.Parallel(t)
 	f, cleanup := newJobBoundFixture(t)
@@ -359,8 +363,14 @@ func TestJobBoundPolicies_NewJobOfBoundIDGetsPolicies(t *testing.T) {
 
 	job := mock.BatchJob()
 	job.ID, job.Name = "gone", "gone"
-	// CURRENT BEHAVIOUR: accepted for a token without the bound policy.
-	must.NoError(t, f.register(job, team.SecretID))
+	err := f.register(job, team.SecretID)
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	must.ErrorContains(t, err, "gone-job")
+	stored, err := f.s.fsm.State().JobByID(nil, ns, job.ID)
+	must.NoError(t, err)
+	must.Nil(t, stored, must.Sprint("the refused job is not registered"))
+
+	must.NoError(t, f.register(job, f.root.SecretID))
 	_, names := f.boundPolicies(f.job(ns, job.ID))
 	must.Eq(t, []string{"gone-job"}, names)
 }
