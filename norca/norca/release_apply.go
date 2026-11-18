@@ -1253,9 +1253,15 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 			case err != nil && live.exists():
 				change.Action, change.Error = structs.ReleaseChangeUpdate, err.Error()
 			case err != nil:
-				// The kind may be created by the release itself.
+				// The kind or the namespace may be created by the release
+				// itself; whether one is missing is read from the state,
+				// not from the text of the error (review finding JOG-6).
 				change.Action = structs.ReleaseChangeCreate
-				if !isNotFoundError(err) {
+				missing, lookupErr := objectPrerequisiteMissing(snap, obj, ns)
+				if lookupErr != nil {
+					return nil, lookupErr
+				}
+				if !missing {
 					change.Error = err.Error()
 				}
 			case !live.exists():

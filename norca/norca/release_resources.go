@@ -8,8 +8,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -455,32 +455,46 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 	default:
 		return fmt.Errorf("unknown resource type %q", ref.Type)
 	}
-	// The refusal of a namespace deletion names what holds the namespace (a
-	// job, a volume), in words somebody else chose: whether the namespace
-	// is gone is read from the state, not from the text of the error.
-	if ref.Type == structs.ReleaseResourceNamespace && err != nil {
-		if ns, lookupErr := srv.State().NamespaceByName(nil, ref.Name); lookupErr == nil && ns == nil {
-			return nil
-		}
-		return err
+	if err == nil {
+		return nil
 	}
-	if isNotFoundError(err) {
+	// Whether the resource is gone is read from the state, never from the
+	// text of the error: a refusal can quote names somebody else chose (a
+	// job, a volume, a label), and the refusal of an unknown token says
+	// "ACL token not found" (review finding JOG-6).
+	snap, lookupErr := srv.State().Snapshot()
+	if lookupErr != nil {
+		return errors.Join(err, lookupErr)
+	}
+	live, lookupErr := op.m.readLive(snap, ref)
+	switch {
+	case lookupErr != nil:
+		return errors.Join(err, lookupErr)
+	case !live.exists():
 		return nil
 	}
 	return err
 }
 
-// isNotFoundError reports whether err says that the resource doesn't exist.
-func isNotFoundError(err error) bool {
-	if err == nil {
-		return false
+// objectPrerequisiteMissing reports whether the kind of obj, or for a
+// namespaced kind the namespace the object is written to (requested), is
+// not in snap: a release can create both before the object.
+func objectPrerequisiteMissing(snap *state.StateSnapshot, obj *structs.CustomObject, requested string) (bool, error) {
+	kind, err := snap.ObjectKindByName(nil, obj.Group, obj.Kind)
+	if err != nil {
+		return false, err
 	}
-	if code, _, ok := structs.CodeFromRPCCodedErr(err); ok && code == http.StatusNotFound {
-		return true
+	if kind == nil {
+		return true, nil
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "not found") || strings.Contains(msg, "does not exist") ||
-		strings.Contains(msg, "unknown job") || strings.Contains(msg, "nonexistent")
+	if !kind.Namespaced {
+		return false, nil
+	}
+	ns, err := snap.NamespaceByName(nil, objectNamespace(kind, requested))
+	if err != nil {
+		return false, err
+	}
+	return ns == nil, nil
 }
 
 // resourceChanged reports whether applying res would change the live
