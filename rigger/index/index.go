@@ -356,14 +356,19 @@ func decode(data []byte, v any) error {
 }
 
 // Marshal writes a file of the index: indented JSON with a final newline,
-// so that a change shows as lines in a review.
+// so that a change shows as lines in a review; ">=" stays as it is.
 func Marshal(v any) ([]byte, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
+	var buf bytes.Buffer
+
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+
+	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
 
-	return append(data, '\n'), nil
+	return buf.Bytes(), nil
 }
 
 // Validate checks the fields of an entry: names, versions in ascending
