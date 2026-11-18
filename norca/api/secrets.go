@@ -148,13 +148,20 @@ type secretWriteResult struct {
 
 // secretEndpoint returns the URL path of a secret. Each segment of the secret
 // path is escaped: a "?", "#" or "%" in it stays part of the path, which the
-// server refuses, instead of cutting it into the path of another secret.
-func secretEndpoint(path string) string {
+// server refuses, instead of cutting it into the path of another secret. A
+// path with an empty, "." or ".." segment is an error: escaping leaves such
+// segments as they are, and an HTTP server or a proxy resolves them into the
+// path of another secret.
+func secretEndpoint(path string) (string, error) {
 	segments := strings.Split(strings.Trim(path, "/"), "/")
 	for i, segment := range segments {
+		switch segment {
+		case "", ".", "..":
+			return "", fmt.Errorf("invalid secret path %q: a segment is empty, \".\" or \"..\"", path)
+		}
 		segments[i] = url.PathEscape(segment)
 	}
-	return "/v1/secret/" + strings.Join(segments, "/")
+	return "/v1/secret/" + strings.Join(segments, "/"), nil
 }
 
 // List lists the metadata of the secrets of the namespace of the query
@@ -177,8 +184,12 @@ func (s *Secrets) List(prefix string, q *QueryOptions) ([]*SecretStub, *QueryMet
 
 // Info reads the metadata of a secret, never its value.
 func (s *Secrets) Info(path string, q *QueryOptions) (*Secret, *QueryMeta, error) {
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out Secret
-	qm, err := s.client.query(secretEndpoint(path)+"?metadata", &out, q)
+	qm, err := s.client.query(endpoint+"?metadata", &out, q)
 	if err != nil {
 		return nil, nil, secretNotFound(err)
 	}
@@ -188,7 +199,10 @@ func (s *Secrets) Info(path string, q *QueryOptions) (*Secret, *QueryMeta, error
 // Read reads the value of a version of a secret; version 0 reads the
 // current version. The read is audited.
 func (s *Secrets) Read(path string, version uint64, q *QueryOptions) (*SecretValue, *QueryMeta, error) {
-	endpoint := secretEndpoint(path)
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	if version > 0 {
 		endpoint += "?version=" + strconv.FormatUint(version, 10)
 	}
@@ -202,18 +216,22 @@ func (s *Secrets) Read(path string, version uint64, q *QueryOptions) (*SecretVal
 
 // Write writes a new version of a secret and/or its metadata.
 func (s *Secrets) Write(path string, w *SecretWrite, q *WriteOptions) (*Secret, *WriteMeta, error) {
-	return s.write(secretEndpoint(path), w, q)
+	return s.write(path, "", w, q)
 }
 
 // CheckedWrite writes a secret if its modify index is checkIndex; 0 creates
 // a secret that must not exist yet. A mismatch fails with a 409 error.
 func (s *Secrets) CheckedWrite(path string, checkIndex uint64, w *SecretWrite, q *WriteOptions) (*Secret, *WriteMeta, error) {
-	return s.write(secretEndpoint(path)+"?cas="+strconv.FormatUint(checkIndex, 10), w, q)
+	return s.write(path, "?cas="+strconv.FormatUint(checkIndex, 10), w, q)
 }
 
-func (s *Secrets) write(endpoint string, w *SecretWrite, q *WriteOptions) (*Secret, *WriteMeta, error) {
+func (s *Secrets) write(path, query string, w *SecretWrite, q *WriteOptions) (*Secret, *WriteMeta, error) {
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out secretWriteResult
-	wm, err := s.client.put(endpoint, w, &out, q)
+	wm, err := s.client.put(endpoint+query, w, &out, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -256,8 +274,12 @@ func (o *SecretVersionsOptions) query() string {
 // Delete soft deletes versions of a secret; without versions the current
 // version.
 func (s *Secrets) Delete(path string, opts *SecretVersionsOptions, q *WriteOptions) (*Secret, *WriteMeta, error) {
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out secretWriteResult
-	wm, err := s.client.delete(secretEndpoint(path)+opts.query(), nil, &out, q)
+	wm, err := s.client.delete(endpoint+opts.query(), nil, &out, q)
 	if err != nil {
 		return nil, nil, secretNotFound(err)
 	}
@@ -267,8 +289,12 @@ func (s *Secrets) Delete(path string, opts *SecretVersionsOptions, q *WriteOptio
 // Undelete restores soft deleted versions of a secret; without versions the
 // current version.
 func (s *Secrets) Undelete(path string, opts *SecretVersionsOptions, q *WriteOptions) (*Secret, *WriteMeta, error) {
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out secretWriteResult
-	wm, err := s.client.post(secretEndpoint(path)+"/undelete"+opts.query(), nil, &out, q)
+	wm, err := s.client.post(endpoint+"/undelete"+opts.query(), nil, &out, q)
 	if err != nil {
 		return nil, nil, secretNotFound(err)
 	}
@@ -278,8 +304,12 @@ func (s *Secrets) Undelete(path string, opts *SecretVersionsOptions, q *WriteOpt
 // Destroy destroys versions of a secret permanently; without versions the
 // whole secret with all of its versions, and the returned secret is nil.
 func (s *Secrets) Destroy(path string, opts *SecretVersionsOptions, q *WriteOptions) (*Secret, *WriteMeta, error) {
+	endpoint, err := secretEndpoint(path)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out secretWriteResult
-	wm, err := s.client.post(secretEndpoint(path)+"/destroy"+opts.query(), nil, &out, q)
+	wm, err := s.client.post(endpoint+"/destroy"+opts.query(), nil, &out, q)
 	if err != nil {
 		return nil, nil, secretNotFound(err)
 	}
