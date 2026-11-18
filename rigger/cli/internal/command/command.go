@@ -23,8 +23,9 @@ import (
 // Exit codes. A plan exits with 2 when it has changes (design 9.2), so every
 // error, a usage error too, exits with 1.
 const (
-	exitOK    = 0
-	exitError = 1
+	exitOK      = 0
+	exitError   = 1
+	exitChanges = 2
 )
 
 // The commands.
@@ -33,6 +34,9 @@ const (
 	cmdVersion = "version"
 	cmdModule  = "module"
 	cmdFmt     = "fmt"
+	cmdStack   = "stack"
+	cmdInstall = "install"
+	cmdRelease = "release"
 
 	cmdRender   = "render"
 	cmdTest     = "test"
@@ -47,6 +51,22 @@ Commands:
   fmt [-check] [path ...] format the .hcl files under the paths (the current
                           directory); -check lists those that are not
                           formatted and fails
+  stack validate [dir] [-f values] [-var name=value]
+                          evaluate a stack without a cluster (each file of
+                          values/ when none is given)
+  stack plan [dir] [-f values] [-var name=value] [-json]
+                          what an apply would change; exit code 2 with
+                          changes
+  stack apply [dir] [-f values] [-var name=value] [-prune]
+                          plan and apply, release after release
+  stack status [dir] [-json]
+                          the releases of the stack, their revision, drift
+  stack destroy [dir]     uninstall the releases of the stack
+  install <dir> -name release [-namespace ns] [-f values] [-var name=value]
+                          install or upgrade one release of a module
+  release list|status|history|rollback|uninstall [name] [-namespace ns]
+                          one release, without a stack
+  The cluster is that of NORCA_ADDR and NORCA_TOKEN.
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
                           (dir: the current one)
@@ -96,6 +116,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runModule(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdFmt:
 		return runFmt(ctx, logger, stdout, stderr, flags.Args()[1:])
+	case cmdStack:
+		return runStack(ctx, logger, stdout, stderr, flags.Args()[1:])
+	case cmdInstall:
+		return runInstall(ctx, logger, stdout, stderr, flags.Args()[1:])
+	case cmdRelease:
+		return runRelease(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)
@@ -120,16 +146,23 @@ func run(ctx context.Context, logger *slog.Logger, stderr io.Writer, name string
 	err := cmd(ctx)
 	span.End(ctx, err)
 
-	if err != nil {
+	switch {
+	case errors.Is(err, errChanges):
+		return exitChanges
+	case err != nil:
 		if !errors.Is(err, errReported) {
 			warn(stderr, "%v", err)
 		}
 
 		return exitError
+	default:
+		return exitOK
 	}
-
-	return exitOK
 }
+
+// errChanges is the result of a plan with changes: exit code 2, no message
+// (design 9.2).
+var errChanges = errors.New("changes")
 
 // newLogger returns the logger of the program on w, from the given level
 // up: a tree of operations for a person (text) or flat lines with the IDs

@@ -17,7 +17,7 @@ func TestRun_ModuleValidate(t *testing.T) {
 	broken := t.TempDir()
 	files := map[string]string{
 		"metadata.hcl":          "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
-		"variables.hcl":         "variable \"mode\" {\n  default = \"a\"\n\n  validation {\n    one_of = [\"a\", \"b\"]\n  }\n}\n",
+		variablesFile:           "variable \"mode\" {\n  default = \"a\"\n\n  validation {\n    one_of = [\"a\", \"b\"]\n  }\n}\n",
 		"examples/bad.vars.hcl": "mode = \"c\"\n",
 	}
 

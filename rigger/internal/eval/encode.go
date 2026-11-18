@@ -43,6 +43,9 @@ func encoder(write func(cty.Value) (string, error)) function.Function {
 	})
 }
 
+// summaryInvalidValue is the summary of a value that does not fit.
+const summaryInvalidValue = "Invalid value"
+
 // nullText is null in JSON, YAML and the messages of a validation.
 const nullText = "null"
 

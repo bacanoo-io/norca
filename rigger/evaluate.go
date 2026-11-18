@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/bacanoo-io/norca-rig/host"
 	"github.com/bacanoo-io/norca-rig/internal/eval"
@@ -145,4 +146,14 @@ func checkInstall(in Install) hcl.Diagnostics {
 	}
 
 	return diags
+}
+
+// valuesObject is the object of the values given for a module.
+func valuesObject(values Values) cty.Value {
+	m := make(map[string]cty.Value, len(values))
+	for name, v := range values {
+		m[name] = v.Value
+	}
+
+	return cty.ObjectVal(m)
 }

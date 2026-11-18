@@ -34,7 +34,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:           "invalid log level",
-			args:           []string{"-log-level", "loud", cmdVersion},
+			args:           []string{flagLogLevel, "loud", cmdVersion},
 			expectedCode:   exitError,
 			expectedStderr: `rig: invalid log level "loud"`,
 		},
@@ -91,7 +91,7 @@ func TestRun_Log(t *testing.T) {
 
 			var stdout, stderr bytes.Buffer
 
-			code := Run(t.Context(), []string{"-log-format", tt.format, "-log-level", "debug", cmdVersion}, &stdout, &stderr)
+			code := Run(t.Context(), []string{"-log-format", tt.format, flagLogLevel, "debug", cmdVersion}, &stdout, &stderr)
 			if code != exitOK {
 				t.Fatalf("Run() = %d, want %d (stderr %q)", code, exitOK, stderr.String())
 			}
@@ -115,7 +115,7 @@ func TestRun_JSONLogHasTheIDs(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 
-	Run(t.Context(), []string{"-log-format", "json", "-log-level", "debug", cmdVersion}, &stdout, &stderr)
+	Run(t.Context(), []string{"-log-format", "json", flagLogLevel, "debug", cmdVersion}, &stdout, &stderr)
 
 	var record map[string]any
 	if err := json.Unmarshal([]byte(strings.Split(stderr.String(), "\n")[0]), &record); err != nil {

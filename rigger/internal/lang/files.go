@@ -51,16 +51,16 @@ const KindAudit resource.Kind = "audit"
 // an ACL policy, a Variable); for the others it is the extension, until the
 // kind is implemented (design 4.5).
 var resourceTypes = map[string]ResourceType{
-	"norca":     {Kind: resource.KindJob, Block: "job"},
-	"namespace": {Kind: resource.KindNamespace, Block: "namespace"},
-	"quota":     {Kind: resource.KindQuota, Block: "quota"},
-	"acl":       {Kind: resource.KindACLPolicy, Block: "policy"},
-	"var":       {Kind: resource.KindVariable, Block: "variable"},
-	"kind":      {Kind: resource.KindObjectKind, Block: "kind"},
-	"admission": {Kind: resource.KindAdmissionPolicy, Block: "admission"},
-	"external":  {Kind: resource.KindExternalService, Block: "external"},
-	"object":    {Kind: resource.KindObject, Block: "object"},
-	"audit":     {Kind: KindAudit, Block: "audit"},
+	"norca":       {Kind: resource.KindJob, Block: "job"},
+	attrNamespace: {Kind: resource.KindNamespace, Block: attrNamespace},
+	"quota":       {Kind: resource.KindQuota, Block: "quota"},
+	"acl":         {Kind: resource.KindACLPolicy, Block: "policy"},
+	"var":         {Kind: resource.KindVariable, Block: "variable"},
+	"kind":        {Kind: resource.KindObjectKind, Block: "kind"},
+	"admission":   {Kind: resource.KindAdmissionPolicy, Block: "admission"},
+	"external":    {Kind: resource.KindExternalService, Block: "external"},
+	"object":      {Kind: resource.KindObject, Block: "object"},
+	"audit":       {Kind: KindAudit, Block: "audit"},
 }
 
 // ResourceBlocks returns the block types of the resource files, sorted.

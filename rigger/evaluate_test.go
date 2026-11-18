@@ -35,12 +35,12 @@ func TestEngine_Evaluate(t *testing.T) {
 		},
 		{
 			name:     "a job without a decoder",
-			install:  rig.Install{Release: "cache", Namespace: "apps", Region: "eu"},
+			install:  rig.Install{Release: "cache", Namespace: testNamespace, Region: "eu"},
 			expected: "No job decoder",
 		},
 		{
 			name: "invalid values",
-			install: rig.Install{Release: "cache", Namespace: "apps", Region: "eu", Values: rig.Values{
+			install: rig.Install{Release: "cache", Namespace: testNamespace, Region: "eu", Values: rig.Values{
 				"count": {Value: cty.NumberIntVal(0)},
 			}},
 			expected: "var.count is 0, less than 1",

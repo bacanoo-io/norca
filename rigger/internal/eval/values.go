@@ -154,7 +154,7 @@ func assign(v *lang.Variable, inputs map[string]Input) (cty.Value, hcl.Diagnosti
 	if err != nil {
 		return cty.UnknownVal(v.Type), hcl.Diagnostics{{
 			Severity: hcl.DiagError,
-			Summary:  "Invalid value",
+			Summary:  summaryInvalidValue,
 			Detail:   fmt.Sprintf("var.%s must be a %s: %s.", v.Name, v.Type.FriendlyName(), err),
 			Subject:  rng.Ptr(),
 		}}

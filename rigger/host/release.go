@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bacanoo-io/norca-rig/module"
 	"github.com/bacanoo-io/norca-rig/resource"
 )
 
@@ -18,6 +19,8 @@ type ReleaseRef struct {
 
 // ModuleRef identifies the module version a revision was made from.
 type ModuleRef struct {
+	// Name is the name of the module (its module block).
+	Name string `json:"name"`
 	// Source is the address of the module, for example "norca/nats".
 	Source string `json:"source"`
 	// Version is the exact version.
@@ -26,6 +29,9 @@ type ModuleRef struct {
 	Digest string `json:"digest"`
 	// Signers are the key IDs of the signatures that verified the digest.
 	Signers []string `json:"signers,omitempty"`
+	// Requires are the requirements of the module on the cluster, which
+	// the server checks.
+	Requires *module.Requires `json:"requires,omitempty"`
 }
 
 // Revision is a revision of a release, as the engine needs it.
@@ -75,7 +81,10 @@ type ApplyRequest struct {
 	Values map[string]any `json:"values,omitempty"`
 	// Resources are the evaluated resources of the release.
 	Resources []resource.Resource `json:"resources"`
-	Settings  Settings            `json:"settings"`
+	// Secrets are the secret items of the Variable resources, by the name
+	// of the resource: never recorded in a revision (design 6.3).
+	Secrets  map[string]map[string]Sensitive `json:"-"`
+	Settings Settings                        `json:"settings"`
 }
 
 // Action is what a plan does to a resource.

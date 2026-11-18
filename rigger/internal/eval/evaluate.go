@@ -42,7 +42,8 @@ type Result struct {
 	Resources []Resource
 	// Outputs are by name.
 	Outputs []Output
-	// OutputValues is the object output.* of a test, with Config.Test.
+	// OutputValues is the object of the outputs: output.* of a test, and
+	// module.<release> of a stack. A sensitive output is marked.
 	OutputValues cty.Value
 }
 
@@ -110,9 +111,7 @@ func Evaluate(ctx context.Context, m *lang.Module, vars cty.Value, facts Facts, 
 		return nil, diags
 	}
 
-	if cfg.Test {
-		res.OutputValues = outputs
-	}
+	res.OutputValues = outputs
 
 	sortResources(res.Resources)
 

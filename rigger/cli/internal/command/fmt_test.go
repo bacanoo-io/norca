@@ -11,7 +11,12 @@ import (
 	"testing"
 )
 
-const varsFile = "m/variables.hcl"
+// The files of the tests.
+const (
+	varsFile      = "m/variables.hcl"
+	variablesFile = "variables.hcl"
+	flagLogLevel  = "-log-level"
+)
 
 func TestRun_Fmt(t *testing.T) {
 	t.Parallel()
@@ -34,7 +39,7 @@ func TestRun_Fmt(t *testing.T) {
 			name:           "formats",
 			files:          map[string]string{varsFile: unformatted, "m/ok.hcl": formatted, "m/README.md": unformatted},
 			expectedCode:   exitOK,
-			expectedStdout: "variables.hcl",
+			expectedStdout: variablesFile,
 			expectedFiles:  map[string]string{varsFile: formatted, "m/README.md": unformatted},
 		},
 		{
@@ -42,7 +47,7 @@ func TestRun_Fmt(t *testing.T) {
 			files:          map[string]string{varsFile: unformatted},
 			check:          true,
 			expectedCode:   exitError,
-			expectedStdout: "variables.hcl",
+			expectedStdout: variablesFile,
 			expectedStderr: "files are not formatted",
 			expectedFiles:  map[string]string{varsFile: unformatted},
 		},

@@ -1513,6 +1513,40 @@ array of tables; JSON and YAML keep null, NATS and TOML leave it out. Phase 1
 is done but for a schema per resource kind (other kinds than jobs are the
 value of their block as JSON until their kind is implemented).
 
+Phase 2 as built (2026-11-18), checked against a dev agent
+(`make integration`):
+
+- **A stack** is `stack.hcl` (one `rig` block with `name`, `region`,
+  `namespace`; `module` blocks), `variables.hcl`, `locals.hcl`,
+  `outputs.hcl`, `secrets.hcl`, `values/*.vars.hcl` and its own modules
+  under `modules/`; other files are refused. A release is the label of a
+  `module` block; its settings are `atomic`, `wait` (default true: the next
+  release waits until this one is ready; false for one that need not),
+  `timeout`, `max_history`. Locals and releases are evaluated in the order
+  of their references and `depends_on`. Phase 2 takes local sources only.
+- **The digest of a release** is the SHA-256 of the module's tree digest
+  (over its files and those of its local children, so the open point of
+  6.5 is closed), the release, the region, the values (a sensitive value as
+  its hash) and the settings. It is recorded in `ValuesHash`; an equal
+  digest is `unchanged` and is not applied again.
+- **Generated values** (`!generate:<name>` in values and in the items of a
+  secret): one secret per stack, `rig/stacks/<stack>/generated` in the
+  stack's namespace, created at the first apply that needs it and the only
+  record of them; a generated value is sensitive. The encrypted local copy
+  of 12.6 is left out: the cluster's secret store is the source.
+- **The other kinds** are mapped by the host onto Norca's API type of the
+  kind by its `hcl` tags, else its field names; a `name`, `path` or `id`
+  left out is the resource's name, a namespace left out the release's.
+- **Commands:** `rig stack validate|plan|apply|status|destroy`, `rig install
+  <dir> -name`, `rig release list|status|history|rollback|uninstall`; the
+  cluster is that of `NORCA_ADDR` / `NORCA_TOKEN`. `plan` exits with 2 on
+  changes; `apply -prune` uninstalls what the stack owns and no longer has;
+  `destroy` uninstalls in the reverse order of the stack and keeps the
+  secrets.
+- Left for later phases: `requires` of modules checked by Rig (the server
+  checks `norca` and `features`), a saved plan (`-out`), the journal of
+  12.6, the multi-region install.
+
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
 

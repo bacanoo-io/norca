@@ -1,8 +1,9 @@
 # State of Rig
 
-2026-11-18. Phase 1 of the design (`design/rig-design.md`, section 15) is
-under way: modules load, validate and evaluate. Nothing is installed on a
-cluster yet; that is phase 2.
+2026-11-18. Phases 1 and 2 of the design (`design/rig-design.md`, section
+15) are done: modules load, validate, evaluate and are tested, and stacks
+are planned and applied as releases on a Norca cluster through today's
+release API. Next: phase 3, registries and versions.
 
 ## What works
 
@@ -18,7 +19,9 @@ cluster yet; that is phase 2.
 | Functions | the HCL standard set under the usual names (`coalesce` skips empty strings, `length` counts objects), `issensitive`, `file`, `templatefile` (inside the module only), `image_ref`; the encoders `jsonencode`, `yamlencode`, `tomlencode`, `natsconf` written for Rig, runtime values quoted where they sit |
 | Hooks (design 5) | `hook { on, weight, timeout, delete }`, written by the Norca host as the `pack.hook*` meta keys of today's release API |
 | Tests (design 7.4) | `test` blocks of `tests/*.rigtest.hcl`: values in, assertions over `resource.<block>.<name>` (the block as written) and `output.<name>`, or an expected error |
-| CLI | `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
+| Stacks (design 6.4, 9) | `stack.hcl` with releases of local modules, values, `depends_on`, `enabled`; plan by digest (unchanged, install, upgrade, remove), apply in dependency order with waiting, prune, status with drift, destroy; generated values (`!generate:`) and secrets created once in the cluster's secret store |
+| Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner in the description), secret store, cluster facts; every kind mapped onto Norca's API type of the kind |
+| CLI | `rig stack validate|plan|apply|status|destroy`, `rig install`, `rig release list|status|history|rollback|uninstall`; `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
 
 ## What is checked
 
@@ -28,8 +31,11 @@ cluster yet; that is phase 2.
   so.
 - The rendered jobs of those modules pass a Norca server's
   `/v1/validate/job` (dev agent, 2026-11-18).
-- Phase 0's spike against the release API of a dev agent: what Rig
-  evaluates fits today's API (`make integration`).
+- Against a dev agent (`make integration`): a stack planned, applied,
+  unchanged, upgraded, pruned and destroyed; a generated token in the
+  secret store and the Variable but never in a revision; runtime references
+  in the job as written; one release installed, listed and uninstalled;
+  and phase 0's spike of the release API.
 - `make vet race lint check-copy check-licenses` is clean; golangci-lint v2
   with the configuration of the Go skills. No dependency is under the
   Business Source License: Rig takes over no code that is not open source.
@@ -38,9 +44,9 @@ cluster yet; that is phase 2.
 
 - Phase 1: a schema per resource kind (the kinds other than jobs are the
   value of their block as JSON until their kind is implemented).
-- Phase 2 on: releases (install, plan, apply, status, destroy), stacks,
-  registries and versions, the lock file, signatures and trust, the global
-  registry, the embedding into Norca.
+- Phase 3 on: registries and versions, the lock file, signatures and trust,
+  the global registry, the embedding into Norca (phase 7, which changes
+  norca).
 - Open for phase 4: the digest of a module whose local child module lies
   outside its directory must cover the child.
 

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+	ctygocty "github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/bacanoo-io/norca-rig/internal/lang"
 	"github.com/bacanoo-io/norca-rig/resource"
@@ -143,4 +144,19 @@ func withHook(v cty.Value, h *resource.Hook) cty.Value {
 	})
 
 	return cty.ObjectVal(attrs)
+}
+
+// decodeBody decodes the body of a block into v with ctx.
+func decodeBody(b *hcl.Block, ctx *hcl.EvalContext, v any) hcl.Diagnostics {
+	return gohcl.DecodeBody(b.Body, ctx, v)
+}
+
+// toGo converts a value into a Go value.
+func toGo(v cty.Value, out any) error {
+	v, _ = v.Unmark()
+	if v.IsNull() || !v.IsWhollyKnown() {
+		return errNotKnown
+	}
+
+	return ctygocty.FromCtyValue(v, out)
 }

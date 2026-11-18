@@ -25,25 +25,38 @@ const (
 	attrValue  = "value"
 )
 
-// node is a value of a module that others may read: a local or a child
-// module. Its key is local.<name> or module.<name>.
+// node is a value of a module or a stack that others may read: a local, a
+// child module, or a release of a stack. Its key is local.<name> or
+// module.<name>.
 type node struct {
-	key   string
-	local *hcl.Attribute
-	child *lang.Child
-	rng   hcl.Range
+	key     string
+	local   *hcl.Attribute
+	child   *lang.Child
+	release *lang.StackRelease
+	rng     hcl.Range
 }
 
 // refs returns the keys of the nodes the node reads.
 func (n *node) refs() []string {
-	if n.local != nil {
-		return valueRefs(n.local.Expr)
-	}
-
 	var out []string
 
-	for _, attr := range n.child.Args {
-		out = append(out, valueRefs(attr.Expr)...)
+	switch {
+	case n.local != nil:
+		return valueRefs(n.local.Expr)
+	case n.child != nil:
+		for _, attr := range n.child.Args {
+			out = append(out, valueRefs(attr.Expr)...)
+		}
+	default:
+		for _, e := range []hcl.Expression{n.release.Values, n.release.Enabled, n.release.Namespace} {
+			if e != nil {
+				out = append(out, valueRefs(e)...)
+			}
+		}
+
+		for _, dep := range n.release.DependsOn {
+			out = append(out, moduleRoot+"."+dep)
+		}
 	}
 
 	return out
@@ -70,6 +83,18 @@ func valueRefs(expr hcl.Expression) []string {
 
 // valueNodes gathers the locals of the locals blocks and the child modules.
 func valueNodes(blocks []*hcl.Block, children []*lang.Child) (map[string]*node, hcl.Diagnostics) {
+	nodes, diags := localNodes(blocks)
+
+	for _, c := range children {
+		key := moduleRoot + "." + c.Name
+		nodes[key] = &node{key: key, child: c, rng: c.Block.LabelRanges[0]}
+	}
+
+	return nodes, diags
+}
+
+// localNodes gathers the locals of the locals blocks.
+func localNodes(blocks []*hcl.Block) (map[string]*node, hcl.Diagnostics) {
 	nodes := map[string]*node{}
 
 	var diags hcl.Diagnostics
@@ -92,11 +117,6 @@ func valueNodes(blocks []*hcl.Block, children []*lang.Child) (map[string]*node, 
 
 			nodes[key] = &node{key: key, local: attr, rng: attr.NameRange}
 		}
-	}
-
-	for _, c := range children {
-		key := moduleRoot + "." + c.Name
-		nodes[key] = &node{key: key, child: c, rng: c.Block.LabelRanges[0]}
 	}
 
 	return nodes, diags

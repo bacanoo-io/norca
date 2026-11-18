@@ -26,7 +26,7 @@ type checker struct {
 func (k *checker) fail(path, format string, args ...any) {
 	k.diags = append(k.diags, &hcl.Diagnostic{
 		Severity: hcl.DiagError,
-		Summary:  "Invalid value",
+		Summary:  summaryInvalidValue,
 		Detail:   path + " " + fmt.Sprintf(format, args...) + ".",
 		Subject:  k.rng.Ptr(),
 	})
