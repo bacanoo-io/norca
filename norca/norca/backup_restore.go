@@ -15,6 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/consulkv"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/backup"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	metrics "github.com/hashicorp/go-metrics"
 	"github.com/nats-io/nats.go/jetstream"
@@ -248,6 +249,98 @@ func (r *backupRestorer) allowItem(item *structs.BackupRestoreItem) (bool, error
 		return aclObj.AllowObjectOperation(ns, structs.ObjectKindRef(parts[0], parts[1]), acl.ObjectCapabilityWrite), nil
 	}
 	return true, nil
+}
+
+// backupRestoreItemReadable reports whether a caller may see an item of a
+// restore record: the read rules of Backup.Contents for the item's type
+// (review finding SRV-9). An item of an unknown type, or a custom object of
+// a kind that no longer exists, needs a management token.
+func backupRestoreItemReadable(store *state.StateStore, aclObj *acl.ACL, item *structs.BackupRestoreItem) (bool, error) {
+	if aclObj == nil || aclObj.IsManagement() {
+		return true, nil
+	}
+	if item == nil {
+		return false, nil
+	}
+	ns := item.Namespace
+	if ns == "" {
+		ns = structs.DefaultNamespace
+	}
+	switch item.Type {
+	case structs.BackupRestoreItemJob, structs.BackupRestoreItemServiceIntention, structs.BackupRestoreItemExternalService:
+		return aclObj.AllowNsOp(ns, acl.NamespaceCapabilityReadJob), nil
+	case structs.BackupRestoreItemVariable:
+		return aclObj.AllowVariableOperation(ns, item.ID, acl.VariablesCapabilityList, nil), nil
+	case structs.BackupRestoreItemSecret:
+		return aclObj.AllowSecretOperation(ns, item.ID, acl.NamespaceCapabilityListSecrets), nil
+	case structs.BackupRestoreItemConsulKV:
+		path, key := splitConsulKVItemID(item.ID)
+		return aclObj.AllowVariableOperation(consulKVNamespace(item.Namespace),
+			consulkv.ACLPath(path, key), acl.VariablesCapabilityList, nil), nil
+	case structs.BackupRestoreItemNamespace:
+		return aclObj.AllowNamespace(item.ID), nil
+	case structs.BackupRestoreItemQuota:
+		return aclObj.AllowQuotaRead(), nil
+	case structs.BackupRestoreItemAdmissionPolicy:
+		return aclObj.AllowAdmissionRead(), nil
+	case structs.BackupRestoreItemNetworkPolicy:
+		return aclObj.AllowNetworkPolicyRead(ns), nil
+	case structs.BackupRestoreItemAdminNetworkPolicy:
+		return aclObj.AllowOperatorRead(), nil
+	case structs.BackupRestoreItemCustomObject:
+		parts := strings.SplitN(item.ID, "/", 3)
+		if len(parts) != 3 {
+			return false, nil
+		}
+		kind, err := store.ObjectKindByName(nil, parts[0], parts[1])
+		if err != nil || kind == nil {
+			return false, err
+		}
+		return customObjectReadable(aclObj, kind, &structs.CustomObject{Namespace: ns}), nil
+	}
+	// ACL policies and roles, as in Backup.Contents.
+	return false, nil
+}
+
+// backupRestoreForReader returns a restore record as the caller may read it
+// (review finding SRV-9): a caller without a management token gets the
+// items and results it may read (backupRestoreItemReadable), and no changed
+// objects of a full restore preview, which are computed without a filter.
+// The record in the state is not changed.
+func backupRestoreForReader(store *state.StateStore, aclObj *acl.ACL, record *structs.BackupRestore) (*structs.BackupRestore, error) {
+	if record == nil || aclObj == nil || aclObj.IsManagement() {
+		return record, nil
+	}
+	out := record.Copy()
+	if out.Preview != nil {
+		preview := *out.Preview
+		preview.Objects = nil
+		out.Preview = &preview
+	}
+	out.Items = out.Items[:0]
+	for _, item := range record.Items {
+		ok, err := backupRestoreItemReadable(store, aclObj, item)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			out.Items = append(out.Items, item)
+		}
+	}
+	out.Results = out.Results[:0]
+	for _, res := range record.Results {
+		if res == nil {
+			continue
+		}
+		ok, err := backupRestoreItemReadable(store, aclObj, res.Item)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			out.Results = append(out.Results, res)
+		}
+	}
+	return out, nil
 }
 
 func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.BackupRestoreItemResult {

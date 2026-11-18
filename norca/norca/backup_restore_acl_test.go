@@ -155,3 +155,105 @@ namespace "default" {
 	res = find(results, structs.BackupRestoreItemACLRole, "no-such-role")
 	must.StrContains(t, res.Error, "not found in the backup")
 }
+
+// The record of a selective restore lists its items and their results:
+// GetRestore and ListRestores give a caller without a management token only
+// those it may read, by the rules of Backup.Contents (review finding SRV-9).
+func TestBackupEndpoint_RestoreRecordItemsFiltered(t *testing.T) {
+	ci.Parallel(t)
+
+	s3 := s3fake.New()
+	defer s3.Close()
+	identity, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+
+	srv, root, cleanup := TestACLServer(t, func(c *Config) {
+		c.DevMode = false
+		c.DataDir = t.TempDir()
+		c.Backup = testBackupConfig(s3, identity, false)
+	})
+	defer cleanup()
+	codec := rpcClient(t, srv)
+	testutil.WaitForLeader(t, srv.RPC)
+	waitForKeyring(t, srv)
+
+	store := srv.fsm.State()
+	reader := mock.CreatePolicyAndToken(t, store, 1001, "backup-read-default", `
+backup { policy = "read" }
+namespace "default" {
+  capabilities = ["read-job"]
+  variables {
+    path "secret/*" { capabilities = ["list"] }
+  }
+}`)
+
+	job := mock.Job()
+	var regResp structs.JobRegisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{Job: job,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace, AuthToken: root.SecretID}}, &regResp))
+	var saveResp structs.BackupSaveResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Save", &structs.BackupSaveRequest{
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: root.SecretID}}, &saveResp))
+
+	items := []*structs.BackupRestoreItem{
+		{Type: structs.BackupRestoreItemJob, ID: job.ID},
+		{Type: structs.BackupRestoreItemVariable, ID: "secret/app"},
+		{Type: structs.BackupRestoreItemJob, Namespace: "platform", ID: "payments"},
+		{Type: structs.BackupRestoreItemVariable, Namespace: "platform", ID: "secret/db-admin"},
+		{Type: structs.BackupRestoreItemVariable, ID: "internal/keys"},
+		{Type: structs.BackupRestoreItemACLPolicy, ID: "backup-read-default"},
+	}
+	var restoreResp structs.BackupRestoreResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Restore", &structs.BackupRestoreRequest{
+		ID: saveResp.ID, AgeIdentity: identity.String(), Items: items,
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: root.SecretID}}, &restoreResp))
+	must.NotNil(t, restoreResp.Restore)
+	id := restoreResp.Restore.ID
+
+	get := func(token string) *structs.BackupRestore {
+		var resp structs.SingleBackupRestoreResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.GetRestore", &structs.BackupRestoreSpecificRequest{
+			RestoreID: id, QueryOptions: structs.QueryOptions{Region: "global", AuthToken: token},
+		}, &resp))
+		must.NotNil(t, resp.Restore)
+		return resp.Restore
+	}
+	list := func(token string) *structs.BackupRestore {
+		var resp structs.BackupRestoreListResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.ListRestores", &structs.BackupRestoreListRequest{
+			QueryOptions: structs.QueryOptions{Region: "global", AuthToken: token},
+		}, &resp))
+		for _, r := range resp.Restores {
+			if r.ID == id {
+				return r
+			}
+		}
+		t.Fatalf("restore %s is not listed", id)
+		return nil
+	}
+	seen := func(r *structs.BackupRestore) (fromItems, fromResults []string) {
+		for _, item := range r.Items {
+			fromItems = append(fromItems, item.String())
+		}
+		for _, res := range r.Results {
+			fromResults = append(fromResults, res.Item.String())
+		}
+		return fromItems, fromResults
+	}
+	readable := []string{"job default/" + job.ID, "variable default/secret/app"}
+
+	for name, read := range map[string]func(string) *structs.BackupRestore{"get": get, "list": list} {
+		fromItems, fromResults := seen(read(reader.SecretID))
+		must.Eq(t, readable, fromItems, must.Sprintf("%s: items", name))
+		must.SliceContainsAll(t, readable, fromResults, must.Sprintf("%s: results", name))
+
+		fromItems, fromResults = seen(read(root.SecretID))
+		must.Len(t, len(items), fromItems, must.Sprintf("%s: items of the management token", name))
+		must.Len(t, len(items), fromResults, must.Sprintf("%s: results of the management token", name))
+	}
+
+	// The stored record keeps everything.
+	stored, err := store.BackupRestoreByID(nil, id)
+	must.NoError(t, err)
+	must.Len(t, len(items), stored.Items)
+}

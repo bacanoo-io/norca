@@ -699,7 +699,9 @@ func (s *Server) restoreRaftSnapshot(archive io.Reader) error {
 // management token that requested the restore: they name ACL tokens,
 // policies and roles and the Variables, secret and Consul KV paths of every
 // namespace. Only a management token gets them back; backup read gets the
-// record with the counts of the preview, as ListRestores gives it.
+// record with the counts of the preview, as ListRestores gives it, and the
+// items and results of a selective restore it may read
+// (backupRestoreForReader).
 func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *structs.SingleBackupRestoreResponse) error {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.GetRestore", args, args, reply); done {
@@ -727,11 +729,8 @@ func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *s
 			if err != nil {
 				return err
 			}
-			if record != nil && record.Preview != nil && aclObj != nil && !aclObj.IsManagement() {
-				record = record.Copy()
-				preview := *record.Preview
-				preview.Objects = nil
-				record.Preview = &preview
+			if record, err = backupRestoreForReader(store, aclObj, record); err != nil {
+				return err
 			}
 			reply.Restore = record
 			if record != nil {
@@ -750,7 +749,8 @@ func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *s
 }
 
 // ListRestores returns the restore records of the region, newest first,
-// without the changed objects of the previews.
+// without the changed objects of the previews, and with the items and
+// results the caller may read (backupRestoreForReader).
 func (b *Backup) ListRestores(args *structs.BackupRestoreListRequest, reply *structs.BackupRestoreListResponse) error {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.ListRestores", args, args, reply); done {
@@ -785,6 +785,9 @@ func (b *Backup) ListRestores(args *structs.BackupRestoreListRequest, reply *str
 					preview := *r.Preview
 					preview.Objects = nil
 					r.Preview = &preview
+				}
+				if r, err = backupRestoreForReader(store, aclObj, r); err != nil {
+					return err
 				}
 				reply.Restores = append(reply.Restores, r)
 			}
