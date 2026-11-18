@@ -762,6 +762,10 @@ func (c *Client) reloadTLSConnections(newConfig *nconfig.TLSConfig) error {
 
 	c.connPool.ReloadTLS(tlsWrap)
 
+	// Norca: the bus connection keeps the TLS configuration it was opened
+	// with; it is closed, and the next use connects with the new one.
+	c.resetBusConn("the TLS configuration was reloaded")
+
 	return nil
 }
 

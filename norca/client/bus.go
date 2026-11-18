@@ -132,6 +132,18 @@ func (c *Client) BusConn() (*nats.Conn, error) {
 	return nc, nil
 }
 
+// resetBusConn closes the bus connection, if there is one, so that the
+// next use (BusConn) connects again with the configuration of then.
+func (c *Client) resetBusConn(why string) {
+	c.bus.l.Lock()
+	defer c.bus.l.Unlock()
+	if c.bus.nc != nil {
+		c.logger.Info("closing the bus connection: the next use connects again", "reason", why)
+		c.bus.nc.Close()
+		c.bus.nc = nil
+	}
+}
+
 // shutdownBus closes the bus connection.
 func (c *Client) shutdownBus() {
 	c.bus.l.Lock()
