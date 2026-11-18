@@ -249,6 +249,25 @@ func TestCollector_Background(t *testing.T) {
 	must.Eq(t, 0, len(h.tombstones()))
 }
 
+// TestCollector_RetentionIsNotPendingWork checks that a tombstone that only
+// waits for its retention does not keep the collector on its short
+// interval: with a long retention every deletion would otherwise make the
+// leader read all objects and jobs every few seconds until it ends. The
+// tombstone is removed by a pass after the retention.
+func TestCollector_RetentionIsNotPendingWork(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+
+	owner := h.object("owner")
+	must.NoError(t, h.remove(owner, structs.ObjectPropagationBackground))
+	must.False(t, h.collect(), must.Sprint("a tombstone waiting for its retention is pending work"))
+	must.Eq(t, []string{"id-owner"}, h.tombstones())
+
+	h.now = h.now.Add(DefaultConfig().TombstoneRetention + time.Second)
+	must.False(t, h.collect())
+	must.SliceEmpty(t, h.tombstones())
+}
+
 func TestCollector_Foreground(t *testing.T) {
 	ci.Parallel(t)
 	h := newHarness(t)

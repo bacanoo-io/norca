@@ -65,8 +65,9 @@ type Config struct {
 	// IdleInterval is how often the collector checks without changes.
 	IdleInterval time.Duration
 
-	// TombstoneRetention is how long a tombstone is kept after the deletion
-	// of its object, at least.
+	// TombstoneRetention is how long a tombstone, and the event log of its
+	// object, is kept after the deletion of the object, at least: it is
+	// removed by the first pass after that, which comes within IdleInterval.
 	TombstoneRetention time.Duration
 }
 
@@ -377,8 +378,14 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 		if _, exists := w.objects[o.ref()]; !exists {
 			remaining = c.collectDependents(w, o)
 		}
-		if remaining > 0 || now.Sub(time.Unix(0, t.DeleteTime)) < c.config().TombstoneRetention {
+		if remaining > 0 {
 			pending = true
+			continue
+		}
+		// A tombstone that only waits for its retention is not pending
+		// work: a pass after the idle interval removes it, and a change
+		// of the objects wakes the collector for late dependents.
+		if now.Sub(time.Unix(0, t.DeleteTime)) < c.config().TombstoneRetention {
 			continue
 		}
 		done = append(done, t.ID)
