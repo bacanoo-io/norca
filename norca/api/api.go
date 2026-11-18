@@ -734,11 +734,31 @@ func (r *request) toHTTP() (*http.Request, error) {
 	return req, nil
 }
 
+// checkPathSegments refuses a request path with a "." or ".." segment, or an
+// empty one before its end (Norca). Such a path comes from an identifier put
+// into it, "." or ".." or empty, or with "/" in it: the HTTP server or a
+// proxy resolves the segments and redirects, and the request reaches another
+// endpoint or object than the one the caller named. An empty last segment
+// (an empty identifier at the end) is not resolved; the server answers it.
+// path is the unescaped path, which the agent cleans.
+func checkPathSegments(path string) error {
+	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	for i, segment := range segments {
+		if segment == "." || segment == ".." || (segment == "" && i < len(segments)-1) {
+			return fmt.Errorf("invalid request path %q: a segment is \".\", \"..\" or empty", path)
+		}
+	}
+	return nil
+}
+
 // newRequest is used to create a new request
 func (c *Client) newRequest(method, path string) (*request, error) {
 	base, _ := url.Parse(c.config.Address)
 	u, err := url.Parse(path)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkPathSegments(u.Path); err != nil {
 		return nil, err
 	}
 	r := &request{

@@ -1411,9 +1411,10 @@ func TestJobs_ScaleInvalidAction(t *testing.T) {
 		value int
 		want  string
 	}{
-		{"", "", 1, "404"},
+		// an empty job ID makes /v1/job//scale, which the client refuses
+		{"", "", 1, "invalid request path"},
 		{"i-dont-exist", "", 1, "400"},
-		{"", "i-dont-exist", 1, "404"},
+		{"", "i-dont-exist", 1, "invalid request path"},
 		{"i-dont-exist", "me-neither", 1, "404"},
 	}
 	for _, test := range tests {
