@@ -395,6 +395,78 @@ func (s *ServiceRegistration) IsExternal() bool {
 	return s != nil && s.External != nil
 }
 
+// ExternalCheckRedacted replaces the parts of the definition of an external
+// check that may hold a credential (Sanitize).
+const ExternalCheckRedacted = "<redacted>"
+
+// Sanitize returns the registration without the parts of the definitions
+// of its external checks that may hold a credential: the values of the
+// headers (the names stay), the body, and the user information, query and
+// fragment of the http URL. Only the client node that runs the checks
+// needs them. A registration that is not external, or has nothing to leave
+// out, is returned as it is; s is never changed.
+func (s *ServiceRegistration) Sanitize() *ServiceRegistration {
+	if !s.IsExternal() {
+		return s
+	}
+	redact := false
+	for _, c := range s.External.Checks {
+		if c != nil && (len(c.Header) > 0 || c.Body != "" || redactCheckURL(c.HTTP) != c.HTTP) {
+			redact = true
+			break
+		}
+	}
+	if !redact {
+		return s
+	}
+	out := s.Copy()
+	for _, c := range out.External.Checks {
+		if c == nil {
+			continue
+		}
+		for name := range c.Header {
+			c.Header[name] = []string{ExternalCheckRedacted}
+		}
+		if c.Body != "" {
+			c.Body = ExternalCheckRedacted
+		}
+		c.HTTP = redactCheckURL(c.HTTP)
+	}
+	return out
+}
+
+// redactCheckURL returns the URL of an http check without its user
+// information, query and fragment, where credentials are passed. A URL that
+// cannot be parsed, or has no scheme or host, is replaced completely.
+func redactCheckURL(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Opaque != "" || u.Host == "" {
+		return ExternalCheckRedacted
+	}
+	fragment := u.Fragment != "" || u.RawFragment != ""
+	if u.User == nil && u.RawQuery == "" && !fragment {
+		return raw
+	}
+	var b strings.Builder
+	b.WriteString(u.Scheme)
+	b.WriteString("://")
+	if u.User != nil {
+		b.WriteString(ExternalCheckRedacted + "@")
+	}
+	b.WriteString(u.Host)
+	b.WriteString(u.EscapedPath())
+	if u.RawQuery != "" {
+		b.WriteString("?" + ExternalCheckRedacted)
+	}
+	if fragment {
+		b.WriteString("#" + ExternalCheckRedacted)
+	}
+	return b.String()
+}
+
 // ValidateExternal validates an external service registration.
 func (s *ServiceRegistration) ValidateExternal() error {
 	var mErr multierror.Error

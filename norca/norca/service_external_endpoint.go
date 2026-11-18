@@ -319,12 +319,17 @@ func (s *ServiceRegistration) ListExternal(
 	}
 
 	namespace := args.RequestNamespace()
-	var allowNS func(string) bool
+	// allowNS tells the namespaces the caller may list, and allowChecks
+	// those it may read the whole check definitions of (see
+	// ServiceRegistration.Sanitize): the node that runs the checks, and
+	// who may register external services there.
+	var allowNS, allowChecks func(string) bool
 	if identity := args.GetIdentity(); identity != nil && identity.ClientID != "" {
 		if args.NodeID != identity.ClientID {
 			return structs.ErrPermissionDenied
 		}
 		allowNS = func(string) bool { return true }
+		allowChecks = allowNS
 	} else {
 		aclObj, err := s.srv.ResolveACL(args)
 		if err != nil {
@@ -333,6 +338,9 @@ func (s *ServiceRegistration) ListExternal(
 		allowNS = func(ns string) bool { return aclObj.AllowNsOp(ns, acl.NamespaceCapabilityReadJob) }
 		if namespace != structs.AllNamespacesSentinel && !allowNS(namespace) {
 			return structs.ErrPermissionDenied
+		}
+		allowChecks = func(ns string) bool {
+			return aclObj.AllowNsOp(ns, acl.NamespaceCapabilityRegisterExternalService)
 		}
 	}
 
@@ -372,6 +380,9 @@ func (s *ServiceRegistration) ListExternal(
 				if namespace != structs.AllNamespacesSentinel && reg.Namespace != namespace {
 					continue
 				}
+				if !allowChecks(reg.Namespace) {
+					reg = reg.Sanitize()
+				}
 				out = append(out, reg)
 			}
 			sort.Slice(out, func(i, j int) bool {
@@ -384,6 +395,22 @@ func (s *ServiceRegistration) ListExternal(
 			return s.srv.setReplyQueryMeta(stateStore, state.TableServiceRegistrations, &reply.QueryMeta)
 		},
 	})
+}
+
+// externalChecksReadable returns whether the caller of a read of service
+// registrations, with aclObj from ResolveClientOrACL, may read the whole
+// check definitions of the external services of namespace (see
+// ServiceRegistration.Sanitize): with ACLs disabled, or with the capability
+// to register them. A client node reads them in ListExternal only.
+func (s *ServiceRegistration) externalChecksReadable(args structs.RequestWithIdentity, aclObj *acl.ACL,
+	namespace string) bool {
+	if !s.srv.config.ACLEnabled {
+		return true
+	}
+	if aclObj == nil || clientIdentity(args) != "" {
+		return false
+	}
+	return aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityRegisterExternalService)
 }
 
 // errExternalNotFound is returned for unknown external services.

@@ -115,3 +115,44 @@ func TestServiceRegistration_ExternalCopyEqualHealth(t *testing.T) {
 	next.StripNorcaFields()
 	must.Nil(t, next.External)
 }
+
+func TestServiceRegistration_Sanitize(t *testing.T) {
+	ci.Parallel(t)
+
+	// nothing to leave out: the registration itself
+	plain := externalReg()
+	must.True(t, plain == plain.Sanitize())
+	nonExternal := &ServiceRegistration{ID: "web"}
+	must.True(t, nonExternal == nonExternal.Sanitize())
+	must.Nil(t, (*ServiceRegistration)(nil).Sanitize())
+
+	reg := externalReg()
+	reg.External.Checks = append(reg.External.Checks, &ExternalServiceCheck{
+		ID: "h", Type: ExternalCheckTypeHTTP, HTTP: "https://user:pass@x.example:8443/health?token=abc#frag",
+		Method: "POST", Header: map[string][]string{"Authorization": {"Bearer abc"}, "X-Api-Key": {"k1", "k2"}},
+		Body: "secret=abc", TLSServerName: "x.example",
+	})
+	orig := reg.Copy()
+
+	out := reg.Sanitize()
+	must.True(t, reg.Equal(orig)) // not changed
+	h := out.External.Checks[1]
+	must.Eq(t, "https://<redacted>@x.example:8443/health?<redacted>#<redacted>", h.HTTP)
+	must.Eq(t, map[string][]string{"Authorization": {"<redacted>"}, "X-Api-Key": {"<redacted>"}}, h.Header)
+	must.Eq(t, "<redacted>", h.Body)
+	must.Eq(t, "POST", h.Method)
+	must.Eq(t, "x.example", h.TLSServerName)
+	must.Eq(t, orig.External.Checks[0], out.External.Checks[0])
+
+	// a URL that needs nothing left out stays; one that cannot be read goes
+	for _, tc := range []struct{ in, want string }{
+		{"http://x.example/health", "http://x.example/health"},
+		{"https://token@x.example/", "https://<redacted>@x.example/"},
+		{"x.example/health?token=abc", "<redacted>"},
+		{"http://x.example/%zz?token=abc", "<redacted>"},
+	} {
+		reg := externalReg()
+		reg.External.Checks[0] = &ExternalServiceCheck{ID: "h", Type: ExternalCheckTypeHTTP, HTTP: tc.in}
+		must.Eq(t, tc.want, reg.Sanitize().External.Checks[0].HTTP, must.Sprint(tc.in))
+	}
+}

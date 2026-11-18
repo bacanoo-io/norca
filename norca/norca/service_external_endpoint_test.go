@@ -363,6 +363,93 @@ func TestServiceRegistration_External_DeleteByID(t *testing.T) {
 	}
 }
 
+// TestServiceRegistration_External_ChecksRedacted: the credentials in the
+// definitions of http checks (header values, body, user information and
+// query of the URL) reach only the node that runs the checks and who may
+// register external services, not every reader of service registrations.
+func TestServiceRegistration_External_ChecksRedacted(t *testing.T) {
+	ci.Parallel(t)
+
+	s, _, cleanup := TestACLServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+
+	register := mock.CreatePolicyAndToken(t, s.State(), 1001, "register",
+		mock.NamespacePolicy(structs.DefaultNamespace, "", []string{acl.NamespaceCapabilityRegisterExternalService}))
+	reader := mock.CreatePolicyAndToken(t, s.State(), 1003, "read",
+		mock.NamespacePolicy(structs.DefaultNamespace, acl.PolicyRead, nil))
+	owner := mock.CreatePolicyAndToken(t, s.State(), 1005, "owner",
+		mock.NamespacePolicy(structs.DefaultNamespace, acl.PolicyRead, []string{acl.NamespaceCapabilityRegisterExternalService}))
+	node := mock.Node()
+	must.NoError(t, s.State().UpsertNode(structs.MsgTypeTestSetup, 1010, node))
+
+	const secretURL = "https://monitor:s3cret@10.0.0.7/health?token=abc"
+	check := &structs.ExternalServiceCheck{
+		ID: "http", Type: structs.ExternalCheckTypeHTTP, HTTP: secretURL, Method: "POST",
+		Header:   map[string][]string{"Authorization": {"Bearer abc"}},
+		Body:     `{"key":"abc"}`,
+		Interval: 10 * time.Second, Timeout: 2 * time.Second,
+	}
+	reg := &structs.ServiceRegistration{
+		ID: "portal", ServiceName: "portal", Address: "10.0.0.7", Port: 443,
+		External: &structs.ServiceExternal{
+			Kind:   structs.ExternalServiceKindAddress,
+			Source: structs.ExternalServiceSourceAPI,
+			Checks: []*structs.ExternalServiceCheck{check.Copy()},
+		},
+	}
+	_, err := upsertExternal(t, s, reg, register.SecretID, node.SecretID)
+	must.NoError(t, err)
+	// the definition as registered
+	stored := getRegistration(t, s, "portal").External.Checks[0]
+	must.Eq(t, secretURL, stored.HTTP)
+	must.Eq(t, check.Header, stored.Header)
+	must.Eq(t, check.Body, stored.Body)
+
+	listExternal := func(token, nodeID string) *structs.ExternalServiceCheck {
+		t.Helper()
+		req := &structs.ExternalServiceListRequest{NodeID: nodeID,
+			QueryOptions: structs.QueryOptions{Region: DefaultRegion, Namespace: structs.DefaultNamespace, AuthToken: token}}
+		var resp structs.ExternalServiceListResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationListExternalRPCMethod, req, &resp))
+		must.Len(t, 1, resp.Services)
+		return resp.Services[0].External.Checks[0]
+	}
+	getService := func(token string) *structs.ExternalServiceCheck {
+		t.Helper()
+		req := &structs.ServiceRegistrationByNameRequest{ServiceName: "portal",
+			QueryOptions: structs.QueryOptions{Region: DefaultRegion, Namespace: structs.DefaultNamespace, AuthToken: token}}
+		var resp structs.ServiceRegistrationByNameResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationGetServiceRPCMethod, req, &resp))
+		must.Len(t, 1, resp.Services)
+		return resp.Services[0].External.Checks[0]
+	}
+	redacted := func(t *testing.T, got *structs.ExternalServiceCheck) {
+		t.Helper()
+		must.Eq(t, "https://<redacted>@10.0.0.7/health?<redacted>", got.HTTP)
+		must.Eq(t, map[string][]string{"Authorization": {"<redacted>"}}, got.Header)
+		must.Eq(t, "<redacted>", got.Body)
+		must.Eq(t, "POST", got.Method)
+	}
+
+	t.Run("reader", func(t *testing.T) {
+		redacted(t, listExternal(reader.SecretID, ""))
+		redacted(t, getService(reader.SecretID))
+	})
+	t.Run("node", func(t *testing.T) {
+		// the node that runs the checks, in the listing of its own
+		must.Eq(t, stored, listExternal(node.SecretID, node.ID))
+		redacted(t, getService(node.SecretID))
+	})
+	t.Run("registrant", func(t *testing.T) {
+		must.Eq(t, stored, listExternal(owner.SecretID, ""))
+		must.Eq(t, stored, getService(owner.SecretID))
+	})
+	t.Run("state unchanged", func(t *testing.T) {
+		must.Eq(t, stored, getRegistration(t, s, "portal").External.Checks[0])
+	})
+}
+
 // TestServiceRegistration_External_BoundToNode: a caller with node write
 // binds a registration with http checks to a client node of its choice.
 func TestServiceRegistration_External_BoundToNode(t *testing.T) {

@@ -554,6 +554,15 @@ func (s *ServiceRegistration) GetService(
 				services = chosen
 			}
 
+			// The credentials of the check definitions of external
+			// services stay out, unless the caller may register them
+			// (see ServiceRegistration.Sanitize).
+			for i, reg := range services {
+				if reg.IsExternal() && !s.externalChecksReadable(args, aclObj, reg.Namespace) {
+					services[i] = reg.Sanitize()
+				}
+			}
+
 			// Populate the reply.
 			reply.Services = services
 			reply.NextToken = nextToken

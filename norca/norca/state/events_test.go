@@ -1060,6 +1060,51 @@ func Test_eventsFromChanges_ServiceRegistration(t *testing.T) {
 	require.Equal(t, service, eventPayload.Service)
 }
 
+// Test_eventsFromChanges_ServiceRegistrationExternal: the events of an
+// external service carry its check definitions without their credentials.
+func Test_eventsFromChanges_ServiceRegistrationExternal(t *testing.T) {
+	ci.Parallel(t)
+	testState := TestStateStoreCfg(t, TestStateStorePublisher(t))
+	defer testState.StopEventBroker()
+
+	service := mock.ServiceRegistrations()[0]
+	service.External = &structs.ServiceExternal{
+		Kind: structs.ExternalServiceKindAddress,
+		Checks: []*structs.ExternalServiceCheck{{
+			ID: "h", Type: structs.ExternalCheckTypeHTTP, HTTP: "https://x.example/health?token=abc",
+			Header: map[string][]string{"Authorization": {"Bearer abc"}},
+		}},
+	}
+	stored := service.Copy()
+	check := func(t *testing.T, events *structs.Events) {
+		t.Helper()
+		must.Len(t, 1, events.Events)
+		payload := events.Events[0].Payload.(*structs.ServiceRegistrationStreamEvent)
+		c := payload.Service.External.Checks[0]
+		must.Eq(t, "https://x.example/health?<redacted>", c.HTTP)
+		must.Eq(t, map[string][]string{"Authorization": {"<redacted>"}}, c.Header)
+	}
+
+	writeTxn := testState.db.WriteTxn(10)
+	updated, err := testState.upsertServiceRegistrationTxn(10, writeTxn, service)
+	must.True(t, updated)
+	must.NoError(t, err)
+	writeTxn.Txn.Commit()
+	check(t, eventsFromChanges(writeTxn, Changes{Changes: writeTxn.Changes(), Index: 10,
+		MsgType: structs.ServiceRegistrationUpsertRequestType}))
+
+	// the state keeps the definition
+	out, err := testState.GetServiceRegistrationByID(nil, service.Namespace, service.ID)
+	must.NoError(t, err)
+	must.Eq(t, stored.External, out.External)
+
+	deleteTxn := testState.db.WriteTxn(20)
+	must.NoError(t, testState.deleteServiceRegistrationByIDTxn(20, deleteTxn, service.Namespace, service.ID))
+	deleteTxn.Txn.Commit()
+	check(t, eventsFromChanges(deleteTxn, Changes{Changes: deleteTxn.Changes(), Index: 20,
+		MsgType: structs.ServiceRegistrationDeleteByIDRequestType}))
+}
+
 func Test_eventsFromChanges_ACLRole(t *testing.T) {
 	ci.Parallel(t)
 	testState := TestStateStoreCfg(t, TestStateStorePublisher(t))

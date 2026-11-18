@@ -205,6 +205,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			if !ok {
 				return structs.Event{}, false
 			}
+			// without the credentials of external checks
+			before = before.Sanitize()
 			return structs.Event{
 				Topic: structs.TopicService,
 				Key:   before.ID,
@@ -402,6 +404,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		if !ok {
 			return structs.Event{}, false
 		}
+		// without the credentials of external checks
+		after = after.Sanitize()
 		return structs.Event{
 			Topic: structs.TopicService,
 			Key:   after.ID,
