@@ -265,6 +265,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if err := checkManagedJob(aclObj, args, existingJob); err != nil {
 		return err
 	}
+	if err := checkJobParent(args.Job, existingJob); err != nil {
+		return err
+	}
 
 	// If EnforceIndex set, check it before trying to apply
 	if args.EnforceIndex {
