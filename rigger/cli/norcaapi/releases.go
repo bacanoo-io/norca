@@ -245,7 +245,7 @@ func moduleRef(p *api.ReleasePack) host.ModuleRef {
 		return host.ModuleRef{}
 	}
 
-	ref := host.ModuleRef{Name: p.Name, Source: p.Source, Version: p.Version, Digest: p.Digest}
+	ref := host.ModuleRef{Name: p.Name, Source: p.Source, Version: p.Version, Ref: p.Ref, Digest: p.Digest}
 	if p.TrustedSigner != "" {
 		ref.Signers = []string{p.TrustedSigner}
 	}
@@ -259,7 +259,7 @@ func moduleRef(p *api.ReleasePack) host.ModuleRef {
 func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	out := &api.ReleaseApplyRequest{
 		Pack: &api.ReleasePack{
-			Name: req.Module.Name, Version: req.Module.Version, Source: req.Module.Source, Digest: req.Module.Digest,
+			Name: req.Module.Name, Version: req.Module.Version, Source: req.Module.Source, Ref: req.Module.Ref, Digest: req.Module.Digest,
 			Requires: requires(req.Module.Requires),
 		},
 		Description: ownDesc,

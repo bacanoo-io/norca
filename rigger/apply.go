@@ -305,7 +305,8 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 
 	ref := host.ReleaseRef{Namespace: in.Namespace, Name: in.Release}
 
-	rp, err := e.planRelease(ctx, ref, "", in.Region, m.mod, eval.MarkSensitive(m.mod, valuesObject(in.Values)), res, set)
+	rp, err := e.planRelease(ctx, ref, "", in.Region, moduleOrigin{module: m.mod, source: m.mod.Dir},
+		eval.MarkSensitive(m.mod, valuesObject(in.Values)), res, set)
 	if err != nil {
 		return nil, append(diags, errorDiags("Release not compared", err)...)
 	}

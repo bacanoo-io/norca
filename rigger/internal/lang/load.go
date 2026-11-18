@@ -306,3 +306,10 @@ func (m *Module) decodeResource(file *hcl.File, rt ResourceType, name string) hc
 
 	return diags
 }
+
+// LoadAs reads the module in the directory dir of root, as LoadAt does,
+// naming its files with prefix in diagnostics: a module fetched from a
+// source, named after its address and version.
+func LoadAs(ctx context.Context, root fs.FS, dir, prefix string, limits Limits) (*Module, hcl.Diagnostics) {
+	return loadTree(ctx, root, path.Clean(dir), prefix, limits, nil)
+}

@@ -48,12 +48,19 @@ func (s *Stack) ReadValueFile(p string) ([]byte, error) { return fs.ReadFile(s.s
 func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (*Stack, hcl.Diagnostics) {
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "stack.load", "dir", dir)
 
-	s, diags := lang.LoadStack(ctx, root, dir, lang.Limits{
-		ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth,
-	})
+	s, diags := lang.LoadStack(ctx, root, dir, e.langLimits())
+	if !diags.HasErrors() {
+		diags = append(diags, e.resolveLocked(ctx, s)...)
+	}
+
 	span.End(ctx, diagsErr(diags))
 
 	return &Stack{s: s}, diags
+}
+
+// langLimits are the limits of the engine for loading.
+func (e *Engine) langLimits() lang.Limits {
+	return lang.Limits{ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth}
 }
 
 // ReleaseAction is what a plan does to a release (design 9.2).
@@ -247,7 +254,7 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 
 		if rr.Enabled {
 			inStack[ref] = true
-			rp, err = e.planRelease(ctx, ref, plan.Stack, plan.Region, rr.Release.Module, rr.Values, rr.Result, settings(rr.Release))
+			rp, err = e.planRelease(ctx, ref, plan.Stack, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
 		} else {
 			rp = ReleasePlan{Release: ref, Action: ActionDisabled}
 		}
@@ -282,9 +289,26 @@ func settings(r *lang.StackRelease) host.Settings {
 	return host.Settings{Atomic: r.Atomic, Wait: r.Wait == nil || *r.Wait, Timeout: r.Timeout, MaxHistory: r.MaxHistory}
 }
 
+// moduleOrigin is a module and where it came from.
+type moduleOrigin struct {
+	module      *lang.Module
+	source, ref string
+}
+
+// origin is the module of a release of a stack and where it came from: the
+// address and the tag of a source, the path of a local module.
+func origin(r *lang.StackRelease) moduleOrigin {
+	o := moduleOrigin{module: r.Module, source: r.Source}
+	if r.Locked != nil {
+		o.ref = r.Locked.Ref
+	}
+
+	return o
+}
+
 // planRelease builds the request of a release and compares it with the
 // current revision.
-func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, region string, m *lang.Module,
+func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, region string, m moduleOrigin,
 	values cty.Value, res *eval.Result, set host.Settings,
 ) (ReleasePlan, error) {
 	req, err := applyRequest(ref, owner, region, m, values, res, set)
@@ -328,18 +352,20 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 // applyRequest builds the request of a release: the module and its digest,
 // the digest of the release, the values a revision records, the resources
 // and their secret items.
-func applyRequest(ref host.ReleaseRef, owner, region string, m *lang.Module, values cty.Value, res *eval.Result,
+func applyRequest(ref host.ReleaseRef, owner, region string, m moduleOrigin, values cty.Value, res *eval.Result,
 	set host.Settings,
 ) (host.ApplyRequest, error) {
-	moduleDigest, err := lang.Digest(m)
+	moduleDigest, err := lang.Digest(m.module)
 	if err != nil {
 		return host.ApplyRequest{}, err
 	}
 
-	md := m.Metadata
+	md := m.module.Metadata
 	req := host.ApplyRequest{
 		Release: ref, Owner: owner, Settings: set,
-		Module:  host.ModuleRef{Name: md.Name, Version: md.Version, Source: m.Dir, Digest: moduleDigest, Requires: &md.Requires},
+		Module: host.ModuleRef{
+			Name: md.Name, Version: md.Version, Source: m.source, Ref: m.ref, Digest: moduleDigest, Requires: &md.Requires,
+		},
 		Secrets: map[string]map[string]host.Sensitive{},
 	}
 

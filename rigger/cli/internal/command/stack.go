@@ -4,6 +4,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -22,12 +24,13 @@ import (
 
 // stackFlags are the flags of rig stack <command>.
 type stackFlags struct {
-	dir    string
-	files  listFlag
-	vars   listFlag
-	json   bool
-	prune  bool
-	region string
+	dir     string
+	files   listFlag
+	vars    listFlag
+	json    bool
+	prune   bool
+	upgrade bool
+	region  string
 }
 
 // The commands of rig stack.
@@ -36,12 +39,13 @@ const (
 	cmdApply   = "apply"
 	cmdStatus  = "status"
 	cmdDestroy = "destroy"
+	cmdSync    = "sync"
 )
 
 // runStack runs rig stack <command> [dir] [flags].
 func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
-		warn(stderr, "stack needs a command: validate, plan, apply, status or destroy")
+		warn(stderr, "stack needs a command: sync, validate, plan, apply, status or destroy")
 
 		return exitError
 	}
@@ -62,6 +66,8 @@ func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 	switch cmd {
 	case cmdValidate:
 		fn = func(ctx context.Context) error { return validateStack(ctx, logger, stdout, stderr, f) }
+	case cmdSync:
+		fn = func(ctx context.Context) error { return syncStack(ctx, logger, stdout, stderr, f) }
 	case cmdPlan, cmdApply:
 		fn = func(ctx context.Context) error {
 			return planApplyStack(ctx, logger, stdout, stderr, f, cmd == cmdApply)
@@ -93,6 +99,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.BoolVar(&f.json, "json", false, "write the plan or the status as JSON")
 	flags.BoolVar(&f.prune, "prune", false, "apply: uninstall the releases the stack owns and no longer has")
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
+	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
 
 	if err := flags.Parse(args); err != nil {
 		return nil, err
@@ -145,7 +152,7 @@ func loadStack(ctx context.Context, eng *rig.Engine, f *stackFlags) (*rig.Stack,
 
 // stackClusterEngine connects to the cluster of a stack.
 func stackClusterEngine(ctx context.Context, logger *slog.Logger, f *stackFlags) (*rig.Engine, *rig.Stack, rig.Values, hcl.Diagnostics, error) {
-	offline, err := rig.New(rig.WithLogger(logger))
+	offline, err := offlineEngine(logger)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -179,7 +186,7 @@ func stackClusterEngine(ctx context.Context, logger *slog.Logger, f *stackFlags)
 // validateStack evaluates a stack without a cluster: with the values of
 // the flags, or with each value file under values/ when none are given.
 func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *stackFlags) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(jobDecoder()))
+	eng, err := offlineEngine(logger)
 	if err != nil {
 		return err
 	}
@@ -393,3 +400,42 @@ func destroyStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 
 	return err
 }
+
+// syncStack resolves the versions of the modules of a stack, fetches and
+// verifies them, and writes the lock file next to the stack (design 8.3).
+func syncStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *stackFlags) error {
+	eng, err := offlineEngine(logger)
+	if err != nil {
+		return err
+	}
+
+	root, rel, err := moduleRoot(f.dir)
+	if err != nil {
+		return err
+	}
+
+	_, lock, diags := eng.SyncStack(ctx, os.DirFS(root), rel, f.upgrade)
+	if diags.HasErrors() {
+		return reportDiags(stderr, f.dir, diags)
+	}
+
+	p := filepath.Join(f.dir, lockFile)
+
+	old, _ := os.ReadFile(filepath.Clean(p))
+	if bytes.Equal(old, lock) {
+		_, err := fmt.Fprintf(stdout, "%s is up to date\n", p)
+
+		return err
+	}
+
+	if err := os.WriteFile(p, lock, 0o644); err != nil { //nolint:gosec // G306: the lock file is kept in version control, not secret
+		return err
+	}
+
+	_, err = fmt.Fprintf(stdout, "wrote %s\n", p)
+
+	return err
+}
+
+// lockFile is the name of the lock file of a stack.
+const lockFile = "rig.lock.hcl"

@@ -1547,6 +1547,35 @@ Phase 2 as built (2026-11-18), checked against a dev agent
   checks `norca` and `features`), a saved plan (`-out`), the journal of
   12.6, the multi-region install.
 
+Phase 3 as built (2026-11-18):
+
+- **Addresses** (package `source`): `<registry>/<name>` is `modules/<name>`
+  of a registry of the stack (`rig { registry "<name>" { source } }`),
+  tagged `<name>/v<version>`; a git address (`<host>/<path>[//<dir>]`,
+  `https://`, `file://`, an absolute path) tagged `<dir>/v<version>` or
+  `v<version>`; `builtin/<name>`; `dir://<path>`. Any other `<a>/<b>` is the
+  global registry, refused until phase 6. OCI and bundles come with phase 4.
+- **Versions** (package `version`, Rig's own): semver with pre-releases,
+  constraints `=`, `!=`, `>`, `>=`, `<`, `<=`, `~>` joined with commas;
+  `~> 1.2` is `< 2.0.0`, `~> 1.2.3` is `< 1.3.0`; a pre-release meets only a
+  constraint that names one.
+- **The fetcher of the rig program** keeps a bare mirror of each repository
+  and the tree of each commit in the cache (`RIG_CACHE_DIR`, else the
+  user's cache directory), through the `git` program; the tree of the whole
+  repository is fetched, so that a child module of the same repository
+  (`../lib/placement`) is found. The built-in modules are embedded in the
+  program (`builtin/redis` for now; the audit base of 12.8 later).
+- **The lock file** `rig.lock.hcl`: per source the version, the constraint,
+  the repository and path, the tag, its commit and the tree digest.
+  `rig stack sync` writes it, keeping a locked version that still meets the
+  constraint unless `-upgrade`; every other command loads the modules of
+  sources as it records them and refuses a source missing from it, a
+  version that no longer meets the constraint, a moved tag and content of
+  another digest. The revision records the address and the tag of the
+  module (`Pack.Source`, `Pack.Ref`).
+- `norca-rig-registry` (next to this repository) holds redis, nats,
+  postgres and lib/placement, tagged, with `scripts/check.sh` for its CI.
+
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
 

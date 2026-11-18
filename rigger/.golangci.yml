@@ -113,6 +113,12 @@ linters:
       # The copy of norca's jobspec2 stays as norca has it (SOURCE.md);
       # Rig's own files there (rig_*.go) are linted.
       - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
+    rules:
+      # Tests read and write the files of their own temporary directories,
+      # and run git there.
+      - path: _test\.go
+        linters: [gosec]
+        text: "G204|G304|G703"
 
   settings:
     dupl:

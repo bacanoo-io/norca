@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+
+	"github.com/bacanoo-io/norca-rig/source"
 )
 
 // Stack is a loaded stack (design 6.4): the modules of a region with their
@@ -35,9 +37,11 @@ type Stack struct {
 	Secrets []*hcl.Block
 	// ValueFiles are the paths of the value files under values/.
 	ValueFiles []string
-	Sources    map[string][]byte
-	FS         fs.FS
-	Dir        string
+	// Lock is the lock file of the stack; nil without one.
+	Lock    *Lock
+	Sources map[string][]byte
+	FS      fs.FS
+	Dir     string
 }
 
 // RigBlock is the rig block of stack.hcl.
@@ -48,9 +52,10 @@ type RigBlock struct {
 	Region string `hcl:"region,optional"`
 	// Namespace is the namespace of a release that names none.
 	Namespace string `hcl:"namespace,optional"`
-	// Registries and Trust are read in phases 3 and 4.
-	Registries []*hcl.Block `hcl:"registry,block"`
-	Trust      []*hcl.Block `hcl:"trust,block"`
+	// Registries are the registry blocks; Trust the trust blocks, read in
+	// phase 4.
+	Registries []*hcl.Block
+	Trust      []*hcl.Block
 	Range      hcl.Range
 }
 
@@ -74,8 +79,13 @@ type StackRelease struct {
 	Timeout    time.Duration
 	MaxHistory int
 	Block      *hcl.Block
-	// Module is the module of a local source, loaded with the stack.
+	// Module is the module of the release: of a local source loaded with
+	// the stack, of another source loaded by the engine from the lock.
 	Module *Module
+	// Address is the source of a module that is not local; nil for a local
+	// one. Locked is its entry of the lock file, set by the engine.
+	Address *source.Request
+	Locked  *LockedModule
 }
 
 // The attributes of a module block of a stack that are expressions.
@@ -198,8 +208,8 @@ func (s *Stack) readFile(fsys fs.FS, p string) hcl.Diagnostics {
 		}
 
 		return nil
-	case !strings.HasSuffix(p, ".hcl") || p == "rig.lock.hcl":
-		return nil // documentation, the icon; the lock file is read in phase 3
+	case !strings.HasSuffix(p, ".hcl"):
+		return nil // documentation, the icon
 	}
 
 	src, err := fs.ReadFile(fsys, p)
@@ -224,6 +234,12 @@ func (s *Stack) decodeFile(p string, src []byte, file *hcl.File) hcl.Diagnostics
 	switch p {
 	case "stack.hcl":
 		return s.decodeStack(file)
+	case LockFile:
+		lock := &Lock{}
+		diags = gohcl.DecodeBody(file.Body, nil, lock)
+		s.Lock = lock
+
+		return diags
 	case "variables.hcl":
 		s.Vars.Sources[p] = src
 
@@ -250,11 +266,11 @@ func (s *Stack) decodeFile(p string, src []byte, file *hcl.File) hcl.Diagnostics
 
 		return append(diags, moreDiags...)
 	case "metadata.hcl":
-		return nil // the stack block of a published stack, read in phase 3
+		return nil // the stack block of a published stack (design 7.5)
 	default:
 		return append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError, Summary: "Unknown file",
-			Detail: p + " is not a file a stack may have: stack.hcl, variables.hcl, locals.hcl, outputs.hcl, secrets.hcl, metadata.hcl, rig.lock.hcl (design 7.5).",
+			Detail: p + " is not a file a stack may have: stack.hcl, variables.hcl, locals.hcl, outputs.hcl, secrets.hcl, metadata.hcl, " + LockFile + " (design 7.5).",
 		})
 	}
 }
@@ -270,8 +286,7 @@ func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 		case "rig":
 			rigs++
 
-			diags = append(diags, gohcl.DecodeBody(b.Body, nil, &s.Rig)...)
-			s.Rig.Range = b.DefRange
+			diags = append(diags, s.decodeRig(b)...)
 		default:
 			r, moreDiags := decodeRelease(b)
 			diags = append(diags, moreDiags...)
@@ -293,6 +308,29 @@ func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 	}
 
 	return diags
+}
+
+// rigSchema is the schema of the blocks of the rig block.
+var rigSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
+	{Type: "registry", LabelNames: []string{labelName}}, {Type: "trust"},
+}}
+
+// decodeRig decodes the rig block: its attributes, its registries and its
+// trust.
+func (s *Stack) decodeRig(b *hcl.Block) hcl.Diagnostics {
+	content, remain, diags := b.Body.PartialContent(rigSchema)
+
+	for _, inner := range content.Blocks {
+		if inner.Type == "registry" {
+			s.Rig.Registries = append(s.Rig.Registries, inner)
+		} else {
+			s.Rig.Trust = append(s.Rig.Trust, inner)
+		}
+	}
+
+	s.Rig.Range = b.DefRange
+
+	return append(diags, gohcl.DecodeBody(remain, nil, &s.Rig)...)
 }
 
 // decodeRelease decodes a module block of a stack.
@@ -414,15 +452,49 @@ func (r *StackRelease) decodeDependsOn(attr *hcl.Attribute) hcl.Diagnostics {
 	return diags
 }
 
-// loadRelease loads the module of a release with a local source.
+// Registries returns the repositories of the registries of the stack by
+// name.
+func (s *Stack) Registries() (map[string]string, hcl.Diagnostics) {
+	out := map[string]string{}
+
+	var diags hcl.Diagnostics
+
+	for _, b := range s.Rig.Registries {
+		var reg struct {
+			Source string `hcl:"source"`
+		}
+
+		if moreDiags := gohcl.DecodeBody(b.Body, nil, &reg); moreDiags.HasErrors() {
+			diags = append(diags, moreDiags...)
+
+			continue
+		}
+
+		out[b.Labels[0]] = reg.Source
+	}
+
+	return out, diags
+}
+
+// loadRelease loads the module of a release with a local source, and
+// parses the address of any other.
 func (s *Stack) loadRelease(ctx context.Context, root fs.FS, r *StackRelease, limits Limits) hcl.Diagnostics {
 	rng := r.Block.DefRange
 
-	switch {
-	case strings.HasPrefix(r.Source, "./") || strings.HasPrefix(r.Source, "../"):
-	default:
-		return hcl.Diagnostics{errorAt(rng, "Source not supported yet",
-			r.Source+" is not a local source (./ or ../). Modules from registries come with phase 3.")}
+	if !strings.HasPrefix(r.Source, "./") && !strings.HasPrefix(r.Source, "../") {
+		registries, diags := s.Registries()
+		if diags.HasErrors() {
+			return diags
+		}
+
+		req, err := source.Parse(r.Source, registries)
+		if err != nil {
+			return hcl.Diagnostics{errorAt(rng, "Invalid source", err.Error()+".")}
+		}
+
+		r.Address = &req
+
+		return nil
 	}
 
 	if r.Version != "" {

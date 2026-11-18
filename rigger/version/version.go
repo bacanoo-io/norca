@@ -1,0 +1,275 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+// Package version holds the versions of modules and stacks and the
+// constraints on them (design 7.2): semantic versions, and constraints such
+// as "~> 1.2" or ">= 1.0, < 2".
+package version
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+// Version is a semantic version: major.minor.patch, an optional
+// pre-release; build metadata is kept but takes no part in the order.
+type Version struct {
+	Major, Minor, Patch uint64
+	Pre                 []string
+	Build               string
+}
+
+// ErrInvalid is the error of a text that is not a version or a constraint.
+var ErrInvalid = errors.New("invalid version")
+
+// Parse parses a version, with an optional leading v.
+func Parse(s string) (Version, error) {
+	text := strings.TrimPrefix(s, "v")
+
+	text, build, _ := strings.Cut(text, "+")
+	core, pre, hasPre := strings.Cut(text, "-")
+
+	parts := strings.Split(core, ".")
+	if len(parts) != 3 {
+		return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+	}
+
+	nums := make([]uint64, 3)
+
+	for i, p := range parts {
+		n, err := strconv.ParseUint(p, 10, 64)
+		if err != nil || (len(p) > 1 && p[0] == '0') {
+			return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+		}
+
+		nums[i] = n
+	}
+
+	v := Version{Major: nums[0], Minor: nums[1], Patch: nums[2], Build: build}
+
+	if hasPre {
+		if pre == "" {
+			return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+		}
+
+		v.Pre = strings.Split(pre, ".")
+	}
+
+	return v, nil
+}
+
+// String writes the version without a leading v.
+func (v Version) String() string {
+	s := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	if len(v.Pre) > 0 {
+		s += "-" + strings.Join(v.Pre, ".")
+	}
+
+	if v.Build != "" {
+		s += "+" + v.Build
+	}
+
+	return s
+}
+
+// Compare orders two versions: -1, 0 or 1. A pre-release comes before its
+// version; build metadata is ignored.
+func Compare(a, b Version) int {
+	for _, d := range [][2]uint64{{a.Major, b.Major}, {a.Minor, b.Minor}, {a.Patch, b.Patch}} {
+		if d[0] != d[1] {
+			if d[0] < d[1] {
+				return -1
+			}
+
+			return 1
+		}
+	}
+
+	switch {
+	case len(a.Pre) == 0 && len(b.Pre) == 0:
+		return 0
+	case len(a.Pre) == 0:
+		return 1
+	case len(b.Pre) == 0:
+		return -1
+	}
+
+	for i := range min(len(a.Pre), len(b.Pre)) {
+		if c := comparePre(a.Pre[i], b.Pre[i]); c != 0 {
+			return c
+		}
+	}
+
+	switch {
+	case len(a.Pre) < len(b.Pre):
+		return -1
+	case len(a.Pre) > len(b.Pre):
+		return 1
+	default:
+		return 0
+	}
+}
+
+// comparePre orders two identifiers of a pre-release: numbers by value and
+// before words, words by their bytes.
+func comparePre(a, b string) int {
+	na, ea := strconv.ParseUint(a, 10, 64)
+	nb, eb := strconv.ParseUint(b, 10, 64)
+
+	switch {
+	case ea == nil && eb == nil:
+		return cmpUint(na, nb)
+	case ea == nil:
+		return -1
+	case eb == nil:
+		return 1
+	default:
+		return strings.Compare(a, b)
+	}
+}
+
+func cmpUint(a, b uint64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// Constraint is a set of conditions on a version, all of which must hold.
+type Constraint struct {
+	text  string
+	conds []condition
+	// pre is set when a condition names a pre-release: only then may a
+	// pre-release meet the constraint.
+	pre bool
+}
+
+type condition struct {
+	op string
+	v  Version
+	// parts is the number of parts written of a "~>" version: 1, 2 or 3.
+	parts int
+}
+
+// ParseConstraint parses a constraint: conditions separated by commas, each
+// an operator (=, !=, >, >=, <, <=, ~>) and a version; a version alone is
+// "=". "~> 1.2" is >= 1.2.0 and < 2.0.0, "~> 1.2.3" >= 1.2.3 and < 1.3.0.
+func ParseConstraint(s string) (Constraint, error) {
+	c := Constraint{text: strings.TrimSpace(s)}
+
+	for part := range strings.SplitSeq(s, ",") {
+		cond, err := parseCondition(strings.TrimSpace(part))
+		if err != nil {
+			return Constraint{}, fmt.Errorf("%w: constraint %q", err, s)
+		}
+
+		c.conds = append(c.conds, cond)
+		c.pre = c.pre || len(cond.v.Pre) > 0
+	}
+
+	return c, nil
+}
+
+func parseCondition(s string) (condition, error) {
+	op := "="
+
+	for _, o := range []string{"~>", ">=", "<=", "!=", ">", "<", "="} {
+		if rest, ok := strings.CutPrefix(s, o); ok {
+			op, s = o, strings.TrimSpace(rest)
+
+			break
+		}
+	}
+
+	// A "~>", ">=", "<" or "=" may leave out the minor or the patch.
+	core, rest := s, ""
+	if i := strings.IndexAny(s, "-+"); i >= 0 {
+		core, rest = s[:i], s[i:]
+	}
+
+	parts := len(strings.Split(core, "."))
+	if parts < 1 || parts > 3 || (parts < 3 && op != "~>" && op != ">=" && op != "<" && op != "=") {
+		return condition{}, ErrInvalid
+	}
+
+	text := core + strings.Repeat(".0", 3-parts) + rest
+
+	v, err := Parse(text)
+	if err != nil {
+		return condition{}, err
+	}
+
+	return condition{op: op, v: v, parts: parts}, nil
+}
+
+// String is the constraint as written.
+func (c Constraint) String() string { return c.text }
+
+// Check reports whether v meets every condition.
+func (c Constraint) Check(v Version) bool {
+	if len(v.Pre) > 0 && !c.pre {
+		return false
+	}
+
+	for _, cond := range c.conds {
+		if !cond.check(v) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (c condition) check(v Version) bool {
+	cmp := Compare(v, c.v)
+
+	switch c.op {
+	case "=":
+		return cmp == 0
+	case "!=":
+		return cmp != 0
+	case ">":
+		return cmp > 0
+	case ">=":
+		return cmp >= 0
+	case "<":
+		return cmp < 0
+	case "<=":
+		return cmp <= 0
+	default: // ~>
+		if cmp < 0 {
+			return false
+		}
+
+		upper := Version{Major: c.v.Major + 1}
+		if c.parts == 3 {
+			upper = Version{Major: c.v.Major, Minor: c.v.Minor + 1}
+		}
+
+		return Compare(Version{Major: v.Major, Minor: v.Minor, Patch: v.Patch}, upper) < 0
+	}
+}
+
+// Newest returns the newest of versions that meets c.
+func (c Constraint) Newest(versions []Version) (Version, bool) {
+	var ok []Version
+
+	for _, v := range versions {
+		if c.Check(v) {
+			ok = append(ok, v)
+		}
+	}
+
+	if len(ok) == 0 {
+		return Version{}, false
+	}
+
+	return slices.MaxFunc(ok, Compare), true
+}

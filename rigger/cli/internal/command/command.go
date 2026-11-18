@@ -51,6 +51,9 @@ Commands:
   fmt [-check] [path ...] format the .hcl files under the paths (the current
                           directory); -check lists those that are not
                           formatted and fails
+  stack sync [dir] [-upgrade]
+                          resolve the versions of the modules of a stack,
+                          fetch and verify them, write rig.lock.hcl
   stack validate [dir] [-f values] [-var name=value]
                           evaluate a stack without a cluster (each file of
                           values/ when none is given)

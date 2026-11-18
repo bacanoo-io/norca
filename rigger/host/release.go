@@ -25,6 +25,8 @@ type ModuleRef struct {
 	Source string `json:"source"`
 	// Version is the exact version.
 	Version string `json:"version"`
+	// Ref is the tag the version was found by; empty for a local module.
+	Ref string `json:"ref,omitempty"`
 	// Digest is the tree digest of the module version (design 8.1).
 	Digest string `json:"digest"`
 	// Signers are the key IDs of the signatures that verified the digest.

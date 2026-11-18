@@ -310,9 +310,9 @@ func TestStack_Errors(t *testing.T) {
 			expected: "depends_on names module.cache",
 		},
 		{
-			name:     "a registry source before phase 3",
+			name:     "a source of the global registry before phase 6",
 			stack:    strings.Replace(twoReleases, "\"./modules/app\"", "\"example/app\"", 1),
-			expected: "Modules from registries come with phase 3",
+			expected: "the global registry comes with phase 6",
 		},
 		{
 			name:     "an invalid release name",

@@ -9,7 +9,6 @@
 package command
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -36,6 +35,12 @@ module "config" {
 module "worker" {
   source = "./modules/worker"
   values = { config_path = module.config.path }
+  wait   = false
+}
+
+module "cache" {
+  source = "builtin/redis"
+  values = { job_name = "rigit-cache", auth_enabled = true, redis_password = "!generate:cache" }
   wait   = false
 }
 `,
@@ -75,48 +80,7 @@ module "worker" {
 `,
 }
 
-func writeTree(t *testing.T, files map[string]string) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	for name, data := range files {
-		p := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := os.WriteFile(p, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	return dir
-}
-
-// rigRun runs the rig program and checks its exit code and output.
-func rigRun(t *testing.T, code int, wants []string, args ...string) string {
-	t.Helper()
-
-	var stdout, stderr bytes.Buffer
-
-	got := Run(t.Context(), append([]string{flagLogLevel, "warn"}, args...), &stdout, &stderr)
-	if got != code {
-		t.Fatalf("rig %s = %d, want %d\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), got, code, stdout.String(), stderr.String())
-	}
-
-	for _, want := range wants {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("rig %s: stdout does not contain %q:\n%s", strings.Join(args, " "), want, stdout.String())
-		}
-	}
-
-	return stdout.String()
-}
-
-// The test is not parallel: it owns the releases and the stack "rigit" of
-// the agent.
-func TestIntegration_Stack(t *testing.T) { //nolint:paralleltest // changes the agent
+func TestIntegration_Stack(t *testing.T) {
 	dir := writeTree(t, integrationStack)
 
 	client, err := api.NewClient(api.DefaultConfig())
@@ -125,14 +89,16 @@ func TestIntegration_Stack(t *testing.T) { //nolint:paralleltest // changes the 
 	}
 
 	t.Cleanup(func() {
-		for _, name := range []string{"config", "worker", "solo"} {
+		for _, name := range []string{"config", "worker", "worker2", "cache", "solo"} {
 			_, _, _ = client.Releases().Delete(name, &api.ReleaseDeleteOptions{Propagation: api.ReleasePropagationBackground}, nil)
 		}
 	})
 
-	rigRun(t, exitChanges, []string{"+ config", "+ worker", "install", "secret rigit/app", "create", "generate config-token"}, "stack", "plan", dir)
-	rigRun(t, exitOK, []string{"install default/config: done", "install default/worker: done"}, "stack", "apply", dir)
-	rigRun(t, exitOK, []string{"= config", "= worker", "nothing to do"}, "stack", "plan", dir)
+	t.Setenv("RIG_CACHE_DIR", t.TempDir())
+	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	rigRun(t, exitChanges, []string{"+ config", "+ worker", "+ cache", "redis 0.3.0", "install", "secret rigit/app", "create", "generate cache, config-token"}, "stack", "plan", dir)
+	rigRun(t, exitOK, []string{"install default/config: done", "install default/worker: done", "install default/cache: done"}, "stack", "apply", dir)
+	rigRun(t, exitOK, []string{"= config", "= worker", "= cache", "nothing to do"}, "stack", "plan", dir)
 	checkCluster(t, client)
 	rigRun(t, exitChanges, []string{"~ config", "upgrade", "= worker"}, "stack", "plan", dir, "-var", "greeting=hi")
 	rigRun(t, exitOK, []string{"config", "worker", "in sync"}, "stack", "status", dir)

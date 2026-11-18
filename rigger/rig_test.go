@@ -77,6 +77,10 @@ func (fakeStore) Delete(context.Context, string) error        { return nil }
 
 type fakeFetcher struct{ id int }
 
+func (fakeFetcher) Versions(context.Context, source.Request) ([]source.Available, error) {
+	return nil, nil
+}
+
 func (fakeFetcher) Fetch(context.Context, source.Request) (source.Fetched, error) {
 	return source.Fetched{}, nil
 }
