@@ -924,6 +924,50 @@ func TestVariablesMatching(t *testing.T) {
 
 }
 
+// A deny of a variables path in one policy is not undone by a capability
+// another policy grants on the same path, in either order (review finding
+// JOG-3).
+func TestVariablesDenyAcrossPolicies(t *testing.T) {
+	ci.Parallel(t)
+
+	deny := `namespace "ns" { variables {
+		path "app/db" { capabilities = ["deny"] }
+		path "app/*" { capabilities = ["deny"] } } }`
+	write := `namespace "ns" { variables {
+		path "app/db" { capabilities = ["write", "read"] }
+		path "app/*" { capabilities = ["write", "read"] } } }`
+	parse := func(rules string) *Policy {
+		t.Helper()
+		policy, err := Parse(rules)
+		must.NoError(t, err)
+		return policy
+	}
+
+	tests := []struct {
+		name     string
+		policies []string
+	}{
+		{name: "deny first", policies: []string{deny, write}},
+		{name: "deny last", policies: []string{write, deny}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var policies []*Policy
+			for _, rules := range tc.policies {
+				policies = append(policies, parse(rules))
+			}
+			acl, err := NewACL(false, policies)
+			must.NoError(t, err)
+			for _, path := range []string{"app/db", "app/web"} {
+				for _, op := range []string{VariablesCapabilityWrite, VariablesCapabilityRead, VariablesCapabilityList} {
+					must.False(t, acl.AllowVariableOperation("ns", path, op, nil),
+						must.Sprintf("%s on %s is allowed", op, path))
+				}
+			}
+		})
+	}
+}
+
 func TestACL_matchingCapabilitySet_returnsAllMatches(t *testing.T) {
 	ci.Parallel(t)
 

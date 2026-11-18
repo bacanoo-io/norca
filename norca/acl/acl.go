@@ -213,7 +213,17 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 						}
 						svTxn.Insert(key, svCapabilities)
 					}
+					// Deny always takes precedence, also over the
+					// capabilities of another policy (review finding JOG-3).
+					if svCapabilities.Check(VariablesCapabilityDeny) {
+						continue
+					}
 					for _, cap := range pathPolicy.Capabilities {
+						if cap == VariablesCapabilityDeny {
+							svCapabilities.Clear()
+							svCapabilities.Set(VariablesCapabilityDeny)
+							break
+						}
 						svCapabilities.Set(cap)
 					}
 				}
