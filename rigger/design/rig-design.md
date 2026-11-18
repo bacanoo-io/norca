@@ -1677,8 +1677,10 @@ Phase 5 as built (2026-11-18):
   apply` after the packs against the cluster's API served on a local port,
   each request sent to the first server through `norca operator api`;
   checked against a dev agent (install, unchanged, destroy).
-- The lab case of a stack is written but not yet run (it needs the
-  Hyper-V lab of norca-lab).
+- The lab case of a stack is not written yet: norca-lab runs on the
+  Hyper-V host (`run-tests.ps1`, the elevated labrunner), and a case needs
+  rig built for Windows next to the deployer and the registry reached from
+  there.
 - Open: a variable that only rules read is reported as unused (14.1), also
   when it is a gate the installer must set (`consul_license_accepted`,
   `allow_single_datacenter`).

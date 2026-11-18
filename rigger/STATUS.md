@@ -1,7 +1,7 @@
 # State of Rig
 
 2026-11-18. Phases 1 to 4 of the design (`design/rig-design.md`, section
-15) are done, and phase 5 but for running its lab case: modules load,
+15) are done, and phase 5 but for its lab case: modules load,
 validate, evaluate and are tested; stacks are planned and applied as
 releases on a Norca cluster through today's release API; modules come from
 git registries, OCI registries, directories or the program itself, in
@@ -62,9 +62,9 @@ phase 5, then phase 6, the global registry.
   decode (namespaces, quotas, policies, admission policies, external
   services and Variables are the value of their block, mapped onto the API
   type by field names).
-- Phase 5: the lab case of a stack is written, not yet run (it needs the
-  Hyper-V lab). A variable only rules read is reported as unused, also when
-  it is a gate the installer must set.
+- Phase 5: the lab case of a stack is not written yet (norca-lab runs on
+  the Hyper-V host). A variable only rules read is reported as unused, also
+  when it is a gate the installer must set.
 - Phase 6 on: the global registry, the embedding into Norca (phase 7,
   which changes norca). For later: OCI credentials from docker's
   configuration, `rig login`, keyless signing.
