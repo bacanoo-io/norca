@@ -1357,6 +1357,116 @@ func TestRPC_TLS_Enforcement_RPC(t *testing.T) {
 	}
 }
 
+// TestRPC_TLS_Enforcement_NodeRegister checks which certificates may register
+// a new node, the one registration that carries no credential (review finding
+// JOG-5, point 1). With verify_server_hostname the TLS handshake of the RPC
+// listener accepts only a certificate named client.<region>.norca of its own
+// region or server.<region>.norca of any region (rpcNameAndRegionValidator in
+// server.go): a CLI certificate of the same CA cannot reach Node.Register, on
+// a follower or on the leader. Without verify_server_hostname any certificate
+// of the CA can.
+func TestRPC_TLS_Enforcement_NodeRegister(t *testing.T) {
+	ci.Parallel(t)
+
+	tlsHelper := newTLSTestHelper(t)
+	t.Cleanup(tlsHelper.cleanup)
+
+	cases := []struct {
+		name        string
+		cn          string
+		dnsNames    []string
+		canRegister bool
+	}{
+		{
+			// The names "norca tls cert create -cli" gives.
+			name:        "cli",
+			cn:          "cli.global.norca",
+			dnsNames:    []string{"cli.global.norca", "localhost"},
+			canRegister: false,
+		},
+		{
+			// The names "norca tls cert create -client" gives.
+			name:        "client",
+			cn:          "client.global.norca",
+			dnsNames:    []string{"client.global.norca", "localhost"},
+			canRegister: true,
+		},
+		{
+			// The names of a node certificate of norca-pki
+			// (ClientIdentity) that norca-join issues.
+			name: "joined node",
+			cn:   "client.global.norca",
+			dnsNames: []string{"client.global.norca", "*.client.global.norca", "localhost",
+				"web-1.client.global.norca"},
+			canRegister: true,
+		},
+		{
+			name:        "server",
+			cn:          "server.global.norca",
+			dnsNames:    []string{"server.global.norca", "localhost"},
+			canRegister: true,
+		},
+	}
+
+	register := func(t *testing.T, srv *Server, cfg *config.TLSConfig) (string, error) {
+		t.Helper()
+		node := mock.Node()
+		req := &structs.NodeRegisterRequest{
+			Node:         node,
+			WriteRequest: structs.WriteRequest{Region: "global"},
+		}
+		return node.ID, tlsHelper.nomadRPC(t, srv, cfg, "Node.Register", req)
+	}
+	registered := func(t *testing.T, nodeID string) bool {
+		t.Helper()
+		for _, srv := range []*Server{tlsHelper.mtlsServer1, tlsHelper.mtlsServer2, tlsHelper.nonVerifyServer} {
+			if !srv.IsLeader() {
+				continue
+			}
+			node, err := srv.State().NodeByID(nil, nodeID)
+			must.NoError(t, err)
+			return node != nil
+		}
+		t.Fatal("no leader")
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			certPath := tlsHelper.newCertWithNames(t, tc.name, tc.cn, tc.dnsNames)
+			cfg := &config.TLSConfig{
+				EnableRPC:            true,
+				VerifyServerHostname: true,
+				CAFile:               filepath.Join(tlsHelper.dir, "ca.pem"),
+				CertFile:             certPath + ".pem",
+				KeyFile:              certPath + ".key",
+			}
+
+			for _, srv := range []*Server{tlsHelper.mtlsServer1, tlsHelper.mtlsServer2} {
+				t.Run(fmt.Sprintf("verify_hostname=true server=%s leader=%v", srv.config.NodeName, srv.IsLeader()), func(t *testing.T) {
+					nodeID, err := register(t, srv, cfg)
+					if tc.canRegister {
+						must.NoError(t, err)
+						must.True(t, registered(t, nodeID))
+						return
+					}
+					// As in TestRPC_TLS_Enforcement_RPC: "bad certificate",
+					// or a write on the connection the server closed.
+					must.Error(t, err)
+					must.RegexMatch(t, regexp.MustCompile("(certificate|broken pipe)"), err.Error())
+					must.False(t, registered(t, nodeID))
+				})
+			}
+
+			t.Run("verify_hostname=false", func(t *testing.T) {
+				nodeID, err := register(t, tlsHelper.nonVerifyServer, cfg)
+				must.NoError(t, err)
+				must.True(t, registered(t, nodeID))
+			})
+		})
+	}
+}
+
 type tlsTestHelper struct {
 	dir    string
 	nodeID int
@@ -1450,6 +1560,31 @@ func (h tlsTestHelper) newCert(t *testing.T, name string) string {
 	require.NoError(t, err)
 
 	return filepath.Join(h.dir, node+"-"+name)
+}
+
+// newCertWithNames writes a certificate with exactly the given common name
+// and DNS names, signed by the CA of the helper, and returns the path of its
+// files without the extension; label names the files.
+func (h tlsTestHelper) newCertWithNames(t *testing.T, label, cn string, dnsNames []string) string {
+	t.Helper()
+
+	signer, err := tlsutil.ParseSigner(h.pk)
+	must.NoError(t, err)
+
+	pem, key, err := tlsutil.GenerateCert(tlsutil.CertOpts{
+		Signer:      signer,
+		CA:          h.caPEM,
+		Name:        cn,
+		Days:        5,
+		DNSNames:    dnsNames,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+	})
+	must.NoError(t, err)
+
+	base := filepath.Join(h.dir, "names-"+label)
+	must.NoError(t, os.WriteFile(base+".pem", []byte(pem), 0600))
+	must.NoError(t, os.WriteFile(base+".key", []byte(key), 0600))
+	return base
 }
 
 func (h tlsTestHelper) connect(t *testing.T, s *Server, c *config.TLSConfig) net.Conn {
