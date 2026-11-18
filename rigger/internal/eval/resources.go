@@ -254,12 +254,10 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 		diags = append(diags, sensitiveDiag(fmt.Sprintf("a %s, except in its items", r.Type.Kind), m.rng))
 	}
 
-	if r.Type.Kind == resource.KindVariable {
-		var moreDiags hcl.Diagnostics
+	var moreDiags hcl.Diagnostics
 
-		v, res.Secrets, moreDiags = secretItems(v, r.Block.DefRange)
-		diags = append(diags, moreDiags...)
-	}
+	v, moreDiags = e.byKind(r, v, &res, ctx)
+	diags = append(diags, moreDiags...)
 
 	if diags.HasErrors() {
 		return Resource{}, diags
@@ -273,6 +271,30 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 	res.Spec = data
 
 	return res, diags
+}
+
+// byKind does what a kind asks of the value of its block: the secret items
+// of a Variable, the text of a block that holds a document of the host
+// (textBlocks).
+func (e *evaluator) byKind(r *lang.Resource, v cty.Value, res *Resource, ctx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+
+	if r.Type.Kind == resource.KindVariable {
+		v, res.Secrets, diags = secretItems(v, r.Block.DefRange)
+	}
+
+	if name, ok := textBlocks[r.Type.Kind]; ok {
+		var moreDiags hcl.Diagnostics
+
+		v, moreDiags = textBlock(r.Block.Body, name, v, ctx)
+		diags = append(diags, moreDiags...)
+
+		if res.Value != cty.NilVal {
+			res.Value, _ = textBlock(r.Block.Body, name, res.Value, ctx)
+		}
+	}
+
+	return v, diags
 }
 
 // decoded evaluates a resource of a kind the host decodes from its block

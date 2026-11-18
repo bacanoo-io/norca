@@ -313,8 +313,22 @@ job "nats" {
 # nats.acl.hcl
 policy "nats" {
   enabled = var.acl_policy_enabled
-  rules   = file("files/policy.hcl")
-  job_acl { job_id = local.job }
+
+  # The rules as a block: Rig writes it as the text of the rules.
+  rules {
+    dynamic "namespace" {
+      for_each = [rig.namespace]
+      labels   = [namespace.value]
+
+      content {
+        capabilities = ["read-job"]
+      }
+    }
+  }
+
+  job_acl {
+    job_id = local.job
+  }
 }
 ```
 
@@ -373,6 +387,16 @@ the decoder can take its values from outside is a spike of phase 0
   expressions in the values and the few attributes Rig adds (`enabled`,
   `for_each`, `hook`). What exactly each of today's formats looks like is
   taken from Norca when the kind is implemented, not redefined here.
+- **A document of the host is written in HCL, not as a string.** The rules
+  of an ACL policy are an HCL document Norca stores as text; a module writes
+  them as a `rules` block (the attribute stays possible), and Rig writes the
+  block as it evaluates as the text: in the order of the module, dynamic
+  blocks expanded, nulls left out, comments staying in the module. Editors
+  highlight it, `rig fmt` formats it, and a namespace given by a variable is
+  a `dynamic "namespace"` block (a label of HCL is a literal). The JSON
+  Schema of an object kind is written as `schema = jsonencode({ ... })`.
+  (Decided 2026-11-18, phase 5: the heredocs of the converted modules were
+  strings to editors and lost the dynamic blocks of HCL.)
 - A block in a file of the wrong name is an error (a `job` in `locals.hcl`,
   a `variable` in `outputs.hcl`); an unknown file in a module is an error
   outside `files/`, `examples/`, `tests/` and the documentation files.
@@ -1665,6 +1689,13 @@ Phase 5 as built (2026-11-18):
     program decodes kinds and objects with a copy of norca's
     `resourcespec/object.go`, compared by `check-copy` like jobspec2, until
     phase 7.
+  - The rules of an ACL policy are a `rules` block written as the text
+    (4.5), the JSON Schema of a kind `jsonencode({ ... })`; the comparison
+    with the packs takes rules as tokens and schemas as JSON. Configuration
+    files of tasks (the HCL of Consul, NATS, the YAML of Traefik and the
+    collector) are still text built line by line, to render the pack's text
+    line for line: written with blocks and encoders they would differ in
+    text, not in meaning, which is for a version of each module of its own.
   - Flush heredocs are indented for reading only where no line starts with
     a `%{~ }` directive: such configuration files are built from lists of
     lines (`join("\n", concat(...))`), which keeps them line for line.
