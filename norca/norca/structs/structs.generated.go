@@ -162214,9 +162214,9 @@ func (x *CustomObject) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(19)
+				r.WriteArrayStart(20)
 			} else {
-				r.WriteMapStart(19)
+				r.WriteMapStart(20)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -162504,6 +162504,33 @@ func (x *CustomObject) CodecEncodeSelf(e *codec1978.Encoder) {
 						r.EncodeStringBytesRaw(z.BytesView(string(x.DeletionPropagation)))
 					} else {
 						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.DeletionPropagation))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.DeletionApproved == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.DeletionApproved, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"DeletionApproved\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `DeletionApproved`)
+				}
+				r.WriteMapElemValue()
+				if x.DeletionApproved == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.DeletionApproved, e)
 					}
 				}
 			}
@@ -162807,6 +162834,15 @@ func (x *CustomObject) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.DeletionPropagation = (string)(r.DecodeString())
 			}
+		case "DeletionApproved":
+			if r.TryDecodeAsNil() {
+				x.DeletionApproved = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecSliceStringX(&x.DeletionApproved, d)
+				}
+			}
 		case "Generation":
 			if r.TryDecodeAsNil() {
 				x.Generation = 0
@@ -162872,16 +162908,16 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj28 int
-	var yyb28 bool
-	var yyhl28 bool = l >= 0
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	var yyj30 int
+	var yyb30 bool
+	var yyhl30 bool = l >= 0
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162891,13 +162927,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ID = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162907,13 +162943,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Group = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162923,13 +162959,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Kind = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162939,13 +162975,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162955,13 +162991,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Name = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162974,13 +163010,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.F.DecMapStringStringX(&x.Labels, d)
 		}
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -162990,13 +163026,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ManagedBy = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163009,13 +163045,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			h.decSlicePtrtoObjectOwnerReference((*[]*ObjectOwnerReference)(&x.Owners), d)
 		}
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163028,13 +163064,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.F.DecSliceStringX(&x.Finalizers, d)
 		}
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163044,13 +163080,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.DeletionTime = (int64)(r.DecodeInt64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163060,13 +163096,32 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.DeletionPropagation = (string)(r.DecodeString())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.DeletionApproved = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecSliceStringX(&x.DeletionApproved, d)
+		}
+	}
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
+	} else {
+		yyb30 = r.CheckBreak()
+	}
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163076,13 +163131,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Generation = (uint64)(r.DecodeUint64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163092,13 +163147,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.KindVersion = (uint64)(r.DecodeUint64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163111,13 +163166,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.F.DecMapStringIntfX(&x.Spec, d)
 		}
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163130,13 +163185,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.F.DecMapStringIntfX(&x.Status, d)
 		}
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163146,13 +163201,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.CreateTime = (int64)(r.DecodeInt64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163162,13 +163217,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ModifyTime = (int64)(r.DecodeInt64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163178,13 +163233,13 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.CreateIndex = (uint64)(r.DecodeUint64())
 	}
-	yyj28++
-	if yyhl28 {
-		yyb28 = yyj28 > l
+	yyj30++
+	if yyhl30 {
+		yyb30 = yyj30 > l
 	} else {
-		yyb28 = r.CheckBreak()
+		yyb30 = r.CheckBreak()
 	}
-	if yyb28 {
+	if yyb30 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163195,17 +163250,17 @@ func (x *CustomObject) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.ModifyIndex = (uint64)(r.DecodeUint64())
 	}
 	for {
-		yyj28++
-		if yyhl28 {
-			yyb28 = yyj28 > l
+		yyj30++
+		if yyhl30 {
+			yyb30 = yyj30 > l
 		} else {
-			yyb28 = r.CheckBreak()
+			yyb30 = r.CheckBreak()
 		}
-		if yyb28 {
+		if yyb30 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj28-1, "")
+		z.DecStructFieldNotFound(yyj30-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -172125,9 +172180,9 @@ func (x *CustomObjectDeleteStateRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(11)
+				r.WriteArrayStart(12)
 			} else {
-				r.WriteMapStart(11)
+				r.WriteMapStart(12)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -172300,6 +172355,33 @@ func (x *CustomObjectDeleteStateRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else {
 					r.EncodeInt(int64(x.DeleteTime))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ApprovedDependents == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.ApprovedDependents, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ApprovedDependents\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ApprovedDependents`)
+				}
+				r.WriteMapElemValue()
+				if x.ApprovedDependents == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.ApprovedDependents, e)
+					}
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -172501,6 +172583,15 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromMap(l int, d *codec1
 			} else {
 				x.DeleteTime = (int64)(r.DecodeInt64())
 			}
+		case "ApprovedDependents":
+			if r.TryDecodeAsNil() {
+				x.ApprovedDependents = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecSliceStringX(&x.ApprovedDependents, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -172536,16 +172627,16 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj15 int
-	var yyb15 bool
-	var yyhl15 bool = l >= 0
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	var yyj17 int
+	var yyb17 bool
+	var yyhl17 bool = l >= 0
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172555,13 +172646,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Group = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172571,13 +172662,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Kind = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172587,13 +172678,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172603,13 +172694,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Name = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172619,13 +172710,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.ExpectedModifyIndex = (uint64)(r.DecodeUint64())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172635,13 +172726,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Propagation = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172651,13 +172742,32 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.DeleteTime = (int64)(r.DecodeInt64())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ApprovedDependents = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecSliceStringX(&x.ApprovedDependents, d)
+		}
+	}
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
+	} else {
+		yyb17 = r.CheckBreak()
+	}
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172667,13 +172777,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172683,13 +172793,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172699,13 +172809,13 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj15++
-	if yyhl15 {
-		yyb15 = yyj15 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb15 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb15 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -172716,17 +172826,17 @@ func (x *CustomObjectDeleteStateRequest) codecDecodeSelfFromArray(l int, d *code
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj15++
-		if yyhl15 {
-			yyb15 = yyj15 > l
+		yyj17++
+		if yyhl17 {
+			yyb17 = yyj17 > l
 		} else {
-			yyb15 = r.CheckBreak()
+			yyb17 = r.CheckBreak()
 		}
-		if yyb15 {
+		if yyb17 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj15-1, "")
+		z.DecStructFieldNotFound(yyj17-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -177212,9 +177322,9 @@ func (x *ObjectTombstone) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(8)
+				r.WriteArrayStart(9)
 			} else {
-				r.WriteMapStart(8)
+				r.WriteMapStart(9)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -177399,6 +177509,33 @@ func (x *ObjectTombstone) CodecEncodeSelf(e *codec1978.Encoder) {
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
+				if x.ApprovedDependents == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.ApprovedDependents, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ApprovedDependents\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ApprovedDependents`)
+				}
+				r.WriteMapElemValue()
+				if x.ApprovedDependents == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncSliceStringV(x.ApprovedDependents, e)
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
 				if false {
 				} else {
 					r.EncodeUint(uint64(x.CreateIndex))
@@ -177515,6 +177652,15 @@ func (x *ObjectTombstone) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.DeleteTime = (int64)(r.DecodeInt64())
 			}
+		case "ApprovedDependents":
+			if r.TryDecodeAsNil() {
+				x.ApprovedDependents = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecSliceStringX(&x.ApprovedDependents, d)
+				}
+			}
 		case "CreateIndex":
 			if r.TryDecodeAsNil() {
 				x.CreateIndex = 0
@@ -177532,16 +177678,16 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj12 int
-	var yyb12 bool
-	var yyhl12 bool = l >= 0
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	var yyj14 int
+	var yyb14 bool
+	var yyhl14 bool = l >= 0
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177551,13 +177697,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.ID = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177567,13 +177713,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.Group = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177583,13 +177729,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.Kind = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177599,13 +177745,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177615,13 +177761,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.Name = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177631,13 +177777,13 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.Propagation = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177647,13 +177793,32 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 	} else {
 		x.DeleteTime = (int64)(r.DecodeInt64())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ApprovedDependents = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecSliceStringX(&x.ApprovedDependents, d)
+		}
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -177664,17 +177829,17 @@ func (x *ObjectTombstone) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) 
 		x.CreateIndex = (uint64)(r.DecodeUint64())
 	}
 	for {
-		yyj12++
-		if yyhl12 {
-			yyb12 = yyj12 > l
+		yyj14++
+		if yyhl14 {
+			yyb14 = yyj14 > l
 		} else {
-			yyb12 = r.CheckBreak()
+			yyb14 = r.CheckBreak()
 		}
-		if yyb12 {
+		if yyb14 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj12-1, "")
+		z.DecStructFieldNotFound(yyj14-1, "")
 	}
 	r.ReadArrayEnd()
 }
