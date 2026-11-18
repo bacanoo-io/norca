@@ -7,7 +7,7 @@ test "the server alone" {
   }
 
   assert {
-    condition     = length(resource.acl) == 0
+    condition     = length(resource.policy) == 0
     error_message = "no policy without the backup job"
   }
 }
@@ -29,7 +29,7 @@ test "databases get a hook and their secrets" {
   }
 
   assert {
-    condition     = resource.var.info.items.databases == "shop,reports"
+    condition     = resource.variable.info.items.databases == "shop,reports"
     error_message = "the info variable lists the databases"
   }
 }
@@ -46,7 +46,7 @@ test "backups bring a periodic job and its policy" {
   }
 
   assert {
-    condition     = resource.acl.backup.job_acl.job_id == "${rig.release}-backup"
+    condition     = resource.policy.backup.job_acl.job_id == "${rig.release}-backup"
     error_message = "the policy is bound to the dump job"
   }
 }

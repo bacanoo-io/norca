@@ -181,7 +181,7 @@ func check(v *lang.Variable, val cty.Value, rng hcl.Range) hcl.Diagnostics {
 // checkRules evaluates the conditions of the rules over vars.
 func checkRules(rules []*lang.Rule, vars cty.Value) hcl.Diagnostics {
 	ctx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{"var": vars},
+		Variables: map[string]cty.Value{varRoot: vars},
 		Functions: Functions(),
 	}
 

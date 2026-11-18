@@ -17,24 +17,26 @@ cluster yet; that is phase 2.
 | Secrets (design 6.3) | a sensitive value goes only into an item of a Variable, where it becomes a secret item; anywhere else it is an error |
 | Functions | the HCL standard set under the usual names (`coalesce` skips empty strings), `file`, `templatefile` (inside the module only), `image_ref`, `natsconf` |
 | Hooks (design 5) | `hook { on, weight, timeout, delete }`, written by the Norca host as the `pack.hook*` meta keys of today's release API |
-| CLI | `rig module validate [dir]` (files, icon, example values rendered); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); log as a tree or JSON |
+| Tests (design 7.4) | `test` blocks of `tests/*.rigtest.hcl`: values in, assertions over `resource.<block>.<name>` (the block as written) and `output.<name>`, or an expected error |
+| CLI | `rig module validate [dir]` (files, icon, tests parsed, example values rendered); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
 
 ## What is checked
 
 - Every module of `examples/` (web, redis, nats, postgres, the placement
   library) loads, validates and renders with each of its example value
-  files; the tests keep it so.
+  files, and its own tests pass (`rig module test`); the Go tests keep it
+  so.
 - The rendered jobs of those modules pass a Norca server's
   `/v1/validate/job` (dev agent, 2026-11-18).
 - Phase 0's spike against the release API of a dev agent: what Rig
   evaluates fits today's API (`make integration`).
-- `make vet race lint check-copy` is clean; golangci-lint v2 with the
-  configuration of the Go skills.
+- `make vet race lint check-copy check-licenses` is clean; golangci-lint v2
+  with the configuration of the Go skills. No dependency is under the
+  Business Source License: Rig takes over no code that is not open source.
 
 ## What is not there yet
 
-- Phase 1: `rig module test` (the shape of resources in assertions is
-  open), `rig fmt`, the warning on an unused variable, the encoders
+- Phase 1: `rig fmt`, the warning on an unused variable, the encoders
   `yamlencode` and `tomlencode`, a schema per resource kind (the kinds other
   than jobs are the value of their block as JSON until then).
 - Phase 2 on: releases (install, plan, apply, status, destroy), stacks,

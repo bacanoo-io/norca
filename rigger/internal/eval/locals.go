@@ -13,10 +13,16 @@ import (
 	"github.com/bacanoo-io/norca-rig/internal/lang"
 )
 
-// The roots of the references to a local and to a child module.
+// The roots of the references a module evaluates (design 4.2), and the
+// attributes of each.* and of an iterator.
 const (
+	varRoot    = "var"
 	localsRoot = "local"
 	moduleRoot = "module"
+	rigRoot    = "rig"
+	eachRoot   = "each"
+	attrKey    = "key"
+	attrValue  = "value"
 )
 
 // node is a value of a module that others may read: a local or a child

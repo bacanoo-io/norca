@@ -61,5 +61,5 @@ test "an unknown mode is refused" {
     mode = "cluster"
   }
 
-  expect_error = "one_of"
+  expect_error = "not one of \"standalone\", \"replica\", \"sentinel\""
 }

@@ -6,6 +6,7 @@ package lang
 import (
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/bacanoo-io/norca-rig/resource"
@@ -60,6 +61,18 @@ var resourceTypes = map[string]ResourceType{
 	"external":  {Kind: resource.KindExternalService, Block: "external"},
 	"object":    {Kind: resource.KindObject, Block: "object"},
 	"audit":     {Kind: KindAudit, Block: "audit"},
+}
+
+// ResourceBlocks returns the block types of the resource files, sorted.
+func ResourceBlocks() []string {
+	out := make([]string, 0, len(resourceTypes))
+	for _, rt := range resourceTypes {
+		out = append(out, rt.Block)
+	}
+
+	slices.Sort(out)
+
+	return out
 }
 
 // resourceName is the name of a resource: the part of its file name before

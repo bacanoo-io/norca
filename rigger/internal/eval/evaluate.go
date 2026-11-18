@@ -30,6 +30,9 @@ type Config struct {
 	Resources int
 	// Jobs decodes the job blocks; nil refuses a module with a job.
 	Jobs host.JobDecoder
+	// Test asks for the values a test reads: Resource.Value and
+	// Result.OutputValues.
+	Test bool
 }
 
 // Result is an evaluated module.
@@ -39,6 +42,8 @@ type Result struct {
 	Resources []Resource
 	// Outputs are by name.
 	Outputs []Output
+	// OutputValues is the object output.* of a test, with Config.Test.
+	OutputValues cty.Value
 }
 
 // Resource is an evaluated resource.
@@ -56,6 +61,17 @@ type Resource struct {
 	Secrets map[string]host.Sensitive
 	// Hook makes a job a hook of the release.
 	Hook *resource.Hook
+
+	// Block is the block type of the resource file: job, policy, variable.
+	Block string
+	// Base is the name without the key; Key is the key of for_each (a
+	// string) or the index of count (a number), cty.NilVal for neither.
+	Base string
+	Key  cty.Value
+	// Value is the block as a test reads it, with Config.Test: its
+	// attributes and blocks as written (design 7.4), sensitive values
+	// marked, runtime references as their functions give them.
+	Value cty.Value
 }
 
 // Output is an evaluated output.
@@ -89,9 +105,13 @@ func Evaluate(ctx context.Context, m *lang.Module, vars cty.Value, facts Facts, 
 
 	r := &run{ctx: ctx, cfg: cfg}
 
-	res, _, diags := r.module(m, vars, facts, "")
+	res, outputs, diags := r.module(m, vars, facts, "")
 	if diags.HasErrors() {
 		return nil, diags
+	}
+
+	if cfg.Test {
+		res.OutputValues = outputs
 	}
 
 	sortResources(res.Resources)
@@ -104,8 +124,8 @@ func Evaluate(ctx context.Context, m *lang.Module, vars cty.Value, facts Facts, 
 func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string) (*Result, cty.Value, hcl.Diagnostics) {
 	base := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
-			"var":      vars,
-			"rig":      facts.value(),
+			varRoot:    vars,
+			rigRoot:    facts.value(),
 			moduleRoot: cty.EmptyObjectVal,
 			localsRoot: cty.EmptyObjectVal,
 		},
@@ -137,7 +157,7 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 		diags = append(diags, moreDiags...)
 
 		for _, x := range more {
-			x.Name = prefix + x.Name
+			x.Name, x.Base = prefix+x.Name, prefix+x.Base
 			res.Resources = append(res.Resources, x)
 		}
 

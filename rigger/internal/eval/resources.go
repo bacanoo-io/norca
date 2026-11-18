@@ -45,6 +45,7 @@ type evaluator struct {
 // instance is one copy of a resource: its key and its each.* or count.*.
 type instance struct {
 	suffix string
+	key    cty.Value
 	vars   map[string]cty.Value
 }
 
@@ -76,7 +77,7 @@ func (e *evaluator) resource(r *lang.Resource) ([]Resource, hcl.Diagnostics) {
 		diags = append(diags, moreDiags...)
 
 		if !moreDiags.HasErrors() {
-			res.Name = r.Name + in.suffix
+			res.Name, res.Base, res.Key, res.Block = r.Name+in.suffix, r.Name, in.key, r.Type.Block
 			out = append(out, res)
 		}
 	}
@@ -156,6 +157,7 @@ func (e *evaluator) countInstances(attr *hcl.Attribute) ([]instance, hcl.Diagnos
 	for i := range out {
 		out[i] = instance{
 			suffix: "[" + strconv.Itoa(i) + "]",
+			key:    cty.NumberIntVal(int64(i)),
 			vars:   map[string]cty.Value{metaCount: cty.ObjectVal(map[string]cty.Value{"index": cty.NumberIntVal(int64(i))})},
 		}
 	}
@@ -201,8 +203,9 @@ func (e *evaluator) forEachInstances(attr *hcl.Attribute) ([]instance, hcl.Diagn
 		seen[k] = true
 		out = append(out, instance{
 			suffix: "[" + strconv.Quote(k) + "]",
-			vars: map[string]cty.Value{"each": cty.ObjectVal(map[string]cty.Value{
-				"key": cty.StringVal(k), "value": value,
+			key:    cty.StringVal(k),
+			vars: map[string]cty.Value{eachRoot: cty.ObjectVal(map[string]cty.Value{
+				attrKey: cty.StringVal(k), attrValue: value,
 			})},
 		})
 	}
@@ -232,6 +235,11 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 	}
 
 	res := Resource{Kind: r.Type.Kind}
+
+	if e.cfg.Test {
+		tw := &walker{skip: metaNames, test: true}
+		res.Value, _ = tw.value(r.Block.Body, ctx)
+	}
 
 	for _, m := range w.marked {
 		if r.Type.Kind == resource.KindVariable && m.path[0] == itemsName && len(m.path) <= 2 {
@@ -278,10 +286,11 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, c
 	jobCtx := ctx.NewChild()
 	jobCtx.UndefinedVariable = passthrough(e.sources)
 
-	// The decoder reports the errors of the job; this walk only finds the
-	// sensitive values before the decoder sees them.
-	w := &walker{skip: metaNames}
-	_, _ = w.value(r.Block.Body, jobCtx)
+	// The decoder reports the errors of the job; this walk finds the
+	// sensitive values before the decoder sees them, and gives the value a
+	// test reads.
+	w := &walker{skip: metaNames, test: e.cfg.Test}
+	value, _ := w.value(r.Block.Body, jobCtx)
 
 	var diags hcl.Diagnostics
 	for _, m := range w.marked {
@@ -308,7 +317,12 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, c
 		return Resource{}, diags
 	}
 
-	return Resource{Kind: resource.KindJob, Spec: job.Spec, Hook: hook}, diags
+	res := Resource{Kind: resource.KindJob, Spec: job.Spec, Hook: hook}
+	if e.cfg.Test {
+		res.Value = withHook(value, hook)
+	}
+
+	return res, diags
 }
 
 // secretItems takes the items of a Variable that hold a sensitive value out

@@ -34,6 +34,7 @@ const (
 	cmdModule  = "module"
 
 	cmdRender   = "render"
+	cmdTest     = "test"
 	cmdValidate = "validate"
 )
 
@@ -43,7 +44,10 @@ Commands:
   help                    print this help
   version                 print the version of rig
   module validate [dir]   check a module without a cluster: its files, its
-                          icon, and its example values (dir: the current one)
+                          icon, its tests, and its example values rendered
+                          (dir: the current one)
+  module test [dir]       run the tests of a module (tests/*.rigtest.hcl):
+                          its values in, assertions over its resources
   module render [dir] [-f values.vars.hcl] [-var name=value]
          [-release name] [-namespace ns] [-region region]
                           evaluate a module and print its resources and

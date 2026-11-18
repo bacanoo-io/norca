@@ -21,6 +21,13 @@ Rules of this work, set by the maintainer:
   from the pack manager. Its sound ideas (logic, the signing scheme, some
   structures) are built again, which leaves us free to shape them; its faulty
   foundations are thought again.
+- **Nothing is taken over from code that is not open source** (2026-11-18):
+  no implementation is copied or closely rewritten from code under the
+  Business Source License (Terraform, and Nomad, Vault and Consul in their
+  later versions) or any other license that is not open source. Names and
+  behaviour may be like those of other tools; the implementation is Rig's,
+  or an open-source dependency's. `make check-licenses` checks the
+  dependencies and the files of the repository.
 - **The library has an interface that Norca can take in** (section 12):
   the server embeds Rig later through it, without Rig knowing the server.
 - Go templates go. The result is a complete package manager, not a renderer.
@@ -686,7 +693,23 @@ nats/
   cleaned before it is shown.
 - Tests: `test "<name>" { release, values, assert { condition,
   error_message }, expect_error }`; assertions read `resource.<kind>.<name>`
-  and `output.<name>`.
+  and `output.<name>`. As built (phase 1): `namespace` and `region` may be
+  given too (default `default`, `global`; the release defaults to the
+  module's name); a test expects an error or asserts, not both. The kind
+  is the block type of the file (`resource.job`, `resource.policy`,
+  `resource.variable`; `acl-policy` is no name). A resource reads as its
+  block is written, not as the host encodes it, so that a test does not
+  depend on the host: labelled blocks by label, a block written once as an
+  object, more than once or `dynamic` as a list (an empty list when it
+  makes none), null attributes kept, the `hook` block decoded, sensitive
+  values marked (`issensitive()`), runtime values as their functions give
+  them (`== runtime("node.datacenter")`). `count` makes a list,
+  `for_each` an object by key; every kind is there, empty without
+  resources. Lists, sets and maps read as tuples and objects, the types of
+  the literals they are compared with. The module is evaluated with the
+  host's job decoder, so its errors fail a test too. `rig module test`
+  prints a line per test and exits 1 on a failure; `rig module validate`
+  parses the tests.
 - A registry repository: `modules/<name>/` and `stacks/<name>/`, `examples/`
   inside each of them, `LICENSES/`, `REUSE.toml`, `.gitattributes` with LF
   (the digest is over file contents), CI: `rig fmt -check`, `rig module

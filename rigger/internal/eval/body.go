@@ -19,6 +19,10 @@ type walker struct {
 	skip map[string]bool
 	// marked are the attributes whose value holds a sensitive value.
 	marked []markedAttr
+	// test gives the value a test reads (design 7.4): an attribute that is
+	// null is kept, and a dynamic block that makes no block is an empty
+	// list (an empty object with labels). A resource leaves both out.
+	test bool
 }
 
 // markedAttr is an attribute whose value holds a sensitive value: its path
@@ -63,13 +67,47 @@ func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.V
 			w.marked = append(w.marked, markedAttr{path: append(slices.Clone(path), name), rng: attr.Expr.Range()})
 		}
 
-		if !v.IsNull() {
+		if !v.IsNull() || w.test {
 			values[name] = v
 		}
 	}
 
 	blocks, moreDiags := w.blocks(syntax.Blocks, ctx, path)
 	diags = append(diags, moreDiags...)
+
+	if w.test {
+		w.emptyDynamics(syntax.Blocks, path, values)
+	}
+
+	diags = append(diags, addBlocks(values, blocks)...)
+
+	return cty.ObjectVal(values), diags
+}
+
+// emptyDynamics gives the type of a dynamic block that may make no block
+// its empty value, as a test reads it: an empty list, or an empty object
+// when the blocks have labels. A block it makes replaces it.
+func (w *walker) emptyDynamics(blocks hclsyntax.Blocks, path []string, values map[string]cty.Value) {
+	for _, b := range blocks {
+		if b.Type != "dynamic" || len(b.Labels) != 1 || (path == nil && w.skip[b.Labels[0]]) {
+			continue
+		}
+
+		if _, done := values[b.Labels[0]]; done {
+			continue
+		}
+
+		if _, labelled := b.Body.Attributes["labels"]; labelled {
+			values[b.Labels[0]] = cty.EmptyObjectVal
+		} else {
+			values[b.Labels[0]] = cty.EmptyTupleVal
+		}
+	}
+}
+
+// addBlocks adds the evaluated blocks to the values of a body, by type.
+func addBlocks(values map[string]cty.Value, blocks []evaluatedBlock) hcl.Diagnostics {
+	var diags hcl.Diagnostics
 
 	types := []string{}
 	byType := map[string][]evaluatedBlock{}
@@ -83,7 +121,7 @@ func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.V
 	}
 
 	for _, typ := range types {
-		if _, clash := values[typ]; clash {
+		if v, clash := values[typ]; clash && !isEmptyCollection(v) {
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError, Summary: "Attribute and block of one name",
 				Detail:  typ + " is an attribute and a block of the same body.",
@@ -96,7 +134,7 @@ func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.V
 		values[typ] = blocksValue(byType[typ])
 	}
 
-	return cty.ObjectVal(values), diags
+	return diags
 }
 
 // evaluatedBlock is a block with its labels and its value.
@@ -185,7 +223,7 @@ func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string
 		key, value := it.Element()
 		child := ctx.NewChild()
 		child.Variables = map[string]cty.Value{
-			iterator: cty.ObjectVal(map[string]cty.Value{"key": key, "value": value}),
+			iterator: cty.ObjectVal(map[string]cty.Value{attrKey: key, attrValue: value}),
 		}
 
 		labels, moreDiags := dynamicLabels(b, child)
@@ -264,6 +302,12 @@ func labelledValue(blocks []evaluatedBlock, depth int) cty.Value {
 	}
 
 	return cty.ObjectVal(values)
+}
+
+// isEmptyCollection reports whether v is the empty value of a dynamic block
+// that made no block.
+func isEmptyCollection(v cty.Value) bool {
+	return v.RawEquals(cty.EmptyTupleVal) || v.RawEquals(cty.EmptyObjectVal)
 }
 
 // blockPath is the path of a block under path.

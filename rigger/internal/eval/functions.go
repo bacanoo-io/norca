@@ -31,11 +31,11 @@ func Functions() map[string]function.Function {
 		"trimprefix": stdlib.TrimPrefixFunc, "trimsuffix": stdlib.TrimSuffixFunc,
 		"trimspace": stdlib.TrimSpaceFunc, "upper": stdlib.UpperFunc,
 
-		"chunklist": stdlib.ChunklistFunc, "coalesce": coalesce,
+		"chunklist": stdlib.ChunklistFunc, "coalesce": coalesce, "issensitive": isSensitive,
 		"coalescelist": stdlib.CoalesceListFunc, "compact": stdlib.CompactFunc,
 		"concat": stdlib.ConcatFunc, "contains": stdlib.ContainsFunc, "distinct": stdlib.DistinctFunc,
 		"element": stdlib.ElementFunc, "flatten": stdlib.FlattenFunc, "index": stdlib.IndexFunc,
-		"keys": stdlib.KeysFunc, "length": stdlib.LengthFunc, "lookup": stdlib.LookupFunc,
+		"keys": stdlib.KeysFunc, "length": length, "lookup": stdlib.LookupFunc,
 		"merge": stdlib.MergeFunc, "range": stdlib.RangeFunc, "reverse": stdlib.ReverseListFunc,
 		"setintersection": stdlib.SetIntersectionFunc, "setproduct": stdlib.SetProductFunc,
 		"setsubtract": stdlib.SetSubtractFunc, "setunion": stdlib.SetUnionFunc,
@@ -172,5 +172,45 @@ var coalesce = function.New(&function.Spec{
 		}
 
 		return cty.NilVal, errors.New("no argument is neither null nor an empty string")
+	},
+})
+
+// isSensitive is issensitive(value): whether the value is sensitive.
+var isSensitive = function.New(&function.Spec{
+	Params: []function.Parameter{{
+		Name: attrValue, Type: cty.DynamicPseudoType,
+		AllowMarked: true, AllowNull: true, AllowUnknown: true, AllowDynamicType: true,
+	}},
+	Type: function.StaticReturnType(cty.Bool),
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		return cty.BoolVal(args[0].HasMark(Sensitive)), nil
+	},
+})
+
+// length is length(value) as module authors know it from other HCL tools:
+// the items of a list, a set, a tuple or a map, the attributes of an
+// object, the characters of a string. stdlib.LengthFunc takes collections
+// and tuples only.
+var length = function.New(&function.Spec{
+	Params: []function.Parameter{{Name: attrValue, Type: cty.DynamicPseudoType, AllowDynamicType: true, AllowUnknown: true}},
+	Type:   function.StaticReturnType(cty.Number),
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		v := args[0]
+		ty := v.Type()
+
+		switch {
+		case ty == cty.DynamicPseudoType || !v.IsKnown():
+			return cty.UnknownVal(cty.Number), nil
+		case v.IsNull():
+			return cty.NilVal, errors.New("the value is null")
+		case ty == cty.String:
+			return stdlib.Strlen(v)
+		case ty.IsObjectType():
+			return cty.NumberIntVal(int64(len(ty.AttributeTypes()))), nil
+		case ty.IsCollectionType() || ty.IsTupleType():
+			return v.Length(), nil
+		default:
+			return cty.NilVal, errors.New("the value is not a collection, an object or a string")
+		}
 	},
 })

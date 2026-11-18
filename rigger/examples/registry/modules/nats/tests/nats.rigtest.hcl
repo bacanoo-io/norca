@@ -54,7 +54,7 @@ test "two users of one name are refused" {
   values = {
     users = [{ name = "shop" }, { name = "shop", account = "OTHER" }]
   }
-  expect_error = "users: the name \"shop\" is used twice"
+  expect_error = "var.users[1].name is the same as var.users[0].name"
 }
 
 test "the bus account must be an account of a user" {

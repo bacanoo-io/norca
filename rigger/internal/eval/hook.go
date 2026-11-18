@@ -118,3 +118,29 @@ func hookPhases(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, hcl.Diagno
 func hookDiag(rng hcl.Range, detail string) *hcl.Diagnostic {
 	return &hcl.Diagnostic{Severity: hcl.DiagError, Summary: "Invalid hook", Detail: detail, Subject: rng.Ptr()}
 }
+
+// withHook adds the hook of a job to its value, as a test reads it.
+func withHook(v cty.Value, h *resource.Hook) cty.Value {
+	if h == nil || !v.Type().IsObjectType() {
+		return v
+	}
+
+	on := make([]cty.Value, len(h.On))
+	for i, p := range h.On {
+		on[i] = cty.StringVal(p)
+	}
+
+	attrs := v.AsValueMap()
+	if attrs == nil {
+		attrs = map[string]cty.Value{}
+	}
+
+	attrs[metaHook] = cty.ObjectVal(map[string]cty.Value{
+		"on":      cty.ListVal(on),
+		"weight":  cty.NumberIntVal(int64(h.Weight)),
+		"timeout": cty.StringVal(h.Timeout),
+		"delete":  cty.StringVal(h.Delete),
+	})
+
+	return cty.ObjectVal(attrs)
+}

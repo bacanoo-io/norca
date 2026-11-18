@@ -15,7 +15,7 @@ import (
 
 // namespaces are the roots of the references Rig resolves at install time
 // (design 4.2).
-var namespaces = []string{"var", localsRoot, "rig", "module", "each", "count"}
+var namespaces = []string{varRoot, localsRoot, rigRoot, moduleRoot, eachRoot, metaCount}
 
 // passthrough returns the UndefinedVariable callback of the context of a
 // job: a reference whose root Rig does not resolve is a runtime reference,

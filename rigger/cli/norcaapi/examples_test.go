@@ -38,3 +38,42 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 		})
 	}
 }
+
+// TestEngine_TestModule_Examples runs the tests of the examples with the
+// job decoder of Norca: every test passes.
+func TestEngine_TestModule_Examples(t *testing.T) {
+	t.Parallel()
+
+	for _, dir := range []string{
+		"module/web", "registry/modules/redis", "registry/modules/nats", "registry/modules/postgres",
+	} {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			eng, err := rig.New(rig.WithJobDecoder(norcaapi.JobDecoder{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			m, diags := eng.LoadModuleAt(t.Context(), os.DirFS("../../examples"), dir)
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			results, diags := eng.TestModule(t.Context(), m)
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			if len(results) == 0 {
+				t.Fatal("no tests")
+			}
+
+			for _, r := range results {
+				if !r.Passed() {
+					t.Errorf("%s: %s: %v %v", r.File, r.Name, r.Failures, r.Diagnostics)
+				}
+			}
+		})
+	}
+}

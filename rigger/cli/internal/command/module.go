@@ -27,7 +27,7 @@ var errReported = errors.New("reported")
 // runModule runs a module command: rig module <command> [args].
 func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
-		warn(stderr, "module needs a command: render or validate")
+		warn(stderr, "module needs a command: render, test or validate")
 
 		return exitError
 	}
@@ -46,16 +46,22 @@ func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 		return run(ctx, logger, stderr, "module.render", func(ctx context.Context) error {
 			return renderModule(ctx, logger, stdout, stderr, f)
 		})
-	case cmdValidate:
+	case cmdValidate, cmdTest:
 		dir := "."
 		if len(args) > 1 {
 			dir = args[1]
 		}
 
 		if len(args) > 2 {
-			warn(stderr, "module validate takes one directory")
+			warn(stderr, "module %s takes one directory", args[0])
 
 			return exitError
+		}
+
+		if args[0] == cmdTest {
+			return run(ctx, logger, stderr, "module.test", func(ctx context.Context) error {
+				return testModule(ctx, logger, stdout, stderr, dir)
+			})
 		}
 
 		return run(ctx, logger, stderr, "module.validate", func(ctx context.Context) error {

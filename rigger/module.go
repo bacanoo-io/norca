@@ -133,14 +133,20 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 }
 
 // ValidateModule checks what can be checked of a module without a cluster
-// (design 10, rig module validate): its icon, and every value file of its
-// examples/, checked against its variables and evaluated (design 7.4). A
-// module with a job is evaluated only by an engine with a job decoder.
+// (design 10, rig module validate): its icon, its test files (parsed, not
+// run), and every value file of its examples/, checked against its
+// variables and evaluated (design 7.4). A module with a job is evaluated
+// only by an engine with a job decoder.
 func (e *Engine) ValidateModule(ctx context.Context, m *Module) hcl.Diagnostics {
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.validate",
 		"module", m.mod.Metadata.Name, "version", m.mod.Metadata.Version)
 
 	diags := e.checkIcon(m)
+
+	for _, p := range m.mod.Tests {
+		_, moreDiags := e.parseTests(m, p)
+		diags = append(diags, moreDiags...)
+	}
 
 	for _, p := range m.mod.Examples {
 		if err := ctx.Err(); err != nil {
