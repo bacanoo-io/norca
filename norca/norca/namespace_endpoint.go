@@ -221,12 +221,22 @@ func (n *Namespace) namespaceTerminalLocally(namespace string) (bool, error) {
 // too, for a deleted tenant (tenant_operator.go), with its leader ACL, which
 // only this region resolves: it asks with the replication token instead, a
 // global management token, when the servers have one. A caller with a token
-// of its own never gets the replication token.
+// of its own never gets the replication token. The leader ACL itself, a
+// management secret of this region, never goes to another region: without a
+// replication token the leader fails here when ACLs are on, and asks with no
+// token when they are off (no region checks one then).
 func (n *Namespace) namespaceTerminalInRegion(authToken, namespace, region string) (bool, error) {
 	leaderACL := n.srv.getLeaderAcl()
 	asLeader := leaderACL != "" && authToken == leaderACL
-	if replication := n.srv.ReplicationToken(); asLeader && replication != "" {
-		authToken = replication
+	if asLeader {
+		switch replication := n.srv.ReplicationToken(); {
+		case replication != "":
+			authToken = replication
+		case n.srv.config.ACLEnabled:
+			return false, n.errLeaderCantAsk(namespace, region, structs.ErrPermissionDenied)
+		default:
+			authToken = ""
+		}
 	}
 
 	req := &structs.JobListRequest{
@@ -244,11 +254,7 @@ func (n *Namespace) namespaceTerminalInRegion(authToken, namespace, region strin
 		return false, fmt.Errorf("unexpectedly did not forward Job.List to region %q", region)
 	} else if err != nil {
 		if asLeader && strings.Contains(err.Error(), structs.ErrPermissionDenied.Error()) {
-			// Say what is missing: "Permission denied" alone names
-			// neither the region nor the setting.
-			return false, fmt.Errorf("the servers can't ask region %q for the jobs of the namespace %q: "+
-				"set replication_token in the acl block of the servers of this region (%q) "+
-				"to the secret of a global management token: %w", region, namespace, n.srv.Region(), err)
+			return false, n.errLeaderCantAsk(namespace, region, err)
 		}
 		return false, err
 	}
@@ -260,6 +266,15 @@ func (n *Namespace) namespaceTerminalInRegion(authToken, namespace, region strin
 	}
 
 	return true, nil
+}
+
+// errLeaderCantAsk says what is missing when the leader can't ask region for
+// the jobs of namespace: "Permission denied" alone names neither the region
+// nor the setting.
+func (n *Namespace) errLeaderCantAsk(namespace, region string, err error) error {
+	return fmt.Errorf("the servers can't ask region %q for the jobs of the namespace %q: "+
+		"set replication_token in the acl block of the servers of this region (%q) "+
+		"to the secret of a global management token: %w", region, namespace, n.srv.Region(), err)
 }
 
 // ListNamespaces is used to list the namespaces

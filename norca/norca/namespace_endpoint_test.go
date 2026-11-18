@@ -888,3 +888,55 @@ func TestNamespaceEndpoint_DeleteNamespaces_Refused(t *testing.T) {
 	must.NoError(t, remove(empty.Name))
 	must.False(t, exists(empty.Name))
 }
+
+// The leader asks another region for the jobs of a namespace it deletes (for
+// a deleted tenant). Without a replication token it fails here: its own
+// ACL, a management secret of this region, never goes to the other region
+// (review finding SEC-18).
+func TestNamespaceEndpoint_DeleteNamespaces_LeaderACLStaysInRegion(t *testing.T) {
+	ci.Parallel(t)
+	s1, root, cleanupS1 := TestACLServer(t, func(c *Config) {
+		c.Region = "region1"
+		c.AuthoritativeRegion = "region1"
+	})
+	defer cleanupS1()
+	s2, _, cleanupS2 := TestACLServer(t, func(c *Config) {
+		c.Region = "region2"
+		c.AuthoritativeRegion = "region1"
+		c.ReplicationBackoff = 20 * time.Millisecond
+		c.ReplicationToken = root.SecretID
+	})
+	defer cleanupS2()
+	TestJoin(t, s1, s2)
+	testutil.WaitForLeader(t, s1.RPC)
+	testutil.WaitForLeader(t, s2.RPC)
+
+	var leaderACL string
+	testutil.WaitForResult(func() (bool, error) {
+		leaderACL = s1.getLeaderAcl()
+		return leaderACL != "", fmt.Errorf("region1 has no leader ACL yet")
+	}, func(err error) { t.Fatal(err) })
+
+	// region2 would know the secret if it got it: then the deletion would
+	// be let through there, and the test sees that the secret was sent.
+	spy := mock.ACLManagementToken()
+	spy.SecretID = leaderACL
+	spy.Global = false
+	must.NoError(t, s2.fsm.State().UpsertACLTokens(structs.MsgTypeTestSetup, 1000, []*structs.ACLToken{spy}))
+
+	ns := mock.Namespace()
+	must.NoError(t, s1.fsm.State().UpsertNamespaces(1001, []*structs.Namespace{ns}))
+
+	req := &structs.NamespaceDeleteRequest{
+		Namespaces:   []string{ns.Name},
+		WriteRequest: structs.WriteRequest{Region: "region1", AuthToken: leaderACL},
+	}
+	var resp structs.GenericResponse
+	err := s1.RPC("Namespace.DeleteNamespaces", req, &resp)
+	must.Error(t, err, must.Sprint("the leader ACL was sent to region2"))
+	must.StrContains(t, err.Error(), "replication_token")
+	must.StrContains(t, err.Error(), `region "region2"`)
+	out, err := s1.fsm.State().NamespaceByName(nil, ns.Name)
+	must.NoError(t, err)
+	must.NotNil(t, out)
+}
