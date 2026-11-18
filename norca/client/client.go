@@ -1790,6 +1790,13 @@ func (c *Client) registerAndHeartbeat() {
 			return
 		}
 		if err := c.updateNodeStatus(); err != nil {
+			// A heartbeat cut off by the shutdown has nothing to retry.
+			select {
+			case <-c.shutdownCh:
+				return
+			default:
+			}
+
 			// The servers have changed such that this node has not been
 			// registered before
 			if strings.Contains(err.Error(), "node not found") {
@@ -1959,6 +1966,11 @@ func (c *Client) watchNodeEvents() {
 			timer.Reset(c.retryIntv(nodeUpdateRetryIntv))
 		case <-timer.C:
 			if err := c.submitNodeEvents(batchEvents); err != nil {
+				select {
+				case <-c.shutdownCh:
+					return
+				default:
+				}
 				c.logger.Error("error submitting node events", "error", err)
 				timer.Reset(c.retryIntv(nodeUpdateRetryIntv))
 			} else {
@@ -2267,6 +2279,11 @@ func (c *Client) allocSync() {
 
 			var resp structs.GenericResponse
 			err := c.RPC("Node.UpdateAlloc", &args, &resp)
+			if errors.Is(err, errShuttingDown) {
+				// Not acknowledged: sent again after a restart.
+				syncTicker.Stop()
+				return
+			}
 			if err != nil {
 				// Error updating allocations, do *not* clear
 				// updates and retry after backoff

@@ -6,6 +6,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/rpc"
@@ -50,6 +51,11 @@ func (c *Client) StreamingRpcHandler(method string) (structs.StreamingRpcHandler
 	return c.streamingRpcs.GetHandler(method)
 }
 
+// errShuttingDown is returned by the RPC methods when the client shuts down
+// before the call completed. The call may not have been made, so its reply
+// holds nothing.
+var errShuttingDown = errors.New("client is shutting down")
+
 // RPC is used to forward an RPC call to a nomad server, or fail if no servers.
 func (c *Client) RPC(method string, args any, reply any) error {
 	// Block if we have not yet registered the node, to enforce that we only
@@ -57,7 +63,7 @@ func (c *Client) RPC(method string, args any, reply any) error {
 	select {
 	case <-c.registeredCh:
 	case <-c.shutdownCh:
-		return nil
+		return errShuttingDown
 	}
 	return c.rpc(method, args, reply)
 }
@@ -112,7 +118,7 @@ TRY:
 		// If shutting down, exit without logging the error
 		select {
 		case <-c.shutdownCh:
-			return nil
+			return fmt.Errorf("%w: %w", errShuttingDown, rpcErr)
 		default:
 		}
 
@@ -157,8 +163,8 @@ TRY:
 
 		goto TRY
 	case <-c.shutdownCh:
+		return fmt.Errorf("%w: %w", errShuttingDown, rpcErr)
 	}
-	return rpcErr
 }
 
 // canRetry returns true if the given situation is safe for a retry.
