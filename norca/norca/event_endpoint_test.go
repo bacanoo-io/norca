@@ -700,7 +700,9 @@ func TestEventStream_ACLTokenExpiry(t *testing.T) {
 	publisher.Publish(&structs.Events{Index: uint64(1), Events: []structs.Event{{Topic: structs.TopicJob, Payload: jobEvent}}})
 	publisher.Publish(&structs.Events{Index: uint64(2), Events: []structs.Event{{Topic: structs.TopicJob, Payload: jobEvent}}})
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
+	// The deadlines are generous: under load the setup above can take most
+	// of the two seconds of the token, and the stream reacts only to events.
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer cancel()
 
 	errChStream := make(chan error, 1)
@@ -724,11 +726,16 @@ func TestEventStream_ACLTokenExpiry(t *testing.T) {
 		}
 	}()
 
-	// Generate a timeout for the test and for the expiry. The expiry timeout
-	// is used to trigger an update which will close the subscription as the
-	// event stream only reacts to change in state.
-	testTimeout := time.After(4 * time.Second)
+	// Generate a timeout for the test and for the expiry. Once the token has
+	// expired, events are published until the subscription closes, as the
+	// event stream only reacts to change in state: one event published right
+	// at the expiry can still be checked against a token that is valid.
+	testTimeout := time.After(30 * time.Second)
 	expiryTimeout := time.After(time.Until(*aclTokenWithExpiry.ExpirationTime))
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var tick <-chan time.Time
+	nextIndex := uint64(3)
 
 	for {
 		select {
@@ -737,7 +744,10 @@ func TestEventStream_ACLTokenExpiry(t *testing.T) {
 		case err := <-errCh:
 			t.Fatal(err)
 		case <-expiryTimeout:
-			publisher.Publish(&structs.Events{Index: uint64(1), Events: []structs.Event{{Topic: structs.TopicJob, Payload: jobEvent}}})
+			tick = ticker.C
+		case <-tick:
+			publisher.Publish(&structs.Events{Index: nextIndex, Events: []structs.Event{{Topic: structs.TopicJob, Payload: jobEvent}}})
+			nextIndex++
 		case err := <-errChStream:
 			// Success
 			must.StrContains(t, err.Error(), "ACL token expired")
