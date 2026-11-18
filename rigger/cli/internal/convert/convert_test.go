@@ -21,7 +21,7 @@ func TestPack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{"README.md", "demo.norca.hcl", "examples/debug.vars.hcl", "locals.hcl", "metadata.hcl", "outputs.hcl", "variables.hcl"}
+	want := []string{"README.md", "demo.acl.hcl", "demo.norca.hcl", "examples/debug.vars.hcl", "locals.hcl", "metadata.hcl", "outputs.hcl", "variables.hcl"}
 	if !slices.Equal(res.Files, want) {
 		t.Fatalf("files = %v, want %v", res.Files, want)
 	}

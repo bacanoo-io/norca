@@ -16,6 +16,9 @@ import (
 	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
 )
 
+// metadataFile is the metadata file of a module.
+const metadataFile = "metadata.hcl"
+
 // install is the install of the tests.
 var install = rig.Install{Release: "shop", Namespace: "apps", Region: "eu"}
 
@@ -193,5 +196,77 @@ func TestJobDecoder_Hook(t *testing.T) {
 		if job.Meta[k] != v {
 			t.Errorf("meta %s = %q, want %q", k, job.Meta[k], v)
 		}
+	}
+}
+
+// A null attribute is left out of the job (design 4.1), at any depth and in
+// the content of a dynamic block: a typed field keeps its zero value, and a
+// null duration does not reach the decoder.
+func TestEngine_Evaluate_NullAttributes(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		metadataFile:    {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
+		"variables.hcl": {Data: []byte("variable \"bridge\" {\n  default = false\n}\n")},
+		"app.norca.hcl": {Data: []byte(`job "app" {
+  datacenters = ["dc1"]
+  node_pool   = var.bridge ? "edge" : null
+
+  update {
+    max_parallel     = 1
+    min_healthy_time = var.bridge ? "10s" : null
+  }
+
+  group "app" {
+    count = var.bridge ? 3 : null
+
+    network {
+      port "http" {
+        static = 8080
+        to     = var.bridge ? 8080 : null
+      }
+
+      dynamic "port" {
+        for_each = ["metrics"]
+        labels   = [port.value]
+
+        content {
+          host_network = var.bridge ? "vpn" : null
+        }
+      }
+    }
+
+    task "app" {
+      driver = "docker"
+
+      config {
+        image = "busybox"
+        args  = var.bridge ? ["-v"] : null
+      }
+    }
+  }
+}
+`)},
+	}
+
+	res, diags := evaluate(t, fsys)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	job := firstJob(t, res)
+	tg := job.TaskGroups[0]
+
+	if job.NodePool != nil || job.Update == nil || job.Update.MinHealthyTime != nil || tg.Count != nil {
+		t.Errorf("node pool %v, update %+v, count %v: want nulls left out", job.NodePool, job.Update, tg.Count)
+	}
+
+	ports := tg.Networks[0].ReservedPorts
+	if len(ports) != 1 || ports[0].To != 0 || tg.Networks[0].DynamicPorts[0].HostNetwork != "" {
+		t.Errorf("ports = %+v %+v", ports, tg.Networks[0].DynamicPorts)
+	}
+
+	if _, ok := tg.Tasks[0].Config["args"]; ok {
+		t.Errorf("config = %v, want no args", tg.Tasks[0].Config)
 	}
 }

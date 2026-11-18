@@ -43,6 +43,11 @@ func (w *walker) value(body hcl.Body, ctx *hcl.EvalContext) (cty.Value, hcl.Diag
 }
 
 func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.Value, hcl.Diagnostics) {
+	// The walk leaves null attributes out by itself.
+	if nn, ok := body.(*withoutNulls); ok {
+		body = nn.body
+	}
+
 	syntax, ok := body.(*hclsyntax.Body)
 	if !ok {
 		return cty.DynamicVal, hcl.Diagnostics{{

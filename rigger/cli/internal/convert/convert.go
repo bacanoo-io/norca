@@ -457,9 +457,16 @@ func (c *converter) templateList() ([]template, error) {
 			continue
 		}
 
-		dst := strings.TrimSuffix(strings.TrimSuffix(name, ".tpl"), ".nomad") + ".norca.hcl"
-		if strings.HasPrefix(name, "_") {
+		dst := strings.TrimSuffix(name, ".tpl")
+
+		switch {
+		case strings.HasPrefix(name, "_"):
 			dst = "locals.hcl"
+		case strings.HasSuffix(dst, ".hcl"):
+			// A policy, a kind, an admission policy: the file names of a
+			// module are those of the pack's (dns.acl.hcl).
+		default:
+			dst = strings.TrimSuffix(dst, ".nomad") + ".norca.hcl"
 		}
 
 		list = append(list, template{src: filepath.Join("templates", name), dst: dst})

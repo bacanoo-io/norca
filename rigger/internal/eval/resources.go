@@ -310,7 +310,7 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, c
 	}
 
 	block := *r.Block
-	block.Body = body
+	block.Body = dropNulls(body, jobCtx)
 
 	job, diags := e.cfg.Jobs.DecodeJob(e.ctx, host.JobSpec{Block: &block, EvalContext: jobCtx, Hook: hook})
 	if diags.HasErrors() {
