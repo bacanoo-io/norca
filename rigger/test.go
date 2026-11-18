@@ -89,7 +89,7 @@ func (e *Engine) runTest(ctx context.Context, m *Module, p string, t *eval.Test)
 	}
 
 	out := eval.RunTest(ctx, m.mod, t, eval.Config{
-		FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs,
+		FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs, Decoder: e.decoder,
 	})
 	span.End(ctx, diagsErr(out.Diagnostics))
 

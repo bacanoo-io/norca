@@ -4,9 +4,11 @@
 package norcaapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -101,6 +103,18 @@ var payloads = map[resource.Kind]func(*api.ReleaseResource) any{
 func decodeSpec(r resource.Resource, target any) error {
 	if r.Kind == resource.KindJob {
 		return json.Unmarshal(r.Spec, target)
+	}
+
+	// A kind ResourceDecoder decodes is in the encoding of the API already;
+	// an engine without the decoder gives the value of the block, mapped
+	// below.
+	if slices.Contains(ResourceDecoder{}.Kinds(), r.Kind) {
+		dec := json.NewDecoder(bytes.NewReader(r.Spec))
+		dec.DisallowUnknownFields()
+
+		if err := dec.Decode(target); err == nil {
+			return nil
+		}
 	}
 
 	var value any

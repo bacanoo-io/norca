@@ -50,10 +50,7 @@ func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.V
 
 	syntax, ok := body.(*hclsyntax.Body)
 	if !ok {
-		return cty.DynamicVal, hcl.Diagnostics{{
-			Severity: hcl.DiagError, Summary: "Unsupported syntax",
-			Detail: "A resource is written in the native syntax of HCL.",
-		}}
+		return cty.DynamicVal, unsupportedSyntax()
 	}
 
 	values := map[string]cty.Value{}
@@ -180,12 +177,23 @@ func (w *walker) blocks(blocks hclsyntax.Blocks, ctx *hcl.EvalContext, path []st
 	return out, diags
 }
 
+// dynamicItem is one block a dynamic block makes: its labels and the
+// context of its content, with the iterator.
+type dynamicItem struct {
+	labels []string
+	ctx    *hcl.EvalContext
+}
+
+// invalidDynamic is the summary of the errors of a dynamic block.
+const invalidDynamic = "Invalid dynamic block"
+
 // expandDynamic expands a dynamic block: for_each, iterator, labels and a
-// content block, as HCL's dynamic blocks are written.
-func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string) ([]evaluatedBlock, hcl.Diagnostics) {
+// content block, as HCL's dynamic blocks are written. It returns the type
+// of the blocks, their content and one item per block.
+func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext) (string, *hclsyntax.Body, []dynamicItem, hcl.Diagnostics) {
 	if len(b.Labels) != 1 {
-		return nil, hcl.Diagnostics{{
-			Severity: hcl.DiagError, Summary: "Invalid dynamic block",
+		return "", nil, nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: invalidDynamic,
 			Detail: "A dynamic block has one label: the type of the blocks it makes.", Subject: b.DefRange().Ptr(),
 		}}
 	}
@@ -199,30 +207,30 @@ func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string
 
 	attr, ok := b.Body.Attributes["for_each"]
 	if !ok {
-		return nil, hcl.Diagnostics{{
-			Severity: hcl.DiagError, Summary: "Invalid dynamic block",
+		return "", nil, nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: invalidDynamic,
 			Detail: "A dynamic block has a for_each.", Subject: b.DefRange().Ptr(),
 		}}
 	}
 
 	forEach, diags := attr.Expr.Value(ctx)
 	if diags.HasErrors() {
-		return nil, diags
+		return "", nil, nil, diags
 	}
 
 	if forEach.ContainsMarked() {
-		return nil, append(diags, sensitiveDiag("the for_each of a dynamic block", attr.Expr.Range()))
+		return "", nil, nil, append(diags, sensitiveDiag("the for_each of a dynamic block", attr.Expr.Range()))
 	}
 
 	content := slices.IndexFunc(b.Body.Blocks, func(c *hclsyntax.Block) bool { return c.Type == "content" })
 	if content < 0 || forEach.IsNull() || !forEach.CanIterateElements() {
-		return nil, append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError, Summary: "Invalid dynamic block",
+		return "", nil, nil, append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError, Summary: invalidDynamic,
 			Detail: "A dynamic block has a for_each that is a collection and a content block.", Subject: b.DefRange().Ptr(),
 		})
 	}
 
-	var out []evaluatedBlock
+	var items []dynamicItem
 
 	for it := forEach.ElementIterator(); it.Next(); {
 		key, value := it.Element()
@@ -233,13 +241,36 @@ func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string
 
 		labels, moreDiags := dynamicLabels(b, child)
 		diags = append(diags, moreDiags...)
+		items = append(items, dynamicItem{labels: labels, ctx: child})
+	}
 
-		v, moreDiags := w.body(b.Body.Blocks[content].Body, child, blockPath(path, typ, labels))
+	return typ, b.Body.Blocks[content].Body, items, diags
+}
+
+// dynamic evaluates the blocks a dynamic block makes.
+func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string) ([]evaluatedBlock, hcl.Diagnostics) {
+	typ, content, items, diags := expandDynamic(b, ctx)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	out := make([]evaluatedBlock, 0, len(items))
+
+	for _, item := range items {
+		v, moreDiags := w.body(content, item.ctx, blockPath(path, typ, item.labels))
 		diags = append(diags, moreDiags...)
-		out = append(out, evaluatedBlock{typ: typ, labels: labels, value: v, isDynamic: true, rng: b.DefRange()})
+		out = append(out, evaluatedBlock{typ: typ, labels: item.labels, value: v, isDynamic: true, rng: b.DefRange()})
 	}
 
 	return out, diags
+}
+
+// unsupportedSyntax is the error of a body not in the native syntax.
+func unsupportedSyntax() hcl.Diagnostics {
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError, Summary: "Unsupported syntax",
+		Detail: "A resource is written in the native syntax of HCL.",
+	}}
 }
 
 // dynamicLabels evaluates the labels of a dynamic block.

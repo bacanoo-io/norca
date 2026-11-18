@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # Compares the copy of norca's jobspec2 (cli/internal/jobspec2, SOURCE.md)
-# with the norca checkout next to this repository. It fails when a copied
+# and of a file of its resourcespec (cli/internal/resourcespec) with the
+# norca checkout next to this repository. It fails when a copied
 # file differs, or when norca's jobspec2 has a non-test file the copy lacks.
 # NORCA_DIR overrides the place of norca/norca.
 set -euo pipefail
@@ -42,8 +43,18 @@ for f in "$copy"/*.go; do
   fi
 done
 
+# The copied files of norca's resourcespec (cli/internal/resourcespec,
+# SOURCE.md).
+specs="${NORCA_DIR:-$root/../norca/norca}/helper/resourcespec"
+for name in object.go; do
+  if ! cmp -s "$specs/$name" "$root/cli/internal/resourcespec/$name"; then
+    echo "check-copy: resourcespec/$name differs from norca's" >&2
+    status=1
+  fi
+done
+
 if [ "$status" -eq 0 ]; then
-  echo "check-copy: the copy of jobspec2 matches norca"
+  echo "check-copy: the copies of jobspec2 and resourcespec match norca"
 fi
 
 exit "$status"

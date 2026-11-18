@@ -477,7 +477,7 @@ func inputs(values Values) map[string]eval.Input {
 
 // evalConfig is the configuration of an evaluation by the engine.
 func (e *Engine) evalConfig() eval.Config {
-	return eval.Config{FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs}
+	return eval.Config{FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs, Decoder: e.decoder}
 }
 
 // Namespace is the namespace of a release of the stack that names none,

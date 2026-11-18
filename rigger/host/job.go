@@ -61,3 +61,18 @@ type JobDecoder interface {
 	// of the block or attribute they concern.
 	DecodeJob(ctx context.Context, spec JobSpec) (Job, hcl.Diagnostics)
 }
+
+// ResourceDecoder decodes the resources of the kinds whose specification
+// has a file format of the host's own, where the order of blocks counts
+// (the columns of an object kind) and blocks are named as that format names
+// them. The engine gives the block of the resource as it evaluated it,
+// written as HCL in the order of the module, without its meta-arguments and
+// with its dynamic blocks expanded; the decoder returns the resource in its
+// encoding. Kinds the decoder does not name are the value of their block.
+type ResourceDecoder interface {
+	// Kinds are the kinds the decoder decodes.
+	Kinds() []resource.Kind
+	// DecodeResource decodes the block of the resource name of kind, written
+	// in src.
+	DecodeResource(ctx context.Context, kind resource.Kind, name string, src []byte) (json.RawMessage, hcl.Diagnostics)
+}

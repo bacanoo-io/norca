@@ -5,6 +5,7 @@ package eval
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/hashicorp/hcl/v2"
@@ -227,6 +228,10 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 		return e.job(r, body, hook, ctx)
 	}
 
+	if e.cfg.Decoder != nil && slices.Contains(e.cfg.Decoder.Kinds(), r.Type.Kind) {
+		return e.decoded(r, ctx)
+	}
+
 	w := &walker{skip: metaNames}
 
 	v, diags := w.value(r.Block.Body, ctx)
@@ -266,6 +271,33 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 	}
 
 	res.Spec = data
+
+	return res, diags
+}
+
+// decoded evaluates a resource of a kind the host decodes from its block
+// written as HCL (host.ResourceDecoder).
+func (e *evaluator) decoded(r *lang.Resource, ctx *hcl.EvalContext) (Resource, hcl.Diagnostics) {
+	res := Resource{Kind: r.Type.Kind}
+
+	if e.cfg.Test {
+		tw := &walker{skip: metaNames, test: true}
+		res.Value, _ = tw.value(r.Block.Body, ctx)
+	}
+
+	src, diags := renderBlock(r.Block, r.Name, ctx, metaNames)
+	if diags.HasErrors() {
+		return Resource{}, diags
+	}
+
+	spec, moreDiags := e.cfg.Decoder.DecodeResource(e.ctx, r.Type.Kind, r.Name, src)
+	diags = append(diags, moreDiags...)
+
+	if diags.HasErrors() {
+		return Resource{}, diags
+	}
+
+	res.Spec = spec
 
 	return res, diags
 }

@@ -17,7 +17,7 @@ import (
 // Norca: a line per test, the failures under it, and a summary. A failed
 // test is an error.
 func testModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}))
+	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}

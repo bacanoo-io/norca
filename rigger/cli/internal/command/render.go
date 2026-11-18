@@ -87,7 +87,7 @@ func parseRenderFlags(stderr io.Writer, args []string) (*renderFlags, error) {
 // writes its resources and outputs to stdout as JSON. The jobs are decoded
 // with the job decoder of Norca.
 func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *renderFlags) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}))
+	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}

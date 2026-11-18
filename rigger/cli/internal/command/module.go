@@ -79,7 +79,7 @@ func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 // validateModule loads the module in dir and validates it; the examples are
 // rendered with the job decoder of Norca.
 func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}))
+	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}

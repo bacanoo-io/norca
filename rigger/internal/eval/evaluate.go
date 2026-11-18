@@ -30,6 +30,9 @@ type Config struct {
 	Resources int
 	// Jobs decodes the job blocks; nil refuses a module with a job.
 	Jobs host.JobDecoder
+	// Decoder decodes the resources of the kinds it names from their block
+	// written as HCL; nil leaves every other kind the value of its block.
+	Decoder host.ResourceDecoder
 	// Test asks for the values a test reads: Resource.Value and
 	// Result.OutputValues.
 	Test bool

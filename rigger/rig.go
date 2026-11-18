@@ -38,6 +38,7 @@ var ErrInvalidOption = errors.New("rig: invalid option")
 type Engine struct {
 	cluster  host.Cluster
 	jobs     host.JobDecoder
+	decoder  host.ResourceDecoder
 	releases host.Releases
 	secrets  host.Secrets
 	store    host.Store
@@ -97,6 +98,20 @@ func WithJobDecoder(d host.JobDecoder) Option {
 		}
 
 		e.jobs = d
+
+		return nil
+	}
+}
+
+// WithResourceDecoder gives the engine the decoder of the kinds whose
+// specification is a file format of the host (host.ResourceDecoder).
+func WithResourceDecoder(d host.ResourceDecoder) Option {
+	return func(e *Engine) error {
+		if d == nil {
+			return invalid("resource decoder")
+		}
+
+		e.decoder = d
 
 		return nil
 	}
