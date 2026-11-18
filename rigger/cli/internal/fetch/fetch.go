@@ -98,9 +98,9 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 
 		return source.Fetched{FS: os.DirFS(req.Repository), Dir: ".", Origin: origin}, nil
 	case source.KindBuiltin:
-		dir := "modules/" + req.Path
+		dir := path.Clean(req.Path)
 		if _, err := fs.Stat(builtin.FS(), dir+"/metadata.hcl"); err != nil {
-			return source.Fetched{}, fmt.Errorf("rig has no built-in module %s: %w", req.Path, fs.ErrNotExist)
+			return source.Fetched{}, fmt.Errorf("rig has no built-in module %s: %w", path.Base(dir), fs.ErrNotExist)
 		}
 
 		return source.Fetched{FS: builtin.FS(), Dir: dir, Origin: origin}, nil

@@ -149,7 +149,7 @@ func parseScheme(address string) (Request, bool, error) {
 			return Request{}, true, fmt.Errorf("%w: %q", ErrAddress, address)
 		}
 
-		req.Kind, req.Path = KindBuiltin, name
+		req.Kind, req.Path = KindBuiltin, "modules/"+name
 
 		return req, true, nil
 	case strings.HasPrefix(address, "dir://"):
