@@ -1514,7 +1514,7 @@ since 2026-11-14 (`nomadSecret` stays as an alias).
 | 4 | Supply chain: digest, sign, verify, trust, bundle, OCI | air-gapped and signed |
 | 5 | The rest of the modules converted; lab case; `norca-rig-deployer` with the `rig:` section | parity with the packs of today |
 | 6 | The global registry repository: namespaces, keys, generated entries, the checks of entries and of stacks; publish workflow; icons in the UI | public catalog |
-| 7 | Into the products: the server embeds the library (server-side evaluation, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), the deployer and registry branches merged, the pack manager removed | one package manager |
+| 7 | Into the products: the server embeds the library (server-side evaluation of modules and stacks, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), `norca rig` commands, the deployer and registry branches merged, the pack manager removed once the lab is rewritten; the plan: `norca/design/rig-integration.md` | one package manager |
 
 Phase 0 is done (2026-11-18): the ports of section 12.2 as Go, `rig.New`
 with functional options, the log as a tree (section 9.5), the `rig` program
@@ -1838,6 +1838,9 @@ Phase 6 as built (2026-11-18), the global registry:
    this (the CLI module only, never the core): the main module of norca
    for `jobspec2`, its `api` module for the HTTP client, with norca's own
    replacements repeated in `cli/go.mod`.
+   **Confirmed (2026-11-18):** `DecodeJob` is exported from norca's
+   `jobspec2`, Norca uses it for its own package management, and Rig imports
+   it from there (`norca/design/rig-integration.md`, step 4.1).
 5. **Keyless signing.** Decided (2026-11-15): **keys first**; Sigstore later
    as a second signer type.
 6. **Reading the cluster** during evaluation (`data` blocks). Decided
@@ -1861,6 +1864,12 @@ Phase 6 as built (2026-11-18), the global registry:
     (section 12.6), become a thin client of the server, or go? And does the
     deployer send its `rig:` section to the server, or run it through the
     standalone program?
+    **Decided by the maintainer (2026-11-18): both stay.** The server
+    evaluates stacks as well as modules; the norca binary gets `norca rig`
+    commands and norca-rig keeps the `rig` program, both the same command
+    package; Norca uses Rig's fetcher; the pack manager runs beside Rig until
+    the tests of norca-lab are rewritten. The plan of phase 7 is
+    `norca/design/rig-integration.md`.
 13. **Stacks inside stacks.** Decided by the maintainer (2026-11-15): **one
     level.** A local stack may take registry stacks as parts (section 7.5);
     a stack published in a registry uses modules only and includes no other
@@ -1876,8 +1885,8 @@ Phase 6 as built (2026-11-18), the global registry:
     reasons next to the entries; (c) getting listed through an issue form
     and a review.
 
-Open after 2026-11-17: question 11 (a consequence of the development
-order), question 12 (decided at the end).
+Open after 2026-11-18: question 11 (a consequence of the development
+order); question 12 is decided.
 Without a phase yet: evaluation on an observer, apply on the leader (section
 12.7); the audit base module, which sits on the internal bus once Rig is
 embedded (section 12.8).
