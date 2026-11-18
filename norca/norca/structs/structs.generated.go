@@ -227246,9 +227246,9 @@ func (x *SecretEngineOperator) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(2)
+				r.WriteArrayStart(3)
 			} else {
-				r.WriteMapStart(2)
+				r.WriteMapStart(3)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -227301,6 +227301,33 @@ func (x *SecretEngineOperator) CodecEncodeSelf(e *codec1978.Encoder) {
 						r.EncodeStringBytesRaw(z.BytesView(string(x.Namespace)))
 					} else {
 						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Namespace))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.JobID)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.JobID))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"JobID\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `JobID`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.JobID)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.JobID))
 					}
 				}
 			}
@@ -227373,6 +227400,12 @@ func (x *SecretEngineOperator) codecDecodeSelfFromMap(l int, d *codec1978.Decode
 			} else {
 				x.Namespace = (string)(r.DecodeString())
 			}
+		case "JobID":
+			if r.TryDecodeAsNil() {
+				x.JobID = ""
+			} else {
+				x.JobID = (string)(r.DecodeString())
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -227384,16 +227417,16 @@ func (x *SecretEngineOperator) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj6 int
-	var yyb6 bool
-	var yyhl6 bool = l >= 0
-	yyj6++
-	if yyhl6 {
-		yyb6 = yyj6 > l
+	var yyj7 int
+	var yyb7 bool
+	var yyhl7 bool = l >= 0
+	yyj7++
+	if yyhl7 {
+		yyb7 = yyj7 > l
 	} else {
-		yyb6 = r.CheckBreak()
+		yyb7 = r.CheckBreak()
 	}
-	if yyb6 {
+	if yyb7 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -227403,13 +227436,13 @@ func (x *SecretEngineOperator) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.Service = (string)(r.DecodeString())
 	}
-	yyj6++
-	if yyhl6 {
-		yyb6 = yyj6 > l
+	yyj7++
+	if yyhl7 {
+		yyb7 = yyj7 > l
 	} else {
-		yyb6 = r.CheckBreak()
+		yyb7 = r.CheckBreak()
 	}
-	if yyb6 {
+	if yyb7 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -227419,18 +227452,34 @@ func (x *SecretEngineOperator) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
+	yyj7++
+	if yyhl7 {
+		yyb7 = yyj7 > l
+	} else {
+		yyb7 = r.CheckBreak()
+	}
+	if yyb7 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.JobID = ""
+	} else {
+		x.JobID = (string)(r.DecodeString())
+	}
 	for {
-		yyj6++
-		if yyhl6 {
-			yyb6 = yyj6 > l
+		yyj7++
+		if yyhl7 {
+			yyb7 = yyj7 > l
 		} else {
-			yyb6 = r.CheckBreak()
+			yyb7 = r.CheckBreak()
 		}
-		if yyb6 {
+		if yyb7 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj6-1, "")
+		z.DecStructFieldNotFound(yyj7-1, "")
 	}
 	r.ReadArrayEnd()
 }
