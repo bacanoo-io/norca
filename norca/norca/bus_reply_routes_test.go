@@ -77,17 +77,33 @@ func TestBus_ResponderRoute(t *testing.T) {
 	token := cdcTestTokens(t, s1, map[string]string{
 		"bus-app": `bus { publish = ["app.>"] subscribe = ["app.>"] }`,
 	})["bus-app"]
-	nc, _ := busTestConn(t, s1, token)
+	nc, errs := busTestConn(t, s1, token)
 	sub, err := nc.SubscribeSync("app.x")
 	must.NoError(t, err)
 	must.NoError(t, nc.Flush())
 
 	// The connection's own message comes back with the reply subject; then
-	// it publishes to that subject.
+	// it publishes to that subject. Since nats-server v2.15.3 a client may
+	// not name a JetStream subject ($JS.) as the reply of a publish: that
+	// request is refused already, and the server says so.
 	viaReply := func(target string, payload []byte) {
 		t.Helper()
 		must.NoError(t, nc.PublishRequest("app.x", target, []byte("x")))
-		msg, err := sub.NextMsg(5 * time.Second)
+		msg, err := sub.NextMsg(2 * time.Second)
+		if errors.Is(err, nats.ErrTimeout) && strings.HasPrefix(target, "$JS.") {
+			want := strings.ToLower(fmt.Sprintf("Publish with Reply of %q", target))
+			deadline := time.After(5 * time.Second)
+			for {
+				select {
+				case err := <-errs:
+					if strings.Contains(strings.ToLower(err.Error()), want) {
+						return
+					}
+				case <-deadline:
+					t.Fatalf("the request with the reply %s neither came back nor was refused", target)
+				}
+			}
+		}
 		must.NoError(t, err)
 		must.Eq(t, target, msg.Reply)
 		must.NoError(t, nc.Publish(target, payload))

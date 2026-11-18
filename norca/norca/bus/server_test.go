@@ -4,6 +4,7 @@
 package bus
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -388,8 +389,15 @@ func TestBus_StandaloneToCluster(t *testing.T) {
 	}, func(err error) { t.Fatal(err) })
 
 	// The streams of the standalone bus are not carried over; new ones work.
-	_, err = js.Stream(t.Context(), "OLD")
-	must.ErrorIs(t, err, jetstream.ErrStreamNotFound)
+	// Right after the cluster formed, nats-server (v2.15.3) may leave the
+	// first API request from this server unanswered when the meta leader is
+	// the other server: asked again with a short timeout.
+	testutil.WaitForResult(func() (bool, error) {
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		_, err := js.Stream(ctx, "OLD")
+		return errors.Is(err, jetstream.ErrStreamNotFound), fmt.Errorf("the stream OLD: %v", err)
+	}, func(err error) { t.Fatal(err) })
 	createStream(t, js, jetstream.StreamConfig{Name: "NEW", Subjects: []string{"new.>"}, Replicas: 2})
 
 	// The key-value buckets of the standalone store can be read from the
