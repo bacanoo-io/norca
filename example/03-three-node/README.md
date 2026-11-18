@@ -224,10 +224,15 @@ metrics-store`, the **Scaling** page of the web UI).
 (cd ../../../norca-platform && go build -o norca-loadbalancer ./cmd/norca-loadbalancer)
 sudo install ../../../norca-platform/norca-loadbalancer /usr/local/bin/   # on every node
 
+# The operators run in a namespace of their own, which no pack owns: the
+# teams of apps can't exec into them or change their jobs.
+norca namespace apply -description "Norca operators" norca-system
+
 # One release: object kind, ACL policy bound to the controller job,
-# admission policy and the controller job (two instances, leader election).
-norca pack run loadbalancer-operator --registry=norca --name=lb --namespace=apps --var namespace=apps
-norca pack history lb --namespace=apps
+# admission policy and the controller job (two instances, leader election,
+# exec driver), watching the LoadBalancer objects of apps.
+norca pack run loadbalancer-operator --registry=norca --name=lb --namespace=norca-system --var watch_namespace=apps
+norca pack history lb --namespace=norca-system
 
 norca object-kind list
 norca object apply lb-test-app.hcl
@@ -285,7 +290,7 @@ NATS with JetStream: see the openobserve pack's README.
 norca pack uninstall otel-collector --namespace=observability
 norca pack uninstall openobserve --namespace=observability
 norca object delete norca.io/LoadBalancer test-app -namespace apps
-norca pack uninstall lb --namespace=apps
+norca pack uninstall lb --namespace=norca-system
 norca job stop -namespace apps -purge probe
 norca pack uninstall test-api --namespace=apps
 norca pack uninstall test-app --namespace=apps
