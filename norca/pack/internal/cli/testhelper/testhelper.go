@@ -265,9 +265,9 @@ func mTLSFixturePath(nodeType, pemType string) string {
 	case "cafile":
 		filename = "norca-agent-ca.pem"
 	case "certfile":
-		filename = fmt.Sprintf("global-%s-nomad-0.pem", nodeType)
+		filename = fmt.Sprintf("global-%s-norca-0.pem", nodeType)
 	case "keyfile":
-		filename = fmt.Sprintf("global-%s-nomad-0-key.pem", nodeType)
+		filename = fmt.Sprintf("global-%s-norca-0-key.pem", nodeType)
 	}
 
 	return testfixture.MustAbsPath(path.Join("mtls", filename))
