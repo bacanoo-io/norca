@@ -504,6 +504,12 @@ each names the failing test and its output before the change.
 | `2208fffc9`, `8120ebe8f` | `command/agent/agent.go`, `command/agent/config.go`, `norca/config.go` | The server options `object_tombstone_gc_threshold` and `replication_backoff` (not fixes: new Norca options) |
 | `95462090d` | `norca/state/state_store.go` | `BlockingQuery` on an abandoned store waits for its context instead of running the query again in a busy loop (after a snapshot restore the leader's watchers spun until their restart and starved Raft on a slow server) |
 | `44e1f9faa`, `487e7ac95` | `command/job_stop_test.go`, `norca/event_endpoint_test.go` | Tests only: `TestStopCommand_multi` waits for the client node; `TestEventStream_ACLTokenExpiry` publishes until the stream closes |
+| `666939a30` | `norca/state/state_store.go` | `ACLPolicyByJob` looks the policies bound to a job up by its exact ID, not by prefix (the allocations of a job `ctr` got the policies bound to `ctrl`) |
+| `bf1913261` | `norca/acl.go`, `norca/job_endpoint.go` | `Job.Register` (and so revert, release apply and restore) changes a job with ACL policies bound to it only with a token that holds them, or a management token; the job ID of the bound policies (the parent's for a child) comes from one helper shared with `resolvePoliciesForClaims` |
+| `8b03060de` | `client/alloc_endpoint.go`, `norca/client_alloc_endpoint.go` | An exec into an allocation whose job has ACL policies bound to it needs a token that holds them, asked of the servers (refused when they can't answer) |
+| `a20739414`, `bfda2b1a6` | `client/rpc.go`, `client/client.go` | A client RPC cut off by the shutdown returns an error instead of nil; an RPC waits for the node registration at most `RPCHoldTimeout`; the heartbeat, node event and alloc sync loops stop at the shutdown |
+| `518bd87fe` | `norca/node_endpoint.go`, `norca/alloc_endpoint.go`, `norca/csi_endpoint.go`, `norca/service_registration_endpoint.go` | The RPCs of nodes stay in their region: a request that names another region is refused, and with `verify_server_hostname` a node RPC needs a certificate of the server's own region |
+| `ee7784a54` | `norca/rpc_test.go` | Tests only: which certificates may register a new node over TLS |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
