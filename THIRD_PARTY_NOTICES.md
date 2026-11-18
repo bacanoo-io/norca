@@ -46,7 +46,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/ProtonMail/go-crypto](#go-github-com-protonmail-go-crypto-v1-1-6) | v1.1.6 | BSD-3-Clause | norca |
 | [github.com/VividCortex/ewma](#go-github-com-vividcortex-ewma-v1-1-1) | v1.1.1 | MIT | norca |
 | [github.com/agext/levenshtein](#go-github-com-agext-levenshtein-v1-2-1) | v1.2.1 | Apache-2.0 | norca |
-| [github.com/antithesishq/antithesis-sdk-go](#go-github-com-antithesishq-antithesis-sdk-go-v0-8-0-default-no-op) | v0.8.0-default-no-op | MIT | norca |
+| [github.com/antithesishq/antithesis-sdk-go](#go-github-com-antithesishq-antithesis-sdk-go-v0-9-0-default-no-op) | v0.9.0-default-no-op | MIT | norca |
 | [github.com/antlr4-go/antlr/v4](#go-github-com-antlr4-go-antlr-v4-v4-13-1) | v4.13.1 | BSD-3-Clause | norca |
 | [github.com/aperturerobotics/protobuf-go-lite](#go-github-com-aperturerobotics-protobuf-go-lite-v0-14-0) | v0.14.0 | BSD-3-Clause | norca |
 | [github.com/apparentlymart/go-cidr](#go-github-com-apparentlymart-go-cidr-v1-0-1) | v1.0.1 | MIT | norca |
@@ -205,7 +205,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/joyent/triton-go](#go-github-com-joyent-triton-go-v0-0-0-20190112182421-51ffac552869) | v0.0.0-20190112182421-51ffac552869 | MPL-2.0 | norca |
 | [github.com/json-iterator/go](#go-github-com-json-iterator-go-v1-1-12) | v1.1.12 | MIT | norca |
 | [github.com/kevinburke/ssh\_config](#go-github-com-kevinburke-ssh-config-v1-2-0) | v1.2.0 | MIT | norca |
-| [github.com/klauspost/compress](#go-github-com-klauspost-compress-v1-20-0) | v1.20.0 | Apache-2.0 AND BSD-3-Clause AND MIT | norca |
+| [github.com/klauspost/compress](#go-github-com-klauspost-compress-v1-20-4) | v1.20.4 | Apache-2.0 AND BSD-3-Clause AND MIT | norca |
 | [github.com/klauspost/cpuid/v2](#go-github-com-klauspost-cpuid-v2-v2-4-0) | v2.4.0 | MIT | norca |
 | [github.com/klauspost/crc32](#go-github-com-klauspost-crc32-v1-3-0) | v1.3.0 | BSD-3-Clause | norca |
 | [github.com/kr/pretty](#go-github-com-kr-pretty-v0-3-1) | v0.3.1 | MIT | norca |
@@ -250,10 +250,10 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/muesli/reflow](#go-github-com-muesli-reflow-v0-3-0) | v0.3.0 | MIT | norca |
 | [github.com/munnerz/goautoneg](#go-github-com-munnerz-goautoneg-v0-0-0-20191010083416-a7dc8b61c822) | v0.0.0-20191010083416-a7dc8b61c822 | BSD-3-Clause | norca |
 | [github.com/nakabonne/tstorage](#go-github-com-nakabonne-tstorage-v0-3-6) | v0.3.6 (source copy in norca/internal/tstorage) | Apache-2.0 AND BSD-2-Clause | norca |
-| [github.com/nats-io/jwt/v2](#go-github-com-nats-io-jwt-v2-v2-8-2) | v2.8.2 | Apache-2.0 | norca |
-| [github.com/nats-io/nats-server/v2](#go-github-com-nats-io-nats-server-v2-v2-15-0) | v2.15.0 | Apache-2.0 | norca |
-| [github.com/nats-io/nats.go](#go-github-com-nats-io-nats-go-v1-54-0) | v1.54.0 | Apache-2.0 | norca |
-| [github.com/nats-io/nkeys](#go-github-com-nats-io-nkeys-v0-4-16) | v0.4.16 | Apache-2.0 | norca |
+| [github.com/nats-io/jwt/v2](#go-github-com-nats-io-jwt-v2-v2-8-3) | v2.8.3 | Apache-2.0 | norca |
+| [github.com/nats-io/nats-server/v2](#go-github-com-nats-io-nats-server-v2-v2-15-3) | v2.15.3 | Apache-2.0 | norca |
+| [github.com/nats-io/nats.go](#go-github-com-nats-io-nats-go-v1-55-0) | v1.55.0 | Apache-2.0 | norca |
+| [github.com/nats-io/nkeys](#go-github-com-nats-io-nkeys-v0-4-17) | v0.4.17 | Apache-2.0 | norca |
 | [github.com/nats-io/nuid](#go-github-com-nats-io-nuid-v1-0-1) | v1.0.1 | Apache-2.0 | norca |
 | [github.com/nicolai86/scaleway-sdk](#go-github-com-nicolai86-scaleway-sdk-v1-10-2-0-20180628010248-798f60e20bb2) | v1.10.2-0.20180628010248-798f60e20bb2 | MIT | norca |
 | [github.com/oklog/run](#go-github-com-oklog-run-v1-1-0) | v1.1.0 | Apache-2.0 | norca |
@@ -328,14 +328,14 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [go.opentelemetry.io/otel/sdk/metric](#go-go-opentelemetry-io-otel-sdk-metric-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/trace](#go-go-opentelemetry-io-otel-trace-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.yaml.in/yaml/v3](#go-go-yaml-in-yaml-v3-v3-0-5) | v3.0.5 | Apache-2.0 AND MIT | norca |
-| [golang.org/x/crypto](#go-golang-org-x-crypto-v0-57-0) | v0.57.0 | BSD-3-Clause | norca |
+| [golang.org/x/crypto](#go-golang-org-x-crypto-v0-58-0) | v0.58.0 | BSD-3-Clause | norca |
 | [golang.org/x/exp](#go-golang-org-x-exp-v0-0-0-20240823005443-9b4947da3948) | v0.0.0-20240823005443-9b4947da3948 | BSD-3-Clause | norca |
 | [golang.org/x/net](#go-golang-org-x-net-v0-60-0) | v0.60.0 | BSD-3-Clause | norca |
 | [golang.org/x/oauth2](#go-golang-org-x-oauth2-v0-36-0) | v0.36.0 | BSD-3-Clause | norca |
-| [golang.org/x/sync](#go-golang-org-x-sync-v0-23-0) | v0.23.0 | BSD-3-Clause | norca |
-| [golang.org/x/sys](#go-golang-org-x-sys-v0-48-0) | v0.48.0 | BSD-3-Clause | norca |
-| [golang.org/x/term](#go-golang-org-x-term-v0-46-0) | v0.46.0 | BSD-3-Clause | norca |
-| [golang.org/x/text](#go-golang-org-x-text-v0-42-0) | v0.42.0 | BSD-3-Clause | norca |
+| [golang.org/x/sync](#go-golang-org-x-sync-v0-24-0) | v0.24.0 | BSD-3-Clause | norca |
+| [golang.org/x/sys](#go-golang-org-x-sys-v0-50-0) | v0.50.0 | BSD-3-Clause | norca |
+| [golang.org/x/term](#go-golang-org-x-term-v0-47-0) | v0.47.0 | BSD-3-Clause | norca |
+| [golang.org/x/text](#go-golang-org-x-text-v0-43-0) | v0.43.0 | BSD-3-Clause | norca |
 | [golang.org/x/time](#go-golang-org-x-time-v0-16-0) | v0.16.0 | BSD-3-Clause | norca |
 | [google.golang.org/api](#go-google-golang-org-api-v0-278-0) | v0.278.0 | BSD-3-Clause | norca |
 | [google.golang.org/genproto](#go-google-golang-org-genproto-v0-0-0-20260319201613-d00831a3d3e7) | v0.0.0-20260319201613-d00831a3d3e7 | Apache-2.0 | norca |
@@ -1540,9 +1540,9 @@ This product includes software developed at ALRUX Inc.
 (http://www.alrux.com/).
 ```
 
-<a id="go-github-com-antithesishq-antithesis-sdk-go-v0-8-0-default-no-op"></a>
+<a id="go-github-com-antithesishq-antithesis-sdk-go-v0-9-0-default-no-op"></a>
 
-### github.com/antithesishq/antithesis-sdk-go v0.8.0-default-no-op
+### github.com/antithesishq/antithesis-sdk-go v0.9.0-default-no-op
 
 - License: MIT
 - Used in: norca
@@ -2975,9 +2975,9 @@ This source code includes following third party code
 - Used in: norca
 - `LICENSE`: [license text 109](#license-text-109)
 
-<a id="go-github-com-klauspost-compress-v1-20-0"></a>
+<a id="go-github-com-klauspost-compress-v1-20-4"></a>
 
-### github.com/klauspost/compress v1.20.0
+### github.com/klauspost/compress v1.20.4
 
 - License: Apache-2.0 AND BSD-3-Clause AND MIT
 - Used in: norca
@@ -3399,33 +3399,33 @@ This product contains a modified part of go-tsz, distributed by dgryski:
   * Homepage: https://github.com/dgryski/go-tsz
 ```
 
-<a id="go-github-com-nats-io-jwt-v2-v2-8-2"></a>
+<a id="go-github-com-nats-io-jwt-v2-v2-8-3"></a>
 
-### github.com/nats-io/jwt/v2 v2.8.2
-
-- License: Apache-2.0
-- Used in: norca
-- `LICENSE`: [license text 2](#license-text-2)
-
-<a id="go-github-com-nats-io-nats-server-v2-v2-15-0"></a>
-
-### github.com/nats-io/nats-server/v2 v2.15.0
+### github.com/nats-io/jwt/v2 v2.8.3
 
 - License: Apache-2.0
 - Used in: norca
 - `LICENSE`: [license text 2](#license-text-2)
 
-<a id="go-github-com-nats-io-nats-go-v1-54-0"></a>
+<a id="go-github-com-nats-io-nats-server-v2-v2-15-3"></a>
 
-### github.com/nats-io/nats.go v1.54.0
+### github.com/nats-io/nats-server/v2 v2.15.3
 
 - License: Apache-2.0
 - Used in: norca
 - `LICENSE`: [license text 2](#license-text-2)
 
-<a id="go-github-com-nats-io-nkeys-v0-4-16"></a>
+<a id="go-github-com-nats-io-nats-go-v1-55-0"></a>
 
-### github.com/nats-io/nkeys v0.4.16
+### github.com/nats-io/nats.go v1.55.0
+
+- License: Apache-2.0
+- Used in: norca
+- `LICENSE`: [license text 2](#license-text-2)
+
+<a id="go-github-com-nats-io-nkeys-v0-4-17"></a>
+
+### github.com/nats-io/nkeys v0.4.17
 
 - License: Apache-2.0
 - Used in: norca
@@ -4168,9 +4168,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="go-golang-org-x-crypto-v0-57-0"></a>
+<a id="go-golang-org-x-crypto-v0-58-0"></a>
 
-### golang.org/x/crypto v0.57.0
+### golang.org/x/crypto v0.58.0
 
 - License: BSD-3-Clause
 - Used in: norca
@@ -4200,33 +4200,33 @@ limitations under the License.
 - Used in: norca
 - `LICENSE`: [license text 1](#license-text-1)
 
-<a id="go-golang-org-x-sync-v0-23-0"></a>
+<a id="go-golang-org-x-sync-v0-24-0"></a>
 
-### golang.org/x/sync v0.23.0
-
-- License: BSD-3-Clause
-- Used in: norca
-- `LICENSE`: [license text 1](#license-text-1)
-
-<a id="go-golang-org-x-sys-v0-48-0"></a>
-
-### golang.org/x/sys v0.48.0
+### golang.org/x/sync v0.24.0
 
 - License: BSD-3-Clause
 - Used in: norca
 - `LICENSE`: [license text 1](#license-text-1)
 
-<a id="go-golang-org-x-term-v0-46-0"></a>
+<a id="go-golang-org-x-sys-v0-50-0"></a>
 
-### golang.org/x/term v0.46.0
+### golang.org/x/sys v0.50.0
 
 - License: BSD-3-Clause
 - Used in: norca
 - `LICENSE`: [license text 1](#license-text-1)
 
-<a id="go-golang-org-x-text-v0-42-0"></a>
+<a id="go-golang-org-x-term-v0-47-0"></a>
 
-### golang.org/x/text v0.42.0
+### golang.org/x/term v0.47.0
+
+- License: BSD-3-Clause
+- Used in: norca
+- `LICENSE`: [license text 1](#license-text-1)
+
+<a id="go-golang-org-x-text-v0-43-0"></a>
+
+### golang.org/x/text v0.43.0
 
 - License: BSD-3-Clause
 - Used in: norca
@@ -11965,7 +11965,7 @@ The Apache Software Foundation (https://www.apache.org/).
 
 ### License text 1
 
-Used by: Go standard library , filippo.io/hpke v0.4.0, golang.org/x/crypto v0.57.0, golang.org/x/exp v0.0.0-20240823005443-9b4947da3948, golang.org/x/net v0.60.0, golang.org/x/oauth2 v0.36.0, golang.org/x/sync v0.23.0, golang.org/x/sys v0.48.0, golang.org/x/term v0.46.0, golang.org/x/text v0.42.0, golang.org/x/time v0.16.0
+Used by: Go standard library , filippo.io/hpke v0.4.0, golang.org/x/crypto v0.58.0, golang.org/x/exp v0.0.0-20240823005443-9b4947da3948, golang.org/x/net v0.60.0, golang.org/x/oauth2 v0.36.0, golang.org/x/sync v0.24.0, golang.org/x/sys v0.50.0, golang.org/x/term v0.47.0, golang.org/x/text v0.43.0, golang.org/x/time v0.16.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -12001,7 +12001,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 2
 
-Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.14, github.com/containernetworking/cni v1.3.1, github.com/containernetworking/plugins v1.9.1, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.1.3, github.com/google/flatbuffers v25.2.10+incompatible, github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/minio/crc64nvme v1.1.1, github.com/minio/highwayhash v1.0.4, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nakabonne/tstorage v0.3.6, github.com/nats-io/jwt/v2 v2.8.2, github.com/nats-io/nats-server/v2 v2.15.0, github.com/nats-io/nats.go v1.54.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.24.1, github.com/prometheus/client\_model v0.6.3, github.com/prometheus/common v0.71.0, github.com/prometheus/procfs v0.21.1, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, baseline-browser-mapping 2.11.28, workerpool 3.1.2
+Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.14, github.com/containernetworking/cni v1.3.1, github.com/containernetworking/plugins v1.9.1, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.1.3, github.com/google/flatbuffers v25.2.10+incompatible, github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/minio/crc64nvme v1.1.1, github.com/minio/highwayhash v1.0.4, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nakabonne/tstorage v0.3.6, github.com/nats-io/jwt/v2 v2.8.3, github.com/nats-io/nats-server/v2 v2.15.3, github.com/nats-io/nats.go v1.55.0, github.com/nats-io/nkeys v0.4.17, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.24.1, github.com/prometheus/client\_model v0.6.3, github.com/prometheus/common v0.71.0, github.com/prometheus/procfs v0.21.1, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, baseline-browser-mapping 2.11.28, workerpool 3.1.2
 
 ```text
                                  Apache License
@@ -12785,7 +12785,7 @@ THE SOFTWARE.
 
 ### License text 16
 
-Used by: github.com/antithesishq/antithesis-sdk-go v0.8.0-default-no-op
+Used by: github.com/antithesishq/antithesis-sdk-go v0.9.0-default-no-op
 
 ```text
 MIT License
@@ -13683,7 +13683,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### License text 32
 
-Used by: github.com/cespare/xxhash/v2 v2.3.0, github.com/klauspost/compress v1.20.0
+Used by: github.com/cespare/xxhash/v2 v2.3.0, github.com/klauspost/compress v1.20.4
 
 ```text
 Copyright (c) 2016 Caleb Spare
@@ -17948,7 +17948,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 73
 
-Used by: github.com/golang/snappy v0.0.4, github.com/klauspost/compress v1.20.0
+Used by: github.com/golang/snappy v0.0.4, github.com/klauspost/compress v1.20.4
 
 ```text
 Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
@@ -24134,7 +24134,7 @@ SOFTWARE.
 
 ### License text 110
 
-Used by: github.com/klauspost/compress v1.20.0
+Used by: github.com/klauspost/compress v1.20.4
 
 ```text
 Copyright (c) 2012 The Go Authors. All rights reserved.
@@ -24447,7 +24447,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### License text 111
 
-Used by: github.com/klauspost/compress v1.20.0
+Used by: github.com/klauspost/compress v1.20.4
 
 ```text
 Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
