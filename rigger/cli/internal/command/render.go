@@ -92,7 +92,11 @@ func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 		return err
 	}
 
-	m, diags := eng.LoadModule(ctx, os.DirFS(f.dir))
+	m, diags, err := loadModule(ctx, eng, f.dir)
+	if err != nil {
+		return err
+	}
+
 	if diags.HasErrors() {
 		return reportDiags(stderr, f.dir, diags)
 	}

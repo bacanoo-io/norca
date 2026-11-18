@@ -11,10 +11,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
 
 	rig "github.com/bacanoo-io/norca-rig"
+	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
 )
 
 // errReported is the error of a command that has written its diagnostics
@@ -65,23 +68,19 @@ func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	}
 }
 
-// validateModule loads the module in dir and validates it.
+// validateModule loads the module in dir and validates it; the examples are
+// rendered with the job decoder of Norca.
 func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rig.New(rig.WithLogger(logger))
+	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}))
 	if err != nil {
 		return err
 	}
 
-	info, err := os.Stat(dir)
+	m, diags, err := loadModule(ctx, eng, dir)
 	if err != nil {
 		return err
 	}
 
-	if !info.IsDir() {
-		return fmt.Errorf("%s is not a directory", dir)
-	}
-
-	m, diags := eng.LoadModule(ctx, os.DirFS(dir))
 	if !diags.HasErrors() {
 		diags = append(diags, eng.ValidateModule(ctx, m)...)
 	}
@@ -102,6 +101,55 @@ func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 	return err
 }
 
+// loadModule loads the module in dir, with the root it may read child
+// modules from: the git repository dir is in, or dir alone outside one.
+func loadModule(ctx context.Context, eng *rig.Engine, dir string) (*rig.Module, hcl.Diagnostics, error) {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !info.IsDir() {
+		return nil, nil, fmt.Errorf("%s is not a directory", dir)
+	}
+
+	root, rel, err := moduleRoot(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	m, diags := eng.LoadModuleAt(ctx, os.DirFS(root), rel)
+
+	return m, diags, nil
+}
+
+// moduleRoot returns the root of the module in dir, and the directory of
+// the module in it, slash separated.
+func moduleRoot(dir string) (root, rel string, err error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", "", err
+	}
+
+	for d := abs; ; {
+		if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
+			rel, err := filepath.Rel(d, abs)
+			if err != nil {
+				return "", "", err
+			}
+
+			return d, filepath.ToSlash(rel), nil
+		}
+
+		parent := filepath.Dir(d)
+		if parent == d {
+			return abs, ".", nil
+		}
+
+		d = parent
+	}
+}
+
 // writeDiags writes diagnostics for a person, with the lines of the files
 // they name, which are relative to dir.
 func writeDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
@@ -113,33 +161,36 @@ func writeDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 }
 
 // sources reads the files diagnostics name, for the lines they show: the
-// files of the module inside dir, the files of values inside the working
-// directory. A file that can't be read is shown without its lines.
+// files of the module and of its children, named from dir, inside the root
+// of the module; the files of values inside the working directory. A file
+// that can't be read is shown without its lines.
 func sources(dir string, diags hcl.Diagnostics) map[string]*hcl.File {
 	files := map[string]*hcl.File{}
 
-	for _, d := range []string{dir, "."} {
-		readSources(files, d, diags)
+	if root, rel, err := moduleRoot(dir); err == nil {
+		readSources(files, root, rel, diags)
 	}
+
+	readSources(files, ".", ".", diags)
 
 	return files
 }
 
-// readSources reads into files the files of diags that are inside dir and
-// not read yet.
-func readSources(files map[string]*hcl.File, dir string, diags hcl.Diagnostics) {
-	root, err := os.OpenRoot(dir)
+// readSources reads into files the files of diags not read yet, named from
+// the directory rel of root, if they are inside root.
+func readSources(files map[string]*hcl.File, root, rel string, diags hcl.Diagnostics) {
+	r, err := os.OpenRoot(root)
 	if err != nil {
 		return
 	}
-	defer root.Close() //nolint:errcheck // read only: closing can lose nothing
+	defer r.Close() //nolint:errcheck // read only: closing can lose nothing
 
 	for _, d := range diags {
 		if d.Subject == nil || files[d.Subject.Filename] != nil {
 			continue
 		}
 
-		if src, err := root.ReadFile(d.Subject.Filename); err == nil {
+		if src, err := r.ReadFile(path.Join(rel, d.Subject.Filename)); err == nil {
 			files[d.Subject.Filename] = &hcl.File{Bytes: src}
 		}
 	}
