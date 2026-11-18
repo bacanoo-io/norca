@@ -495,6 +495,12 @@ type ServerConfig struct {
 	// the source of truth for global tokens and ACL policies.
 	AuthoritativeRegion string `hcl:"authoritative_region"`
 
+	// ReplicationBackoff is how long the replication from the authoritative
+	// region (ACL objects, namespaces, node pools, quotas, secrets) waits
+	// after a failure before it tries again, and at most between two tries
+	// of a namespace deletion this region refused (Norca). Default 30s.
+	ReplicationBackoff string `hcl:"replication_backoff"`
+
 	// BootstrapExpect tries to automatically bootstrap the Consul cluster,
 	// by withholding peers until enough servers join.
 	BootstrapExpect int `hcl:"bootstrap_expect"`
@@ -2139,6 +2145,9 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	}
 	if b.AuthoritativeRegion != "" {
 		result.AuthoritativeRegion = b.AuthoritativeRegion
+	}
+	if b.ReplicationBackoff != "" {
+		result.ReplicationBackoff = b.ReplicationBackoff
 	}
 	if b.BootstrapExpect > 0 {
 		result.BootstrapExpect = b.BootstrapExpect

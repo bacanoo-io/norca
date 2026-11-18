@@ -1758,3 +1758,37 @@ func TestAgent_ServerConfig_JobDefaultPriority_Bad(t *testing.T) {
 		})
 	}
 }
+
+// replication_backoff sets how long the replication waits after a failure
+// and between the tries of a refused namespace deletion; it must be
+// positive.
+func TestAgent_ServerConfig_ReplicationBackoff(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		value string
+		want  time.Duration
+		err   string
+	}{
+		{value: "", want: 30 * time.Second},
+		{value: "45s", want: 45 * time.Second},
+		{value: "0s", err: "replication_backoff should be greater than 0s"},
+		{value: "-5s", err: "replication_backoff should be greater than 0s"},
+		{value: "soon", err: "replication_backoff"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.value, func(t *testing.T) {
+			conf := DevConfig(nil)
+			must.NoError(t, conf.normalizeAddrs())
+			conf.Server.ReplicationBackoff = tc.value
+
+			serverConf, err := convertServerConfig(conf)
+			if tc.err != "" {
+				must.ErrorContains(t, err, tc.err)
+				return
+			}
+			must.NoError(t, err)
+			must.Eq(t, tc.want, serverConf.ReplicationBackoff)
+		})
+	}
+}

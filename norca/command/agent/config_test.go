@@ -138,6 +138,7 @@ func TestConfig_Merge(t *testing.T) {
 		Server: &ServerConfig{
 			Enabled:                false,
 			AuthoritativeRegion:    "global",
+			ReplicationBackoff:     "30s",
 			BootstrapExpect:        1,
 			DataDir:                "/tmp/data1",
 			ProtocolVersion:        1,
@@ -345,6 +346,7 @@ func TestConfig_Merge(t *testing.T) {
 		Server: &ServerConfig{
 			Enabled:                true,
 			AuthoritativeRegion:    "global2",
+			ReplicationBackoff:     "45s",
 			BootstrapExpect:        2,
 			DataDir:                "/tmp/data2",
 			ProtocolVersion:        2,

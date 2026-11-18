@@ -193,6 +193,15 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 	} else if agentConfig.Region != "" {
 		conf.AuthoritativeRegion = agentConfig.Region
 	}
+	if backoff := agentConfig.Server.ReplicationBackoff; backoff != "" {
+		dur, err := time.ParseDuration(backoff)
+		if err != nil {
+			return nil, fmt.Errorf("replication_backoff: %w", err)
+		} else if dur <= 0 {
+			return nil, fmt.Errorf("replication_backoff should be greater than 0s")
+		}
+		conf.ReplicationBackoff = dur
+	}
 
 	if agentConfig.Datacenter != "" {
 		conf.Datacenter = agentConfig.Datacenter

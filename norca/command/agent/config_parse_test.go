@@ -99,6 +99,7 @@ var basicConfig = &Config{
 	Server: &ServerConfig{
 		Enabled:                   true,
 		AuthoritativeRegion:       "foobar",
+		ReplicationBackoff:        "45s",
 		BootstrapExpect:           5,
 		DataDir:                   "/tmp/data",
 		RaftMultiplier:            pointer.Of(4),
