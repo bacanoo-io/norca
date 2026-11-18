@@ -4,7 +4,10 @@
 
 package api
 
-import "time"
+import (
+	"net/url"
+	"time"
+)
 
 const (
 	// ScalingPolicyTypeHorizontal indicates a policy that does horizontal scaling.
@@ -32,7 +35,7 @@ func (s *Scaling) ListPolicies(q *QueryOptions) ([]*ScalingPolicyListStub, *Quer
 
 func (s *Scaling) GetPolicy(id string, q *QueryOptions) (*ScalingPolicy, *QueryMeta, error) {
 	var policy ScalingPolicy
-	qm, err := s.client.query("/v1/scaling/policy/"+id, &policy, q)
+	qm, err := s.client.query("/v1/scaling/policy/"+url.PathEscape(id), &policy, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -44,7 +47,7 @@ func (s *Scaling) GetPolicy(id string, q *QueryOptions) (*ScalingPolicy, *QueryM
 // evaluated since the leader was elected, and for a policy of another engine.
 func (s *Scaling) GetPolicyStatus(id string, q *QueryOptions) (*ScalingPolicyStatus, *QueryMeta, error) {
 	var status *ScalingPolicyStatus
-	qm, err := s.client.query("/v1/scaling/policy/"+id+"/status", &status, q)
+	qm, err := s.client.query("/v1/scaling/policy/"+url.PathEscape(id)+"/status", &status, q)
 	if err != nil {
 		return nil, nil, err
 	}

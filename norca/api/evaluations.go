@@ -4,6 +4,7 @@
 package api
 
 import (
+	"net/url"
 	"sort"
 	"time"
 )
@@ -46,7 +47,7 @@ func (e *Evaluations) Count(q *QueryOptions) (*EvalCountResponse, *QueryMeta, er
 // Info is used to query a single evaluation by its ID.
 func (e *Evaluations) Info(evalID string, q *QueryOptions) (*Evaluation, *QueryMeta, error) {
 	var resp Evaluation
-	qm, err := e.client.query("/v1/evaluation/"+evalID, &resp, q)
+	qm, err := e.client.query("/v1/evaluation/"+url.PathEscape(evalID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,7 +80,7 @@ func (e *Evaluations) DeleteOpts(req *EvalDeleteRequest, w *WriteOptions) (*Eval
 // an evaluation ID.
 func (e *Evaluations) Allocations(evalID string, q *QueryOptions) ([]*AllocationListStub, *QueryMeta, error) {
 	var resp []*AllocationListStub
-	qm, err := e.client.query("/v1/evaluation/"+evalID+"/allocations", &resp, q)
+	qm, err := e.client.query("/v1/evaluation/"+url.PathEscape(evalID)+"/allocations", &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}

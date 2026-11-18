@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func (a *Allocations) PrefixList(prefix string) ([]*AllocationListStub, *QueryMe
 // Info is used to retrieve a single allocation.
 func (a *Allocations) Info(allocID string, q *QueryOptions) (*Allocation, *QueryMeta, error) {
 	var resp Allocation
-	qm, err := a.client.query("/v1/allocation/"+allocID, &resp, q)
+	qm, err := a.client.query("/v1/allocation/"+url.PathEscape(allocID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -119,7 +120,7 @@ func (a *Allocations) Exec(ctx context.Context,
 // long pauses on this API call.
 func (a *Allocations) Stats(alloc *Allocation, q *QueryOptions) (*AllocResourceUsage, error) {
 	var resp AllocResourceUsage
-	_, err := a.client.query("/v1/client/allocation/"+alloc.ID+"/stats", &resp, q)
+	_, err := a.client.query("/v1/client/allocation/"+url.PathEscape(alloc.ID)+"/stats", &resp, q)
 	return &resp, err
 }
 
@@ -130,7 +131,7 @@ func (a *Allocations) Stats(alloc *Allocation, q *QueryOptions) (*AllocResourceU
 // long pauses on this API call.
 func (a *Allocations) Checks(allocID string, q *QueryOptions) (AllocCheckStatuses, error) {
 	var resp AllocCheckStatuses
-	_, err := a.client.query("/v1/client/allocation/"+allocID+"/checks", &resp, q)
+	_, err := a.client.query("/v1/client/allocation/"+url.PathEscape(allocID)+"/checks", &resp, q)
 	return resp, err
 }
 
@@ -141,7 +142,7 @@ func (a *Allocations) Checks(allocID string, q *QueryOptions) (AllocCheckStatuse
 // long pauses on this API call.
 func (a *Allocations) GC(alloc *Allocation, q *QueryOptions) error {
 	var resp struct{}
-	_, err := a.client.query("/v1/client/allocation/"+alloc.ID+"/gc", &resp, nil)
+	_, err := a.client.query("/v1/client/allocation/"+url.PathEscape(alloc.ID)+"/gc", &resp, nil)
 	return err
 }
 
@@ -158,7 +159,7 @@ func (a *Allocations) Restart(alloc *Allocation, taskName string, q *QueryOption
 	}
 
 	var resp struct{}
-	_, err := a.client.putQuery("/v1/client/allocation/"+alloc.ID+"/restart", &req, &resp, q)
+	_, err := a.client.putQuery("/v1/client/allocation/"+url.PathEscape(alloc.ID)+"/restart", &req, &resp, q)
 	return err
 }
 
@@ -176,7 +177,7 @@ func (a *Allocations) RestartAllTasks(alloc *Allocation, q *QueryOptions) error 
 	}
 
 	var resp struct{}
-	_, err := a.client.putQuery("/v1/client/allocation/"+alloc.ID+"/restart", &req, &resp, q)
+	_, err := a.client.putQuery("/v1/client/allocation/"+url.PathEscape(alloc.ID)+"/restart", &req, &resp, q)
 	return err
 }
 
@@ -202,7 +203,7 @@ func (a *Allocations) Stop(alloc *Allocation, q *QueryOptions) (*AllocStopRespon
 	}
 
 	var resp AllocStopResponse
-	wm, err := a.client.put("/v1/allocation/"+alloc.ID+"/stop", nil, &resp, w)
+	wm, err := a.client.put("/v1/allocation/"+url.PathEscape(alloc.ID)+"/stop", nil, &resp, w)
 	if wm != nil {
 		resp.LastIndex = wm.LastIndex
 		resp.RequestTime = wm.RequestTime
@@ -231,7 +232,7 @@ func (a *Allocations) Signal(alloc *Allocation, q *QueryOptions, task, signal st
 	}
 
 	var resp GenericResponse
-	_, err := a.client.putQuery("/v1/client/allocation/"+alloc.ID+"/signal", &req, &resp, q)
+	_, err := a.client.putQuery("/v1/client/allocation/"+url.PathEscape(alloc.ID)+"/signal", &req, &resp, q)
 	return err
 }
 
@@ -239,7 +240,7 @@ func (a *Allocations) Signal(alloc *Allocation, q *QueryOptions, task, signal st
 // specified allocID.
 func (a *Allocations) Services(allocID string, q *QueryOptions) ([]*ServiceRegistration, *QueryMeta, error) {
 	var resp []*ServiceRegistration
-	qm, err := a.client.query("/v1/allocation/"+allocID+"/services", &resp, q)
+	qm, err := a.client.query("/v1/allocation/"+url.PathEscape(allocID)+"/services", &resp, q)
 	return resp, qm, err
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -78,7 +79,7 @@ func (a *AllocFS) List(alloc *Allocation, path string, q *QueryOptions) ([]*Allo
 	q.Params["path"] = path
 
 	var resp []*AllocFileInfo
-	qm, err := a.client.query(fmt.Sprintf("/v1/client/fs/ls/%s", alloc.ID), &resp, q)
+	qm, err := a.client.query(fmt.Sprintf("/v1/client/fs/ls/%s", url.PathEscape(alloc.ID)), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,7 +102,7 @@ func (a *AllocFS) Stat(alloc *Allocation, path string, q *QueryOptions) (*AllocF
 	q.Params["path"] = path
 
 	var resp AllocFileInfo
-	qm, err := a.client.query(fmt.Sprintf("/v1/client/fs/stat/%s", alloc.ID), &resp, q)
+	qm, err := a.client.query(fmt.Sprintf("/v1/client/fs/stat/%s", url.PathEscape(alloc.ID)), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -114,7 +115,7 @@ func (a *AllocFS) Stat(alloc *Allocation, path string, q *QueryOptions) (*AllocF
 // Nomad clients, set api.ClientConnTimeout to a small value (ex 1ms) to avoid
 // long pauses on this API call.
 func (a *AllocFS) ReadAt(alloc *Allocation, path string, offset int64, limit int64, q *QueryOptions) (io.ReadCloser, error) {
-	reqPath := fmt.Sprintf("/v1/client/fs/readat/%s", alloc.ID)
+	reqPath := fmt.Sprintf("/v1/client/fs/readat/%s", url.PathEscape(alloc.ID))
 
 	return queryClientNode(a.client, alloc, reqPath, q,
 		func(q *QueryOptions) {
@@ -130,7 +131,7 @@ func (a *AllocFS) ReadAt(alloc *Allocation, path string, offset int64, limit int
 // Nomad clients, set api.ClientConnTimeout to a small value (ex 1ms) to avoid
 // long pauses on this API call.
 func (a *AllocFS) Cat(alloc *Allocation, path string, q *QueryOptions) (io.ReadCloser, error) {
-	reqPath := fmt.Sprintf("/v1/client/fs/cat/%s", alloc.ID)
+	reqPath := fmt.Sprintf("/v1/client/fs/cat/%s", url.PathEscape(alloc.ID))
 	return queryClientNode(a.client, alloc, reqPath, q,
 		func(q *QueryOptions) {
 			q.Params["path"] = path
@@ -154,7 +155,7 @@ func (a *AllocFS) Stream(alloc *Allocation, path, origin string, offset int64,
 
 	errCh := make(chan error, 1)
 
-	reqPath := fmt.Sprintf("/v1/client/fs/stream/%s", alloc.ID)
+	reqPath := fmt.Sprintf("/v1/client/fs/stream/%s", url.PathEscape(alloc.ID))
 	r, err := queryClientNode(a.client, alloc, reqPath, q,
 		func(q *QueryOptions) {
 			q.Params["path"] = path
@@ -262,7 +263,7 @@ func (a *AllocFS) Logs(alloc *Allocation, follow bool, task, logType, origin str
 
 	errCh := make(chan error, 1)
 
-	reqPath := fmt.Sprintf("/v1/client/fs/logs/%s", alloc.ID)
+	reqPath := fmt.Sprintf("/v1/client/fs/logs/%s", url.PathEscape(alloc.ID))
 	r, err := queryClientNode(a.client, alloc, reqPath, q,
 		func(q *QueryOptions) {
 			q.Params["follow"] = strconv.FormatBool(follow)

@@ -418,7 +418,7 @@ func (a *Agent) pprofRequest(req string, opts PprofOptions, q *QueryOptions) ([]
 	q.Params["node_id"] = opts.NodeID
 	q.Params["server_id"] = opts.ServerID
 
-	body, err := a.client.rawQuery(fmt.Sprintf("/v1/agent/pprof/%s", req), q)
+	body, err := a.client.rawQuery(fmt.Sprintf("/v1/agent/pprof/%s", url.PathEscape(req)), q)
 	if err != nil {
 		return nil, err
 	}

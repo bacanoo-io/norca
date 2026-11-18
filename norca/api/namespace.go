@@ -5,6 +5,7 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 )
 
@@ -43,7 +44,7 @@ func (n *Namespaces) PrefixList(prefix string, q *QueryOptions) ([]*Namespace, *
 // Info is used to query a single namespace by its name.
 func (n *Namespaces) Info(name string, q *QueryOptions) (*Namespace, *QueryMeta, error) {
 	var resp Namespace
-	qm, err := n.client.query("/v1/namespace/"+name, &resp, q)
+	qm, err := n.client.query("/v1/namespace/"+url.PathEscape(name), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,7 +62,7 @@ func (n *Namespaces) Register(namespace *Namespace, q *WriteOptions) (*WriteMeta
 
 // Delete is used to delete a namespace
 func (n *Namespaces) Delete(namespace string, q *WriteOptions) (*WriteMeta, error) {
-	wm, err := n.client.delete(fmt.Sprintf("/v1/namespace/%s", namespace), nil, nil, q)
+	wm, err := n.client.delete(fmt.Sprintf("/v1/namespace/%s", url.PathEscape(namespace)), nil, nil, q)
 	if err != nil {
 		return nil, err
 	}

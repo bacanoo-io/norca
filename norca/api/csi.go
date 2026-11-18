@@ -66,7 +66,7 @@ func (v *CSIVolumes) PluginList(pluginID string) ([]*CSIVolumeListStub, *QueryMe
 // Info is used to retrieve a single CSIVolume
 func (v *CSIVolumes) Info(id string, q *QueryOptions) (*CSIVolume, *QueryMeta, error) {
 	var resp CSIVolume
-	qm, err := v.client.query("/v1/volume/csi/"+id, &resp, q)
+	qm, err := v.client.query("/v1/volume/csi/"+url.PathEscape(id), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -80,7 +80,7 @@ func (v *CSIVolumes) Register(vol *CSIVolume, w *WriteOptions) (*WriteMeta, erro
 	req := CSIVolumeRegisterRequest{
 		Volumes: []*CSIVolume{vol},
 	}
-	meta, err := v.client.put("/v1/volume/csi/"+vol.ID, req, nil, w)
+	meta, err := v.client.put("/v1/volume/csi/"+url.PathEscape(vol.ID), req, nil, w)
 	return meta, err
 }
 
@@ -99,7 +99,7 @@ func (v *CSIVolumes) Create(vol *CSIVolume, w *WriteOptions) ([]*CSIVolume, *Wri
 	}
 
 	resp := &CSIVolumeCreateResponse{}
-	meta, err := v.client.put(fmt.Sprintf("/v1/volume/csi/%v/create", vol.ID), req, resp, w)
+	meta, err := v.client.put(fmt.Sprintf("/v1/volume/csi/%v/create", url.PathEscape(vol.ID)), req, resp, w)
 	return resp.Volumes, meta, err
 }
 
@@ -648,13 +648,13 @@ func (v *CSIPlugins) Capacity(id string, req *CSIPluginCapacityRequest, w *Write
 		req = &CSIPluginCapacityRequest{}
 	}
 	var resp *CSIPluginCapacity
-	_, err := v.client.put("/v1/plugin/csi/"+id+"/capacity", req, &resp, w)
+	_, err := v.client.put("/v1/plugin/csi/"+url.PathEscape(id)+"/capacity", req, &resp, w)
 	return resp, err
 }
 
 func (v *CSIPlugins) Info(id string, q *QueryOptions) (*CSIPlugin, *QueryMeta, error) {
 	var resp *CSIPlugin
-	qm, err := v.client.query("/v1/plugin/csi/"+id, &resp, q)
+	qm, err := v.client.query("/v1/plugin/csi/"+url.PathEscape(id), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}

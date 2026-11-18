@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"time"
@@ -65,7 +66,7 @@ func (n *Nodes) PrefixListOpts(prefix string, opts *QueryOptions) ([]*NodeListSt
 // Info is used to query a specific node by its ID.
 func (n *Nodes) Info(nodeID string, q *QueryOptions) (*Node, *QueryMeta, error) {
 	var resp Node
-	qm, err := n.client.query("/v1/node/"+nodeID, &resp, q)
+	qm, err := n.client.query("/v1/node/"+url.PathEscape(nodeID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,7 +140,7 @@ func (n *Nodes) UpdateDrainOpts(nodeID string, opts *DrainOptions, q *WriteOptio
 	}
 
 	var resp NodeDrainUpdateResponse
-	wm, err := n.client.put("/v1/node/"+nodeID+"/drain", req, &resp, q)
+	wm, err := n.client.put("/v1/node/"+url.PathEscape(nodeID)+"/drain", req, &resp, q)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +424,7 @@ func (n *Nodes) ToggleEligibility(nodeID string, eligible bool, q *WriteOptions)
 	}
 
 	var resp NodeEligibilityUpdateResponse
-	wm, err := n.client.put("/v1/node/"+nodeID+"/eligibility", req, &resp, q)
+	wm, err := n.client.put("/v1/node/"+url.PathEscape(nodeID)+"/eligibility", req, &resp, q)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +435,7 @@ func (n *Nodes) ToggleEligibility(nodeID string, eligible bool, q *WriteOptions)
 // Allocations is used to return the allocations associated with a node.
 func (n *Nodes) Allocations(nodeID string, q *QueryOptions) ([]*Allocation, *QueryMeta, error) {
 	var resp []*Allocation
-	qm, err := n.client.query("/v1/node/"+nodeID+"/allocations", &resp, q)
+	qm, err := n.client.query("/v1/node/"+url.PathEscape(nodeID)+"/allocations", &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -455,7 +456,7 @@ func (n *Nodes) CSIVolumes(nodeID string, q *QueryOptions) ([]*CSIVolumeListStub
 // ForceEvaluate is used to force-evaluate an existing node.
 func (n *Nodes) ForceEvaluate(nodeID string, q *WriteOptions) (string, *WriteMeta, error) {
 	var resp nodeEvalResponse
-	wm, err := n.client.put("/v1/node/"+nodeID+"/evaluate", nil, &resp, q)
+	wm, err := n.client.put("/v1/node/"+url.PathEscape(nodeID)+"/evaluate", nil, &resp, q)
 	if err != nil {
 		return "", nil, err
 	}
@@ -480,7 +481,7 @@ func (n *Nodes) GC(nodeID string, q *QueryOptions) error {
 
 // TODO Add tests
 func (n *Nodes) GcAlloc(allocID string, q *QueryOptions) error {
-	path := fmt.Sprintf("/v1/client/allocation/%s/gc", allocID)
+	path := fmt.Sprintf("/v1/client/allocation/%s/gc", url.PathEscape(allocID))
 	_, err := n.client.query(path, nil, q)
 	return err
 }
@@ -489,7 +490,7 @@ func (n *Nodes) GcAlloc(allocID string, q *QueryOptions) error {
 // they are alive.
 func (n *Nodes) Purge(nodeID string, q *QueryOptions) (*NodePurgeResponse, *QueryMeta, error) {
 	var resp NodePurgeResponse
-	path := fmt.Sprintf("/v1/node/%s/purge", nodeID)
+	path := fmt.Sprintf("/v1/node/%s/purge", url.PathEscape(nodeID))
 	qm, err := n.client.putQuery(path, nil, &resp, q)
 	if err != nil {
 		return nil, nil, err

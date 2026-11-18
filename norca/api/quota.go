@@ -6,6 +6,7 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 )
 
@@ -66,7 +67,7 @@ func (q *Quotas) PrefixListUsage(prefix string, qo *QueryOptions) ([]*QuotaUsage
 // Info is used to query a single quota spec by its name.
 func (q *Quotas) Info(name string, qo *QueryOptions) (*QuotaSpec, *QueryMeta, error) {
 	var resp QuotaSpec
-	qm, err := q.client.query("/v1/quota/"+name, &resp, qo)
+	qm, err := q.client.query("/v1/quota/"+url.PathEscape(name), &resp, qo)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -76,7 +77,7 @@ func (q *Quotas) Info(name string, qo *QueryOptions) (*QuotaSpec, *QueryMeta, er
 // Usage is used to query a single quota usage by its name.
 func (q *Quotas) Usage(name string, qo *QueryOptions) (*QuotaUsage, *QueryMeta, error) {
 	var resp QuotaUsage
-	qm, err := q.client.query("/v1/quota/usage/"+name, &resp, qo)
+	qm, err := q.client.query("/v1/quota/usage/"+url.PathEscape(name), &resp, qo)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,7 +95,7 @@ func (q *Quotas) Register(spec *QuotaSpec, qo *WriteOptions) (*WriteMeta, error)
 
 // Delete is used to delete a quota spec
 func (q *Quotas) Delete(quota string, qo *WriteOptions) (*WriteMeta, error) {
-	wm, err := q.client.delete(fmt.Sprintf("/v1/quota/%s", quota), nil, nil, qo)
+	wm, err := q.client.delete(fmt.Sprintf("/v1/quota/%s", url.PathEscape(quota)), nil, nil, qo)
 	if err != nil {
 		return nil, err
 	}

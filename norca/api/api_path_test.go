@@ -87,3 +87,30 @@ func TestClient_DotSegmentsRefused(t *testing.T) {
 	must.Eq(t, []string{"GET /v1/job/web/api", "GET /v1/job/a..b", "GET /v1/job/"}, got)
 	mu.Unlock()
 }
+
+// An identifier with "?", "#" or "%" stays part of the path: the request
+// names the object the caller named, instead of another one, or failing
+// to parse (review finding SEC-28).
+func TestClient_IdentifierIsEscaped(t *testing.T) {
+	testutil.Parallel(t)
+	c, requests := recordingServer(t, `{}`)
+
+	_, _, err := c.ACLPolicies().Info("ops?x=1", nil)
+	must.NoError(t, err)
+	_, _, err = c.Nodes().Info("node%1", nil)
+	must.NoError(t, err)
+	// the recording server answers {}, not a list: only the request counts
+	_, _, _ = c.Evaluations().Allocations("eval#1", nil)
+	_, err = c.Namespaces().Delete("team?a", nil)
+	must.NoError(t, err)
+	_, _, err = c.Deployments().Fail("dep?1", nil)
+	must.NoError(t, err)
+
+	must.Eq(t, []string{
+		"GET /v1/acl/policy/ops%3Fx=1",
+		"GET /v1/node/node%251",
+		"GET /v1/evaluation/eval%231/allocations",
+		"DELETE /v1/namespace/team%3Fa",
+		"PUT /v1/deployment/fail/dep%3F1",
+	}, requests())
+}

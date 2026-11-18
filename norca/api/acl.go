@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func (a *ACLPolicies) Upsert(policy *ACLPolicy, q *WriteOptions) (*WriteMeta, er
 	if policy == nil || policy.Name == "" {
 		return nil, errors.New("missing policy name")
 	}
-	wm, err := a.client.put("/v1/acl/policy/"+policy.Name, policy, nil, q)
+	wm, err := a.client.put("/v1/acl/policy/"+url.PathEscape(policy.Name), policy, nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func (a *ACLPolicies) Delete(policyName string, q *WriteOptions) (*WriteMeta, er
 	if policyName == "" {
 		return nil, errors.New("missing policy name")
 	}
-	wm, err := a.client.delete("/v1/acl/policy/"+policyName, nil, nil, q)
+	wm, err := a.client.delete("/v1/acl/policy/"+url.PathEscape(policyName), nil, nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func (a *ACLPolicies) Info(policyName string, q *QueryOptions) (*ACLPolicy, *Que
 		return nil, nil, errors.New("missing policy name")
 	}
 	var resp ACLPolicy
-	wm, err := a.client.query("/v1/acl/policy/"+policyName, &resp, q)
+	wm, err := a.client.query("/v1/acl/policy/"+url.PathEscape(policyName), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -134,7 +135,7 @@ func (a *ACLTokens) Update(token *ACLToken, q *WriteOptions) (*ACLToken, *WriteM
 		return nil, nil, errors.New("missing accessor ID")
 	}
 	var resp ACLToken
-	wm, err := a.client.put("/v1/acl/token/"+token.AccessorID,
+	wm, err := a.client.put("/v1/acl/token/"+url.PathEscape(token.AccessorID),
 		token, &resp, q)
 	if err != nil {
 		return nil, nil, err
@@ -147,7 +148,7 @@ func (a *ACLTokens) Delete(accessorID string, q *WriteOptions) (*WriteMeta, erro
 	if accessorID == "" {
 		return nil, errors.New("missing accessor ID")
 	}
-	wm, err := a.client.delete("/v1/acl/token/"+accessorID, nil, nil, q)
+	wm, err := a.client.delete("/v1/acl/token/"+url.PathEscape(accessorID), nil, nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func (a *ACLTokens) Info(accessorID string, q *QueryOptions) (*ACLToken, *QueryM
 		return nil, nil, errors.New("missing accessor ID")
 	}
 	var resp ACLToken
-	wm, err := a.client.query("/v1/acl/token/"+accessorID, &resp, q)
+	wm, err := a.client.query("/v1/acl/token/"+url.PathEscape(accessorID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -260,7 +261,7 @@ func (a *ACLRoles) Update(role *ACLRole, w *WriteOptions) (*ACLRole, *WriteMeta,
 		return nil, nil, errMissingACLRoleID
 	}
 	var resp ACLRole
-	wm, err := a.client.put("/v1/acl/role/"+role.ID, role, &resp, w)
+	wm, err := a.client.put("/v1/acl/role/"+url.PathEscape(role.ID), role, &resp, w)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,7 +273,7 @@ func (a *ACLRoles) Delete(roleID string, w *WriteOptions) (*WriteMeta, error) {
 	if roleID == "" {
 		return nil, errMissingACLRoleID
 	}
-	wm, err := a.client.delete("/v1/acl/role/"+roleID, nil, nil, w)
+	wm, err := a.client.delete("/v1/acl/role/"+url.PathEscape(roleID), nil, nil, w)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +286,7 @@ func (a *ACLRoles) Get(roleID string, q *QueryOptions) (*ACLRole, *QueryMeta, er
 		return nil, nil, errMissingACLRoleID
 	}
 	var resp ACLRole
-	qm, err := a.client.query("/v1/acl/role/"+roleID, &resp, q)
+	qm, err := a.client.query("/v1/acl/role/"+url.PathEscape(roleID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -298,7 +299,7 @@ func (a *ACLRoles) GetByName(roleName string, q *QueryOptions) (*ACLRole, *Query
 		return nil, nil, errors.New("missing ACL role name")
 	}
 	var resp ACLRole
-	qm, err := a.client.query("/v1/acl/role/name/"+roleName, &resp, q)
+	qm, err := a.client.query("/v1/acl/role/name/"+url.PathEscape(roleName), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -345,7 +346,7 @@ func (a *ACLAuthMethods) Update(authMethod *ACLAuthMethod, w *WriteOptions) (*AC
 		return nil, nil, errMissingACLAuthMethodName
 	}
 	var resp ACLAuthMethod
-	wm, err := a.client.put("/v1/acl/auth-method/"+authMethod.Name, authMethod, &resp, w)
+	wm, err := a.client.put("/v1/acl/auth-method/"+url.PathEscape(authMethod.Name), authMethod, &resp, w)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -357,7 +358,7 @@ func (a *ACLAuthMethods) Delete(authMethodName string, w *WriteOptions) (*WriteM
 	if authMethodName == "" {
 		return nil, errMissingACLAuthMethodName
 	}
-	wm, err := a.client.delete("/v1/acl/auth-method/"+authMethodName, nil, nil, w)
+	wm, err := a.client.delete("/v1/acl/auth-method/"+url.PathEscape(authMethodName), nil, nil, w)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +371,7 @@ func (a *ACLAuthMethods) Get(authMethodName string, q *QueryOptions) (*ACLAuthMe
 		return nil, nil, errMissingACLAuthMethodName
 	}
 	var resp ACLAuthMethod
-	qm, err := a.client.query("/v1/acl/auth-method/"+authMethodName, &resp, q)
+	qm, err := a.client.query("/v1/acl/auth-method/"+url.PathEscape(authMethodName), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -414,7 +415,7 @@ func (a *ACLBindingRules) Update(bindingRule *ACLBindingRule, w *WriteOptions) (
 		return nil, nil, errMissingACLBindingRuleID
 	}
 	var resp ACLBindingRule
-	wm, err := a.client.put("/v1/acl/binding-rule/"+bindingRule.ID, bindingRule, &resp, w)
+	wm, err := a.client.put("/v1/acl/binding-rule/"+url.PathEscape(bindingRule.ID), bindingRule, &resp, w)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -426,7 +427,7 @@ func (a *ACLBindingRules) Delete(bindingRuleID string, w *WriteOptions) (*WriteM
 	if bindingRuleID == "" {
 		return nil, errMissingACLBindingRuleID
 	}
-	wm, err := a.client.delete("/v1/acl/binding-rule/"+bindingRuleID, nil, nil, w)
+	wm, err := a.client.delete("/v1/acl/binding-rule/"+url.PathEscape(bindingRuleID), nil, nil, w)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +440,7 @@ func (a *ACLBindingRules) Get(bindingRuleID string, q *QueryOptions) (*ACLBindin
 		return nil, nil, errMissingACLBindingRuleID
 	}
 	var resp ACLBindingRule
-	qm, err := a.client.query("/v1/acl/binding-rule/"+bindingRuleID, &resp, q)
+	qm, err := a.client.query("/v1/acl/binding-rule/"+url.PathEscape(bindingRuleID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}

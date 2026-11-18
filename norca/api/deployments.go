@@ -5,6 +5,7 @@
 package api
 
 import (
+	"net/url"
 	"sort"
 	"time"
 )
@@ -37,7 +38,7 @@ func (d *Deployments) PrefixList(prefix string) ([]*Deployment, *QueryMeta, erro
 // Info is used to query a single deployment by its ID.
 func (d *Deployments) Info(deploymentID string, q *QueryOptions) (*Deployment, *QueryMeta, error) {
 	var resp Deployment
-	qm, err := d.client.query("/v1/deployment/"+deploymentID, &resp, q)
+	qm, err := d.client.query("/v1/deployment/"+url.PathEscape(deploymentID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -48,7 +49,7 @@ func (d *Deployments) Info(deploymentID string, q *QueryOptions) (*Deployment, *
 // deployment
 func (d *Deployments) Allocations(deploymentID string, q *QueryOptions) ([]*AllocationListStub, *QueryMeta, error) {
 	var resp []*AllocationListStub
-	qm, err := d.client.query("/v1/deployment/allocations/"+deploymentID, &resp, q)
+	qm, err := d.client.query("/v1/deployment/allocations/"+url.PathEscape(deploymentID), &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -62,7 +63,7 @@ func (d *Deployments) Fail(deploymentID string, q *WriteOptions) (*DeploymentUpd
 	req := &DeploymentFailRequest{
 		DeploymentID: deploymentID,
 	}
-	wm, err := d.client.put("/v1/deployment/fail/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/fail/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -76,7 +77,7 @@ func (d *Deployments) Pause(deploymentID string, pause bool, q *WriteOptions) (*
 		DeploymentID: deploymentID,
 		Pause:        pause,
 	}
-	wm, err := d.client.put("/v1/deployment/pause/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/pause/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,7 +91,7 @@ func (d *Deployments) PromoteAll(deploymentID string, q *WriteOptions) (*Deploym
 		DeploymentID: deploymentID,
 		All:          true,
 	}
-	wm, err := d.client.put("/v1/deployment/promote/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/promote/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +105,7 @@ func (d *Deployments) PromoteGroups(deploymentID string, groups []string, q *Wri
 		DeploymentID: deploymentID,
 		Groups:       groups,
 	}
-	wm, err := d.client.put("/v1/deployment/promote/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/promote/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,7 +118,7 @@ func (d *Deployments) Unblock(deploymentID string, q *WriteOptions) (*Deployment
 	req := &DeploymentUnblockRequest{
 		DeploymentID: deploymentID,
 	}
-	wm, err := d.client.put("/v1/deployment/unblock/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/unblock/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -130,7 +131,7 @@ func (d *Deployments) Run(deploymentID string, q *WriteOptions) (*DeploymentUpda
 	req := &DeploymentRunRequest{
 		DeploymentID: deploymentID,
 	}
-	wm, err := d.client.put("/v1/deployment/run/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/run/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -146,7 +147,7 @@ func (d *Deployments) SetAllocHealth(deploymentID string, healthy, unhealthy []s
 		HealthyAllocationIDs:   healthy,
 		UnhealthyAllocationIDs: unhealthy,
 	}
-	wm, err := d.client.put("/v1/deployment/allocation-health/"+deploymentID, req, &resp, q)
+	wm, err := d.client.put("/v1/deployment/allocation-health/"+url.PathEscape(deploymentID), req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -95,7 +96,7 @@ func (s *execSession) startConnection() (*websocket.Conn, error) {
 	q.Params["task"] = s.task
 	q.Params["command"] = string(commandBytes)
 
-	reqPath := fmt.Sprintf("/v1/client/allocation/%s/exec", s.alloc.ID)
+	reqPath := fmt.Sprintf("/v1/client/allocation/%s/exec", url.PathEscape(s.alloc.ID))
 
 	var conn *websocket.Conn
 
