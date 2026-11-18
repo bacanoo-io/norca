@@ -3422,6 +3422,64 @@ func TestFSM_DeleteServiceRegistrationsByID(t *testing.T) {
 	assert.NotNil(t, out)
 }
 
+// TestFSM_UpsertServiceRegistrations_OwnerNode: registrations sent by a
+// client node replace neither an external service nor a registration of
+// another node, whatever the state was when the servers checked them
+// (review finding JOG-13); the servers' own writes are not limited.
+func TestFSM_UpsertServiceRegistrations_OwnerNode(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+
+	const nodeID = "node-a"
+	existing := mock.ServiceRegistrations()
+	existing[0].External = &structs.ServiceExternal{Kind: structs.ExternalServiceKindAddress}
+	existing[1].NodeID = "node-b"
+	must.NoError(t, fsm.State().UpsertServiceRegistrations(structs.MsgTypeTestSetup, 10, existing))
+
+	apply := func(owner string, regs ...*structs.ServiceRegistration) any {
+		req := structs.ServiceRegistrationUpsertRequest{Services: regs, OwnerNodeID: owner}
+		buf, err := structs.Encode(structs.ServiceRegistrationUpsertRequestType, req)
+		must.NoError(t, err)
+		return fsm.Apply(makeLog(buf))
+	}
+	ofNode := func(reg *structs.ServiceRegistration) *structs.ServiceRegistration {
+		reg = reg.Copy()
+		reg.External = nil
+		reg.NodeID = nodeID
+		reg.Port++
+		return reg
+	}
+	get := func(reg *structs.ServiceRegistration) *structs.ServiceRegistration {
+		out, err := fsm.State().GetServiceRegistrationByID(nil, reg.Namespace, reg.ID)
+		must.NoError(t, err)
+		return out
+	}
+
+	// neither the external service nor the other node's registration is
+	// replaced, and nothing of the batch is written
+	fresh := ofNode(existing[0])
+	fresh.ID = "fresh"
+	for _, reg := range existing {
+		resp := apply(nodeID, fresh, ofNode(reg))
+		err, _ := resp.(error)
+		must.Error(t, err)
+		must.Eq(t, reg.Port, get(reg).Port)
+		must.Nil(t, get(fresh))
+	}
+
+	// registrations of the node itself are written
+	must.Nil(t, apply(nodeID, fresh))
+	must.NotNil(t, get(fresh))
+	again := fresh.Copy()
+	again.Port++
+	must.Nil(t, apply(nodeID, again))
+	must.Eq(t, again.Port, get(fresh).Port)
+
+	// the servers' own writes are not limited
+	must.Nil(t, apply("", ofNode(existing[1])))
+	must.Eq(t, nodeID, get(existing[1]).NodeID)
+}
+
 // TestFSM_DeleteServiceRegistrationsByID_RefuseExternal: a deletion checked
 // as one of a registration that is not external does not delete an external
 // service (review finding JOG-11); the external services delete theirs

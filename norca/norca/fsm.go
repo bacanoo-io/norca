@@ -2283,6 +2283,23 @@ func (n *nomadFSM) applyUpsertServiceRegistrations(msgType structs.MessageType, 
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
+	// Registrations of a client node replace neither an external service
+	// nor a registration of another node. The servers checked that before
+	// the write; the FSM applies one entry at a time, so this check holds
+	// for the write below.
+	if req.OwnerNodeID != "" {
+		for _, reg := range req.Services {
+			existing, err := n.state.GetServiceRegistrationByID(nil, reg.Namespace, reg.ID)
+			if err != nil {
+				return err
+			}
+			if existing.IsExternal() || (existing != nil && existing.NodeID != req.OwnerNodeID) {
+				return fmt.Errorf("service registration %q of node %q would replace one it does not own",
+					reg.ID, req.OwnerNodeID)
+			}
+		}
+	}
+
 	if err := n.state.UpsertServiceRegistrations(msgType, index, req.Services); err != nil {
 		n.logger.Error("UpsertServiceRegistrations failed", "error", err)
 		return err

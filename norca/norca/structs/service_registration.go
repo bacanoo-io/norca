@@ -248,6 +248,14 @@ func (s *ServiceRegistration) HashWith(key string) string {
 // more service registrations.
 type ServiceRegistrationUpsertRequest struct {
 	Services []*ServiceRegistration
+
+	// OwnerNodeID is the client node that sent the registrations, set by
+	// the servers (ServiceRegistration.Upsert) after checking them; the
+	// write then fails if one of them would replace an external service
+	// or a registration of another node. Empty for the registrations the
+	// servers write themselves.
+	OwnerNodeID string
+
 	WriteRequest
 }
 

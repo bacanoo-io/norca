@@ -142,7 +142,9 @@ func (s *ServiceRegistration) Upsert(
 		return nil
 	}
 
-	// Update via Raft.
+	// Update via Raft. The write fails if a registration would replace one
+	// the node does not own that appeared since checkNodeServices.
+	args.OwnerNodeID = node.ID
 	_, index, err := s.srv.raftApply(structs.ServiceRegistrationUpsertRequestType, args)
 	if err != nil {
 		return err
