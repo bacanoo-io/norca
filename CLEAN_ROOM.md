@@ -502,6 +502,8 @@ each names the failing test and its output before the change.
 | `ae29b547b`, `24a953b7f`, `bbf481076` | `api/api.go`, `api/acl.go`, `api/agent.go`, `api/allocations.go`, `api/allocations_exec.go`, `api/csi.go`, `api/deployments.go`, `api/evaluations.go`, `api/fs.go`, `api/jobs.go`, `api/namespace.go`, `api/nodes.go`, `api/quota.go`, `api/scaling.go` | A request path with a `.` or `..` segment or an inner empty one is refused; identifiers and query values are escaped |
 | `19db8e73c` | `norca/state/schema.go` | An index of jobs by their Norca owner (not a fix: one index entry for the owner lookup) |
 | `2208fffc9`, `8120ebe8f` | `command/agent/agent.go`, `command/agent/config.go`, `norca/config.go` | The server options `object_tombstone_gc_threshold` and `replication_backoff` (not fixes: new Norca options) |
+| `95462090d` | `norca/state/state_store.go` | `BlockingQuery` on an abandoned store waits for its context instead of running the query again in a busy loop (after a snapshot restore the leader's watchers spun until their restart and starved Raft on a slow server) |
+| `44e1f9faa`, `487e7ac95` | `command/job_stop_test.go`, `norca/event_endpoint_test.go` | Tests only: `TestStopCommand_multi` waits for the client node; `TestEventStream_ACLTokenExpiry` publishes until the stream closes |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
