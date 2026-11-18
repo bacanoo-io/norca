@@ -251,6 +251,7 @@ plugin { policy = "read" }`)
 
 	// With the volume right the same deletions go through, and the
 	// dependents go with their owners: the volumes and the snapshots too.
+	shopName := volumeRequestName(c.object(structs.OperatorsGroup, csiVolumeRequestKind, "shop-data"))
 	must.NoError(t, writer.deleteWith(structs.OperatorsGroup, csiVolumeRequestKind, "vol", ""))
 	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "shop", ""))
 	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "app", structs.ObjectPropagationForeground))
@@ -260,7 +261,7 @@ plugin { policy = "read" }`)
 	c.waitGone(testOwnerGroup, testOwnerKind, "app")
 	must.Nil(t, c.volume("shop-data"))
 	must.Nil(t, c.volume("app-data"))
-	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-shop-data"}, f.deletes) })
+	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-" + shopName}, f.deletes) })
 	must.Eq(t, []string{"snap-weekly-1", "snap-weekly-2"}, snapshots.existing())
 
 	weekly := c.object(structs.OperatorsGroup, volumeSnapshotScheduleKind, "weekly")
@@ -339,6 +340,7 @@ func TestObjectGC_KeepsDependentsNobodyWasCheckedFor(t *testing.T) {
 	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "checked", map[string]any{}))
 	finalizers("checked", []string{"example.com/hold"}, nil)
 	c.volumeRequestOwnedBy("named", "delete", database("checked"))
+	namedName := volumeRequestName(c.object(structs.OperatorsGroup, csiVolumeRequestKind, "named"))
 	must.NoError(t, c.deleteWith(testOwnerGroup, testOwnerKind, "checked", ""))
 	marked := c.object(testOwnerGroup, testOwnerKind, "checked")
 	must.Eq(t, []string{c.object(structs.OperatorsGroup, csiVolumeRequestKind, "named").ID}, marked.DeletionApproved)
@@ -346,7 +348,7 @@ func TestObjectGC_KeepsDependentsNobodyWasCheckedFor(t *testing.T) {
 	c.waitGone(structs.OperatorsGroup, csiVolumeRequestKind, "named")
 	must.Nil(t, c.volume("named"))
 
-	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-named"}, f.deletes) })
+	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-" + namedName}, f.deletes) })
 }
 
 // ownedJob registers a job of the default namespace whose meta names an

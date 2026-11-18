@@ -11,6 +11,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/dustin/go-humanize"
@@ -19,7 +20,7 @@ import (
 // volumeRequestSpec is the spec of a CSIVolumeRequest object. The name of
 // the object is the ID of the volume in its namespace; the name of the
 // volume (what the plugin creates it by) is display_name, or
-// <namespace>-<name> of the object.
+// <namespace>-<name>-<8 hex digits of the object ID> (volumeRequestName).
 type volumeRequestSpec struct {
 	PluginID        string                      `json:"plugin_id"`
 	Mode            string                      `json:"mode"`
@@ -192,14 +193,29 @@ func (s *volumeRequestSpec) validate() error {
 	return nil
 }
 
+// volumeRequestNamePrefixMax is how much of <namespace>-<name> the name of a
+// volume begins with. With the ID part a name is at most 73 bytes: CSI
+// limits its strings to 128.
+const volumeRequestNamePrefixMax = 64
+
 // volumeRequestName is the name of the volume of a request that gives none
-// (display_name). A plugin creates a volume by its name, and answers a
-// second create of the same name with the volume of the first (the name is
-// the idempotency key of CSI CreateVolume): the name has the namespace in
-// it, so that requests of the same name in two namespaces don't get one
-// volume of the storage.
+// (display_name): <namespace>-<name>-<the first 8 hex digits of the object
+// ID>, of <namespace>-<name> at most its first 64 bytes. A plugin creates a
+// volume by its name, and answers a second create of the same name with the
+// volume of the first (the name is the idempotency key of CSI
+// CreateVolume): the part of the ID keeps the names of two requests apart,
+// also when their namespaces and names join to the same text ("a-b"/"c"
+// and "a"/"b-c"), as snapshotName does for snapshots.
 func volumeRequestName(obj *structs.CustomObject) string {
-	return obj.Namespace + "-" + obj.Name
+	prefix := obj.Namespace + "-" + obj.Name
+	if len(prefix) > volumeRequestNamePrefixMax {
+		prefix = prefix[:volumeRequestNamePrefixMax]
+	}
+	id := strings.ReplaceAll(obj.ID, "-", "")
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	return prefix + "-" + id
 }
 
 // makes reports whether vol is the volume the request makes: of its plugin

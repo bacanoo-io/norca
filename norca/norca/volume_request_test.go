@@ -6,11 +6,13 @@ package norca
 import (
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/csi"
@@ -166,6 +168,15 @@ func (c *certTest) waitRequest(name, what string, cond func(*structs.CustomObjec
 	return st
 }
 
+// volumeName returns the name the volume of a request in the namespace
+// default gets when the request gives none.
+func (c *certTest) volumeName(request string) string {
+	c.t.Helper()
+	obj := c.get("default", csiVolumeRequestKind, request)
+	must.NotNil(c.t, obj)
+	return volumeRequestName(obj)
+}
+
 func (c *certTest) volume(id string) *structs.CSIVolume {
 	c.t.Helper()
 	vol, err := c.s.State().CSIVolumeByID(nil, "default", id)
@@ -223,7 +234,8 @@ func TestVolumeRequest_CreateExpandAndDrift(t *testing.T) {
 	st := c.waitRequest("db", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
 		return readyReason(obj) == "True" && st.VolumeCreateIndex > 0
 	})
-	must.Eq(t, "ext-default-db", st.ExternalID)
+	dbName := c.volumeName("db")
+	must.Eq(t, "ext-"+dbName, st.ExternalID)
 	must.Eq(t, gibibyte, st.CapacityBytes)
 	must.True(t, st.Schedulable)
 	vol := c.volume("db")
@@ -261,7 +273,7 @@ func TestVolumeRequest_CreateExpandAndDrift(t *testing.T) {
 	must.Len(t, 1, vol.RequestedCapabilities)
 	must.Eq(t, st.VolumeCreateIndex, vol.CreateIndex)
 	fake.set(func(f *fakeVolumeCSI) {
-		must.Eq(t, []string{"default-db"}, f.creates)
+		must.Eq(t, []string{dbName}, f.creates)
 		must.Eq(t, []int64{2 * gibibyte}, f.expands)
 	})
 
@@ -341,9 +353,10 @@ func TestVolumeRequest_ConflictAdoptAndRegister(t *testing.T) {
 	vol := c.volume("outside")
 	must.Eq(t, "vol-0abc", vol.ExternalID)
 	must.Eq(t, "z1", vol.Context["zone"])
+	outsideName := c.volumeName("outside")
 	fake.set(func(f *fakeVolumeCSI) {
 		must.Eq(t, []string{"vol-0abc"}, f.validates)
-		must.SliceNotContains(t, f.creates, "default-outside")
+		must.SliceNotContains(t, f.creates, outsideName)
 	})
 }
 
@@ -374,6 +387,7 @@ func TestVolumeRequest_FailureAndDeletion(t *testing.T) {
 		})
 	}
 
+	dropName := c.volumeName("drop-me")
 	for _, name := range []string{"keep-me", "forget-me", "drop-me"} {
 		must.NoError(t, c.delete("default", csiVolumeRequestKind, name))
 	}
@@ -385,7 +399,7 @@ func TestVolumeRequest_FailureAndDeletion(t *testing.T) {
 	must.NotNil(t, c.volume("keep-me"))
 	must.Nil(t, c.volume("forget-me"))
 	must.Nil(t, c.volume("drop-me"))
-	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-drop-me"}, f.deletes) })
+	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-" + dropName}, f.deletes) })
 }
 
 func TestVolumeRequest_WriteChecks(t *testing.T) {
@@ -450,7 +464,7 @@ plugin { policy = "read" }`)
 func TestVolumeRequestSpec(t *testing.T) {
 	ci.Parallel(t)
 
-	obj := &structs.CustomObject{Namespace: "prod", Name: "db"}
+	obj := &structs.CustomObject{ID: "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d", Namespace: "prod", Name: "db"}
 	spec := &volumeRequestSpec{}
 	must.NoError(t, structs.DecodeObjectPart(map[string]any{
 		"plugin_id":    "ebs",
@@ -468,7 +482,7 @@ func TestVolumeRequestSpec(t *testing.T) {
 	must.NoError(t, spec.validate())
 	vol := spec.volume(obj, structs.CSISecrets{"k": "v"})
 	must.Eq(t, "db", vol.ID)
-	must.Eq(t, "prod-db", vol.Name)
+	must.Eq(t, "prod-db-0a1b2c3d", vol.Name)
 	spec.DisplayName = "the-db"
 	must.Eq(t, "the-db", spec.volume(obj, nil).Name)
 	spec.DisplayName = ""
@@ -493,6 +507,25 @@ func TestVolumeRequestSpec(t *testing.T) {
 	diff := volumeDiff(other, vol, false)
 	slices.Sort(diff)
 	must.Eq(t, []string{"capacity", "secrets"}, diff)
+}
+
+// The name of the volume of a request that gives none tells requests apart
+// whatever their namespaces and names are: "a-b"/"c" and "a"/"b-c" don't
+// share a volume of the storage (review finding SEC-20). It fits the CSI
+// limit of 128 bytes with the longest namespace and name.
+func TestVolumeRequestName(t *testing.T) {
+	ci.Parallel(t)
+
+	first := &structs.CustomObject{ID: uuid.Generate(), Namespace: "a-b", Name: "c"}
+	second := &structs.CustomObject{ID: uuid.Generate(), Namespace: "a", Name: "b-c"}
+	must.NotEq(t, volumeRequestName(first), volumeRequestName(second),
+		must.Sprint("two requests get the name of one volume"))
+	must.Eq(t, volumeRequestName(first), volumeRequestName(first.Copy()))
+	must.StrHasPrefix(t, "a-b-c-", volumeRequestName(first))
+
+	long := &structs.CustomObject{ID: uuid.Generate(), Namespace: strings.Repeat("n", 128), Name: strings.Repeat("o", 128)}
+	must.LessEq(t, 128, len(volumeRequestName(long)))
+	must.StrHasSuffix(t, "-"+strings.ReplaceAll(long.ID, "-", "")[:8], volumeRequestName(long))
 }
 
 func TestVolumeRequest_DeletionWaitsForClaims(t *testing.T) {
@@ -717,8 +750,10 @@ func TestVolumeRequest_NamespacesDoNotShareAVolume(t *testing.T) {
 		must.NoError(t, err)
 	}
 	staging, prod := created("staging", "db"), created("prod", "db")
-	must.Eq(t, "staging-db", staging.Name)
-	must.Eq(t, "prod-db", prod.Name)
+	must.Eq(t, volumeRequestName(c.get("staging", csiVolumeRequestKind, "db")), staging.Name)
+	must.Eq(t, volumeRequestName(c.get("prod", csiVolumeRequestKind, "db")), prod.Name)
+	must.StrHasPrefix(t, "staging-db-", staging.Name)
+	must.StrHasPrefix(t, "prod-db-", prod.Name)
 	must.NotEq(t, staging.ExternalID, prod.ExternalID,
 		must.Sprint("two namespaces share one volume of the storage"))
 
@@ -964,7 +999,7 @@ func TestVolumeRequest_CreatingTakesOnlyItsOwnVolume(t *testing.T) {
 		return readyReason(obj) == "PluginNotFound"
 	})
 	must.False(t, st.Creating, must.Sprint("creating is set though no plugin was called"))
-	waiting := byHand("waiting", "default-waiting", "minnie")
+	waiting := byHand("waiting", c.volumeName("waiting"), "minnie")
 	conflict("waiting")
 
 	// The create failed and waits for its retry. A volume of another name
@@ -1024,13 +1059,14 @@ func TestVolumeRequest_DeletionAfterLostCreateAnswer(t *testing.T) {
 	}
 
 	fake.set(func(f *fakeVolumeCSI) { f.createErr = nil })
+	orphanName := c.volumeName("orphan")
 	must.NoError(t, c.delete("default", csiVolumeRequestKind, "orphan"))
 	must.NoError(t, c.delete("default", csiVolumeRequestKind, "left"))
 	gone("orphan")
 	gone("left")
 	must.Nil(t, c.volume("orphan"))
 	fake.set(func(f *fakeVolumeCSI) {
-		must.Eq(t, []string{"ext-default-orphan"}, f.deletes, must.Sprint("the volume of the lost answer is left in the storage"))
+		must.Eq(t, []string{"ext-" + orphanName}, f.deletes, must.Sprint("the volume of the lost answer is left in the storage"))
 	})
 
 	// The plugin can't be asked when the request is deleted: the request
