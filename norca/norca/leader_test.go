@@ -7,8 +7,10 @@ package norca
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,6 +175,58 @@ func TestLeader_MultiBootstrap(t *testing.T) {
 			t.Fatalf("should only have 1 raft peer! %v", peers)
 		}
 	}
+}
+
+// A leadership established again (reassertLeaderCh, after a snapshot
+// restore) stops the loops of the term before it: each loop runs once
+// (review finding MUK-1). Not parallel: it counts the goroutines of the
+// process, so no other server may run meanwhile.
+func TestLeader_Reassert_LoopsRunOnce(t *testing.T) {
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+
+	loops := []string{
+		"(*Server).releaseLeaderLoop(",
+		"(*Server).packRegistrySyncLoop(",
+		"(*Server).objectMigrationLoop(",
+		"(*Server).csiCapacityLoop(",
+		"(*Server).csiVolumeStateLoop(",
+		"(*Server).schedulePeriodic(",
+		"(*Server).reapFailedEvaluations(",
+	}
+	once := func() (bool, error) {
+		buf := make([]byte, 1<<20)
+		for {
+			n := runtime.Stack(buf, true)
+			if n < len(buf) {
+				buf = buf[:n]
+				break
+			}
+			buf = make([]byte, 2*len(buf))
+		}
+		counts := map[string]int{}
+		for _, g := range strings.Split(string(buf), "\n\n") {
+			for _, loop := range loops {
+				if strings.Contains(g, loop) {
+					counts[loop]++
+				}
+			}
+		}
+		for _, loop := range loops {
+			if counts[loop] != 1 {
+				return false, fmt.Errorf("%s runs %d times", loop, counts[loop])
+			}
+		}
+		return true, nil
+	}
+	testutil.WaitForResult(once, func(err error) { t.Fatalf("before the reassert: %v", err) })
+
+	errCh := make(chan error, 1)
+	s1.reassertLeaderCh <- errCh
+	must.NoError(t, <-errCh)
+
+	testutil.WaitForResult(once, func(err error) { t.Fatalf("after the reassert: %v", err) })
 }
 
 func TestLeader_PlanQueue_Reset(t *testing.T) {

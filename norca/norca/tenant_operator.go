@@ -108,8 +108,8 @@ func (o *tenantOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 	}
 	// The writes of a pass are made with the leader's ACL token. There is
 	// none between a revoked leadership and the one established after it
-	// (the leadership is established again on the same stop channel when
-	// the leader state is rebuilt): a pass then would send an empty token,
+	// (a pass of the term before may still be running when the leader
+	// state is rebuilt): a pass then would send an empty token,
 	// be refused, and record the tenant as failed. It waits instead.
 	if o.srv.getLeaderAcl() == "" {
 		return time.Now().Add(operatorsSettle), nil

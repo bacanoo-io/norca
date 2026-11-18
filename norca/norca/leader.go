@@ -175,11 +175,40 @@ func (s *Server) leadershipTransfer() error {
 	return fmt.Errorf("failed to transfer leadership in %d attempts", retryCount)
 }
 
+// leaderTerm is one establishment of the leadership (Norca). The loops that
+// establishLeadership starts run until its stop channel closes: when the
+// leadership is lost, or earlier when it is established again
+// (reassertLeaderCh, after a snapshot restore) or failed to be established.
+// Without it the loops of the term before kept running beside the new ones.
+type leaderTerm struct {
+	stopCh chan struct{}
+	once   sync.Once
+}
+
+// newLeaderTerm starts a term that ends at the latest when stopCh closes.
+func newLeaderTerm(stopCh <-chan struct{}) *leaderTerm {
+	t := &leaderTerm{stopCh: make(chan struct{})}
+	go func() {
+		select {
+		case <-stopCh:
+			t.end()
+		case <-t.stopCh:
+		}
+	}()
+	return t
+}
+
+// end stops the loops of the term. It may be called more than once.
+func (t *leaderTerm) end() {
+	t.once.Do(func() { close(t.stopCh) })
+}
+
 // leaderLoop runs as long as we are the leader to run various
 // maintenance activities
 func (s *Server) leaderLoop(stopCh chan struct{}) {
 	var reconcileCh chan serf.Member
 	establishedLeader := false
+	var term *leaderTerm
 
 RECONCILE:
 	// Setup a reconciliation timer
@@ -197,7 +226,8 @@ RECONCILE:
 
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
-		if err := s.establishLeadership(stopCh); err != nil {
+		term = newLeaderTerm(stopCh)
+		if err := s.establishLeadership(term.stopCh); err != nil {
 			s.logger.Error("failed to establish leadership", "error", err)
 
 			// Immediately revoke leadership since we didn't successfully
@@ -205,6 +235,7 @@ RECONCILE:
 			if err := s.revokeLeadership(); err != nil {
 				s.logger.Error("failed to revoke leadership", "error", err)
 			}
+			term.end()
 
 			// Attempt to transfer leadership. If successful, leave the
 			// leaderLoop since this node is no longer the leader. Otherwise
@@ -222,6 +253,8 @@ RECONCILE:
 			if err := s.revokeLeadership(); err != nil {
 				s.logger.Error("failed to revoke leadership", "error", err)
 			}
+			// The term of now: a reassert may have replaced it.
+			term.end()
 		}()
 	}
 
@@ -274,15 +307,21 @@ WAIT:
 				continue
 			}
 
-			// refresh leadership state
+			// refresh leadership state. Norca: the loops of the term
+			// before stop, so that each runs once in the new term.
 			s.revokeLeadership()
-			err := s.establishLeadership(stopCh)
+			term.end()
+			term = newLeaderTerm(stopCh)
+			err := s.establishLeadership(term.stopCh)
 			errCh <- err
 
 			// In case establishLeadership fails, try to transfer leadership.
 			// At this point Raft thinks we are the leader, but Nomad did not
 			// complete the required steps to act as the leader.
 			if err != nil {
+				// Norca: the loops the failed establishment started stop;
+				// the next establishment starts its own.
+				term.end()
 				if err := s.leadershipTransfer(); err != nil {
 					// establishedLeader was true before, but it no longer is
 					// since we revoked leadership and leadershipTransfer also
