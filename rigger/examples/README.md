@@ -1,8 +1,10 @@
 # Rig examples
 
-Illustrations of the design in `design/rig-design.md`. **Nothing parses these
-files yet**: they show how a module, a registry and a stack are meant to look,
-and they change with the design.
+Illustrations of the design in `design/rig-design.md`: how a module, a
+registry and a stack look. The modules load, validate and render with
+`rig module validate` and `rig module render`, and their jobs pass a Norca
+server's validation; the stacks wait for phase 2. They change with the
+design.
 
 | Directory | What it shows |
 | --- | --- |
@@ -19,7 +21,8 @@ What to look for:
 - **Install time and run time.** `var.*`, `local.*`, `module.*`, `rig.*` are
   resolved by Rig. Everything else inside a job (`${NORCA_PORT_client}`,
   `${attr.kernel.name}`, the `{{ }}` of a task template) belongs to the
-  cluster and passes through untouched.
+  cluster and passes through; in the data of a task template a runtime
+  reference becomes `{{ env "..." }}`.
 - **Checks before anything runs:** `validation` in variables, `rule` across
   variables, `check` over evaluated values.
 - **Secrets are never values.** A variable with a `secret` block names where

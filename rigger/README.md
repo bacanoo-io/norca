@@ -5,7 +5,8 @@ in typed HCL) and stacks (the modules of a region with their values) into a
 Norca cluster, with versions, registries, a lock file, signatures and trust.
 
 **Status:** phase 1 of the design. Modules load, validate and evaluate;
-nothing is installed yet. The design is in
+nothing is installed yet. What works and what is checked:
+[STATUS.md](STATUS.md). The design is in
 [design/rig-design.md](design/rig-design.md); [examples/](examples/) shows
 the language.
 
@@ -27,7 +28,7 @@ Two Go modules in one repository (design 12.1):
 
 | Path | Module | Holds |
 | --- | --- | --- |
-| `/` | `github.com/bacanoo-io/norca-rig` | the library: package `rig` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `resource` (evaluated resources), `oplog` (the log as a tree of operations) |
+| `/` | `github.com/bacanoo-io/norca-rig` | the library: package `rig` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `module` (the metadata of a module as plain data), `resource` (evaluated resources and hooks), `runref` (runtime references a host resolves), `oplog` (the log as a tree of operations); `internal/lang` loads modules, `internal/eval` evaluates them |
 | `cli/` | `github.com/bacanoo-io/norca-rig/cli` | the `rig` program, the first host of the library; `norcaapi` (the ports over Norca); until phase 7 a copy of norca's job decoder (`internal/jobspec2`, see its `SOURCE.md`) |
 
 The library imports nothing of Norca. A host builds the engine from its
