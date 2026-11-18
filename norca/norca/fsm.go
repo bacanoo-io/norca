@@ -2298,6 +2298,19 @@ func (n *nomadFSM) applyDeleteServiceRegistrationByID(msgType structs.MessageTyp
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
+	// The servers checked the deletion as one of a registration that is not
+	// external; it may have become one since (the FSM applies one entry at
+	// a time, so the check holds for the deletion below).
+	if req.RefuseExternal {
+		existing, err := n.state.GetServiceRegistrationByID(nil, req.RequestNamespace(), req.ID)
+		if err != nil {
+			return err
+		}
+		if existing.IsExternal() {
+			return fmt.Errorf("service registration %q is an external service", req.ID)
+		}
+	}
+
 	if err := n.state.DeleteServiceRegistrationByID(msgType, index, req.RequestNamespace(), req.ID); err != nil {
 		n.logger.Error("DeleteServiceRegistrationByID failed", "error", err)
 		return err

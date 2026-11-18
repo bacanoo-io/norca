@@ -261,6 +261,15 @@ type ServiceRegistrationUpsertResponse struct {
 // service registration as specified by the ID parameter.
 type ServiceRegistrationDeleteByIDRequest struct {
 	ID string
+
+	// RefuseExternal makes the deletion fail if the registration is an
+	// external service. The servers set it for the deletions of the
+	// registrations of allocations (ServiceRegistration.DeleteByID), so
+	// that a registration that became external after their checks is not
+	// deleted with the rights those checked; external services are deleted
+	// without it, by the external services of the leader.
+	RefuseExternal bool
+
 	WriteRequest
 }
 

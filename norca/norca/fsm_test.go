@@ -3422,6 +3422,46 @@ func TestFSM_DeleteServiceRegistrationsByID(t *testing.T) {
 	assert.NotNil(t, out)
 }
 
+// TestFSM_DeleteServiceRegistrationsByID_RefuseExternal: a deletion checked
+// as one of a registration that is not external does not delete an external
+// service (review finding JOG-11); the external services delete theirs
+// without the flag.
+func TestFSM_DeleteServiceRegistrationsByID_RefuseExternal(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+
+	services := mock.ServiceRegistrations()
+	services[0].External = &structs.ServiceExternal{Kind: structs.ExternalServiceKindAddress}
+	must.NoError(t, fsm.State().UpsertServiceRegistrations(structs.MsgTypeTestSetup, 10, services))
+
+	apply := func(reg *structs.ServiceRegistration, refuse bool) any {
+		req := structs.ServiceRegistrationDeleteByIDRequest{ID: reg.ID, RefuseExternal: refuse,
+			WriteRequest: structs.WriteRequest{Namespace: reg.Namespace}}
+		buf, err := structs.Encode(structs.ServiceRegistrationDeleteByIDRequestType, req)
+		must.NoError(t, err)
+		return fsm.Apply(makeLog(buf))
+	}
+	get := func(reg *structs.ServiceRegistration) *structs.ServiceRegistration {
+		out, err := fsm.State().GetServiceRegistrationByID(nil, reg.Namespace, reg.ID)
+		must.NoError(t, err)
+		return out
+	}
+
+	// the external service stays
+	resp := apply(services[0], true)
+	err, _ := resp.(error)
+	must.ErrorContains(t, err, "is an external service")
+	must.NotNil(t, get(services[0]))
+
+	// a registration that is not external goes
+	must.Nil(t, apply(services[1], true))
+	must.Nil(t, get(services[1]))
+
+	// without the flag the external service goes too
+	must.Nil(t, apply(services[0], false))
+	must.Nil(t, get(services[0]))
+}
+
 func TestFSM_DeleteServiceRegistrationsByNodeID(t *testing.T) {
 	ci.Parallel(t)
 	fsm := testFSM(t)

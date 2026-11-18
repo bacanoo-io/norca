@@ -250,7 +250,9 @@ func (s *ServiceRegistration) DeleteByID(
 		}
 	}
 
-	// Update via Raft.
+	// Update via Raft. The checks above are those of a registration that
+	// is not external: the deletion fails if it has become one since.
+	args.RefuseExternal = true
 	_, index, err := s.srv.raftApply(structs.ServiceRegistrationDeleteByIDRequestType, args)
 	if err != nil {
 		return err
