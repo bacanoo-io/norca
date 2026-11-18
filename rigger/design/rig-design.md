@@ -1573,8 +1573,10 @@ Phase 3 as built (2026-11-18):
   version that no longer meets the constraint, a moved tag and content of
   another digest. The revision records the address and the tag of the
   module (`Pack.Source`, `Pack.Ref`).
-- `norca-rig-registry` (next to this repository) holds redis, nats,
-  postgres and lib/placement, tagged, with `scripts/check.sh` for its CI.
+- `norca-rig-registry` (next to this repository, a clone of norca-registry
+  with the work on the branch `rig`) held redis, nats, postgres and
+  lib/placement, tagged, with `scripts/check-modules.sh` for its CI; phase 5
+  converted every pack (below).
 
 Phase 4 as built (2026-11-18), signatures and trust:
 
@@ -1620,6 +1622,66 @@ Phase 4 as built (2026-11-18), signatures and trust:
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
+
+Phase 5 as built (2026-11-18):
+
+- **`rig convert pack <dir> -out <dir> [-examples <dir>]`** does the
+  mechanical part of section 14: the `module` block from `app` and `pack`;
+  the variables without `namespace` and `region`, their checks as Rig takes
+  them (`item_min_length` and `item_pattern` in an `item` block, the
+  `options` of the form as `one_of`, `item_options` as `one_of` of the
+  attributes of the items); the examples as `examples/<name>.vars.hcl`;
+  every template kept as the comment of the file it becomes.
+- **Every pack of norca-registry is a module** of norca-rig-registry
+  (branch `rig`, tagged `<module>/v<version>`): consul, forgejo,
+  loadbalancer-operator, mtls-gateway, nats, nodescaler-operator,
+  norca-acme, norca-dns, norca-provider, openobserve, otel-collector,
+  postgres, rustfs, seaweedfs, seaweedfs-csi and traefik. The earlier
+  smaller nats and postgres are kept as `nats-demo` and `postgres-demo`;
+  the full ones are versions 2.0.0 and 0.4.0, after the tags of the
+  demonstrations.
+- **The acceptance of section 14 is a script**, `compare-packs.sh` of the
+  registry: for the defaults and every example, the module renders the
+  jobs, ACL policies, object kinds and admission policies of the pack,
+  compared as parsed resources (the pack's resource files go through rig in
+  a module of their own, so both pass the same decoders). All 85 cases
+  match. `check-modules-server.sh` sends every rendered job (104) to
+  `/v1/validate/job` of a server; all pass.
+- What the conversion showed about the language, and changed in it:
+  - A null attribute is now left out of a job at every depth, not only in
+    `config`: a typed field refused null, and a null duration made the
+    decoder panic. The dynamic blocks of a job are expanded before, so an
+    attribute of their content is evaluated with its iterator.
+  - An object given where a block without labels is taken is that block:
+    the `env` of a `secret` block, with names the module computes.
+  - `rig module validate` evaluates the defaults too when every variable
+    has one; it evaluated the examples only.
+  - `strlen` is among the functions (the rules of a pack used it).
+  - **Object kinds and objects are decoded by Norca's parser.** The value
+    of a block mapped by field names lost the order of labelled blocks
+    (the columns of a kind) and did not map `rule` blocks onto `Rules`; a
+    kind did not apply. A host may decode some kinds from the block written
+    as HCL in the order of the module (`host.ResourceDecoder`); the rig
+    program decodes kinds and objects with a copy of norca's
+    `resourcespec/object.go`, compared by `check-copy` like jobspec2, until
+    phase 7.
+  - Flush heredocs are indented for reading only where no line starts with
+    a `%{~ }` directive: such configuration files are built from lists of
+    lines (`join("\n", concat(...))`), which keeps them line for line.
+  - A file named by its block's label (4.5) and a resource named by a
+    `name` attribute where Norca names it otherwise (a kind's `Kind`, a
+    policy's name).
+- **`norca-rig-deployer`** (a clone of norca-deployer, branch `rig`) has
+  the `rig:` section of 13.1: a stack directory or `stack_hcl`, values
+  files, variables, `prune`, the rig program. `apply` runs `rig stack
+  apply` after the packs against the cluster's API served on a local port,
+  each request sent to the first server through `norca operator api`;
+  checked against a dev agent (install, unchanged, destroy).
+- The lab case of a stack is written but not yet run (it needs the
+  Hyper-V lab of norca-lab).
+- Open: a variable that only rules read is reported as unused (14.1), also
+  when it is a gate the installer must set (`consul_license_accepted`,
+  `allow_single_datacenter`).
 
 ## 16. Open questions for the maintainer
 

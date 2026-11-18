@@ -1,13 +1,15 @@
 # State of Rig
 
-2026-11-18. Phases 1 and 2 of the design (`design/rig-design.md`, section
-15) are done, and phases 3 and 4: modules load, validate, evaluate and are
-tested; stacks are planned and applied as releases on a Norca cluster
-through today's release API; modules come from git registries, OCI
-registries, directories or the program itself, in versions a lock file
-pins; modules are signed, a stack trusts keys, and bundles carry a stack's
-modules to a machine without a network. Next: phase 5, the other packs and
-the deployer.
+2026-11-18. Phases 1 to 4 of the design (`design/rig-design.md`, section
+15) are done, and phase 5 but for running its lab case: modules load,
+validate, evaluate and are tested; stacks are planned and applied as
+releases on a Norca cluster through today's release API; modules come from
+git registries, OCI registries, directories or the program itself, in
+versions a lock file pins; modules are signed, a stack trusts keys, and
+bundles carry a stack's modules to a machine without a network. Every pack
+of norca-registry is a module of norca-rig-registry that renders what the
+pack renders, and norca-rig-deployer applies a stack. Next: the lab run of
+phase 5, then phase 6, the global registry.
 
 ## What works
 
@@ -26,8 +28,9 @@ the deployer.
 | Stacks (design 6.4, 9) | `stack.hcl` with releases of local modules, values, `depends_on`, `enabled`; plan by digest (unchanged, install, upgrade, remove), apply in dependency order with waiting, prune, status with drift, destroy; generated values (`!generate:`) and secrets created once in the cluster's secret store |
 | Sources (design 7, 8.3) | `<registry>/<name>`, git addresses, `builtin/<name>`, `dir://`; versions by tags and constraints (`~> 1.2`); `rig stack sync [-upgrade]` writes `rig.lock.hcl`; moved tags and other content refused; a cache of mirrors and trees |
 | Supply chain (design 8) | `rig key generate|sign|verify` (cosign-format keys, the statement Norca's admission verifies); signatures in `.rig-signatures/` of a module; `trust` per registry; signers in the lock; `rig bundle create|inspect|import`; `oci://` sources and `rig module publish` |
-| Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner in the description), secret store, cluster facts; every kind mapped onto Norca's API type of the kind |
-| CLI | `rig stack sync|validate|plan|apply|status|destroy`, `rig install`, `rig release list|status|history|rollback|uninstall`; `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
+| Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner in the description), secret store, cluster facts; object kinds and objects decoded by Norca's parser (a copy of `resourcespec/object.go`) from the block written as HCL in module order; the other kinds mapped onto Norca's API type of the kind |
+| Conversion (design 14) | `rig convert pack` writes the metadata, variables and examples of a pack as a module, its templates as comments to rewrite |
+| CLI | `rig convert pack`, `rig stack sync|validate|plan|apply|status|destroy`, `rig install`, `rig release list|status|history|rollback|uninstall`; `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
 
 ## What is checked
 
@@ -37,6 +40,13 @@ the deployer.
   so.
 - The rendered jobs of those modules pass a Norca server's
   `/v1/validate/job` (dev agent, 2026-11-18).
+- norca-rig-registry: every module of the 16 packs renders the jobs, ACL
+  policies, kinds and admission policies of its pack for the defaults and
+  every example (85 cases, `scripts/compare-packs.sh`), and all 104
+  rendered jobs pass `/v1/validate/job` (`scripts/check-modules-server.sh`).
+  The kind of norca-dns applies to a dev agent with its columns in order.
+- norca-rig-deployer: the `rig:` section applies a stack through the CLI of
+  a server against a dev agent (install, unchanged, destroy).
 - Against a dev agent (`make integration`): a stack planned, applied,
   unchanged, upgraded, pruned and destroyed; a generated token in the
   secret store and the Variable but never in a revision; runtime references
@@ -48,14 +58,18 @@ the deployer.
 
 ## What is not there yet
 
-- Phase 1: a schema per resource kind (the kinds other than jobs are the
-  value of their block as JSON until their kind is implemented).
-- Phase 5 on: the conversion of the other packs, the deployer with stacks,
-  the global registry, the embedding into Norca (phase 7, which changes
-  norca). For later: OCI credentials from docker's configuration, `rig
-  login`, keyless signing.
-- `norca-rig-registry` (next to this repository) holds the first modules,
-  tagged; it is not pushed.
+- Phase 1: a schema per resource kind for the kinds the host does not
+  decode (namespaces, quotas, policies, admission policies, external
+  services and Variables are the value of their block, mapped onto the API
+  type by field names).
+- Phase 5: the lab case of a stack is written, not yet run (it needs the
+  Hyper-V lab). A variable only rules read is reported as unused, also when
+  it is a gate the installer must set.
+- Phase 6 on: the global registry, the embedding into Norca (phase 7,
+  which changes norca). For later: OCI credentials from docker's
+  configuration, `rig login`, keyless signing.
+- `norca-rig-registry` and `norca-rig-deployer` (next to this repository,
+  branch `rig` of each) are not pushed.
 - Open for phase 4: the digest of a module whose local child module lies
   outside its directory must cover the child.
 
