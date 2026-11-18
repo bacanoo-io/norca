@@ -36,6 +36,11 @@ import (
 type Fetcher struct {
 	cache string
 	oci   *oci.Client
+	// global is the address of the global registry; index is its files,
+	// read once per run.
+	global  string
+	indexMu sync.Mutex
+	index   *globalIndex
 
 	mu      sync.Mutex
 	updated map[string]bool // mirrors fetched in this run
@@ -45,7 +50,7 @@ var _ source.Fetcher = (*Fetcher)(nil)
 
 // New returns a fetcher with its cache in dir.
 func New(dir string) *Fetcher {
-	return &Fetcher{cache: dir, oci: oci.NewClient(), updated: map[string]bool{}}
+	return &Fetcher{cache: dir, oci: oci.NewClient(), global: DefaultGlobalRegistry, updated: map[string]bool{}}
 }
 
 // CacheDir is the cache of the rig program: RIG_CACHE_DIR, else rig in the
@@ -72,6 +77,8 @@ func (f *Fetcher) Versions(ctx context.Context, req source.Request) ([]source.Av
 		return []source.Available{{}}, nil
 	case source.KindOCI:
 		return f.ociVersions(ctx, req)
+	case source.KindGlobal:
+		return f.globalVersions(ctx, req)
 	default:
 		return nil, fmt.Errorf("%w: kind %q", source.ErrAddress, req.Kind)
 	}
@@ -86,6 +93,8 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 		return f.gitFetch(ctx, req)
 	case source.KindOCI:
 		return f.ociFetch(ctx, req)
+	case source.KindGlobal:
+		return f.globalFetch(ctx, req)
 	case source.KindDirectory:
 		info, err := os.Stat(req.Repository)
 		if err != nil {
@@ -124,9 +133,7 @@ func repositoryURL(repo string) string {
 // mirror returns the bare mirror of a repository in the cache, made or
 // fetched once per run.
 func (f *Fetcher) mirror(ctx context.Context, repo string) (string, error) {
-	url := repositoryURL(repo)
-	sum := sha256.Sum256([]byte(url))
-	dir := filepath.Join(f.cache, "git", hex.EncodeToString(sum[:12])+".git")
+	url, dir := repositoryURL(repo), f.mirrorDir(repo)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -152,6 +159,14 @@ func (f *Fetcher) mirror(ctx context.Context, repo string) (string, error) {
 	f.updated[dir] = true
 
 	return dir, nil
+}
+
+// mirrorDir is the directory of the bare mirror of a repository in the
+// cache.
+func (f *Fetcher) mirrorDir(repo string) string {
+	sum := sha256.Sum256([]byte(repositoryURL(repo)))
+
+	return filepath.Join(f.cache, "git", hex.EncodeToString(sum[:12])+".git")
 }
 
 // git runs the git program, in the repository dir when it is set.

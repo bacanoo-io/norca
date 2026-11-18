@@ -86,7 +86,10 @@ Commands:
   bundle inspect file     what a bundle holds
   bundle import file      put a bundle into the cache, for an install
                           without a network
-  The cluster is that of NORCA_ADDR and NORCA_TOKEN.
+  The cluster is that of NORCA_ADDR and NORCA_TOKEN. A source
+  <namespace>/<name> that names no registry of the stack is a module of
+  the global registry, github.com/bacanoo-io/norca-global-registry, or of
+  RIG_GLOBAL_REGISTRY (a git address or a directory).
   convert pack <dir> -out <dir> [-examples <dir>]
                           the mechanical part of turning a pack into a
                           module: metadata, variables, examples; the
@@ -99,6 +102,17 @@ Commands:
   module publish [dir] -to oci://host/repository
                           push the module, with its child modules and
                           signatures, tagged with its version
+  module publish [dir] [-key name.key]
+                          sign the module, commit the signature and tag
+                          the version in its git repository (not pushed)
+  index update [-dir registry] [-namespace ns] [-replace url=path]
+                          list in the entries of a registry of the shape of
+                          the global registry the versions the repositories
+                          of its namespaces have tagged, signed and checked
+  index check [-dir registry] [-base revision] [-replace url=path]
+                          check the files of such a registry; with -base,
+                          that a change only adds, and the added versions
+                          against their sources
   module render [dir] [-f values.vars.hcl] [-var name=value]
          [-release name] [-namespace ns] [-region region]
                           evaluate a module and print its resources and
@@ -114,6 +128,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 var commands = map[string]command{
 	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall,
 	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
+	cmdIndex: runIndex,
 }
 
 // Run runs the rig program with its arguments, without the program name,

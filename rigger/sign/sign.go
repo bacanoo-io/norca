@@ -114,8 +114,10 @@ type statement struct {
 	Optional map[string]string `json:"optional,omitempty"`
 }
 
-// Sign signs the tree digest of the version of a module.
-func Sign(key *ecdsa.PrivateKey, digest, module, version string) (Signature, error) {
+// Statement is the payload Sign signs for the tree digest of the version
+// of a module. A registry that keeps only the signature (the global
+// registry, design 7.3) builds the payload again with it.
+func Statement(digest, module, version string) (string, error) {
 	var st statement
 
 	st.Critical.Identity.DockerReference = "rig/" + module
@@ -125,9 +127,20 @@ func Sign(key *ecdsa.PrivateKey, digest, module, version string) (Signature, err
 
 	payload, err := json.Marshal(st)
 	if err != nil {
+		return "", err
+	}
+
+	return string(payload), nil
+}
+
+// Sign signs the tree digest of the version of a module.
+func Sign(key *ecdsa.PrivateKey, digest, module, version string) (Signature, error) {
+	text, err := Statement(digest, module, version)
+	if err != nil {
 		return Signature{}, err
 	}
 
+	payload := []byte(text)
 	sum := sha256.Sum256(payload)
 
 	sig, err := ecdsa.SignASN1(rand.Reader, key, sum[:])

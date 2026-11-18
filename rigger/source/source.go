@@ -30,6 +30,10 @@ const (
 	// KindOCI is a repository of an OCI registry: versions are tags, the
 	// manifest digest of a tag stands for its commit.
 	KindOCI Kind = "oci"
+	// KindGlobal is a module of the global registry (design 7.3): its
+	// entry names the versions, and for each the git repository, tag and
+	// commit of its author, the tree digest and the signatures.
+	KindGlobal Kind = "global"
 )
 
 // Request names a module of a source, and a version to fetch.
@@ -41,6 +45,9 @@ type Request struct {
 	// Registry is the name of the registry of the stack the address names;
 	// empty for another address.
 	Registry string `json:"registry,omitempty"`
+	// Namespace and Name name a module of the global registry.
+	Namespace string `json:"namespace,omitempty"`
+	Name      string `json:"name,omitempty"`
 	// Repository is the git repository or the directory; empty for a
 	// built-in module.
 	Repository string `json:"repository,omitempty"`
@@ -76,6 +83,9 @@ type Origin struct {
 	Ref string `json:"ref,omitempty"`
 	// Commit is the commit of a git source.
 	Commit string `json:"commit,omitempty"`
+	// Repository is the git repository the version came from when the
+	// address does not name it (the global registry).
+	Repository string `json:"repository,omitempty"`
 	// Digest is the tree digest of the content (design 8.1), set by the
 	// engine.
 	Digest string `json:"digest"`
@@ -90,6 +100,33 @@ type Fetched struct {
 	// Dir is the directory of the module in FS.
 	Dir    string
 	Origin Origin
+	// Listing is what the index of a registry records of the version (the
+	// global registry); nil for a source without an index.
+	Listing *Listing
+}
+
+// Listing is what the index of a registry records of a version of a module
+// (design 7.3). The engine refuses content of another digest or name, and
+// takes a version only signed by a key of the namespace.
+type Listing struct {
+	// Name is the name the module's metadata must have.
+	Name string
+	// Digest is the tree digest the index accepted.
+	Digest string
+	// Signatures are the signatures of the statement of the version
+	// (sign.Statement).
+	Signatures []ListedSignature
+	// Keys are the public keys (PEM) of the namespace.
+	Keys [][]byte
+	// Warnings are the advisories of the version that do not block it.
+	Warnings []string
+}
+
+// ListedSignature is a signature an index records: the key and the
+// signature, without the statement, which the engine builds again.
+type ListedSignature struct {
+	KeyID     string
+	Signature string
 }
 
 // Fetcher lists and fetches the versions of a source. A host implements
@@ -105,10 +142,6 @@ type Fetcher interface {
 
 // ErrAddress is the error of an address that names no source.
 var ErrAddress = errors.New("invalid source")
-
-// ErrGlobalRegistry is the error of an address of the global registry,
-// which comes with phase 6.
-var ErrGlobalRegistry = errors.New("the global registry comes with phase 6; name a registry of the stack (rig { registry \"<name>\" { source } })")
 
 // Parse parses the address of a module that is not a local path (./x):
 //
@@ -171,7 +204,7 @@ func parseScheme(address string) (Request, bool, error) {
 }
 
 // parseRegistry parses <registry>/<name>, a module of a registry of the
-// stack, and refuses the global registry until phase 6.
+// stack, else <namespace>/<name> of the global registry.
 func parseRegistry(address string, registries map[string]string) (Request, error) {
 	req := Request{Source: address}
 
@@ -182,7 +215,9 @@ func parseRegistry(address string, registries map[string]string) (Request, error
 
 	repository, ok := registries[reg]
 	if !ok {
-		return Request{}, fmt.Errorf("%s: %w", address, ErrGlobalRegistry)
+		req.Kind, req.Namespace, req.Name, req.Path = KindGlobal, reg, name, "."
+
+		return req, nil
 	}
 
 	inner, err := Parse(repository, nil)

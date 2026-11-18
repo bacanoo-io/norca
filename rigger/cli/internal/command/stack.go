@@ -245,9 +245,15 @@ func planApplyStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 		return reportDiags(stderr, f.dir, diags)
 	}
 
+	warnings := diags
+
 	plan, diags := eng.PlanStack(ctx, s, values)
 	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
+		return reportDiags(stderr, f.dir, append(warnings, diags...))
+	}
+
+	if err := writeWarnings(stderr, f.dir, append(warnings, diags...)); err != nil {
+		return err
 	}
 
 	if err := writePlan(stdout, plan, f.json, f.prune); err != nil {
@@ -417,6 +423,10 @@ func syncStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	_, lock, diags := eng.SyncStack(ctx, os.DirFS(root), rel, f.upgrade)
 	if diags.HasErrors() {
 		return reportDiags(stderr, f.dir, diags)
+	}
+
+	if err := writeWarnings(stderr, f.dir, diags); err != nil {
+		return err
 	}
 
 	p := filepath.Join(f.dir, lockFile)

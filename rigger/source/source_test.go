@@ -29,7 +29,7 @@ func TestParse(t *testing.T) {
 		{address: "dir:///opt/rig/worker", expected: source.Request{Kind: source.KindDirectory, Repository: "/opt/rig/worker", Path: "."}},
 		{address: "oci://registry.internal/rig/nats", expected: source.Request{Kind: source.KindOCI, Repository: "registry.internal/rig/nats"}},
 		{address: "oci://registry.internal", err: source.ErrAddress},
-		{address: "norca/nats", err: source.ErrGlobalRegistry},
+		{address: "norca/nats", expected: source.Request{Kind: source.KindGlobal, Namespace: "norca", Name: "nats", Path: "."}},
 		{address: "Example/x", err: source.ErrAddress},
 	}
 

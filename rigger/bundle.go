@@ -36,7 +36,7 @@ func (s *Stack) SourcedModules() []SourcedModule {
 	var out []SourcedModule
 
 	for _, r := range s.s.Releases {
-		if r.Address == nil || r.Address.Kind != source.KindGit || r.Locked == nil || r.Module == nil {
+		if r.Address == nil || (r.Address.Kind != source.KindGit && r.Address.Kind != source.KindGlobal) || r.Locked == nil || r.Module == nil {
 			continue
 		}
 

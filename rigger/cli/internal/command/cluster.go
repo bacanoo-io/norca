@@ -5,6 +5,7 @@ package command
 
 import (
 	"log/slog"
+	"os"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -43,14 +44,22 @@ func clusterEngine(logger *slog.Logger, client *api.Client, namespace string) (*
 	)
 }
 
-// newFetcher returns the fetcher of modules with its cache (RIG_CACHE_DIR).
+// newFetcher returns the fetcher of modules with its cache (RIG_CACHE_DIR)
+// and the global registry (RIG_GLOBAL_REGISTRY, a git address or a
+// directory).
 func newFetcher() (*fetch.Fetcher, error) {
 	dir, err := fetch.CacheDir()
 	if err != nil {
 		return nil, err
 	}
 
-	return fetch.New(dir), nil
+	f := fetch.New(dir)
+
+	if global := os.Getenv("RIG_GLOBAL_REGISTRY"); global != "" {
+		f.SetGlobalRegistry(global)
+	}
+
+	return f, nil
 }
 
 // offlineEngine is an engine without a cluster: it loads, fetches and

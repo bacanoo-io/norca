@@ -66,6 +66,8 @@ func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnosti
 			continue
 		}
 
+		diags = append(diags, advisories(rng, r.Source, fm)...)
+
 		r.Module, r.Locked = fm.module, entry
 	}
 
@@ -96,6 +98,27 @@ type fetchedModule struct {
 	signatures []sign.Signature
 	// dir is the directory of the module in what was fetched.
 	dir string
+	// listed is set for a version the index of a registry lists: it is
+	// taken only signed by a key of keys, the keys of its namespace.
+	listed   bool
+	keys     [][]byte
+	warnings []string
+}
+
+// advisories are the warnings the index of a registry records on the
+// version of a module (design 7.3), shown by sync and plan.
+func advisories(rng hcl.Range, src string, fm *fetchedModule) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	for _, w := range fm.warnings {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning, Summary: "Advisory",
+			Detail:  fmt.Sprintf("%s %s: %s", src, fm.origin.Version, w),
+			Subject: rng.Ptr(),
+		})
+	}
+
+	return diags
 }
 
 // ErrNotTrusted is the error of a module the trust of the stack does not
@@ -103,8 +126,9 @@ type fetchedModule struct {
 var ErrNotTrusted = errors.New("not signed by a key the stack trusts")
 
 // trust checks the signatures of a fetched module against the trust of the
-// stack: the rule of its registry, else the default rule. A built-in module
-// is part of the program and needs none. locked are the signers the lock
+// stack: the rule of its registry, else the default rule. A version an
+// index lists needs a signature of a key of its namespace or of the rule.
+// A built-in module is part of the program and needs none. locked are the signers the lock
 // file records, which must still sign. It sets the signatures and signers
 // of the release.
 func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetchedModule, locked []string) error {
@@ -114,7 +138,7 @@ func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetched
 
 	rule := trustRule(rules, r.Address.Registry)
 
-	keys := make([]sign.PublicKey, 0, len(rule.Keys))
+	keys := make([]sign.PublicKey, 0, len(rule.Keys)+len(fm.keys))
 
 	for _, text := range rule.Keys {
 		k, err := sign.ParsePublicKey([]byte(text))
@@ -125,9 +149,18 @@ func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetched
 		keys = append(keys, k)
 	}
 
+	for _, text := range fm.keys {
+		k, err := sign.ParsePublicKey(text)
+		if err != nil {
+			return fmt.Errorf("a public key of the namespace of %s: %w", r.Source, err)
+		}
+
+		keys = append(keys, k)
+	}
+
 	signers := sign.Verify(fm.origin.Digest, fm.signatures, keys)
 
-	if rule.Require && len(signers) == 0 {
+	if (rule.Require || fm.listed) && len(signers) == 0 {
 		return fmt.Errorf("%s %s: %w", r.Source, fm.origin.Version, ErrNotTrusted)
 	}
 
@@ -170,6 +203,12 @@ func meets(constraint, v string) error {
 func (e *Engine) fetchLocked(ctx context.Context, r *lang.StackRelease, entry *lang.LockedModule) (*fetchedModule, error) {
 	req := *r.Address
 	req.Version, req.Ref, req.Commit, req.Path = entry.Version, entry.Ref, entry.Commit, entry.Path
+
+	if req.Kind == source.KindGlobal {
+		// The repository of the version, for a tree in the cache when the
+		// index can't be reached.
+		req.Repository = entry.Repository
+	}
 
 	fm, err := e.fetchModule(ctx, req)
 	if err != nil {
@@ -232,21 +271,62 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 	origin := fetched.Origin
 	origin.Digest = digest
 
+	fm := &fetchedModule{module: m, origin: origin, signatures: sigs, dir: path.Clean(fetched.Dir)}
+
+	if fetched.Listing != nil {
+		if err := fm.checkListing(req, fetched.Listing); err != nil {
+			return nil, err
+		}
+	}
+
 	switch {
-	case origin.Version == "":
-		origin.Version = m.Metadata.Version
-	case origin.Version != m.Metadata.Version:
+	case fm.origin.Version == "":
+		fm.origin.Version = m.Metadata.Version
+	case fm.origin.Version != m.Metadata.Version:
 		return nil, fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",
 			req.Source, origin.Ref, origin.Version, m.Metadata.Version)
 	}
 
-	return &fetchedModule{module: m, origin: origin, signatures: sigs, dir: path.Clean(fetched.Dir)}, nil
+	return fm, nil
+}
+
+// checkListing checks a fetched version against what the index lists of it: the
+// name and the tree digest; it adds the signatures of the index and the
+// keys of the namespace.
+func (fm *fetchedModule) checkListing(req source.Request, l *source.Listing) error {
+	m := fm.module
+
+	if m.Metadata.Name != l.Name {
+		return fmt.Errorf("%s holds the module %q, the index lists %q", req.Source, m.Metadata.Name, l.Name)
+	}
+
+	if fm.origin.Digest != l.Digest {
+		return fmt.Errorf("the content of %s %s is not what the index lists (%s, now %s)",
+			req.Source, m.Metadata.Version, l.Digest, fm.origin.Digest)
+	}
+
+	statement, err := sign.Statement(l.Digest, l.Name, m.Metadata.Version)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range l.Signatures {
+		fm.signatures = append(fm.signatures, sign.Signature{Payload: statement, Signature: s.Signature})
+	}
+
+	fm.listed, fm.keys, fm.warnings = true, l.Keys, l.Warnings
+
+	return nil
 }
 
 // moduleName is the name a module of a source must have: the last element
 // of its path in a repository, the name of a built-in module; empty when
 // the address does not say.
 func moduleName(req source.Request) string {
+	if req.Kind == source.KindGlobal {
+		return req.Name
+	}
+
 	if req.Path == "." || req.Path == "" {
 		return ""
 	}
@@ -305,6 +385,7 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 			continue
 		}
 
+		diags = append(diags, advisories(r.Block.DefRange, r.Source, fm)...)
 		entry.Signers = r.Signers
 		r.Module, r.Locked = fm.module, entry
 		lock.Modules = append(lock.Modules, entry)
@@ -361,8 +442,13 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 		return nil, nil, err
 	}
 
+	repository := req.Repository
+	if origin.Repository != "" {
+		repository = origin.Repository
+	}
+
 	return &lang.LockedModule{
-		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: req.Repository,
+		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: repository,
 		Path: fm.dir, Ref: origin.Ref, Commit: origin.Commit, Digest: origin.Digest,
 	}, fm, nil
 }

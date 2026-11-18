@@ -226,6 +226,16 @@ func varValue(text string) cty.Value {
 }
 
 // reportDiags writes diagnostics and returns errReported.
+// writeWarnings writes the diagnostics of an operation that went on: its
+// warnings (advisories of the global registry, unused variables).
+func writeWarnings(w io.Writer, dir string, diags hcl.Diagnostics) error {
+	if len(diags) == 0 {
+		return nil
+	}
+
+	return writeDiags(w, dir, diags)
+}
+
 func reportDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 	if err := writeDiags(w, dir, diags); err != nil {
 		return err
