@@ -197,6 +197,16 @@ func (s *ServiceRegistration) DeleteByID(
 			minNomadServiceRegistrationVersion)
 	}
 
+	reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
+	if err != nil {
+		return err
+	}
+	// An external service is deleted as DeleteExternal deletes it, with
+	// the capability of external services instead of submit-job.
+	if reg != nil && reg.IsExternal() {
+		return s.deleteExternalByID(args, reply)
+	}
+
 	// Perform the ACL token resolution. Client nodes remove the
 	// registrations of the allocations they run with their secret ID.
 	aclObj, err := s.srv.ResolveClientOrACL(args)
@@ -205,10 +215,6 @@ func (s *ServiceRegistration) DeleteByID(
 	case nil:
 		if clientID := clientIdentity(args); clientID != "" {
 			// A client node may only remove registrations of its own node.
-			reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
-			if err != nil {
-				return err
-			}
 			if reg != nil && reg.NodeID != clientID {
 				return structs.ErrPermissionDenied
 			}

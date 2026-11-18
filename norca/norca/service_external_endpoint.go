@@ -220,6 +220,33 @@ func (s *ServiceRegistration) DeleteExternal(
 	return nil
 }
 
+// deleteExternalByID serves DeleteByID for an external service. It needs
+// what DeleteExternal needs: the register-external-service capability,
+// which submit-job does not give, and client nodes cannot use it with ACLs
+// enabled. The external services forget the deadlines of its checks with
+// it.
+func (s *ServiceRegistration) deleteExternalByID(args *structs.ServiceRegistrationDeleteByIDRequest,
+	reply *structs.ServiceRegistrationDeleteByIDResponse) error {
+
+	aclObj, err := s.resolveExternalACL(args)
+	if err != nil {
+		return err
+	}
+	if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityRegisterExternalService) {
+		return structs.ErrPermissionDenied
+	}
+	if err := s.externalServicesEnabled(); err != nil {
+		return err
+	}
+
+	index, err := s.srv.externalServices.delete(args.RequestNamespace(), args.ID)
+	if err != nil {
+		return err
+	}
+	reply.Index = index
+	return nil
+}
+
 // UpdateExternalChecks updates the status of checks of an external service:
 // TTL renewals by the registrant (register-external-service capability), or
 // the results of http and tcp checks reported by the client node owning the

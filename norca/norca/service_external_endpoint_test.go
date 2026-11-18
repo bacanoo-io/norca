@@ -318,6 +318,51 @@ func TestServiceRegistration_External_ACL(t *testing.T) {
 	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationDeleteExternalRPCMethod, delReq, &delResp))
 }
 
+// TestServiceRegistration_External_DeleteByID: the deletion of a service
+// registration by ID (DELETE /v1/service/:name/:id) needs for an external
+// service what DeleteExternal needs, not submit-job.
+func TestServiceRegistration_External_DeleteByID(t *testing.T) {
+	ci.Parallel(t)
+
+	s, _, cleanup := TestACLServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+
+	register := mock.CreatePolicyAndToken(t, s.State(), 1001, "register",
+		mock.NamespacePolicy(structs.DefaultNamespace, "", []string{acl.NamespaceCapabilityRegisterExternalService}))
+	submit := mock.CreatePolicyAndToken(t, s.State(), 1003, "submit",
+		mock.NamespacePolicy(structs.DefaultNamespace, acl.PolicyWrite, nil))
+	_, err := upsertExternal(t, s, ttlService("db", time.Minute), register.SecretID, "")
+	must.NoError(t, err)
+
+	// one registered through a client node, which owns it
+	node := mock.Node()
+	must.NoError(t, s.State().UpsertNode(structs.MsgTypeTestSetup, 1010, node))
+	_, err = upsertExternal(t, s, ttlService("db-node", time.Minute), register.SecretID, node.SecretID)
+	must.NoError(t, err)
+	must.Eq(t, node.ID, getRegistration(t, s, "db-node").NodeID)
+
+	deleteByID := func(id, token string) error {
+		req := &structs.ServiceRegistrationDeleteByIDRequest{ID: id,
+			WriteRequest: structs.WriteRequest{Region: DefaultRegion, Namespace: structs.DefaultNamespace, AuthToken: token}}
+		var resp structs.ServiceRegistrationDeleteByIDResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationDeleteByIDRPCMethod, req, &resp)
+	}
+
+	// submit-job (namespace write) and a node secret are not enough
+	for _, id := range []string{"db", "db-node"} {
+		must.ErrorContains(t, deleteByID(id, submit.SecretID), structs.ErrPermissionDenied.Error())
+		must.ErrorContains(t, deleteByID(id, node.SecretID), structs.ErrPermissionDenied.Error())
+		must.NotNil(t, getRegistration(t, s, id))
+	}
+
+	// the capability of external services is
+	for _, id := range []string{"db", "db-node"} {
+		must.NoError(t, deleteByID(id, register.SecretID))
+		must.Nil(t, getRegistration(t, s, id))
+	}
+}
+
 // TestServiceRegistration_External_BoundToNode: a caller with node write
 // binds a registration with http checks to a client node of its choice.
 func TestServiceRegistration_External_BoundToNode(t *testing.T) {
