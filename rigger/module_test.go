@@ -76,6 +76,52 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 	}
 }
 
+// A module whose defaults do not evaluate is not valid, examples or not.
+func TestEngine_ValidateModule_Defaults(t *testing.T) {
+	t.Parallel()
+
+	const metadata = "module {\n  name = \"app\"\n  version = \"1.0.0\"\n}\n"
+
+	tests := []struct {
+		name, variables, expected string
+	}{
+		{name: "defaults that evaluate", variables: "variable \"n\" {\n  type    = string\n  default = \"1\"\n}\n"},
+		{name: "defaults that do not", variables: "variable \"n\" {\n  type    = string\n  default = \"x\"\n}\n", expected: "Invalid function argument"},
+		{name: "a required variable", variables: "variable \"n\" {\n  type = string\n}\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := engine(t)
+
+			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
+				"metadata.hcl":  {Data: []byte(metadata)},
+				"variables.hcl": {Data: []byte(tt.variables)},
+				"outputs.hcl":   {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
+			})
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			diags = e.ValidateModule(t.Context(), m)
+
+			if tt.expected == "" {
+				if diags.HasErrors() {
+					t.Error(diags)
+				}
+
+				return
+			}
+
+			if !strings.Contains(diags.Error(), tt.expected) {
+				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
+			}
+		})
+	}
+}
+
 func icon(t *testing.T, w, h int) []byte {
 	t.Helper()
 

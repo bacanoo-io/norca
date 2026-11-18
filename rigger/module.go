@@ -152,7 +152,8 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 // ValidateModule checks what can be checked of a module without a cluster
 // (design 10, rig module validate): its icon, its test files (parsed, not
 // run), every value file of its examples/, checked against its variables
-// and evaluated (design 7.4), and a warning for each variable that changes
+// and evaluated (design 7.4), the module with no values when every variable
+// has a default, and a warning for each variable that changes
 // nothing (design 14.1). A module with a job is evaluated only by an engine
 // with a job decoder.
 func (e *Engine) ValidateModule(ctx context.Context, m *Module) hcl.Diagnostics {
@@ -176,6 +177,8 @@ func (e *Engine) ValidateModule(ctx context.Context, m *Module) hcl.Diagnostics 
 
 		diags = append(diags, e.checkExample(ctx, m, p)...)
 	}
+
+	diags = append(diags, e.checkDefaults(ctx, m)...)
 
 	span.End(ctx, diagsErr(diags))
 
@@ -202,6 +205,25 @@ func (e *Engine) checkExample(ctx context.Context, m *Module, p string) hcl.Diag
 	_, moreDiags := e.evaluate(ctx, m, Install{Release: md.Name, Namespace: "default", Region: "global", Values: values})
 
 	return append(diags, moreDiags...)
+}
+
+// checkDefaults evaluates a module with no values when every variable has
+// a default: the install that gives none must work too, examples or not.
+func (e *Engine) checkDefaults(ctx context.Context, m *Module) hcl.Diagnostics {
+	if !e.canEvaluate(m) {
+		return nil
+	}
+
+	for _, v := range m.mod.Variables {
+		if v.Default == cty.NilVal {
+			return nil
+		}
+	}
+
+	md := m.mod.Metadata
+	_, diags := e.evaluate(ctx, m, Install{Release: md.Name, Namespace: "default", Region: "global"})
+
+	return diags
 }
 
 // canEvaluate reports whether the engine can evaluate m: m is not a
