@@ -774,13 +774,15 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 // namespace. The plugin gets what it got when the snapshot was made: the
 // secrets of the volume, if it is still there, and those of secret_path over
 // them. A plugin that needs the secrets of the volume to delete would refuse
-// every deletion otherwise.
+// every deletion otherwise. The secrets of the volume go only to its own
+// plugin: a volume of the ID that is of another plugin than the one that
+// took the snapshot (registered again since) keeps its secrets.
 func (o *snapshotOperator) deleteSnapshot(p *snapshotPass, namespace string, s *scheduledSnapshot, secrets structs.CSISecrets) error {
 	vol, err := p.snap.CSIVolumeByID(nil, namespace, s.Volume)
 	if err != nil {
 		return fmt.Errorf("volume lookup failed: %v", err)
 	}
-	if vol != nil && len(vol.Secrets) > 0 {
+	if vol != nil && vol.PluginID == s.Plugin && len(vol.Secrets) > 0 {
 		merged := make(structs.CSISecrets, len(vol.Secrets)+len(secrets))
 		maps.Copy(merged, vol.Secrets)
 		maps.Copy(merged, secrets)

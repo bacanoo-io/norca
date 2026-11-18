@@ -869,6 +869,47 @@ func TestSnapshotSchedule_DeleteWithVolumeSecrets(t *testing.T) {
 	})
 }
 
+// The secrets of the volume go only to the plugin of the volume: a snapshot
+// taken by another plugin (the volume of the ID was registered again since,
+// of another plugin) is deleted with the secrets of secret_path alone
+// (review finding SEC-21).
+func TestSnapshotSchedule_DeleteWithVolumeSecretsOfItsPluginOnly(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	vol, err := c.s.State().CSIVolumeByID(nil, structs.DefaultNamespace, "db")
+	must.NoError(t, err)
+	vol = vol.Copy()
+	vol.Secrets = structs.CSISecrets{"volume-key": "of the volume", "token": "of the volume"}
+	must.NoError(t, c.s.State().UpsertCSIVolume(902, []*structs.CSIVolume{vol}))
+
+	var resp structs.SecretWriteResponse
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("csi/minnie", "", structs.SecretItems{"token": "s3cr3t"}), &resp))
+
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1}, "secret_path": "csi/minnie",
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("db")
+	listed := listedSnapshots(fake, "db", 2)
+	for _, s := range listed {
+		s.Plugin = "earlier"
+	}
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listed})
+
+	c.waitSchedule("db", "the older one deleted", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Deleted == 1 && len(st.Snapshots) == 1
+	})
+	fake.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, []structs.CSISecrets{{"token": "s3cr3t"}}, f.deleteSecrets,
+			must.Sprint("the secrets of the volume went to a plugin that is not its own"))
+	})
+}
+
 // An event of an object does not stand in the way of the status write
 // that follows it (the mechanism review finding SNP-5 supposed).
 func TestSnapshotSchedule_StatusWriteAfterEvent(t *testing.T) {
