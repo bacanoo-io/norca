@@ -85,6 +85,12 @@ func customObjectsTableSchema() *memdb.TableSchema {
 				Unique:       false,
 				Indexer:      objectOwnersIndexer{},
 			},
+			indexObjectDeleting: {
+				Name:         indexObjectDeleting,
+				AllowMissing: false,
+				Unique:       false,
+				Indexer:      &memdb.ConditionalIndex{Conditional: objectDeleting},
+			},
 		},
 	}
 }

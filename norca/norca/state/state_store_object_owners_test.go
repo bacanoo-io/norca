@@ -9,6 +9,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/hashicorp/go-memdb"
 	"github.com/shoenig/test/must"
 )
 
@@ -98,4 +99,31 @@ func TestStateStore_JobsByOwner(t *testing.T) {
 	must.NoError(t, store.DeleteJob(21, "default", "b"))
 	must.SliceEmpty(t, byOwner(value))
 	must.Eq(t, []string{"a", "c"}, byOwner(value+"-2"))
+}
+
+func TestStateStore_CustomObjectsDeleting(t *testing.T) {
+	ci.Parallel(t)
+	store := testStateStore(t)
+	must.NoError(t, store.UpsertObjectKind(structs.MsgTypeTestSetup, 10, testObjectKind("example.com", "Thing", true)))
+	must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, 11, testCustomObject("example.com", "Thing", "default", "a"), 0))
+	must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, 12, testCustomObject("example.com", "Thing", "default", "b"), 0))
+
+	deleting := func() []string {
+		t.Helper()
+		iter, err := store.CustomObjectsDeleting(nil)
+		return countObjects(t, iter, err)
+	}
+	must.SliceEmpty(t, deleting())
+
+	// Any change of an object fires the watch of the table.
+	ws := memdb.NewWatchSet()
+	must.NoError(t, store.WatchCustomObjects(ws))
+	marked := testCustomObject("example.com", "Thing", "default", "b")
+	marked.DeletionTime = 1000
+	must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, 13, marked, 12))
+	must.True(t, watchFired(ws))
+	must.Eq(t, []string{"default/b"}, deleting())
+
+	must.NoError(t, store.DeleteCustomObject(structs.MsgTypeTestSetup, 14, "example.com", "Thing", "default", "b", 0))
+	must.SliceEmpty(t, deleting())
 }

@@ -4,6 +4,7 @@
 package objectgc
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"sync"
@@ -23,7 +24,7 @@ import (
 // harness applies the collector's actions to a state store, like the
 // server does through Raft.
 type harness struct {
-	t     *testing.T
+	t     testing.TB
 	store *state.StateStore
 	gc    *Collector
 	now   time.Time
@@ -39,7 +40,7 @@ type harness struct {
 // guardedLabel marks the objects of a test whose deletion is guarded.
 const guardedLabel = "guarded"
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t testing.TB) *harness {
 	h := &harness{t: t, store: state.TestStateStore(t), now: time.Unix(1_700_000_000, 0), index: 100}
 	h.gc = New(hclog.NewNullLogger(), DefaultConfig(), &Deps{
 		State: func() *state.StateStore { return h.store },
@@ -266,6 +267,61 @@ func TestCollector_RetentionIsNotPendingWork(t *testing.T) {
 	h.now = h.now.Add(DefaultConfig().TombstoneRetention + time.Second)
 	must.False(t, h.collect())
 	must.SliceEmpty(t, h.tombstones())
+}
+
+// TestCollector_RunWakesForLateDependents checks that a change of the
+// objects wakes the collector while a tombstone waits for its retention: a
+// dependent written after the deletion of its owner is deleted at once, not
+// after the idle interval.
+func TestCollector_RunWakesForLateDependents(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+	cfg := DefaultConfig()
+	cfg.Interval = 10 * time.Millisecond
+	cfg.IdleInterval = time.Hour
+	h.gc.SetConfig(cfg)
+	h.gc.deps.Now = time.Now
+	h.gc.now = time.Now
+	h.now = time.Now()
+
+	owner := h.object("owner")
+	must.NoError(t, h.remove(owner, structs.ObjectPropagationBackground))
+	h.gc.SetEnabled(true)
+	defer h.gc.SetEnabled(false)
+
+	// The first passes find nothing to do; the collector goes idle.
+	time.Sleep(100 * time.Millisecond)
+	h.object("late", "owner")
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return h.get("late") == nil }),
+		wait.Timeout(10*time.Second),
+		wait.Gap(10*time.Millisecond),
+	))
+}
+
+// BenchmarkCollect measures a pass with one tombstone that waits for its
+// retention and many unrelated owned objects and jobs (review finding
+// MUK-13): the pass should not read them.
+func BenchmarkCollect(b *testing.B) {
+	for _, n := range []int{1000, 10000} {
+		b.Run(fmt.Sprintf("others=%d", n), func(b *testing.B) {
+			h := newHarness(b)
+			for i := range n {
+				name := fmt.Sprintf("db-%d", i)
+				h.object(name)
+				h.object(name+"-part", name)
+				h.job("job-"+name, name+"-part")
+			}
+			owner := h.object("owner")
+			must.NoError(b, h.removeApproved(owner, structs.ObjectPropagationBackground, nil))
+
+			for b.Loop() {
+				if _, err := h.gc.Collect(memdb.NewWatchSet(), h.store); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
 
 func TestCollector_Foreground(t *testing.T) {
