@@ -415,6 +415,19 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		if err := m.authorizeReleaseResources(snap, aclObj, ownedKeys, resources); err != nil {
 			return err
 		}
+		// A job with ACL policies bound to it changes only with a token
+		// that holds them (JOG-2), owned or not.
+		for _, res := range resources {
+			if aclObj == nil || res.Type != structs.ReleaseResourceJob {
+				continue
+			}
+			if _, adopted := in.adopted[res.Ref().Key()]; adopted {
+				continue // not written here, see authorizeAdoption
+			}
+			if err := m.srv.releaseJobBoundPolicies(snap, aclObj, op.args, res.Job); err != nil {
+				return err
+			}
+		}
 	}
 
 	warnings, err := m.admitRelease(snap, op, in)
@@ -1214,6 +1227,21 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 
 		switch res.Type {
 		case structs.ReleaseResourceJob:
+			// A job with bound ACL policies the token doesn't hold (JOG-2):
+			// the apply would be refused.
+			if aclObj != nil {
+				if err := op.m.srv.releaseJobBoundPolicies(snap, aclObj, op.args, res.Job); err != nil {
+					change.Action = structs.ReleaseChangeUpdate
+					if !live.exists() {
+						change.Action = structs.ReleaseChangeCreate
+					}
+					change.Error = err.Error()
+					if _, msg, ok := structs.CodeFromRPCCodedErr(err); ok {
+						change.Error = msg
+					}
+					continue
+				}
+			}
 			var reply structs.JobPlanResponse
 			job := res.Job.Copy()
 			err := op.m.srv.RPC("Job.Plan", &structs.JobPlanRequest{

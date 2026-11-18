@@ -116,21 +116,35 @@ func jobRunsChanged(existing *structs.Job, args *structs.JobRegisterRequest) boo
 // existing is the stored job, nil for a new one. aclObj is nil when ACLs
 // are disabled.
 func (j *Job) checkJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL, args *structs.JobRegisterRequest, existing *structs.Job) error {
-	if aclObj == nil || aclObj.IsManagement() {
-		return nil
-	}
-	job := args.Job
-	boundID := boundPolicyJobID(job)
-	bound, err := jobBoundPolicyNames(snap, job.Namespace, boundID)
-	if err != nil || len(bound) == 0 {
+	denied, err := j.srv.missingBoundPolicies(snap, aclObj, args.GetIdentity(), args.Job)
+	if err != nil || denied == nil {
 		return err
 	}
 	if !jobRunsChanged(existing, args) {
 		return nil
 	}
-	held, err := j.srv.heldPolicyNames(snap, args.GetIdentity())
+	return denied
+}
+
+// missingBoundPolicies returns as denied the 403 error of
+// checkJobBoundPolicies when ACL policies are bound to the job and the
+// identity doesn't hold all of them, whether or not the registration would
+// change the job; denied is nil when the identity may change it. err is a
+// failure to read the state.
+func (s *Server) missingBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL,
+	identity *structs.AuthenticatedIdentity, job *structs.Job) (denied, err error) {
+
+	if aclObj == nil || aclObj.IsManagement() {
+		return nil, nil
+	}
+	boundID := boundPolicyJobID(job)
+	bound, err := jobBoundPolicyNames(snap, job.Namespace, boundID)
+	if err != nil || len(bound) == 0 {
+		return nil, err
+	}
+	held, err := s.heldPolicyNames(snap, identity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var missing []string
 	for _, name := range bound {
@@ -139,7 +153,7 @@ func (j *Job) checkJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL, 
 		}
 	}
 	if len(missing) == 0 {
-		return nil
+		return nil, nil
 	}
 	to := "it"
 	if boundID != job.ID {
@@ -147,5 +161,52 @@ func (j *Job) checkJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL, 
 	}
 	return structs.NewErrRPCCodedf(http.StatusForbidden,
 		"%s: job %q runs with the ACL policies bound to %s, so a token that changes it must hold them; the token doesn't hold %s",
-		structs.ErrPermissionDenied, job.ID, to, strings.Join(missing, ", "))
+		structs.ErrPermissionDenied, job.ID, to, strings.Join(missing, ", ")), nil
+}
+
+// releaseJobBoundPolicies applies the rule of checkJobBoundPolicies to a job
+// of a release before the release applies anything (the release permission
+// check, SEC-5): the job as Job.Register would store it, after the
+// admission controllers, is compared with the stored one. It returns the
+// 403 error when the caller doesn't hold the policies bound to the job and
+// the job is new or would change. Job.Register checks again when the job is
+// applied.
+func (s *Server) releaseJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL,
+	args structs.RequestWithIdentity, job *structs.Job) error {
+
+	denied, err := s.missingBoundPolicies(snap, aclObj, args.GetIdentity(), job)
+	if err != nil || denied == nil {
+		return err
+	}
+	existing, err := snap.JobByID(nil, job.Namespace, job.ID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return denied
+	}
+
+	// Prepare the job as Job.Plan does: the multiregion fields of this
+	// region, the admission controllers, the scaling policy IDs.
+	req := &structs.JobPlanRequest{
+		Job:          job.Copy(),
+		WriteRequest: structs.WriteRequest{Region: s.Region(), Namespace: job.Namespace},
+	}
+	req.SetIdentity(args.GetIdentity())
+	ep := NewJobEndpoints(s, nil)
+	if err := ep.interpolateMultiregionFields(req); err != nil {
+		return err
+	}
+	prepared, _, err := ep.admissionControllers(req.Job, &admissionRequest{
+		operation: structs.AdmissionOperationPlan, args: req})
+	if err != nil {
+		return err
+	}
+	if err := propagateScalingPolicyIDs(existing, prepared); err != nil {
+		return err
+	}
+	if !jobRunsChanged(existing, &structs.JobRegisterRequest{Job: prepared}) {
+		return nil
+	}
+	return denied
 }

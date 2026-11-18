@@ -40,10 +40,13 @@ func TestRelease_BoundPoliciesNeedTheirHolder(t *testing.T) {
 			{Type: structs.ReleaseResourceJob, Job: job},
 		}
 	}
-	apply := func(token, value string) error {
-		_, err := c.applyAs(token, "a", "op", &structs.ReleaseApplyRequest{
-			Pack: &structs.ReleasePack{Name: "op"}, Atomic: pointer.Of(true), Resources: pack(value),
+	applyReq := func(token, value string, dryRun bool) (*structs.ReleaseApplyResponse, error) {
+		return c.applyAs(token, "a", "op", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "op"}, Atomic: pointer.Of(true), DryRun: dryRun, Resources: pack(value),
 		})
+	}
+	apply := func(token, value string) error {
+		_, err := applyReq(token, value, false)
 		return err
 	}
 	live := func() string {
@@ -52,19 +55,56 @@ func TestRelease_BoundPoliciesNeedTheirHolder(t *testing.T) {
 		must.NotNil(t, job)
 		return job.TaskGroups[0].Tasks[0].Env["VERSION"]
 	}
+	// refused checks a refusal of the release permission check: a 403 (the
+	// HTTP layer answers with the code of an RPC coded error) that names the
+	// policy, before anything is applied or recorded.
+	refused := func(err error, version string) {
+		t.Helper()
+		must.Error(t, err)
+		code, msg, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok, must.Sprint(err))
+		must.Eq(t, 403, code)
+		must.StrContains(t, msg, "Permission denied")
+		must.StrContains(t, msg, `"op-ctrl"`)
+		must.Eq(t, version, live())
+	}
 
 	// The operator installs the pack.
 	must.NoError(t, apply(c.token, "1"))
 	must.Eq(t, "1", live())
+	rel := c.get("a", "op")
+	revisions := len(c.history("a", "op"))
 
-	// The team's upgrade with a changed job is refused.
-	err := apply(team.SecretID, "team")
-	must.ErrorContains(t, err, "Permission denied")
-	must.ErrorContains(t, err, `"op-ctrl"`)
-	must.Eq(t, "1", live())
+	// The team's upgrade with a changed job is refused before anything is
+	// applied or recorded: no revision, the release as it was.
+	refused(apply(team.SecretID, "team"), "1")
+	must.Len(t, revisions, c.history("a", "op"))
+	after := c.get("a", "op")
+	must.Eq(t, rel.Status.Revision, after.Status.Revision)
+	must.Eq(t, rel.Spec.Revision, after.Spec.Revision)
+	must.Eq(t, structs.ReleasePhaseDeployed, after.Status.Phase)
+
+	// The plan of that upgrade says so for the job.
+	plan, err := applyReq(team.SecretID, "team", true)
+	must.NoError(t, err)
+	var jobChange *structs.ReleaseResourceChange
+	for _, ch := range plan.Changes {
+		if ch.Type == structs.ReleaseResourceJob {
+			jobChange = ch
+		}
+	}
+	must.NotNil(t, jobChange)
+	must.Eq(t, structs.ReleaseChangeUpdate, jobChange.Action)
+	must.StrContains(t, jobChange.Error, "Permission denied")
+	must.StrContains(t, jobChange.Error, `"op-ctrl"`)
 
 	// The team's upgrade that leaves the job and the policy as they are
-	// is not.
+	// is not refused, and its plan has no error.
+	plan, err = applyReq(team.SecretID, "1", true)
+	must.NoError(t, err)
+	for _, ch := range plan.Changes {
+		must.Eq(t, "", ch.Error, must.Sprint(ch.Type))
+	}
 	must.NoError(t, apply(team.SecretID, "1"))
 	must.Eq(t, structs.ReleasePhaseDeployed, c.get("a", "op").Status.Phase)
 	must.Eq(t, "1", live())
@@ -80,9 +120,21 @@ func TestRelease_BoundPoliciesNeedTheirHolder(t *testing.T) {
 			WriteRequest: structs.WriteRequest{Region: "global", Namespace: "a", AuthToken: token},
 		}, new(structs.ReleaseApplyResponse))
 	}
-	err = rollback(team.SecretID, 1)
-	must.ErrorContains(t, err, `"op-ctrl"`)
-	must.Eq(t, "2", live())
+	revisions = len(c.history("a", "op"))
+	refused(rollback(team.SecretID, 1), "2")
+	must.Len(t, revisions, c.history("a", "op"))
 	must.NoError(t, rollback(holder.SecretID, 1))
 	must.Eq(t, "1", live())
+
+	// Job.Register stays the backstop: the team can't change the job
+	// outside the release either.
+	job, err := store.JobByID(nil, "a", "ctrl")
+	must.NoError(t, err)
+	changed := job.Copy()
+	changed.TaskGroups[0].Tasks[0].Env["VERSION"] = "direct"
+	err = c.srv.RPC("Job.Register", &structs.JobRegisterRequest{
+		Job:          changed,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "a", AuthToken: team.SecretID},
+	}, new(structs.JobRegisterResponse))
+	refused(err, "1")
 }
