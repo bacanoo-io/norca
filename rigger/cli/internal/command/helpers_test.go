@@ -11,8 +11,12 @@ import (
 	"testing"
 )
 
-// stackFile is the file of a stack the tests write.
-const stackFile = "stack.hcl"
+// The files and the messages of the tests.
+const (
+	stackFile    = "stack.hcl"
+	metadataFile = "metadata.hcl"
+	isValid      = "is valid"
+)
 
 func writeTree(t *testing.T, files map[string]string) string {
 	t.Helper()

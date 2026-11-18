@@ -27,6 +27,8 @@ func TestParse(t *testing.T) {
 		{address: "https://git.internal/rig.git//modules/db", expected: source.Request{Kind: source.KindGit, Repository: "https://git.internal/rig.git", Path: "modules/db", TagPrefix: "db/v"}},
 		{address: "builtin/redis", expected: source.Request{Kind: source.KindBuiltin, Path: "redis"}},
 		{address: "dir:///opt/rig/worker", expected: source.Request{Kind: source.KindDirectory, Repository: "/opt/rig/worker", Path: "."}},
+		{address: "oci://registry.internal/rig/nats", expected: source.Request{Kind: source.KindOCI, Repository: "registry.internal/rig/nats"}},
+		{address: "oci://registry.internal", err: source.ErrAddress},
 		{address: "norca/nats", err: source.ErrGlobalRegistry},
 		{address: "Example/x", err: source.ErrAddress},
 	}

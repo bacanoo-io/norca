@@ -45,7 +45,7 @@ func TestRun_KeyAndTrust(t *testing.T) {
 
 	// The greeter 1.1.1 is signed in the repository and tagged.
 	module := filepath.Join(repo, "modules", "greeter")
-	if err := os.WriteFile(filepath.Join(module, "metadata.hcl"), []byte("module {\n  name    = \"greeter\"\n  version = \"1.1.1\"\n}\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(module, metadataFile), []byte("module {\n  name    = \"greeter\"\n  version = \"1.1.1\"\n}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -74,7 +74,7 @@ func TestRun_KeyAndTrust(t *testing.T) {
 		t.Fatalf("lock = %s, %v; want the signer of greeter/v1.1.1", lock, err)
 	}
 
-	rigRun(t, exitOK, []string{"is valid"}, "stack", "validate", ok)
+	rigRun(t, exitOK, []string{isValid}, "stack", "validate", ok)
 
 	rigRunErr(t, "not signed by a key the stack trusts", "stack", "sync", stack("other.pub"))
 

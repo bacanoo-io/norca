@@ -16,7 +16,7 @@ func TestRun_ModuleTest(t *testing.T) {
 
 	failing := t.TempDir()
 	files := map[string]string{
-		"metadata.hcl":        "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
+		metadataFile:          "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
 		"x.acl.hcl":           "policy \"x\" {\n  rules = \"r\"\n}\n",
 		"tests/x.rigtest.hcl": "test \"holds\" {\n  assert {\n    condition     = resource.policy.x.rules == \"r\"\n    error_message = \"r\"\n  }\n}\n\ntest \"fails\" {\n  assert {\n    condition     = resource.policy.x.rules == \"s\"\n    error_message = \"the rules are s\"\n  }\n}\n",
 	}

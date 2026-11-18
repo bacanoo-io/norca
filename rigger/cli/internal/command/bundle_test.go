@@ -55,5 +55,5 @@ module "hello" {
 	rigRunErr(t, "Module not loaded", "stack", "validate", dir)
 
 	rigRun(t, exitOK, []string{"imported local/greeter 1.1.0"}, "bundle", "import", first)
-	rigRun(t, exitOK, []string{"is valid"}, "stack", "validate", dir)
+	rigRun(t, exitOK, []string{isValid}, "stack", "validate", dir)
 }

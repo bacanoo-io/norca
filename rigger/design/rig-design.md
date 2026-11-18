@@ -1605,6 +1605,18 @@ Phase 4 as built (2026-11-18), signatures and trust:
   the repository can't be reached. A bundle is therefore not an address of
   its own: the lock file says what to install, the bundle only brings it.
   Built-in modules and directories need no bundle.
+- **OCI** (`oci://<host>/<repository>`): a module version is an OCI image
+  manifest of the artifact type `application/vnd.norca.rig.module.v1`,
+  tagged with the version, with one layer: the tar.gz of the directories of
+  the module and its children, signatures included (so a signature is not
+  a cosign artifact of its own but goes with the module, as in git), and
+  the module's name, version, path and tree digest as annotations. The lock
+  records the manifest digest in place of a commit, so a tag pushed again
+  is refused. `rig module publish [dir] -to oci://...` pushes. The client is
+  Rig's own over the distribution API: anonymous, or Basic and Bearer with
+  `RIG_OCI_USERNAME` / `RIG_OCI_PASSWORD`; http for localhost only. The
+  credentials of docker's configuration and `rig login` are left for later
+  (8.4).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).

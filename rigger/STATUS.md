@@ -1,11 +1,13 @@
 # State of Rig
 
 2026-11-18. Phases 1 and 2 of the design (`design/rig-design.md`, section
-15) are done, and phase 3: modules load, validate, evaluate and are
+15) are done, and phases 3 and 4: modules load, validate, evaluate and are
 tested; stacks are planned and applied as releases on a Norca cluster
-through today's release API; modules come from git registries, directories
-or the program itself, in versions a lock file pins. Next: phase 4, the
-supply chain (signatures, trust, bundles, OCI).
+through today's release API; modules come from git registries, OCI
+registries, directories or the program itself, in versions a lock file
+pins; modules are signed, a stack trusts keys, and bundles carry a stack's
+modules to a machine without a network. Next: phase 5, the other packs and
+the deployer.
 
 ## What works
 
@@ -23,6 +25,7 @@ supply chain (signatures, trust, bundles, OCI).
 | Tests (design 7.4) | `test` blocks of `tests/*.rigtest.hcl`: values in, assertions over `resource.<block>.<name>` (the block as written) and `output.<name>`, or an expected error |
 | Stacks (design 6.4, 9) | `stack.hcl` with releases of local modules, values, `depends_on`, `enabled`; plan by digest (unchanged, install, upgrade, remove), apply in dependency order with waiting, prune, status with drift, destroy; generated values (`!generate:`) and secrets created once in the cluster's secret store |
 | Sources (design 7, 8.3) | `<registry>/<name>`, git addresses, `builtin/<name>`, `dir://`; versions by tags and constraints (`~> 1.2`); `rig stack sync [-upgrade]` writes `rig.lock.hcl`; moved tags and other content refused; a cache of mirrors and trees |
+| Supply chain (design 8) | `rig key generate|sign|verify` (cosign-format keys, the statement Norca's admission verifies); signatures in `.rig-signatures/` of a module; `trust` per registry; signers in the lock; `rig bundle create|inspect|import`; `oci://` sources and `rig module publish` |
 | Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner in the description), secret store, cluster facts; every kind mapped onto Norca's API type of the kind |
 | CLI | `rig stack sync|validate|plan|apply|status|destroy`, `rig install`, `rig release list|status|history|rollback|uninstall`; `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
 
@@ -47,9 +50,10 @@ supply chain (signatures, trust, bundles, OCI).
 
 - Phase 1: a schema per resource kind (the kinds other than jobs are the
   value of their block as JSON until their kind is implemented).
-- Phase 4 on: signatures and trust, bundles and OCI, the conversion of the
-  other packs, the deployer with stacks, the global registry, the embedding
-  into Norca (phase 7, which changes norca).
+- Phase 5 on: the conversion of the other packs, the deployer with stacks,
+  the global registry, the embedding into Norca (phase 7, which changes
+  norca). For later: OCI credentials from docker's configuration, `rig
+  login`, keyless signing.
 - `norca-rig-registry` (next to this repository) holds the first modules,
   tagged; it is not pushed.
 - Open for phase 4: the digest of a module whose local child module lies

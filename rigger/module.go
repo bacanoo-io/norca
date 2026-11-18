@@ -42,6 +42,17 @@ func (m *Module) Digest() (string, error) {
 	return lang.Digest(m.mod)
 }
 
+// Dir is the directory of the module in the root it was loaded from.
+func (m *Module) Dir() string {
+	return m.mod.Dir
+}
+
+// Files returns what a module is published from: the root it was loaded
+// from, and the directories of the module and of its child modules there.
+func (m *Module) Files() (fs.FS, []string) {
+	return m.mod.Root, moduleDirs(m.mod)
+}
+
 // Metadata returns the module block of the module.
 func (m *Module) Metadata() module.Metadata {
 	return m.mod.Metadata

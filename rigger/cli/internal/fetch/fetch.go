@@ -10,6 +10,7 @@ package fetch
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,12 +27,15 @@ import (
 	"sync"
 
 	"github.com/bacanoo-io/norca-rig/cli/builtin"
+	"github.com/bacanoo-io/norca-rig/cli/internal/oci"
 	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca-rig/version"
 )
 
 // Fetcher fetches modules into a cache directory.
 type Fetcher struct {
 	cache string
+	oci   *oci.Client
 
 	mu      sync.Mutex
 	updated map[string]bool // mirrors fetched in this run
@@ -41,7 +45,7 @@ var _ source.Fetcher = (*Fetcher)(nil)
 
 // New returns a fetcher with its cache in dir.
 func New(dir string) *Fetcher {
-	return &Fetcher{cache: dir, updated: map[string]bool{}}
+	return &Fetcher{cache: dir, oci: oci.NewClient(), updated: map[string]bool{}}
 }
 
 // CacheDir is the cache of the rig program: RIG_CACHE_DIR, else rig in the
@@ -66,6 +70,8 @@ func (f *Fetcher) Versions(ctx context.Context, req source.Request) ([]source.Av
 		return f.gitVersions(ctx, req)
 	case source.KindDirectory, source.KindBuiltin:
 		return []source.Available{{}}, nil
+	case source.KindOCI:
+		return f.ociVersions(ctx, req)
 	default:
 		return nil, fmt.Errorf("%w: kind %q", source.ErrAddress, req.Kind)
 	}
@@ -78,6 +84,8 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 	switch req.Kind {
 	case source.KindGit:
 		return f.gitFetch(ctx, req)
+	case source.KindOCI:
+		return f.ociFetch(ctx, req)
 	case source.KindDirectory:
 		info, err := os.Stat(req.Repository)
 		if err != nil {
@@ -280,6 +288,121 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 		FS: os.DirFS(tree), Dir: path.Clean(req.Path),
 		Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: ref, Commit: commit},
 	}, nil
+}
+
+// ociVersions lists the tags of a repository that are versions.
+func (f *Fetcher) ociVersions(ctx context.Context, req source.Request) ([]source.Available, error) {
+	tags, err := f.oci.Tags(ctx, req.Repository)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []source.Available
+
+	for _, tag := range tags {
+		if _, err := version.Parse(tag); err == nil {
+			out = append(out, source.Available{Version: tag, Ref: tag})
+		}
+	}
+
+	return out, nil
+}
+
+// OCIDir is the directory of the layer of a manifest in the cache.
+func (f *Fetcher) OCIDir(manifest string) string {
+	return filepath.Join(f.cache, "oci", strings.TrimPrefix(manifest, "sha256:"))
+}
+
+// ociFetch resolves the tag of a version to its manifest, refuses a
+// manifest other than the one the lock file records, and extracts its
+// layer into the cache. When the registry can't be reached, the cached
+// layer of the locked manifest serves.
+func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
+	tag := req.Ref
+	if tag == "" {
+		tag = req.Version
+	}
+
+	origin := source.Origin{Source: req.Source, Version: req.Version, Ref: tag}
+
+	m, digest, err := f.oci.Resolve(ctx, req.Repository, tag)
+	if err != nil {
+		cached := f.OCIDir(req.Commit)
+		if req.Commit != "" && req.Path != "" {
+			if _, statErr := os.Stat(filepath.Join(cached, filepath.FromSlash(req.Path), "metadata.hcl")); statErr == nil {
+				origin.Commit = req.Commit
+
+				return source.Fetched{FS: os.DirFS(cached), Dir: req.Path, Origin: origin}, nil
+			}
+		}
+
+		return source.Fetched{}, err
+	}
+
+	if req.Commit != "" && req.Commit != digest {
+		return source.Fetched{}, fmt.Errorf("%s:%s: %w (%s, now %s)", req.Repository, tag, ErrTagMoved, req.Commit, digest)
+	}
+
+	dir := f.OCIDir(digest)
+	if _, err := os.Stat(dir); err != nil {
+		if err := f.extractLayer(ctx, req.Repository, m.Layers[0].Digest, dir); err != nil {
+			return source.Fetched{}, err
+		}
+	}
+
+	mod := oci.ModuleOf(m)
+	if !fs.ValidPath(mod.Path) {
+		return source.Fetched{}, fmt.Errorf("%s:%s: the module path %q is not a path", req.Repository, tag, mod.Path)
+	}
+
+	origin.Commit = digest
+
+	return source.Fetched{FS: os.DirFS(dir), Dir: mod.Path, Origin: origin}, nil
+}
+
+// extractLayer writes the files of a layer into dir.
+func (f *Fetcher) extractLayer(ctx context.Context, repository, digest, dir string) error {
+	blob, err := f.oci.Blob(ctx, repository, digest)
+	if err != nil {
+		return err
+	}
+
+	gz, err := gzip.NewReader(bytes.NewReader(blob))
+	if err != nil {
+		return err
+	}
+
+	data, err := io.ReadAll(io.LimitReader(gz, 256<<20))
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
+		return err
+	}
+
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), "layer.tmp-")
+	if err != nil {
+		return err
+	}
+
+	if err := untar(data, tmp); err != nil {
+		_ = os.RemoveAll(tmp)
+
+		return err
+	}
+
+	if err := os.Rename(tmp, dir); err != nil {
+		_ = os.RemoveAll(tmp)
+
+		if _, statErr := os.Stat(dir); statErr == nil {
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // extract writes the tree of a commit into dir, through a directory of its

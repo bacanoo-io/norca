@@ -27,12 +27,14 @@ var errReported = errors.New("reported")
 // runModule runs a module command: rig module <command> [args].
 func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
-		warn(stderr, "module needs a command: render, test or validate")
+		warn(stderr, "module needs a command: render, test, validate or publish")
 
 		return exitError
 	}
 
 	switch args[0] {
+	case cmdPublish:
+		return runPublish(ctx, logger, stdout, stderr, args[1:])
 	case cmdRender:
 		f, err := parseRenderFlags(stderr, args[1:])
 		if err != nil {

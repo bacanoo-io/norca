@@ -94,6 +94,8 @@ type fetchedModule struct {
 	module     *lang.Module
 	origin     source.Origin
 	signatures []sign.Signature
+	// dir is the directory of the module in what was fetched.
+	dir string
 }
 
 // ErrNotTrusted is the error of a module the trust of the stack does not
@@ -167,7 +169,7 @@ func meets(constraint, v string) error {
 // fetchLocked fetches the version a lock entry records and checks it.
 func (e *Engine) fetchLocked(ctx context.Context, r *lang.StackRelease, entry *lang.LockedModule) (*fetchedModule, error) {
 	req := *r.Address
-	req.Version, req.Ref, req.Commit = entry.Version, entry.Ref, entry.Commit
+	req.Version, req.Ref, req.Commit, req.Path = entry.Version, entry.Ref, entry.Commit, entry.Path
 
 	fm, err := e.fetchModule(ctx, req)
 	if err != nil {
@@ -238,7 +240,7 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 			req.Source, origin.Ref, origin.Version, m.Metadata.Version)
 	}
 
-	return &fetchedModule{module: m, origin: origin, signatures: sigs}, nil
+	return &fetchedModule{module: m, origin: origin, signatures: sigs, dir: path.Clean(fetched.Dir)}, nil
 }
 
 // moduleName is the name a module of a source must have: the last element
@@ -361,7 +363,7 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 
 	return &lang.LockedModule{
 		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: req.Repository,
-		Path: req.Path, Ref: origin.Ref, Commit: origin.Commit, Digest: origin.Digest,
+		Path: fm.dir, Ref: origin.Ref, Commit: origin.Commit, Digest: origin.Digest,
 	}, fm, nil
 }
 

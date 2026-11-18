@@ -16,7 +16,7 @@ func TestRun_ModuleValidate(t *testing.T) {
 
 	broken := t.TempDir()
 	files := map[string]string{
-		"metadata.hcl":          "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
+		metadataFile:            "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
 		variablesFile:           "variable \"mode\" {\n  default = \"a\"\n\n  validation {\n    one_of = [\"a\", \"b\"]\n  }\n}\n",
 		"examples/bad.vars.hcl": "mode = \"c\"\n",
 	}
@@ -58,7 +58,7 @@ func TestRun_ModuleValidate(t *testing.T) {
 			expectedStderr: "no such file or directory",
 		},
 		{name: "no module command", args: []string{cmdModule}, expectedCode: exitError, expectedStderr: "module needs a command"},
-		{name: "unknown module command", args: []string{cmdModule, "publish"}, expectedCode: exitError, expectedStderr: `unknown module command "publish"`},
+		{name: "unknown module command", args: []string{cmdModule, "share"}, expectedCode: exitError, expectedStderr: `unknown module command "share"`},
 	}
 
 	for _, tt := range tests {

@@ -41,6 +41,7 @@ const (
 	cmdBundle  = "bundle"
 
 	cmdRender   = "render"
+	cmdPublish  = "publish"
 	cmdTest     = "test"
 	cmdValidate = "validate"
 )
@@ -90,6 +91,9 @@ Commands:
                           (dir: the current one)
   module test [dir]       run the tests of a module (tests/*.rigtest.hcl):
                           its values in, assertions over its resources
+  module publish [dir] -to oci://host/repository
+                          push the module, with its child modules and
+                          signatures, tagged with its version
   module render [dir] [-f values.vars.hcl] [-var name=value]
          [-release name] [-namespace ns] [-region region]
                           evaluate a module and print its resources and

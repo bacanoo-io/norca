@@ -27,6 +27,9 @@ const (
 	KindDirectory Kind = "dir"
 	// KindBuiltin is a module built into the program.
 	KindBuiltin Kind = "builtin"
+	// KindOCI is a repository of an OCI registry: versions are tags, the
+	// manifest digest of a tag stands for its commit.
+	KindOCI Kind = "oci"
 )
 
 // Request names a module of a source, and a version to fetch.
@@ -111,35 +114,66 @@ var ErrGlobalRegistry = errors.New("the global registry comes with phase 6; name
 //
 //   - builtin/<name>: a module built into the program;
 //   - dir://<path>: a directory;
+//   - oci://<host>/<repository>: a repository of an OCI registry, tagged
+//     by version;
 //   - <host>/<path>[//<dir>], https://, file:// or an absolute path: a git
 //     repository, the module in <dir>;
 //   - <registry>/<name>: the module modules/<name> of a registry of the
 //     stack, registries giving the repository of each registry by name;
 //   - <namespace>/<name> of no registry of the stack: the global registry.
 func Parse(address string, registries map[string]string) (Request, error) {
-	req := Request{Source: address}
-
-	switch {
-	case strings.HasPrefix(address, "builtin/"):
-		name := strings.TrimPrefix(address, "builtin/")
-		if !validName(name) {
-			return Request{}, fmt.Errorf("%w: %q", ErrAddress, address)
-		}
-
-		req.Kind, req.Path = KindBuiltin, name
-
-		return req, nil
-	case strings.HasPrefix(address, "dir://"):
-		req.Kind, req.Repository, req.Path = KindDirectory, strings.TrimPrefix(address, "dir://"), "."
-
-		return req, nil
+	if req, ok, err := parseScheme(address); ok {
+		return req, err
 	}
+
+	req := Request{Source: address}
 
 	if repo, ok := gitRepository(address); ok {
 		req.Kind, req.Repository, req.Path, req.TagPrefix = KindGit, repo.repository, repo.path, repo.tagPrefix
 
 		return req, nil
 	}
+
+	return parseRegistry(address, registries)
+}
+
+// parseScheme parses the addresses with a prefix of their own: builtin/,
+// dir://, oci://.
+func parseScheme(address string) (Request, bool, error) {
+	req := Request{Source: address}
+
+	switch {
+	case strings.HasPrefix(address, "builtin/"):
+		name := strings.TrimPrefix(address, "builtin/")
+		if !validName(name) {
+			return Request{}, true, fmt.Errorf("%w: %q", ErrAddress, address)
+		}
+
+		req.Kind, req.Path = KindBuiltin, name
+
+		return req, true, nil
+	case strings.HasPrefix(address, "dir://"):
+		req.Kind, req.Repository, req.Path = KindDirectory, strings.TrimPrefix(address, "dir://"), "."
+
+		return req, true, nil
+	case strings.HasPrefix(address, "oci://"):
+		repo := strings.TrimPrefix(address, "oci://")
+		if host, name, ok := strings.Cut(repo, "/"); !ok || host == "" || name == "" {
+			return Request{}, true, fmt.Errorf("%w: %q is not oci://<host>/<repository>", ErrAddress, address)
+		}
+
+		req.Kind, req.Repository = KindOCI, repo
+
+		return req, true, nil
+	default:
+		return Request{}, false, nil
+	}
+}
+
+// parseRegistry parses <registry>/<name>, a module of a registry of the
+// stack, and refuses the global registry until phase 6.
+func parseRegistry(address string, registries map[string]string) (Request, error) {
+	req := Request{Source: address}
 
 	reg, name, ok := strings.Cut(address, "/")
 	if !ok || !validName(reg) || !validName(name) {
