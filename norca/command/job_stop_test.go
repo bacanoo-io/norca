@@ -27,10 +27,14 @@ var _ cli.Command = (*JobStopCommand)(nil)
 func TestStopCommand_multi(t *testing.T) {
 	ci.Parallel(t)
 
-	srv, _, addr := testServer(t, true, func(c *agent.Config) {
+	srv, client, addr := testServer(t, true, func(c *agent.Config) {
 		c.DevMode = true
 	})
 	defer srv.Shutdown()
+
+	// The jobs are run without -detach, so job run fails unless they are
+	// placed: wait for the client node of the dev agent first.
+	waitForNodes(t, client)
 
 	// the number of jobs we want to run
 	numJobs := 10
