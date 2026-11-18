@@ -15,6 +15,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// No mount options (nil) and empty ones are the same: a volume or a volume
+// request written with an empty mount_options block is not changed by it
+// (review finding MUK-10).
+func TestCSIMountOptions_Equal(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name  string
+		a, b  *CSIMountOptions
+		equal bool
+	}{
+		{name: "both nil", equal: true},
+		{name: "nil and empty", b: &CSIMountOptions{}, equal: true},
+		{name: "empty and nil", a: &CSIMountOptions{}, equal: true},
+		{name: "nil and empty flags", b: &CSIMountOptions{MountFlags: []string{}}, equal: true},
+		{name: "same flags in another order",
+			a: &CSIMountOptions{FSType: "ext4", MountFlags: []string{"ro", "noatime"}},
+			b: &CSIMountOptions{FSType: "ext4", MountFlags: []string{"noatime", "ro"}}, equal: true},
+		{name: "nil and a file system", b: &CSIMountOptions{FSType: "ext4"}},
+		{name: "a mount group and nil", a: &CSIMountOptions{MountGroup: "1000"}},
+		{name: "nil and flags", b: &CSIMountOptions{MountFlags: []string{"ro"}}},
+		{name: "other file system", a: &CSIMountOptions{FSType: "ext4"}, b: &CSIMountOptions{FSType: "xfs"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			must.Eq(t, tc.equal, tc.a.Equal(tc.b))
+			must.Eq(t, tc.equal, tc.b.Equal(tc.a))
+		})
+	}
+}
+
 // TestCSIVolumeClaim ensures that a volume claim workflows work as expected.
 func TestCSIVolumeClaim(t *testing.T) {
 	ci.Parallel(t)

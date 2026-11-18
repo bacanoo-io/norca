@@ -214,12 +214,14 @@ func (o *CSIMountOptions) Merge(p *CSIMountOptions) {
 	}
 }
 
+// Equal reports whether the mount options are the same; no mount options
+// (nil) are the same as empty ones.
 func (o *CSIMountOptions) Equal(p *CSIMountOptions) bool {
-	if o == nil && p == nil {
-		return true
+	if o == nil {
+		o = &CSIMountOptions{}
 	}
-	if o == nil || p == nil {
-		return false
+	if p == nil {
+		p = &CSIMountOptions{}
 	}
 	if o.FSType != p.FSType || o.MountGroup != p.MountGroup {
 		return false
