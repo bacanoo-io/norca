@@ -379,6 +379,12 @@ func (b *Backend) Stream(ctx context.Context, namespace string, topics map[api.T
 		b.mu.Unlock()
 		return nil, fmt.Errorf("%w: requested %d, oldest %d", api.ErrEventIndexGone, index, b.oldest)
 	}
+	if exact && index > b.index+1 {
+		// Like a server that has not reached the index before the
+		// requested one: it lost its state, and the client lists again.
+		b.mu.Unlock()
+		return nil, fmt.Errorf("%w: requested %d, latest %d", api.ErrEventIndexGone, index, b.index)
+	}
 	if !exact && (index == 0 || index < b.oldest) {
 		index = b.index + 1
 	}

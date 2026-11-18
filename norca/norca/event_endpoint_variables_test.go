@@ -88,9 +88,13 @@ func TestEventStream_Exact(t *testing.T) {
 	must.NoError(t, err)
 
 	// Fill the small buffer with events far above any index the test
-	// server writes itself, so that early events are dropped.
+	// server writes itself, so that early events are dropped. The state of
+	// the server is at the index before the last event, as it would be had
+	// the events come from Raft: an exact subscription needs the server to
+	// have reached the index before the requested one.
 	node := mock.Node()
 	const first, last = 1_000_001, 1_000_010
+	must.NoError(t, s1.State().UpsertNamespaces(last-1, []*structs.Namespace{mock.Namespace()}))
 	for i := uint64(first); i <= last; i++ {
 		publisher.Publish(&structs.Events{Index: i, Events: []structs.Event{{Topic: "test", Index: i, Payload: node}}})
 	}

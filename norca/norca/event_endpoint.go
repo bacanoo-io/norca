@@ -7,6 +7,7 @@ package norca
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -78,6 +79,13 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 	if authErr != nil {
 		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(http.StatusForbidden)), encoder)
 		return
+	}
+
+	if args.StartExactlyAtIndex && args.Index > 1 {
+		if err := e.waitForExactIndex(uint64(args.Index) - 1); err != nil {
+			handleJsonResultError(err, pointer.Of(subscribeErrorCode(err)), encoder)
+			return
+		}
 	}
 
 	// Generate the subscription request
@@ -215,6 +223,35 @@ OUTER:
 		return
 	}
 
+}
+
+// exactIndexWait is how long an exact subscription waits for the state of
+// the server to reach the index before the requested one.
+const exactIndexWait = 3 * time.Second
+
+// waitForExactIndex returns nil once the state of the server has reached
+// index, the last one the client of an exact subscription has seen (Norca).
+// A server behind the client is either a follower that has not applied the
+// index yet, which catches up within the wait, or a server that lost its
+// state (started again without its data, or restored an older snapshot).
+// The events such a server writes below the requested index are not the
+// ones the client has seen, and a subscription would skip them silently;
+// the error wraps stream.ErrIndexNotAvailable, answered 410 Gone, and the
+// client lists again.
+func (e *Event) waitForExactIndex(index uint64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), exactIndexWait)
+	defer cancel()
+	_, err := e.srv.State().SnapshotMinIndex(ctx, index)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, context.DeadlineExceeded):
+		latest, _ := e.srv.State().LatestIndex()
+		return fmt.Errorf("%w: the state of this server is at index %d, below the requested index %d",
+			stream.ErrIndexNotAvailable, latest, index+1)
+	default:
+		return err
+	}
 }
 
 // resolveSubscriptionACL resolves the ACL object and expiry time of an event

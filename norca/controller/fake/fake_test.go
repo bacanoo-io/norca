@@ -112,3 +112,12 @@ func TestBackend_StreamFuture(t *testing.T) {
 	evs := recv(t, ch)
 	must.Eq(t, v.ModifyIndex, evs.Index)
 }
+
+// An exact stream from beyond the next index is answered 410 Gone, like a
+// server that lost its state answers a client that has seen more.
+func TestBackend_StreamAheadIsGone(t *testing.T) {
+	b := New()
+	topics := map[api.Topic][]string{api.TopicVariables: {"*"}}
+	_, err := b.Stream(context.Background(), "default", topics, b.Index()+2, true)
+	must.ErrorIs(t, err, api.ErrEventIndexGone)
+}
