@@ -11,13 +11,14 @@ job "nats" {
     healthy_deadline = "5m"
   }
 
-  # One server at a time may be down for a drain.
-  disruption {
-    max_unavailable = 1
-  }
-
   group "nats" {
     count = var.count
+
+    # One server at a time may be down for a drain (a block of the group,
+    # its limit a string: "1", "25%").
+    disruption {
+      max_unavailable = "1"
+    }
 
     dynamic "spread" {
       for_each = module.placement.spread

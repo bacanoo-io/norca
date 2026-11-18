@@ -8,7 +8,8 @@ file points to it instead of repeating it.
 
 - Rig is the package manager of Norca: a Go library (the core) and the `rig`
   program, its first host. Design: `design/rig-design.md`. The examples of
-  the language are in `examples/`; nothing parses them yet.
+  the language are in `examples/`; every module there loads, validates and
+  renders (`rig module render`), and the tests keep it so.
 - Rules of the work (the introduction of the design): norca, norca-deployer
   and norca-registry are not changed until Rig is ready; Rig is written from
   scratch and no code is copied from the pack manager; the library has an
@@ -35,7 +36,14 @@ file points to it instead of repeating it.
   `../norca/norca` with `CGO_ENABLED=1 go build -o ~/bin/norca .` (the
   build cache carries it over a few calls), then start
   `~/bin/norca agent -dev -bind 127.0.0.1` in the background and run the
-  tests in the same call: a process does not outlive the call.
+  tests in the same call: a process does not outlive the call. The same
+  agent checks rendered jobs: `PUT /v1/validate/job` with `{"Job": <spec>}`
+  from `rig module render`; the decoder accepts jobs the server refuses.
+- Runtime values (`runtime_env`, `secret_ref`, `service_address`, a runtime
+  reference in a job) are placeholders of package `runref`; the job decoder
+  of the host resolves them where they land (design 4.2). Template functions
+  of Norca: `norcaSecret` (`nomadSecret` is an alias), `nomadVar`,
+  `nomadService`, environment `NORCA_*`.
 - `cli/internal/jobspec2` is a copy of norca's jobspec2 until phase 7
   (design, question 4): never edit the copied files; Rig's code there is
   `rig_*.go`. `make check-copy` compares the copy with `../norca`; when

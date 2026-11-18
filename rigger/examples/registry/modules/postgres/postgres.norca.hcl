@@ -40,13 +40,12 @@ job "postgres" {
       port     = "db"
       provider = "nomad"
 
+      # The native provider checks tcp and http only, as the pack does: a
+      # script check (pg_isready) needs Consul.
       check {
         name     = "ready"
         role     = "readiness"
-        type     = "script"
-        task     = "postgres"
-        command  = "pg_isready"
-        args     = ["-U", "postgres", "-p", tostring(var.port)]
+        type     = "tcp"
         interval = "10s"
         timeout  = "3s"
       }

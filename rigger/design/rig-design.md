@@ -5,8 +5,8 @@ the library's ports and constructor, the CLI host, the spikes of the job
 decoder and of the release API, redis and nats converted on paper); phase 1
 under way: modules load, validate and evaluate (`rig module validate`,
 `rig module render`). `examples/` shows a module, a registry with three larger
-modules and a stack in this language; redis and web render, nats and
-postgres wait for child modules and encoders. It starts from the
+modules and a stack in this language; every module of it renders, and a
+Norca server accepts the rendered jobs (`/v1/validate/job`). It starts from the
 maintainer's first sketch (`rig.md`, not in this repository) and from an inventory of
 what exists today: the pack manager in norca (about 32k lines, plus about
 13k on the server for registries and releases), the 14 packs of norca-registry,
@@ -169,7 +169,21 @@ that the value is not known at install time:
 | `runtime_env("NORCA_ALLOC_DIR")` | an environment variable of the task |
 | `secret_ref(path, item, { quote, trim })` | inside a task template: the item of a secret, quoted for where it lands (`"conf"`, `"sql"`, `false`), failing the template when the item is missing |
 | `variable_ref(path, item, { quote, trim })` | the same for an item of a Norca Variable (`nomadVar` of today's packs: the nats pack reads its TLS material and its token there; proposed by the conversion of section 14) |
-| `service_address(name)`, `service_addresses(name, { scheme, exclude_self })` | inside a task template: addresses from the native catalog |
+| `service_address(name, { scheme, port })`, `service_addresses(name, { scheme, exclude_self })` | inside a task template: addresses from the native catalog; `port = false` gives the host alone, `service_addresses` is a list `concat()` can put known items before |
+
+Where a runtime value lands decides how it is written, and only the host
+knows a job's schema, so these functions (and a runtime reference written
+in a job) give a placeholder (package `runref`) that the job decoder of the
+host resolves: in an attribute of a job `${NORCA_ALLOC_DIR}`, which the
+client interpolates; in the data of a task template `{{ env
+"NORCA_ALLOC_DIR" }}` (the template sees the node attributes there too,
+`{{ env "node.datacenter" }}`), the `norcaSecret` / `nomadVar` lookup, or the
+`nomadService` range. A secret, a Variable item or a service address
+outside the data of a task template is an error. Without `quote` the place
+decides: none in a task template, the quoting of the configuration in an
+encoder (a whole value quoted, a part of a string escaped). Outside a job
+(another kind, an output) only `runtime()` and `runtime_env()` resolve, as
+`${...}`.
 
 These replace the hand-written `{{ with nomadSecret ... }}` and
 `{{ range nomadService ... }}` of today's packs with their escaping. A task
@@ -376,7 +390,13 @@ kind, admission policy, external service, object, job.
   blocks as an object by label, a block type written more than once (or a
   `dynamic` block) as a list.
 - Hooks stay jobs with a `hook { on = "post-install", weight, timeout,
-  delete }` block instead of meta keys.
+  delete }` block instead of meta keys. `on` is a phase or a list of them
+  (`pre-install`, `post-install`, `pre-upgrade`, `post-upgrade`,
+  `pre-delete`, `post-delete`, `test`), `timeout` a duration, `delete` one
+  of `on-success`, `always`, `never`. Rig takes the block off the job, checks
+  it and hands it to the host, which writes it the way its release API reads
+  hooks: for Norca today the meta keys `pack.hook`, `pack.hook_weight`,
+  `pack.hook_timeout`, `pack.hook_delete`.
 - `check "<name>" { condition, error_message }` inside a module: a condition
   over evaluated values that stops the plan (for what a `rule` over variables
   can't say).
@@ -510,6 +530,17 @@ module "worker" {
   are evaluated into the same release. A module with `library = true` has no
   resources and can only be called this way. They replace the helpers copied between
   packs (`<pack>.location` six times, `image@digest` four times).
+  As built in phase 1: a local source (`./x`, `../x`) is relative to the
+  module that calls it and is read from the same root as the module (the
+  repository the CLI finds it in; the fetched content on a server), never
+  outside it. The other attributes of the block are values for the child's
+  variables; locals and module blocks read each other in the order of their
+  references (a cycle is an error). Inside the child `rig.module.*` is the
+  child's; its resources join the release as `<block>.<name>`; a sensitive
+  value goes only into a sensitive variable of the child, and a sensitive
+  output of the child stays sensitive. Calls nest at most `Limits.Depth`
+  deep. Open for phase 4: the digest of a module whose local child lies
+  outside its directory must cover the child.
 - Outputs are known at evaluation. An output can't read the running cluster
   (an address chosen at run time is found through the service catalog by the
   workload, as today).
@@ -1414,6 +1445,16 @@ every file of `examples/` and every `hcl` block of this design found one more
 fault of the drafts: a block written on one line takes one argument only
 (`validation { min = 1, integer = true }` is not HCL); they are written out.
 
+Rendering the examples through Norca's decoder and checking the jobs with
+the server's `/v1/validate/job` (phase 1, 2026-11-18) corrected the drafts
+once more: `disruption` is a block of a group with a string limit (`"1"`,
+`"25%"`); the native service provider checks `tcp` and `http` only (a
+`script` check needs Consul), so postgres checks `tcp` as its pack does;
+`PGHOST` takes the host without the port; and `coalesce()` skips empty
+strings as authors expect from other HCL tools (the HCL standard library's
+skips nulls only). The secret lookup of a task template is `norcaSecret`
+since 2026-11-14 (`nomadSecret` stays as an alias).
+
 ## 15. Phases
 
 | Phase | Content | Result |
@@ -1433,12 +1474,13 @@ as the first host, `DecodeJob` and the job decoder (question 4), the release
 API spike (section 12.2), and redis and nats on paper (section 14.1).
 
 Phase 1 so far: load and schemas, values with validation and rules,
-`module validate`; evaluation (facts, locals in the order of their
-references, checks, the module's functions, runtime references passed
-through in jobs, resources with `enabled`/`for_each`/`count`, sensitive
-values, outputs) through `Engine.Evaluate`, and `module render` with Norca's
-job decoder. Next: child modules and local sources, the encoders
-(`natsconf`), `service_addresses`, `module test`, `fmt`.
+`module validate` (which renders the example values); evaluation (facts,
+locals and child modules in the order of their references, checks, the
+module's functions, runtime references resolved where they land, resources
+with `enabled`/`for_each`/`count`, hooks, sensitive values, outputs) through
+`Engine.Evaluate`; `natsconf`; and `module render` with Norca's job decoder.
+Next: `module test`, `fmt`, the warning on an unused variable, and the other
+encoders (`yamlencode`, `tomlencode`).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).

@@ -48,7 +48,7 @@ job "databases" {
         destination = "secrets/pg.env"
         env         = true
         data        = <<-EOT
-          PGHOST=${service_address(local.job)}
+          PGHOST=${service_address(local.job, { port = false })}
           PGPASSWORD=${secret_ref(local.superuser_secret, "password", { quote = false })}
         EOT
       }

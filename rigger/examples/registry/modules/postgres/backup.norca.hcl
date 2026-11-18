@@ -46,7 +46,7 @@ job "backup" {
           PGPASSWORD=${secret_ref(local.superuser_secret, "password", { quote = false })}
           AWS_ACCESS_KEY_ID=${secret_ref(var.backup.s3_secret, "access_key", { quote = false })}
           AWS_SECRET_ACCESS_KEY=${secret_ref(var.backup.s3_secret, "secret_key", { quote = false })}
-          PGHOST=${service_address(local.job)}
+          PGHOST=${service_address(local.job, { port = false })}
           S3_ENDPOINT=http://${service_address(var.backup.enabled ? var.backup.s3.service : "")}
         EOT
       }
