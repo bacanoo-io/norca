@@ -12,6 +12,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/command/agent"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/testfixture"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/hashicorp/go-multierror"
@@ -72,6 +73,7 @@ func httpTestWithACL(t *testing.T, cb func(c *agent.Config), f func(srv *agent.T
 	s := makeACLEnabledHTTPServer(t, cb)
 	defer s.Shutdown()
 	// Leadership is waited for in makeACLEnabledHTTPServer
+	waitForClientNode(t, s)
 	f(s)
 }
 
@@ -98,6 +100,7 @@ func httpTest(t *testing.T, cb func(c *agent.Config), f func(srv *agent.TestAgen
 	s := makeHTTPServer(t, cb)
 	defer s.Shutdown()
 	testutil.WaitForLeader(t, s.RPC)
+	waitForClientNode(t, s)
 	f(s)
 }
 
@@ -128,8 +131,39 @@ func httpTestMultiRegionClusters(t *testing.T, cb1, cb2 func(c *agent.Config), f
 
 	testutil.WaitForLeader(t, s1.RPC)
 	testutil.WaitForLeader(t, s2.RPC)
+	waitForClientNode(t, s1)
+	waitForClientNode(t, s2)
 
 	f(s1, s2)
+}
+
+// waitForClientNode waits until the client of a test agent is a ready node
+// of its server. The agent is one process, but its client registers on its
+// own, some time after the server has a leader: a job submitted in between
+// finds no node ("No nodes were eligible for evaluation"), and a pack run
+// then does not report a deployed pack. The store of the server is read, so
+// that the wait needs no token with ACLs enabled.
+func waitForClientNode(t testing.TB, s *agent.TestAgent) {
+	t.Helper()
+	client, server := s.Agent.Client(), s.Agent.Server()
+	if client == nil || server == nil {
+		return
+	}
+	testutil.WaitForResult(func() (bool, error) {
+		node, err := server.State().NodeByID(nil, client.NodeID())
+		if err != nil {
+			return false, err
+		}
+		if node == nil {
+			return false, fmt.Errorf("the node of the agent is not registered")
+		}
+		if node.Status != structs.NodeStatusReady {
+			return false, fmt.Errorf("the node of the agent is %s, not %s", node.Status, structs.NodeStatusReady)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("failed to wait for the client node of the test agent: %v", err)
+	})
 }
 
 func makeMultiRegionCluster(t testing.TB, cb1, cb2 func(c *agent.Config)) (s1, s2 *agent.TestAgent) {
