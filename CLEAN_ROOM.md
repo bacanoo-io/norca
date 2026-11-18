@@ -451,8 +451,10 @@ request reach the plugin. Without the change the check fails with an empty
 ## The fixes of the code review of November 2026 in files from v1.6.5
 
 A review of Norca's own code (2026-11-16) found defects, and a second review
-of the fixes (2026-11-17, for concurrency and security) found more. Some of
-the fixes (2026-11-17 and 18, `Source-Rule: independent-development`) change lines of
+of the fixes (2026-11-17, for concurrency and security) found more; the
+findings left over from both, and those found while fixing them, were fixed
+on 2026-11-18. Some of the fixes (2026-11-17 and 18,
+`Source-Rule: independent-development`) change lines of
 files that come from Nomad v1.6.5 (MPL 2.0), or of the pack code that comes
 from nomad-pack (MPL 2.0). Each was found by reading or testing the Norca
 tree, and written from the Norca tree and public standards alone. Whether a
@@ -483,11 +485,28 @@ each names the failing test and its output before the change.
 | `16f362344` | `lib/auth/jwt/validator.go`, `lib/auth/oidc/provider.go` | The error of a failed call does not name the URL it called; also `norca/autoscaler/plugins/apm/prometheus/plugin.go`, which comes from Nomad Autoscaler v0.6.0 (MPL 2.0) |
 | `3984e3207` | `command/agent/agent_endpoint_redact.go` (a Norca file) | Fields of the v1.6.5 agent configuration are redacted in `/v1/agent/self`: `Consul.Auth`, the join lists, addresses given as URLs, plugin and client options |
 | `703d69c3e`, `eecfe38f4` | `pack/internal/cli/testhelper/testhelper.go` | The test agent's client node is ready before a test runs; the TLS fixtures are found under their Norca names |
+| `b5329e063` | `acl/acl.go` | A deny of a Variables path in one policy wins over grants of the same path in other policies |
+| `247fd2389` | `norca/acl.go` | The leader and autoscaler secrets are compared in constant time |
+| `dd8d0cd52`, `0fff0c979` | `norca/node_endpoint.go` | Node secrets are compared in constant time; `GetClientAllocs`, `DeriveVaultToken` and `DeriveSIToken` answer an unknown node like a wrong secret |
+| `da57ca586`, `a75bfca06`, `e7cc89d92` | `norca/service_registration_endpoint.go`, `norca/state/events.go` | Deleting an external service by ID needs its own capability; readers get external check definitions without credentials; a workload identity reads the services of its own namespace only |
+| `276fde4d6`, `09fbb76a2`, `93d6d1f62` | `norca/service_registration_endpoint.go`, `norca/fsm.go`, `norca/structs/service_registration.go` | A deletion by ID made as non-external does not delete an external service; a client node registers only the services of its own allocations, and its registrations replace no other node's or external registration at apply time |
+| `d2c4e438f` | `norca/job_endpoint.go` | `Job.Register` refuses a parent set by the caller; only the servers set it |
+| `d28a6453d` | `norca/structs/csi.go` | `CSIMountOptions.Equal` treats a missing and an empty block as equal |
+| `2f4c27a5a` | `norca/csi_endpoint.go` | A snapshot is created only by the plugin of its volume |
+| `76e4748f4` | `norca/namespace_endpoint.go` | Without a replication token the leader does not send its own credentials to another region |
+| `7976d0d7e`, `7257dec81` | `norca/leader.go` | The namespace replication deletes one namespace at a time, and retries a refused deletion within the replication backoff |
+| `a39008730` | `norca/leader.go` | A reasserted leadership stops the loops of the term before |
+| `d47b8edbe` | `norca/server.go` | A TLS reload reaches the system bus (a Norca component) |
+| `88e92bab5` | `client/client.go` | A TLS reload of the client reopens its bus connection |
+| `d25bb506c` | `norca/event_endpoint.go` | An exact event stream from an index the server has not reached answers 410 |
+| `ae29b547b`, `24a953b7f`, `bbf481076` | `api/api.go`, `api/acl.go`, `api/agent.go`, `api/allocations.go`, `api/allocations_exec.go`, `api/csi.go`, `api/deployments.go`, `api/evaluations.go`, `api/fs.go`, `api/jobs.go`, `api/namespace.go`, `api/nodes.go`, `api/quota.go`, `api/scaling.go` | A request path with a `.` or `..` segment or an inner empty one is refused; identifiers and query values are escaped |
+| `19db8e73c` | `norca/state/schema.go` | An index of jobs by their Norca owner (not a fix: one index entry for the owner lookup) |
+| `2208fffc9`, `8120ebe8f` | `command/agent/agent.go`, `command/agent/config.go`, `norca/config.go` | The server options `object_tombstone_gc_threshold` and `replication_backoff` (not fixes: new Norca options) |
 
-Two defects of the v1.6.5 code that the review met were left as they are:
-`CSIMountOptions.Equal` treats a missing and an empty block as different
-(`norca/structs/csi.go`; the operator of volume requests sets an empty
-block before it merges), and `UpsertCSIVolume` writes a volume as given
-(`norca/state/state_store.go`; the operator reads the volume again before
-it registers it; since `d883afe18` its register is a check-and-set, the
-volume register API still writes without one).
+One defect of the v1.6.5 code that the review met was left as it is:
+`UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
+the operator reads the volume again before it registers it; since
+`d883afe18` its register is a check-and-set, the volume register API still
+writes without one). `CSIMountOptions.Equal`, listed here before as left
+alone, is fixed by `d28a6453d`. The Norca copyright line was added to the
+api files changed above by `8b42df33c`.
