@@ -294,6 +294,13 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		return err
 	}
 
+	// A job with ACL policies bound to it is changed only by a token that
+	// holds them (Norca); after the scaling policy IDs, before anything is
+	// written.
+	if err := j.checkJobBoundPolicies(snap, aclObj, args, existingJob); err != nil {
+		return err
+	}
+
 	// helper function that checks if the Consul token supplied with the job has
 	// sufficient ACL permissions for:
 	//   - registering services into namespace of each group

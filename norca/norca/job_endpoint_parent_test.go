@@ -78,7 +78,10 @@ func TestJobEndpoint_Register_ParentIDSetByServersOnly(t *testing.T) {
 	update := child.Copy()
 	update.Meta = map[string]string{"changed": "yes"}
 	update.Payload = nil // a payload is only dispatched
-	must.NoError(t, register(update, team.SecretID))
+	// The child runs with the policy bound to its parent: changing it needs
+	// a token that holds the policy (review finding JOG-2).
+	must.ErrorContains(t, register(update.Copy(), team.SecretID), `"ctrl-policy"`)
+	must.NoError(t, register(update, root.SecretID))
 	moved := child.Copy()
 	moved.ParentID, moved.Payload = "other", nil
 	must.ErrorContains(t, register(moved, team.SecretID), "parent")
