@@ -101,7 +101,7 @@ func (e *Engine) evaluate(ctx context.Context, m *Module, in Install) (*Result, 
 	}
 
 	out, moreDiags := eval.Evaluate(ctx, m.mod, vars, facts, eval.Config{
-		FS: m.fsys, FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs,
+		FileBytes: e.limits.FileBytes, Resources: e.limits.Resources, Jobs: e.jobs,
 	})
 	diags = append(diags, moreDiags...)
 
@@ -116,7 +116,7 @@ func (e *Engine) evaluate(ctx context.Context, m *Module, in Install) (*Result, 
 
 	for _, r := range out.Resources {
 		res.Resources = append(res.Resources, Resource{
-			Kind: r.Kind, Name: r.Name, Spec: r.Spec, Secrets: r.Secrets,
+			Kind: r.Kind, Name: r.Name, Spec: r.Spec, Hook: r.Hook, Secrets: r.Secrets,
 		})
 	}
 

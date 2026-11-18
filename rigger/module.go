@@ -19,6 +19,7 @@ import (
 	"github.com/bacanoo-io/norca-rig/internal/lang"
 	"github.com/bacanoo-io/norca-rig/module"
 	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca-rig/resource"
 )
 
 // The icon of a module (design 7.4).
@@ -89,12 +90,22 @@ func ParseValues(filename string, src []byte) (Values, hcl.Diagnostics) {
 // directory as its root (design 4.5). It reads nothing outside fsys and
 // stops when ctx is cancelled; the limits of the engine bound what it reads.
 func (e *Engine) LoadModule(ctx context.Context, fsys fs.FS) (*Module, hcl.Diagnostics) {
-	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.load")
+	return e.LoadModuleAt(ctx, fsys, ".")
+}
 
-	mod, diags := lang.Load(ctx, fsys, lang.Limits{ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes})
+// LoadModuleAt loads the module in the directory dir of root, and its child
+// modules (design 6.5). A child module comes from a local source, a
+// directory relative to the module that calls it (../lib/placement), and is
+// read from root too: nothing outside root is read.
+func (e *Engine) LoadModuleAt(ctx context.Context, root fs.FS, dir string) (*Module, hcl.Diagnostics) {
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.load", "dir", dir)
+
+	mod, diags := lang.LoadAt(ctx, root, dir, lang.Limits{
+		ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth,
+	})
 	span.End(ctx, diagsErr(diags))
 
-	return &Module{mod: mod, fsys: fsys}, diags
+	return &Module{mod: mod, fsys: mod.FS}, diags
 }
 
 // CheckValues checks values against the variables of m: undeclared names,
@@ -123,7 +134,8 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 
 // ValidateModule checks what can be checked of a module without a cluster
 // (design 10, rig module validate): its icon, and every value file of its
-// examples/ against its variables.
+// examples/, checked against its variables and evaluated (design 7.4). A
+// module with a job is evaluated only by an engine with a job decoder.
 func (e *Engine) ValidateModule(ctx context.Context, m *Module) hcl.Diagnostics {
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.validate",
 		"module", m.mod.Metadata.Name, "version", m.mod.Metadata.Version)
@@ -157,7 +169,41 @@ func (e *Engine) checkExample(ctx context.Context, m *Module, p string) hcl.Diag
 		return diags
 	}
 
-	return append(diags, e.CheckValues(ctx, m, values)...)
+	if !e.canEvaluate(m) {
+		return append(diags, e.CheckValues(ctx, m, values)...)
+	}
+
+	md := m.mod.Metadata
+	_, moreDiags := e.evaluate(ctx, m, Install{Release: md.Name, Namespace: "default", Region: "global", Values: values})
+
+	return append(diags, moreDiags...)
+}
+
+// canEvaluate reports whether the engine can evaluate m: m is not a
+// library, and the engine has a job decoder or m has no job.
+func (e *Engine) canEvaluate(m *Module) bool {
+	if m.mod.Metadata.Library {
+		return false
+	}
+
+	return e.jobs != nil || !hasJob(m.mod)
+}
+
+// hasJob reports whether m or one of its children has a job.
+func hasJob(m *lang.Module) bool {
+	for _, r := range m.Resources {
+		if r.Type.Kind == resource.KindJob {
+			return true
+		}
+	}
+
+	for _, c := range m.Children {
+		if hasJob(c.Module) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // checkIcon checks the icon of a module, if it has one: a PNG of 64 by 64

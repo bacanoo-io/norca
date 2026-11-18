@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"path"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -19,6 +20,8 @@ type Limits struct {
 	ModuleBytes int64
 	// FileBytes bounds the size of one file.
 	FileBytes int64
+	// Depth bounds the nesting of child modules; 0 is no bound.
+	Depth int
 }
 
 // topDirs are the directories a module may have.
@@ -42,6 +45,9 @@ type loader struct {
 	ctx    context.Context //nolint:containedctx // lives for one call of Load
 	fsys   fs.FS
 	limits Limits
+	// prefix is the directory of the module from the module loaded first,
+	// which names its files; empty for that module.
+	prefix string
 	total  int64
 	mod    *Module
 	diags  hcl.Diagnostics
@@ -50,9 +56,44 @@ type loader struct {
 // Load reads the module in fsys, whose root is the directory of the module.
 // It reads nothing outside fsys, and stops when ctx is cancelled.
 func Load(ctx context.Context, fsys fs.FS, limits Limits) (*Module, hcl.Diagnostics) {
-	l := &loader{ctx: ctx, fsys: fsys, limits: limits, mod: &Module{Sources: map[string][]byte{}}}
+	return LoadAt(ctx, fsys, ".", limits)
+}
 
-	err := fs.WalkDir(fsys, ".", l.visit)
+// LoadAt reads the module in the directory dir of root, and its child
+// modules. A child module comes from a local source, a directory relative
+// to the module that calls it, inside root: nothing outside root is read.
+func LoadAt(ctx context.Context, root fs.FS, dir string, limits Limits) (*Module, hcl.Diagnostics) {
+	return loadTree(ctx, root, path.Clean(dir), "", limits, nil)
+}
+
+// loadTree loads the module in dir and its children; stack holds the
+// directories of the modules that call it.
+func loadTree(ctx context.Context, root fs.FS, dir, prefix string, limits Limits, stack []string) (*Module, hcl.Diagnostics) {
+	fsys, err := fs.Sub(root, dir)
+	if err != nil {
+		return &Module{Sources: map[string][]byte{}}, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Module not read", Detail: err.Error() + ".",
+		}}
+	}
+
+	l := &loader{ctx: ctx, fsys: fsys, limits: limits, prefix: prefix, mod: &Module{Sources: map[string][]byte{}, FS: fsys, Dir: dir}}
+	m, diags := l.load()
+
+	if m.Metadata.Library && len(m.Resources) > 0 {
+		diags = append(diags, errorAt(m.Resources[0].Block.DefRange, "Resource in a library module",
+			"A module with library = true has no resources: it only computes values for the modules that call it (design 6.5)."))
+	}
+
+	if diags.HasErrors() {
+		return m, diags
+	}
+
+	return m, append(diags, loadChildren(ctx, root, m, prefix, limits, append(stack, dir))...)
+}
+
+// load reads the files of the module.
+func (l *loader) load() (*Module, hcl.Diagnostics) {
+	err := fs.WalkDir(l.fsys, ".", l.visit)
 	if err != nil {
 		l.diags = append(l.diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
@@ -63,7 +104,7 @@ func Load(ctx context.Context, fsys fs.FS, limits Limits) (*Module, hcl.Diagnost
 		return l.mod, l.diags
 	}
 
-	if _, ok := l.mod.Sources["metadata.hcl"]; !ok {
+	if _, ok := l.mod.Sources[l.name("metadata.hcl")]; !ok {
 		l.diags = append(l.diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Missing metadata.hcl",
@@ -72,6 +113,16 @@ func Load(ctx context.Context, fsys fs.FS, limits Limits) (*Module, hcl.Diagnost
 	}
 
 	return l.mod, l.diags
+}
+
+// name is the name of the file at p of the module in diagnostics and in
+// Sources.
+func (l *loader) name(p string) string {
+	if l.prefix == "" {
+		return p
+	}
+
+	return path.Join(l.prefix, p)
 }
 
 func (l *loader) visit(p string, d fs.DirEntry, err error) error {
@@ -93,7 +144,7 @@ func (l *loader) visit(p string, d fs.DirEntry, err error) error {
 			Severity: hcl.DiagError,
 			Summary:  "Unknown file",
 			Detail: fmt.Sprintf("%s is not a file a module may have: a file is named after what it holds "+
-				"(design 4.5), plain files go under files/.", p),
+				"(design 4.5), plain files go under files/.", l.name(p)),
 		})
 
 		return nil
@@ -121,7 +172,7 @@ func (l *loader) visitDir(p string, d fs.DirEntry) error {
 	l.diags = append(l.diags, &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  "Unknown directory",
-		Detail:   p + " is not a directory a module may have: files/, examples/ and tests/ (design 7.4).",
+		Detail:   l.name(p) + " is not a directory a module may have: files/, examples/ and tests/ (design 7.4).",
 	})
 
 	return fs.SkipDir
@@ -140,7 +191,7 @@ func (l *loader) count(p string, d fs.DirEntry) error {
 	switch {
 	case size > l.limits.FileBytes:
 		l.diags = append(l.diags, limitDiag(fmt.Sprintf("%s has %d bytes, more than the %d a file may have.",
-			p, size, l.limits.FileBytes)))
+			l.name(p), size, l.limits.FileBytes)))
 	case l.total > l.limits.ModuleBytes:
 		l.diags = append(l.diags, limitDiag(fmt.Sprintf("The files of the module have more than the %d bytes a module may have.",
 			l.limits.ModuleBytes)))
@@ -179,9 +230,9 @@ func (l *loader) parse(p string, kind FileKind, rt ResourceType, name string) er
 		return err
 	}
 
-	l.mod.Sources[p] = src
+	l.mod.Sources[l.name(p)] = src
 
-	file, diags := hclsyntax.ParseConfig(src, p, hcl.InitialPos)
+	file, diags := hclsyntax.ParseConfig(src, l.name(p), hcl.InitialPos)
 	l.diags = append(l.diags, diags...)
 
 	if diags.HasErrors() {

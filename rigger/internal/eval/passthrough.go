@@ -9,6 +9,8 @@ import (
 	"github.com/agext/levenshtein"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/bacanoo-io/norca-rig/runref"
 )
 
 // namespaces are the roots of the references Rig resolves at install time
@@ -17,8 +19,9 @@ var namespaces = []string{"var", localsRoot, "rig", "module", "each", "count"}
 
 // passthrough returns the UndefinedVariable callback of the context of a
 // job: a reference whose root Rig does not resolve is a runtime reference,
-// given back as its text so that the cluster resolves it on the node, as
-// Norca's decoder does for a job file. A root one letter away from a
+// given back as a runtime part (package runref), which the job decoder
+// writes as ${...} in an attribute of the job and as {{ env "..." }} in the
+// data of a task template, so that the cluster resolves it on the node. A root one letter away from a
 // namespace of Rig (vars, locals, rigs) is a mistake, not a runtime
 // reference: it is an error with a hint.
 func passthrough(sources map[string][]byte) func(hcl.Traversal) (cty.Value, hcl.Diagnostics) {
@@ -57,7 +60,9 @@ func passthrough(sources map[string][]byte) func(hcl.Traversal) (cty.Value, hcl.
 			}}
 		}
 
-		return cty.StringVal("${" + string(src[rng.Start.Byte:rng.End.Byte]) + "}"), nil
+		ref := runref.Part{Kind: runref.KindEnv, Name: string(src[rng.Start.Byte:rng.End.Byte])}
+
+		return cty.StringVal(ref.String()), nil
 	}
 }
 

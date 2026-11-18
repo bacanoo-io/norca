@@ -183,8 +183,12 @@ func TestVariables_Examples(t *testing.T) {
 	t.Parallel()
 
 	for _, dir := range []string{"module/web", "registry/modules/redis", "registry/modules/nats", "registry/modules/postgres"} {
-		fsys := os.DirFS("../../examples/" + dir)
-		m := load(t, fsys)
+		m, diags := lang.LoadAt(t.Context(), os.DirFS("../../examples"), dir, limits)
+		if diags.HasErrors() {
+			t.Fatal(diags)
+		}
+
+		fsys := m.FS
 
 		for _, p := range m.Examples {
 			t.Run(dir+"/"+p, func(t *testing.T) {
@@ -204,6 +208,32 @@ func TestVariables_Examples(t *testing.T) {
 					t.Error(diags)
 				}
 			})
+		}
+	}
+}
+
+func TestCoalesce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		args     []cty.Value
+		expected cty.Value
+		err      bool
+	}{
+		{args: []cty.Value{cty.StringVal(""), cty.StringVal("b")}, expected: cty.StringVal("b")},
+		{args: []cty.Value{cty.NullVal(cty.String), cty.StringVal("a")}, expected: cty.StringVal("a")},
+		{args: []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}, expected: cty.NumberIntVal(0)},
+		{args: []cty.Value{cty.StringVal(""), cty.NullVal(cty.String)}, err: true},
+	}
+
+	for _, tt := range tests {
+		got, err := eval.Functions()["coalesce"].Call(tt.args)
+		if (err != nil) != tt.err {
+			t.Fatalf("coalesce(%#v) error = %v", tt.args, err)
+		}
+
+		if !tt.err && !got.RawEquals(tt.expected) {
+			t.Errorf("coalesce(%#v) = %#v, want %#v", tt.args, got, tt.expected)
 		}
 	}
 }

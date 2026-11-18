@@ -8,6 +8,8 @@
 package lang
 
 import (
+	"io/fs"
+
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/bacanoo-io/norca-rig/module"
@@ -35,8 +37,29 @@ type Module struct {
 	Examples []string
 	Tests    []string
 	// Sources are the bytes of the parsed files by name, for diagnostics and
-	// for runtime references (design 4.2).
+	// for runtime references (design 4.2). The files of a child module are
+	// named from the directory of the module that was loaded first:
+	// ../lib/placement/outputs.hcl.
 	Sources map[string][]byte
+	// Children are the child modules of modules.hcl, loaded.
+	Children []*Child
+	// FS holds the files of the module, for file() and templatefile().
+	FS fs.FS
+	// Dir is the directory of the module in the root it was loaded from.
+	Dir string
+}
+
+// Child is a child module: a module block of modules.hcl and the module it
+// calls (design 6.5).
+type Child struct {
+	// Name is the label of the block: the name module.<name> reads.
+	Name string
+	// Source is the source as written.
+	Source string
+	// Args are the values the call gives the variables of the child.
+	Args   hcl.Attributes
+	Block  *hcl.Block
+	Module *Module
 }
 
 // Resource is the one resource of a resource file.

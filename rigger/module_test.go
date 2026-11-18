@@ -64,7 +64,7 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 
 			e := engine(t)
 
-			m, diags := e.LoadModule(t.Context(), os.DirFS("examples/"+dir))
+			m, diags := e.LoadModuleAt(t.Context(), os.DirFS("examples"), dir)
 			if diags.HasErrors() {
 				t.Fatal(diags)
 			}

@@ -4,7 +4,6 @@
 package eval
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -23,20 +22,22 @@ const (
 	metaEnabled = "enabled"
 	metaForEach = "for_each"
 	metaCount   = "count"
+	metaHook    = "hook"
 	// itemsName is the attribute of a Variable that holds its items.
 	itemsName = "items"
 )
 
-var metaSchema = &hcl.BodySchema{Attributes: []hcl.AttributeSchema{
-	{Name: metaEnabled}, {Name: metaForEach}, {Name: metaCount},
-}}
+var metaSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{{Name: metaEnabled}, {Name: metaForEach}, {Name: metaCount}},
+	Blocks:     []hcl.BlockHeaderSchema{{Type: metaHook}},
+}
 
-var metaNames = map[string]bool{metaEnabled: true, metaForEach: true, metaCount: true}
+var metaNames = map[string]bool{metaEnabled: true, metaForEach: true, metaCount: true, metaHook: true}
 
 // evaluator evaluates the resources of one module.
 type evaluator struct {
-	ctx     context.Context //nolint:containedctx // lives for one call of Evaluate
-	cfg     Config
+	*run
+
 	sources map[string][]byte
 	base    *hcl.EvalContext
 }
@@ -55,10 +56,13 @@ func (e *evaluator) resource(r *lang.Resource) ([]Resource, hcl.Diagnostics) {
 		return nil, diags
 	}
 
+	hook, moreDiags := hookBlock(r, meta.Blocks)
+	diags = append(diags, moreDiags...)
+
 	instances, moreDiags := e.instances(meta.Attributes)
 	diags = append(diags, moreDiags...)
 
-	if moreDiags.HasErrors() {
+	if diags.HasErrors() {
 		return nil, diags
 	}
 
@@ -68,7 +72,7 @@ func (e *evaluator) resource(r *lang.Resource) ([]Resource, hcl.Diagnostics) {
 		ctx := e.base.NewChild()
 		ctx.Variables = in.vars
 
-		res, moreDiags := e.instance(r, remain, ctx)
+		res, moreDiags := e.instance(r, remain, hook, ctx)
 		diags = append(diags, moreDiags...)
 
 		if !moreDiags.HasErrors() {
@@ -215,9 +219,9 @@ func metaDiag(attr *hcl.Attribute, want string) *hcl.Diagnostic {
 
 // instance evaluates one copy of a resource; body is its block without the
 // meta-arguments.
-func (e *evaluator) instance(r *lang.Resource, body hcl.Body, ctx *hcl.EvalContext) (Resource, hcl.Diagnostics) {
+func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, ctx *hcl.EvalContext) (Resource, hcl.Diagnostics) {
 	if r.Type.Kind == resource.KindJob {
-		return e.job(r, body, ctx)
+		return e.job(r, body, hook, ctx)
 	}
 
 	w := &walker{skip: metaNames}
@@ -261,7 +265,16 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, ctx *hcl.EvalConte
 // job evaluates a job: the decoder of the host decodes it, with the runtime
 // references passed through. A job takes no sensitive value: the decoder
 // would write it into the job, which is stored as it is.
-func (e *evaluator) job(r *lang.Resource, body hcl.Body, ctx *hcl.EvalContext) (Resource, hcl.Diagnostics) {
+func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, ctx *hcl.EvalContext) (Resource, hcl.Diagnostics) {
+	var hook *resource.Hook
+
+	if hookBlock != nil {
+		var diags hcl.Diagnostics
+		if hook, diags = decodeHook(hookBlock, ctx); diags.HasErrors() {
+			return Resource{}, diags
+		}
+	}
+
 	jobCtx := ctx.NewChild()
 	jobCtx.UndefinedVariable = passthrough(e.sources)
 
@@ -290,12 +303,12 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, ctx *hcl.EvalContext) (
 	block := *r.Block
 	block.Body = body
 
-	job, diags := e.cfg.Jobs.DecodeJob(e.ctx, host.JobSpec{Block: &block, EvalContext: jobCtx})
+	job, diags := e.cfg.Jobs.DecodeJob(e.ctx, host.JobSpec{Block: &block, EvalContext: jobCtx, Hook: hook})
 	if diags.HasErrors() {
 		return Resource{}, diags
 	}
 
-	return Resource{Kind: resource.KindJob, Spec: job.Spec}, diags
+	return Resource{Kind: resource.KindJob, Spec: job.Spec, Hook: hook}, diags
 }
 
 // secretItems takes the items of a Variable that hold a sensitive value out

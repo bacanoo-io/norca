@@ -4,6 +4,8 @@
 package eval
 
 import (
+	"errors"
+
 	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -29,7 +31,7 @@ func Functions() map[string]function.Function {
 		"trimprefix": stdlib.TrimPrefixFunc, "trimsuffix": stdlib.TrimSuffixFunc,
 		"trimspace": stdlib.TrimSpaceFunc, "upper": stdlib.UpperFunc,
 
-		"chunklist": stdlib.ChunklistFunc, "coalesce": stdlib.CoalesceFunc,
+		"chunklist": stdlib.ChunklistFunc, "coalesce": coalesce,
 		"coalescelist": stdlib.CoalesceListFunc, "compact": stdlib.CompactFunc,
 		"concat": stdlib.ConcatFunc, "contains": stdlib.ContainsFunc, "distinct": stdlib.DistinctFunc,
 		"element": stdlib.ElementFunc, "flatten": stdlib.FlattenFunc, "index": stdlib.IndexFunc,
@@ -127,3 +129,48 @@ func toType(ty cty.Type) function.Function {
 		},
 	})
 }
+
+// coalesce is coalesce(...) as module authors know it from other HCL tools:
+// the first argument that is neither null nor an empty string.
+// stdlib.CoalesceFunc skips nulls only.
+var coalesce = function.New(&function.Spec{
+	VarParam: &function.Parameter{Name: "vals", Type: cty.DynamicPseudoType, AllowNull: true, AllowUnknown: true},
+	Type: func(args []cty.Value) (cty.Type, error) {
+		types := make([]cty.Type, len(args))
+		for i, a := range args {
+			types[i] = a.Type()
+		}
+
+		ty, _ := convert.UnifyUnsafe(types)
+		if ty == cty.NilType {
+			return cty.NilType, errors.New("all arguments must have the same type")
+		}
+
+		return ty, nil
+	},
+	RefineResult: func(b *cty.RefinementBuilder) *cty.RefinementBuilder { return b.NotNull() },
+	Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		for _, a := range args {
+			if !a.IsKnown() {
+				return cty.UnknownVal(retType), nil
+			}
+
+			if a.IsNull() {
+				continue
+			}
+
+			v, err := convert.Convert(a, retType)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			if v.Type() == cty.String && v.AsString() == "" {
+				continue
+			}
+
+			return v, nil
+		}
+
+		return cty.NilVal, errors.New("no argument is neither null nor an empty string")
+	},
+})

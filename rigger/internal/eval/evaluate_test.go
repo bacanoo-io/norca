@@ -29,7 +29,7 @@ func evaluate(t *testing.T, fsys fs.FS, src string) (*eval.Result, hcl.Diagnosti
 	}
 
 	return eval.Evaluate(t.Context(), m, vars, facts, eval.Config{
-		FS: fsys, FileBytes: 1 << 20, Resources: 10, Jobs: eval.GenericJobs,
+		FileBytes: 1 << 20, Resources: 10, Jobs: eval.GenericJobs,
 	})
 }
 
@@ -263,6 +263,12 @@ func evaluateCases() []evaluateCase {
 			files:    map[string]string{variablesHCL: tokenVariable, "outputs.hcl": `output "t" { value = var.token }`},
 			expected: "write sensitive = true on it",
 		},
+	}
+}
+
+// functionCases are the modules of the tests of the functions and hooks.
+func functionCases() []evaluateCase {
+	return []evaluateCase{
 		{
 			name:     "file inside the module",
 			files:    map[string]string{"files/p.hcl": "rules", xACL: `policy "x" { rules = file("files/p.hcl") }`},
@@ -284,9 +290,39 @@ func evaluateCases() []evaluateCase {
 			contains: `"rules":"redis:7@sha256:ab"`,
 		},
 		{
-			name:     "variable_ref quoted for a configuration",
+			name:     "variable_ref outside a task template",
 			files:    map[string]string{xACL: `policy "x" { rules = variable_ref("nats/tls", "key", { quote = "conf" }) }`},
-			contains: `{{ with nomadVar \"nats/tls\" }}{{ with index . \"key\" }}{{ .Value | replaceAll`,
+			expected: "variable_ref: can be used only in the data of a task template",
+		},
+		{
+			name:     "runtime outside a job",
+			files:    map[string]string{xACL: `policy "x" { rules = "${runtime("node.datacenter")}/x" }`},
+			contains: `"rules":"${node.datacenter}/x"`,
+		},
+		{
+			name:     "a hook of an unknown phase",
+			files:    map[string]string{appNorca: "job \"app\" {\n  hook {\n    on = [\"post-installs\"]\n  }\n}\n"},
+			expected: `"post-installs" is not a phase`,
+		},
+		{
+			name:     "a hook with an invalid timeout",
+			files:    map[string]string{appNorca: "job \"app\" {\n  hook {\n    on      = \"test\"\n    timeout = \"soon\"\n  }\n}\n"},
+			expected: `timeout "soon" is not a duration`,
+		},
+		{
+			name:     "a hook on a policy",
+			files:    map[string]string{xACL: "policy \"x\" {\n  hook {\n    on = \"test\"\n  }\n}\n"},
+			expected: "A hook is a job with a hook block, not a resource of kind acl-policy",
+		},
+		{
+			name:     "a service address outside a task template",
+			files:    map[string]string{xACL: `policy "x" { rules = service_address("db") }`},
+			expected: "service_address: can be used only in the data of a task template",
+		},
+		{
+			name:     "an invalid option",
+			files:    map[string]string{xACL: `policy "x" { rules = secret_ref("a", "b", { quote = "xml" }) }`},
+			expected: `invalid option quote: the options are quote ("conf", "sql" or false) and trim (a bool)`,
 		},
 	}
 }
@@ -294,7 +330,7 @@ func evaluateCases() []evaluateCase {
 func TestEvaluate(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range evaluateCases() {
+	for _, tt := range append(evaluateCases(), functionCases()...) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -322,5 +358,25 @@ func TestEvaluate(t *testing.T) {
 				t.Errorf("spec = %s, want it to contain %s", res.Resources[0].Spec, tt.contains)
 			}
 		})
+	}
+}
+
+func TestEvaluate_Hook(t *testing.T) {
+	t.Parallel()
+
+	res, diags := evaluate(t, module(map[string]string{
+		appNorca: "job \"app\" {\n  hook {\n    on      = \"post-install\"\n    weight  = 5\n    timeout = \"1m\"\n    delete  = \"never\"\n  }\n}\n",
+	}), ``)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	h := res.Resources[0].Hook
+	if h == nil || strings.Join(h.On, ",") != "post-install" || h.Weight != 5 || h.Timeout != "1m" || h.Delete != "never" {
+		t.Errorf("hook = %+v, want post-install, 5, 1m, never", h)
+	}
+
+	if strings.Contains(string(res.Resources[0].Spec), "hook") {
+		t.Errorf("spec = %s; the decoder sees no hook block", res.Resources[0].Spec)
 	}
 }

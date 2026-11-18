@@ -33,7 +33,7 @@ func TestLoad_Examples(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			m, diags := lang.Load(t.Context(), os.DirFS("../../examples/"+dir), limits)
+			m, diags := lang.LoadAt(t.Context(), os.DirFS("../../examples"), dir, limits)
 			for _, d := range diags {
 				t.Errorf("%s", d)
 			}

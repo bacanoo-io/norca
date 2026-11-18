@@ -6,13 +6,14 @@ package eval
 import (
 	"fmt"
 	"io/fs"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/bacanoo-io/norca-rig/runref"
 )
 
 // moduleFunctions returns the functions of a module: the standard set, the
@@ -26,8 +27,11 @@ func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	funcs["image_ref"] = imageRef
 	funcs["runtime"] = runtimeFunc
 	funcs["runtime_env"] = runtimeEnvFunc
-	funcs["secret_ref"] = refFunc(secretRef)
-	funcs["variable_ref"] = refFunc(variableRef)
+	funcs["secret_ref"] = itemFunc(runref.KindSecret)
+	funcs["variable_ref"] = itemFunc(runref.KindVariable)
+	funcs["service_address"] = serviceAddress
+	funcs["service_addresses"] = serviceAddresses
+	funcs["natsconf"] = natsconf
 
 	return funcs
 }
@@ -125,124 +129,138 @@ var imageRef = function.New(&function.Spec{
 	},
 })
 
-// runtimeFunc is runtime(reference): a reference the cluster resolves on the
-// node, such as node.datacenter, as the job specification writes it.
-var runtimeFunc = function.New(&function.Spec{
-	Params: []function.Parameter{{Name: "reference", Type: cty.String}},
-	Type:   function.StaticReturnType(cty.String),
-	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-		return cty.StringVal("${" + args[0].AsString() + "}"), nil
-	},
-})
+// runtimeFunc is runtime(reference): a node attribute or another value the
+// cluster fills in on the node, such as node.datacenter (design 4.2).
+var runtimeFunc = envFunc("reference")
 
-// runtimeEnvFunc is runtime_env(name): an environment variable of the task,
-// as the job specification interpolates it.
-var runtimeEnvFunc = function.New(&function.Spec{
-	Params: []function.Parameter{{Name: "name", Type: cty.String}},
-	Type:   function.StaticReturnType(cty.String),
-	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-		return cty.StringVal("${" + args[0].AsString() + "}"), nil
-	},
-})
+// runtimeEnvFunc is runtime_env(name): an environment variable of the task.
+var runtimeEnvFunc = envFunc("name")
 
-// refOptions are the options of secret_ref and variable_ref.
-type refOptions struct {
-	// quote is "conf" (a double-quoted string with \ and " escaped), "sql"
-	// (a single-quoted string with ' doubled) or "" for the value as it is.
-	quote string
-	trim  bool
+// envFunc returns a function that names a value of the environment of the
+// task, which holds the node attributes too.
+func envFunc(param string) function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{{Name: param, Type: cty.String}},
+		Type:   function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+			return cty.StringVal(runref.Part{Kind: runref.KindEnv, Name: args[0].AsString()}.String()), nil
+		},
+	})
 }
 
-// refFunc returns secret_ref or variable_ref: write(path, item, options)
-// gives the text of a task template that reads the item at run time and
-// fails the template when it is missing.
-func refFunc(write func(path, item string, o refOptions) string) function.Function {
+// itemFunc returns secret_ref or variable_ref: path, item and options
+// { quote, trim }. quote is "conf", "sql" or false; without it the place
+// decides (none in a task template, the quoting of the configuration in an
+// encoder).
+func itemFunc(kind runref.Kind) function.Function {
 	return function.New(&function.Spec{
 		Params:   []function.Parameter{{Name: "path", Type: cty.String}, {Name: "item", Type: cty.String}},
 		VarParam: &function.Parameter{Name: "options", Type: cty.DynamicPseudoType},
 		Type:     function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-			o, err := parseRefOptions(args[2:])
+			p := runref.Part{Kind: kind, Name: args[0].AsString(), Item: args[1].AsString()}
+
+			err := options(args[2:], func(name string, v cty.Value) bool {
+				switch {
+				case name == "trim" && v.Type() == cty.Bool:
+					p.Trim = v.True()
+				case name == "quote" && v.Type() == cty.Bool && v.False():
+					p.Quote = runref.QuoteNone
+				case name == "quote" && v.Type() == cty.String && (v.AsString() == "conf" || v.AsString() == "sql"):
+					p.Quote = runref.Quote(v.AsString())
+				default:
+					return false
+				}
+
+				return true
+			}, `quote ("conf", "sql" or false) and trim (a bool)`)
 			if err != nil {
 				return cty.NilVal, err
 			}
 
-			return cty.StringVal(write(args[0].AsString(), args[1].AsString(), o)), nil
+			return cty.StringVal(p.String()), nil
 		},
 	})
 }
 
-func parseRefOptions(args []cty.Value) (refOptions, error) {
-	var o refOptions
+// serviceAddress is service_address(name, { scheme, port }): the address of
+// one instance of a service of the native catalog, as host:port, or the host
+// alone with port = false.
+var serviceAddress = function.New(&function.Spec{
+	Params:   []function.Parameter{{Name: "name", Type: cty.String}},
+	VarParam: &function.Parameter{Name: "options", Type: cty.DynamicPseudoType},
+	Type:     function.StaticReturnType(cty.String),
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		p := runref.Part{Kind: runref.KindService, Name: args[0].AsString()}
 
+		err := options(args[1:], func(name string, v cty.Value) bool {
+			switch {
+			case name == "scheme" && v.Type() == cty.String:
+				p.Scheme = v.AsString()
+			case name == "port" && v.Type() == cty.Bool:
+				p.NoPort = v.False()
+			default:
+				return false
+			}
+
+			return true
+		}, "scheme (a string) and port (a bool)")
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		return cty.StringVal(p.String()), nil
+	},
+})
+
+// serviceAddresses is service_addresses(name, { scheme, exclude_self }):
+// the addresses of all instances of a service. It is a list of one item
+// that stands for all of them, so that concat() can put known items before
+// it; an encoder writes it as the items of a list.
+var serviceAddresses = function.New(&function.Spec{
+	Params:   []function.Parameter{{Name: "name", Type: cty.String}},
+	VarParam: &function.Parameter{Name: "options", Type: cty.DynamicPseudoType},
+	Type:     function.StaticReturnType(cty.List(cty.String)),
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		p := runref.Part{Kind: runref.KindServices, Name: args[0].AsString()}
+
+		err := options(args[1:], func(name string, v cty.Value) bool {
+			switch {
+			case name == "scheme" && v.Type() == cty.String:
+				p.Scheme = v.AsString()
+			case name == "exclude_self" && v.Type() == cty.Bool:
+				p.ExcludeSelf = v.True()
+			default:
+				return false
+			}
+
+			return true
+		}, "scheme (a string) and exclude_self (a bool)")
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		return cty.ListVal([]cty.Value{cty.StringVal(p.String())}), nil
+	},
+})
+
+// options reads the options object of a function: set sets one and says
+// whether it is one; known lists the options for the error.
+func options(args []cty.Value, set func(name string, v cty.Value) bool, known string) error {
 	if len(args) == 0 {
-		return o, nil
+		return nil
 	}
 
 	if len(args) > 1 || !args[0].Type().IsObjectType() {
-		return o, function.NewArgErrorf(2, "the options are one object: { quote, trim }")
+		return fmt.Errorf("the options are one object: %s", known)
 	}
 
 	for name, v := range args[0].AsValueMap() {
-		if !o.set(name, v) {
-			return o, function.NewArgErrorf(2, "unknown option %s: the options are quote (\"conf\", \"sql\" or false) and trim (a bool)", name)
+		v, _ = v.Unmark()
+		if v.IsNull() || !v.IsKnown() || !set(name, v) {
+			return fmt.Errorf("invalid option %s: the options are %s", name, known)
 		}
 	}
 
-	return o, nil
-}
-
-// set sets the option name to v, and says whether it is one.
-func (o *refOptions) set(name string, v cty.Value) bool {
-	v, _ = v.Unmark()
-	if v.IsNull() || !v.IsKnown() {
-		return false
-	}
-
-	switch {
-	case name == "trim" && v.Type() == cty.Bool:
-		o.trim = v.True()
-	case name == "quote" && v.Type() == cty.Bool && v.False():
-		o.quote = ""
-	case name == "quote" && v.Type() == cty.String && (v.AsString() == "conf" || v.AsString() == "sql"):
-		o.quote = v.AsString()
-	default:
-		return false
-	}
-
-	return true
-}
-
-// pipeline returns the template pipeline that trims and escapes a value.
-func (o refOptions) pipeline() (prefix, filters, suffix string) {
-	if o.trim {
-		filters += " | trimSpace"
-	}
-
-	switch o.quote {
-	case "conf":
-		return `"`, filters + ` | replaceAll "\\" "\\\\" | replaceAll "\"" "\\\""`, `"`
-	case "sql":
-		return `'`, filters + ` | replaceAll "'" "''"`, `'`
-	default:
-		return "", filters, ""
-	}
-}
-
-// secretRef reads an item of a secret of the built-in secret store.
-func secretRef(path, item string, o refOptions) string {
-	prefix, filters, suffix := o.pipeline()
-
-	return fmt.Sprintf(`%s{{ with index (nomadSecret %s) %s }}{{ .%s }}{{ else }}{{ sprig_fail %s }}{{ end }}%s`,
-		prefix, strconv.Quote(path), strconv.Quote(item), filters,
-		strconv.Quote(fmt.Sprintf("the secret %s has no item %s", path, item)), suffix)
-}
-
-// variableRef reads an item of a Norca Variable.
-func variableRef(path, item string, o refOptions) string {
-	prefix, filters, suffix := o.pipeline()
-
-	return fmt.Sprintf(`%s{{ with nomadVar %s }}{{ with index . %s }}{{ .Value%s }}{{ else }}{{ sprig_fail %s }}{{ end }}{{ end }}%s`,
-		prefix, strconv.Quote(path), strconv.Quote(item), filters,
-		strconv.Quote(fmt.Sprintf("the Variable %s has no item %s", path, item)), suffix)
+	return nil
 }

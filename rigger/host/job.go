@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 
 	"github.com/hashicorp/hcl/v2"
+
+	"github.com/bacanoo-io/norca-rig/resource"
 )
 
 // JobSpec is a job block of a module, ready to be decoded.
@@ -30,6 +32,10 @@ type JobSpec struct {
 	Block *hcl.Block
 	// EvalContext resolves the install-time references of the block.
 	EvalContext *hcl.EvalContext
+	// Hook is the hook block of the job, which Rig took off the block; nil
+	// for a job that is not a hook. The host writes it the way its release
+	// API reads hooks.
+	Hook *resource.Hook
 }
 
 // Job is a decoded job in the encoding of the host: for Norca, the JSON of

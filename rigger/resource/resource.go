@@ -62,4 +62,33 @@ type Resource struct {
 	Name string `json:"name"`
 	// Spec is the resource in the encoding the host uses for its kind.
 	Spec json.RawMessage `json:"spec"`
+	// Hook makes a job a hook of the release; nil for a resource that is
+	// not one (design 5).
+	Hook *Hook `json:"hook,omitempty"`
+}
+
+// Hook is the hook block of a job: when the release runs it, in which
+// order, how long it may take and when it is deleted.
+type Hook struct {
+	// On are the phases: pre-install, post-install, pre-upgrade,
+	// post-upgrade, pre-delete, post-delete, test.
+	On []string `json:"on"`
+	// Weight orders the hooks of a phase, the lowest first.
+	Weight int `json:"weight,omitempty"`
+	// Timeout is how long the hook may run, as a duration ("5m"); empty
+	// is the server's default.
+	Timeout string `json:"timeout,omitempty"`
+	// Delete is when the job is deleted after it ran: on-success, always
+	// or never; empty is the server's default.
+	Delete string `json:"delete,omitempty"`
+}
+
+// HookPhases are the phases a hook may run on.
+func HookPhases() []string {
+	return []string{"pre-install", "post-install", "pre-upgrade", "post-upgrade", "pre-delete", "post-delete", "test"}
+}
+
+// HookDeletes are the values of Hook.Delete.
+func HookDeletes() []string {
+	return []string{"on-success", "always", "never"}
 }

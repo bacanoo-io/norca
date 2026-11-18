@@ -9,145 +9,152 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
+
+	"github.com/bacanoo-io/norca-rig/internal/lang"
 )
 
-// localsRoot is the root name of a reference to a local.
-const localsRoot = "local"
+// The roots of the references to a local and to a child module.
+const (
+	localsRoot = "local"
+	moduleRoot = "module"
+)
 
-// evalLocals evaluates the locals of the blocks in the order of their
-// references, and returns the object local.*. The order of the files and of
-// the attributes has no meaning (design 4.1).
-func evalLocals(blocks []*hcl.Block, ctx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
-	attrs, diags := localAttributes(blocks)
-	if diags.HasErrors() {
-		return cty.EmptyObjectVal, diags
-	}
-
-	order, moreDiags := orderLocals(attrs)
-	diags = append(diags, moreDiags...)
-
-	if moreDiags.HasErrors() {
-		return cty.EmptyObjectVal, diags
-	}
-
-	values := map[string]cty.Value{}
-	child := ctx.NewChild()
-
-	for _, name := range order {
-		child.Variables = map[string]cty.Value{localsRoot: cty.ObjectVal(values)}
-
-		v, moreDiags := attrs[name].Expr.Value(child)
-		diags = append(diags, moreDiags...)
-		values[name] = v
-	}
-
-	return cty.ObjectVal(values), diags
+// node is a value of a module that others may read: a local or a child
+// module. Its key is local.<name> or module.<name>.
+type node struct {
+	key   string
+	local *hcl.Attribute
+	child *lang.Child
+	rng   hcl.Range
 }
 
-// localAttributes gathers the attributes of all locals blocks.
-func localAttributes(blocks []*hcl.Block) (map[string]*hcl.Attribute, hcl.Diagnostics) {
-	attrs := map[string]*hcl.Attribute{}
+// refs returns the keys of the nodes the node reads.
+func (n *node) refs() []string {
+	if n.local != nil {
+		return valueRefs(n.local.Expr)
+	}
+
+	var out []string
+
+	for _, attr := range n.child.Args {
+		out = append(out, valueRefs(attr.Expr)...)
+	}
+
+	return out
+}
+
+// valueRefs returns the keys of the locals and child modules an expression
+// reads.
+func valueRefs(expr hcl.Expression) []string {
+	var refs []string
+
+	for _, t := range expr.Variables() {
+		root := t.RootName()
+		if (root != localsRoot && root != moduleRoot) || len(t) < 2 {
+			continue
+		}
+
+		if attr, ok := t[1].(hcl.TraverseAttr); ok {
+			refs = append(refs, root+"."+attr.Name)
+		}
+	}
+
+	return refs
+}
+
+// valueNodes gathers the locals of the locals blocks and the child modules.
+func valueNodes(blocks []*hcl.Block, children []*lang.Child) (map[string]*node, hcl.Diagnostics) {
+	nodes := map[string]*node{}
 
 	var diags hcl.Diagnostics
 
 	for _, b := range blocks {
-		more, moreDiags := b.Body.JustAttributes()
+		attrs, moreDiags := b.Body.JustAttributes()
 		diags = append(diags, moreDiags...)
 
-		for name, attr := range more {
-			if prev, dup := attrs[name]; dup {
+		for name, attr := range attrs {
+			key := localsRoot + "." + name
+			if prev, dup := nodes[key]; dup {
 				diags = append(diags, &hcl.Diagnostic{
 					Severity: hcl.DiagError, Summary: "Duplicate local",
-					Detail:  fmt.Sprintf("local.%s is defined already at %s.", name, prev.NameRange),
+					Detail:  fmt.Sprintf("%s is defined already at %s.", key, prev.rng),
 					Subject: attr.NameRange.Ptr(),
 				})
 
 				continue
 			}
 
-			attrs[name] = attr
+			nodes[key] = &node{key: key, local: attr, rng: attr.NameRange}
 		}
 	}
 
-	return attrs, diags
-}
-
-// orderLocals returns the names of the locals so that each comes after the
-// locals it reads, or an error naming a cycle.
-func orderLocals(attrs map[string]*hcl.Attribute) ([]string, hcl.Diagnostics) {
-	names := make([]string, 0, len(attrs))
-	for name := range attrs {
-		names = append(names, name)
+	for _, c := range children {
+		key := moduleRoot + "." + c.Name
+		nodes[key] = &node{key: key, child: c, rng: c.Block.LabelRanges[0]}
 	}
 
-	slices.Sort(names)
+	return nodes, diags
+}
 
-	// The states of a local in the walk; zero is not visited yet.
+// orderNodes returns the keys of the nodes so that each comes after the
+// nodes it reads, or an error naming a cycle. The order of the files and of
+// the attributes has no meaning (design 4.1).
+func orderNodes(nodes map[string]*node) ([]string, hcl.Diagnostics) {
+	keys := make([]string, 0, len(nodes))
+	for key := range nodes {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	// The states of a node in the walk; zero is not visited yet.
 	const (
 		visiting = iota + 1
 		done
 	)
 
 	state := map[string]int{}
-	order := make([]string, 0, len(names))
+	order := make([]string, 0, len(keys))
 
-	var visit func(name string, path []string) hcl.Diagnostics
+	var visit func(key string, path []string) hcl.Diagnostics
 
-	visit = func(name string, path []string) hcl.Diagnostics {
-		switch state[name] {
+	visit = func(key string, path []string) hcl.Diagnostics {
+		switch state[key] {
 		case done:
 			return nil
 		case visiting:
-			cycle := append(slices.Clone(path[slices.Index(path, name):]), name)
+			cycle := append(slices.Clone(path[slices.Index(path, key):]), key)
 
 			return hcl.Diagnostics{{
-				Severity: hcl.DiagError, Summary: "Locals refer to each other",
-				Detail:  "The locals form a cycle: local." + strings.Join(cycle, " → local.") + ".",
-				Subject: attrs[name].NameRange.Ptr(),
+				Severity: hcl.DiagError, Summary: "Values refer to each other",
+				Detail:  "The locals and modules form a cycle: " + strings.Join(cycle, " → ") + ".",
+				Subject: nodes[key].rng.Ptr(),
 			}}
 		}
 
-		state[name] = visiting
+		state[key] = visiting
 
-		for _, dep := range localRefs(attrs[name].Expr) {
-			if _, ok := attrs[dep]; !ok {
+		for _, dep := range nodes[key].refs() {
+			if _, ok := nodes[dep]; !ok {
 				continue
 			}
 
-			if diags := visit(dep, append(path, name)); diags.HasErrors() {
+			if diags := visit(dep, append(path, key)); diags.HasErrors() {
 				return diags
 			}
 		}
 
-		state[name] = done
-		order = append(order, name)
+		state[key] = done
+		order = append(order, key)
 
 		return nil
 	}
 
-	for _, name := range names {
-		if diags := visit(name, nil); diags.HasErrors() {
+	for _, key := range keys {
+		if diags := visit(key, nil); diags.HasErrors() {
 			return nil, diags
 		}
 	}
 
 	return order, nil
-}
-
-// localRefs returns the names of the locals an expression reads.
-func localRefs(expr hcl.Expression) []string {
-	var refs []string
-
-	for _, t := range expr.Variables() {
-		if t.RootName() != localsRoot || len(t) < 2 {
-			continue
-		}
-
-		if attr, ok := t[1].(hcl.TraverseAttr); ok {
-			refs = append(refs, attr.Name)
-		}
-	}
-
-	return refs
 }
