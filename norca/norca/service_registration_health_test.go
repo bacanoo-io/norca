@@ -125,10 +125,14 @@ func TestServiceRegistration_UpsertFlapping(t *testing.T) {
 	node := mock.Node()
 	node.Attributes["norca.version"] = "0.1.0"
 	must.NoError(t, s.State().UpsertNode(structs.MsgTypeTestSetup, 10, node))
+	// the allocation of the instance, on the node
+	owned := healthReg("")
+	nodeOwnedRegistrations(t, s, 11, node, owned)
 
 	upsert := func(health string) uint64 {
 		reg := healthReg(health)
 		reg.NodeID = node.ID
+		reg.AllocID = owned.AllocID
 		req := &structs.ServiceRegistrationUpsertRequest{
 			Services:     []*structs.ServiceRegistration{reg},
 			WriteRequest: structs.WriteRequest{Region: "global", AuthToken: node.SecretID},

@@ -89,6 +89,9 @@ func (s *ServiceRegistration) Upsert(
 	if err := mErr.ErrorOrNil(); err != nil {
 		return err
 	}
+	if err := checkNodeServices(s.srv.fsm.State(), node, args.Services); err != nil {
+		return err
+	}
 
 	// Clients that predate the Ready flag never set it; treat their instances
 	// as ready so that readiness filtering does not hide them.
@@ -148,6 +151,41 @@ func (s *ServiceRegistration) Upsert(
 	// Update the index. There is no need to floor this as we are writing to
 	// state and therefore will get a non-zero index response.
 	reply.Index = index
+	return nil
+}
+
+// checkNodeServices refuses the registrations a client node may not write:
+// external services, which have an API and a capability of their own;
+// registrations of another node; those of an allocation that is not the
+// node's, or with another namespace or job than their allocation; and
+// those that would replace an external service or a registration of another
+// node. A client registers the services of its own allocations only
+// (client/serviceregistration/nsd).
+func checkNodeServices(store *state.StateStore, node *structs.Node, services []*structs.ServiceRegistration) error {
+	for _, service := range services {
+		if service.IsExternal() {
+			return structs.NewErrRPCCoded(http.StatusBadRequest,
+				"external services are registered through the external services API")
+		}
+		if service.NodeID != node.ID {
+			return structs.ErrPermissionDenied
+		}
+		alloc, err := store.AllocByID(nil, service.AllocID)
+		if err != nil {
+			return err
+		}
+		if alloc == nil || alloc.NodeID != node.ID || alloc.Namespace != service.Namespace ||
+			alloc.JobID != service.JobID {
+			return structs.ErrPermissionDenied
+		}
+		existing, err := store.GetServiceRegistrationByID(nil, service.Namespace, service.ID)
+		if err != nil {
+			return err
+		}
+		if existing != nil && (existing.IsExternal() || existing.NodeID != node.ID) {
+			return structs.ErrPermissionDenied
+		}
+	}
 	return nil
 }
 

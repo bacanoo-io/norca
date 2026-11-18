@@ -137,6 +137,7 @@ func TestServiceRegistration_Upsert_ReadyCompat(t *testing.T) {
 	legacy[0].ID += "_legacy"
 	legacy[0].NodeID = legacyNode.ID
 	legacy[0].Ready = false
+	nodeOwnedRegistrations(t, s, 12, legacyNode, legacy[0])
 	upsert(legacyNode, legacy[:1])
 	must.True(t, stored(legacy[0]).Ready)
 
@@ -147,6 +148,7 @@ func TestServiceRegistration_Upsert_ReadyCompat(t *testing.T) {
 	norca[1].Namespace = norca[0].Namespace
 	norca[1].NodeID = norcaNode.ID
 	norca[1].Ready = true
+	nodeOwnedRegistrations(t, s, 13, norcaNode, norca...)
 	upsert(norcaNode, norca)
 	must.False(t, stored(norca[0]).Ready)
 	must.True(t, stored(norca[1]).Ready)

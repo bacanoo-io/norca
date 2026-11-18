@@ -10,6 +10,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -63,6 +64,8 @@ func TestServiceRegistration_Upsert(t *testing.T) {
 				node, err = s.State().NodeByID(ws, node.ID)
 				require.NoError(t, err)
 				require.NotNil(t, node)
+				// a client registers the services of its own allocations
+				nodeOwnedRegistrations(t, s, 11, node, services...)
 
 				serviceRegReq.WriteRequest.AuthToken = node.SecretID
 				err = msgpackrpc.CallWithCodec(
@@ -94,6 +97,8 @@ func TestServiceRegistration_Upsert(t *testing.T) {
 				node, err := s.State().NodeByID(ws, node.ID)
 				require.NoError(t, err)
 				require.NotNil(t, node)
+				// a client registers the services of its own allocations
+				nodeOwnedRegistrations(t, s, 11, node, services...)
 
 				serviceRegReq := &structs.ServiceRegistrationUpsertRequest{
 					Services: services,
@@ -146,6 +151,8 @@ func TestServiceRegistration_Upsert(t *testing.T) {
 				node, err = s.State().NodeByID(ws, node.ID)
 				require.NoError(t, err)
 				require.NotNil(t, node)
+				// a client registers the services of its own allocations
+				nodeOwnedRegistrations(t, s, 11, node, services...)
 
 				serviceRegReq.WriteRequest.AuthToken = node.SecretID
 				err = msgpackrpc.CallWithCodec(
@@ -176,6 +183,8 @@ func TestServiceRegistration_Upsert(t *testing.T) {
 				node, err := s.State().NodeByID(ws, node.ID)
 				require.NoError(t, err)
 				require.NotNil(t, node)
+				// a client registers the services of its own allocations
+				nodeOwnedRegistrations(t, s, 11, node, services...)
 
 				serviceRegReq := &structs.ServiceRegistrationUpsertRequest{
 					Services: services,
@@ -202,6 +211,139 @@ func TestServiceRegistration_Upsert(t *testing.T) {
 			tc.testFn(t, server, aclToken)
 		})
 	}
+}
+
+// nodeOwnedRegistrations makes regs registrations of allocations of node,
+// as the client of the node sends them: an allocation of the node for each,
+// in the namespace and job of the registration.
+func nodeOwnedRegistrations(t *testing.T, s *Server, index uint64, node *structs.Node,
+	regs ...*structs.ServiceRegistration) {
+	t.Helper()
+	allocs := make([]*structs.Allocation, 0, len(regs))
+	for _, reg := range regs {
+		alloc := mock.Alloc()
+		alloc.NodeID = node.ID
+		alloc.Namespace = reg.Namespace
+		alloc.Job.Namespace = reg.Namespace
+		if reg.JobID == "" {
+			reg.JobID = alloc.JobID
+		}
+		alloc.JobID = reg.JobID
+		alloc.Job.ID = reg.JobID
+		reg.NodeID = node.ID
+		reg.AllocID = alloc.ID
+		allocs = append(allocs, alloc)
+	}
+	must.NoError(t, s.State().UpsertAllocs(structs.MsgTypeTestSetup, index, allocs))
+}
+
+// TestServiceRegistration_Upsert_NodeOwnsRegistrations: a client node
+// registers the services of its own allocations only, never an external
+// service, and replaces neither an external service nor a registration of
+// another node (review finding JOG-12).
+func TestServiceRegistration_Upsert_NodeOwnsRegistrations(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.State()
+
+	node, other := mock.Node(), mock.Node()
+	must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, 10, node))
+	must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, 11, other))
+
+	// what is in the state already: a registration of the other node, and
+	// an external service
+	foreign := mock.ServiceRegistrations()[0]
+	foreign.ID = "foreign"
+	nodeOwnedRegistrations(t, s, 12, other, foreign)
+	external := mock.ServiceRegistrations()[0]
+	external.ID, external.NodeID, external.AllocID, external.JobID = "external", "", "", ""
+	external.External = &structs.ServiceExternal{Kind: structs.ExternalServiceKindAddress}
+	must.NoError(t, st.UpsertServiceRegistrations(structs.MsgTypeTestSetup, 13, []*structs.ServiceRegistration{foreign, external}))
+
+	// valid returns a registration of an allocation of node
+	index := uint64(20)
+	valid := func(id string) *structs.ServiceRegistration {
+		reg := mock.ServiceRegistrations()[0]
+		reg.ID = id
+		nodeOwnedRegistrations(t, s, index, node, reg)
+		index++
+		return reg
+	}
+	upsert := func(reg *structs.ServiceRegistration) error {
+		req := &structs.ServiceRegistrationUpsertRequest{
+			Services:     []*structs.ServiceRegistration{reg},
+			WriteRequest: structs.WriteRequest{Region: DefaultRegion, AuthToken: node.SecretID},
+		}
+		var resp structs.ServiceRegistrationUpsertResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationUpsertRPCMethod, req, &resp)
+	}
+	stored := func(reg *structs.ServiceRegistration) *structs.ServiceRegistration {
+		out, err := st.GetServiceRegistrationByID(nil, reg.Namespace, reg.ID)
+		must.NoError(t, err)
+		return out
+	}
+
+	refused := []struct {
+		name   string
+		reg    func() *structs.ServiceRegistration
+		reason string
+	}{
+		{"another node", func() *structs.ServiceRegistration {
+			reg := valid("r1")
+			reg.NodeID = other.ID
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"external service", func() *structs.ServiceRegistration {
+			reg := valid("r2")
+			reg.External = &structs.ServiceExternal{Kind: structs.ExternalServiceKindAddress}
+			return reg
+		}, "external services API"},
+		{"allocation of another node", func() *structs.ServiceRegistration {
+			reg := valid("r3")
+			reg.AllocID = foreign.AllocID
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"unknown allocation", func() *structs.ServiceRegistration {
+			reg := valid("r4")
+			reg.AllocID = uuid.Generate()
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"namespace of another allocation", func() *structs.ServiceRegistration {
+			reg := valid("r5")
+			reg.Namespace = "platform"
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"job of another allocation", func() *structs.ServiceRegistration {
+			reg := valid("r6")
+			reg.JobID = "other-job"
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"replaces a registration of another node", func() *structs.ServiceRegistration {
+			reg := valid("foreign")
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+		{"replaces an external service", func() *structs.ServiceRegistration {
+			reg := valid("external")
+			return reg
+		}, structs.ErrPermissionDenied.Error()},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := tc.reg()
+			before := stored(reg)
+			must.ErrorContains(t, upsert(reg), tc.reason)
+			must.Eq(t, before, stored(reg))
+		})
+	}
+
+	t.Run("own allocation", func(t *testing.T) {
+		reg := valid("own")
+		must.NoError(t, upsert(reg))
+		must.NotNil(t, stored(reg))
+	})
 }
 
 func TestServiceRegistration_DeleteByID(t *testing.T) {
