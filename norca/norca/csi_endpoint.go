@@ -1574,9 +1574,12 @@ func (v *CSIVolume) createSnapshot(snapState *state.StateSnapshot, namespace str
 		return nil, fmt.Errorf("no such volume %q", snap.SourceVolumeID)
 	}
 
-	pluginID := snap.PluginID
-	if pluginID == "" {
-		pluginID = vol.PluginID
+	// The snapshot is taken by the plugin of the volume, which gets the
+	// secrets of the volume: another plugin named by the caller is refused,
+	// as it would get them too.
+	pluginID := vol.PluginID
+	if snap.PluginID != "" && snap.PluginID != vol.PluginID {
+		return nil, fmt.Errorf("the volume %q is of the plugin %q, not %q", vol.ID, vol.PluginID, snap.PluginID)
 	}
 
 	plugin, err := snapState.CSIPluginByID(nil, pluginID)

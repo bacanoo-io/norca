@@ -1602,6 +1602,31 @@ func TestCSIVolumeEndpoint_CreateSnapshot(t *testing.T) {
 	require.Equal(t, "snap-12345", snap.ID)                          // set by the plugin
 	require.Equal(t, "csi.CSISecrets(map[])", snap.Secrets.String()) // should not be set
 	require.Len(t, snap.Parameters, 0)                               // should not be set
+
+	// A plugin that is not the volume's is refused: the request would
+	// send the secrets of the volume to it (review finding SEC-26). The
+	// volume's own plugin may be named.
+	node = client.UpdateConfig(func(c *cconfig.Config) {
+		c.Node.CSIControllerPlugins["other"] = &structs.CSIInfo{
+			PluginID:                 "other",
+			Healthy:                  true,
+			ControllerInfo:           &structs.CSIControllerInfo{SupportsCreateDeleteSnapshot: true},
+			RequiresControllerPlugin: true,
+		}
+	}).Node
+	index++
+	must.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, index, node))
+	vol := vols[0].Copy()
+	vol.Secrets = structs.CSISecrets{"volume-key": "of the volume"}
+	index++
+	must.NoError(t, state.UpsertCSIVolume(index, []*structs.CSIVolume{vol}))
+
+	req1.Snapshots[0].PluginID = "other"
+	err = msgpackrpc.CallWithCodec(codec, "CSIVolume.CreateSnapshot", req1, &structs.CSISnapshotCreateResponse{})
+	must.ErrorContains(t, err, `the volume "test-volume0" is of the plugin "minnie", not "other"`)
+
+	req1.Snapshots[0].PluginID = "minnie"
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "CSIVolume.CreateSnapshot", req1, &structs.CSISnapshotCreateResponse{}))
 }
 
 func TestCSIVolumeEndpoint_DeleteSnapshot(t *testing.T) {
