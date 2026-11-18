@@ -39,6 +39,7 @@ const (
 	cmdRelease = "release"
 	cmdKey     = "key"
 	cmdBundle  = "bundle"
+	cmdConvert = "convert"
 
 	cmdRender   = "render"
 	cmdPublish  = "publish"
@@ -86,6 +87,10 @@ Commands:
   bundle import file      put a bundle into the cache, for an install
                           without a network
   The cluster is that of NORCA_ADDR and NORCA_TOKEN.
+  convert pack <dir> -out <dir> [-examples <dir>]
+                          the mechanical part of turning a pack into a
+                          module: metadata, variables, examples; the
+                          templates kept as comments to rewrite as HCL
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
                           (dir: the current one)
@@ -108,7 +113,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 // commands are the commands that take commands or flags of their own.
 var commands = map[string]command{
 	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall,
-	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle,
+	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
 }
 
 // Run runs the rig program with its arguments, without the program name,
