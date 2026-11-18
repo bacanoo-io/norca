@@ -171,6 +171,52 @@ func TestCustomObjectEndpoint_Finalizers(t *testing.T) {
 	must.Eq(t, 404, errCode(t, err))
 }
 
+// TestCustomObjectEndpoint_EventsOfDeletedObject checks that the events of
+// a deleted object can be listed while its tombstone is kept, with the read
+// right of the live object, and that an object created again with its name
+// doesn't show them (review finding MUK-7).
+func TestCustomObjectEndpoint_EventsOfDeletedObject(t *testing.T) {
+	ci.Parallel(t)
+
+	s, root, cleanupS := TestACLServer(t, nil)
+	defer cleanupS()
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	testutil.WaitForLeader(t, s.RPC)
+	// The tombstone stays for the test.
+	s.objectGC.SetConfig(&objectgc.Config{Interval: time.Second, IdleInterval: time.Minute, TombstoneRetention: time.Hour})
+
+	other := mock.CreatePolicyAndToken(t, s.State(), 1001, "other-kind", `
+namespace "default" {
+  object "db.example.com/Other" { capabilities = ["read"] }
+}`)
+
+	_, err := c.upsertKind(testPGKind(true), false, root.SecretID)
+	must.NoError(t, err)
+	_, err = c.apply(testPGObject("default", "billing", map[string]any{"version": "16"}), nil, false, root.SecretID)
+	must.NoError(t, err)
+	must.NoError(t, c.recordEvents("default", "billing", root.SecretID, &structs.ObjectEvent{Reason: "Reconciled"}))
+
+	_, err = c.deleteWith("default", "billing", "", root.SecretID)
+	must.NoError(t, err)
+	stored, err := c.get("default", "billing", root.SecretID)
+	must.NoError(t, err)
+	must.Nil(t, stored)
+
+	events, err := c.events("default", "billing", root.SecretID)
+	must.NoError(t, err)
+	must.Len(t, 1, events, must.Sprint("the events of the deleted object are gone"))
+	must.Eq(t, "Reconciled", events[0].Reason)
+	_, err = c.events("default", "billing", other.SecretID)
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+
+	// Created again, the object has no events.
+	_, err = c.apply(testPGObject("default", "billing", map[string]any{"version": "17"}), nil, false, root.SecretID)
+	must.NoError(t, err)
+	events, err = c.events("default", "billing", root.SecretID)
+	must.NoError(t, err)
+	must.SliceEmpty(t, events)
+}
+
 // TestCustomObjectEndpoint_OperatorsFinalizerReserved checks that the
 // finalizer of the built-in operators is the servers': a token with
 // manage-finalizers removing it would let a tenant or a volume request go

@@ -453,10 +453,11 @@ func (s *StateStore) DeleteCustomObject(msgType structs.MessageType, index uint6
 	})
 }
 
-// DeleteCustomObjectRequest removes an object and its event log. A non-zero
-// expected modify index must match the stored object. With the background
-// and foreground deletion modes it records a tombstone for the garbage
-// collector.
+// DeleteCustomObjectRequest removes an object. A non-zero expected modify
+// index must match the stored object. With the background and foreground
+// deletion modes it records a tombstone for the garbage collector, and the
+// event log of the object stays until the tombstone is removed; otherwise
+// the event log is removed with the object.
 func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, index uint64, req *structs.CustomObjectDeleteStateRequest) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
@@ -486,9 +487,7 @@ func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, inde
 	if err := txn.Insert(tableIndex, &IndexEntry{TableCustomObjects, index}); err != nil {
 		return fmt.Errorf("index update failed: %w", err)
 	}
-	if err := deleteObjectEventLogTxn(txn, index, kindRef, req.Namespace, req.Name); err != nil {
-		return err
-	}
+	tombstone := false
 	switch req.Propagation {
 	case structs.ObjectPropagationBackground, structs.ObjectPropagationForeground:
 		// The dependents the deleter was checked for: of an object that was
@@ -498,6 +497,13 @@ func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, inde
 			approved = existing.DeletionApproved
 		}
 		if err := insertObjectTombstoneTxn(txn, index, existing, req.Propagation, req.DeleteTime, approved); err != nil {
+			return err
+		}
+		tombstone = existing.ID != ""
+	}
+	// The event log stays with the tombstone (ApplyObjectGC removes it).
+	if !tombstone {
+		if err := deleteObjectEventLogTxn(txn, index, kindRef, req.Namespace, req.Name, existing.ID); err != nil {
 			return err
 		}
 	}

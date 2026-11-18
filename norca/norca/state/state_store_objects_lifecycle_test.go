@@ -63,15 +63,16 @@ func TestStateStore_ObjectEventLog(t *testing.T) {
 	must.Eq(t, "attempt 3", log.Events[2].Message)
 	must.Eq(t, uint64(23), log.ModifyIndex)
 
-	// Deleting the object deletes its log and leaves a tombstone in the
-	// background mode.
+	// Deleting the object leaves a tombstone in the background mode, and
+	// the log stays with it.
 	must.NoError(t, store.DeleteCustomObjectRequest(structs.MsgTypeTestSetup, 30, &structs.CustomObjectDeleteStateRequest{
 		Group: "example.com", Kind: "Thing", Namespace: "default", Name: "a",
 		Propagation: structs.ObjectPropagationBackground, DeleteTime: 5000,
 	}))
 	log, err = store.ObjectEventLog(nil, "example.com", "Thing", "default", "a")
 	must.NoError(t, err)
-	must.Nil(t, log)
+	must.NotNil(t, log)
+	must.Eq(t, "id-a", log.ObjectID)
 
 	iter, err := store.ObjectTombstones(nil)
 	must.NoError(t, err)
@@ -87,6 +88,107 @@ func TestStateStore_ObjectEventLog(t *testing.T) {
 	iter, err = store.ObjectTombstones(nil)
 	must.NoError(t, err)
 	must.Nil(t, iter.Next())
+	log, err = store.ObjectEventLog(nil, "example.com", "Thing", "default", "a")
+	must.NoError(t, err)
+	must.Nil(t, log)
+}
+
+// TestStateStore_ObjectEventLogOfDeletedObject checks that the event log of
+// a deleted object stays as long as its tombstone (review finding MUK-7):
+// events recorded for the deleted object go into it, an object created
+// again with the same name has a log of its own, and the log goes with the
+// tombstone.
+func TestStateStore_ObjectEventLogOfDeletedObject(t *testing.T) {
+	ci.Parallel(t)
+	store := testStateStore(t)
+	must.NoError(t, store.UpsertObjectKind(structs.MsgTypeTestSetup, 10, testObjectKind("example.com", "Thing", true)))
+
+	write := func(index uint64, id string) {
+		t.Helper()
+		obj := testCustomObject("example.com", "Thing", "default", "a")
+		obj.ID = id
+		must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, index, obj, 0))
+	}
+	record := func(index uint64, id, reason string) error {
+		return store.AppendObjectEvents(structs.MsgTypeTestSetup, index, &structs.CustomObjectEventsStateRequest{
+			Group: "example.com", Kind: "Thing", Namespace: "default", Name: "a",
+			ObjectID: id, Events: []*structs.ObjectEvent{{Reason: reason}}, Time: int64(index), Limit: 10,
+		})
+	}
+	remove := func(index uint64, mode string) {
+		t.Helper()
+		must.NoError(t, store.DeleteCustomObjectRequest(structs.MsgTypeTestSetup, index, &structs.CustomObjectDeleteStateRequest{
+			Group: "example.com", Kind: "Thing", Namespace: "default", Name: "a",
+			Propagation: mode, DeleteTime: int64(index),
+		}))
+	}
+	reasons := func() (string, []string) {
+		t.Helper()
+		log, err := store.ObjectEventLog(nil, "example.com", "Thing", "default", "a")
+		must.NoError(t, err)
+		if log == nil {
+			return "", nil
+		}
+		var out []string
+		for _, e := range log.Events {
+			out = append(out, e.Reason)
+		}
+		return log.ObjectID, out
+	}
+	logCount := func() int {
+		t.Helper()
+		iter, err := store.ObjectEventLogs(nil)
+		must.NoError(t, err)
+		n := 0
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			n++
+		}
+		return n
+	}
+
+	write(11, "id-a")
+	must.NoError(t, record(12, "id-a", "Reconciled"))
+	ws := memdb.NewWatchSet()
+	_, err := store.ObjectEventLog(ws, "example.com", "Thing", "default", "a")
+	must.NoError(t, err)
+
+	// The deleted object's log stays, and takes the events recorded for it
+	// after the deletion.
+	remove(20, structs.ObjectPropagationBackground)
+	must.True(t, watchFired(ws))
+	id, got := reasons()
+	must.Eq(t, "id-a", id)
+	must.Eq(t, []string{"Reconciled"}, got)
+	must.NoError(t, record(21, "id-a", "Released"))
+	_, got = reasons()
+	must.Eq(t, []string{"Reconciled", "Released"}, got)
+	must.ErrorContains(t, record(22, "other", "Released"), "not found")
+
+	// An object of the same name created again doesn't show them, and has
+	// a log of its own; the deleted object's log takes its events still.
+	write(30, "id-b")
+	id, got = reasons()
+	must.Eq(t, "", id)
+	must.Nil(t, got)
+	must.NoError(t, record(31, "id-b", "Created"))
+	must.NoError(t, record(32, "id-a", "Deleted"))
+	id, got = reasons()
+	must.Eq(t, "id-b", id)
+	must.Eq(t, []string{"Created"}, got)
+	must.Eq(t, 2, logCount())
+
+	// The log goes with the tombstone.
+	must.NoError(t, store.ApplyObjectGC(structs.MsgTypeTestSetup, 40, &structs.ObjectGCRequest{DeleteTombstones: []string{"id-a"}}))
+	must.Eq(t, 1, logCount())
+	must.ErrorContains(t, record(41, "id-a", "Released"), "not found")
+	id, _ = reasons()
+	must.Eq(t, "id-b", id)
+
+	// A deletion that leaves no tombstone takes the log at once.
+	remove(50, "")
+	must.Eq(t, 0, logCount())
+	id, _ = reasons()
+	must.Eq(t, "", id)
 }
 
 func TestStateStore_ObjectTombstonePropagation(t *testing.T) {

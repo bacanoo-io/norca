@@ -136,9 +136,15 @@ func TestFSM_ObjectLifecycle(t *testing.T) {
 		Propagation: structs.ObjectPropagationBackground, DeleteTime: 7,
 	}))
 
-	// Events of a deleted object are dropped without failing the FSM.
-	resp := apply(structs.CustomObjectEventsRequestType, &structs.CustomObjectEventsStateRequest{
+	// Events of a deleted object go into the log kept with its tombstone;
+	// events of an object that is gone without one are dropped without
+	// failing the FSM.
+	must.Nil(t, apply(structs.CustomObjectEventsRequestType, &structs.CustomObjectEventsStateRequest{
 		Group: kind.Group, Kind: kind.Kind, Namespace: "default", Name: "gone", ObjectID: gone.ID,
+		Events: []*structs.ObjectEvent{{Reason: "Late"}},
+	}))
+	resp := apply(structs.CustomObjectEventsRequestType, &structs.CustomObjectEventsStateRequest{
+		Group: kind.Group, Kind: kind.Kind, Namespace: "default", Name: "gone", ObjectID: uuid.Generate(),
 		Events: []*structs.ObjectEvent{{Reason: "Late"}},
 	})
 	must.NotNil(t, resp)
@@ -162,9 +168,17 @@ func TestFSM_ObjectLifecycle(t *testing.T) {
 	raw := iter.Next()
 	must.NotNil(t, raw)
 	must.Eq(t, gone.ID, raw.(*structs.ObjectTombstone).ID)
+	log, err = fsm2.State().ObjectEventLog(nil, kind.Group, kind.Kind, "default", "gone")
+	must.NoError(t, err)
+	must.NotNil(t, log)
+	must.Eq(t, gone.ID, log.ObjectID)
+	must.Eq(t, "Late", log.Events[0].Reason)
 
 	must.Nil(t, apply(structs.ObjectGCRequestType, &structs.ObjectGCRequest{DeleteTombstones: []string{gone.ID}}))
 	iter, err = fsm.State().ObjectTombstones(nil)
 	must.NoError(t, err)
 	must.Nil(t, iter.Next())
+	log, err = fsm.State().ObjectEventLog(nil, kind.Group, kind.Kind, "default", "gone")
+	must.NoError(t, err)
+	must.Nil(t, log)
 }
