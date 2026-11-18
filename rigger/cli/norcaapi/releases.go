@@ -260,7 +260,8 @@ func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	out := &api.ReleaseApplyRequest{
 		Pack: &api.ReleasePack{
 			Name: req.Module.Name, Version: req.Module.Version, Source: req.Module.Source, Ref: req.Module.Ref, Digest: req.Module.Digest,
-			Requires: requires(req.Module.Requires),
+			Requires:   requires(req.Module.Requires),
+			Signatures: signatures(req.Module.Signatures),
 		},
 		Description: ownDesc,
 		Values:      req.Values,
@@ -289,6 +290,15 @@ func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	}
 
 	return out, nil
+}
+
+func signatures(sigs []host.Signature) []*api.ReleasePackSignature {
+	out := make([]*api.ReleasePackSignature, 0, len(sigs))
+	for _, s := range sigs {
+		out = append(out, &api.ReleasePackSignature{Payload: s.Payload, Signature: s.Signature})
+	}
+
+	return out
 }
 
 func requires(r *module.Requires) *api.ReleasePackRequires {

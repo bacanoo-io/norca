@@ -16,6 +16,7 @@ import (
 	"github.com/bacanoo-io/norca-rig/host"
 	"github.com/bacanoo-io/norca-rig/internal/eval"
 	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca-rig/sign"
 )
 
 // ApplyOptions are the options of an apply.
@@ -304,9 +305,20 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 	}
 
 	ref := host.ReleaseRef{Namespace: in.Namespace, Name: in.Release}
+	o := moduleOrigin{module: m.mod, source: m.mod.Dir}
 
-	rp, err := e.planRelease(ctx, ref, "", in.Region, moduleOrigin{module: m.mod, source: m.mod.Dir},
-		eval.MarkSensitive(m.mod, valuesObject(in.Values)), res, set)
+	// A signed module carries its signatures, for the admission of the
+	// server (design 8.2).
+	sigs, err := sign.ReadSignatures(m.fsys, ".")
+	if err != nil {
+		return nil, append(diags, errorDiags("Signatures not read", err)...)
+	}
+
+	for _, s := range sigs {
+		o.signatures = append(o.signatures, host.Signature{Payload: s.Payload, Signature: s.Signature})
+	}
+
+	rp, err := e.planRelease(ctx, ref, "", in.Region, o, eval.MarkSensitive(m.mod, valuesObject(in.Values)), res, set)
 	if err != nil {
 		return nil, append(diags, errorDiags("Release not compared", err)...)
 	}

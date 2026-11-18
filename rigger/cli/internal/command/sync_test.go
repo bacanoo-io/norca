@@ -117,6 +117,11 @@ module "redis" {
 		t.Fatalf("lock after -upgrade:\n%s", lock)
 	}
 
+	// A tag of another version than the metadata is refused.
+	gitIn(t, repo, "tag", "greeter/v1.2.0")
+	rigRunErr(t, "the tag greeter/v1.2.0 is version 1.2.0, the metadata of the module says \"1.1.0\"", "stack", "sync", dir, "-upgrade")
+	gitIn(t, repo, "tag", "-d", "greeter/v1.2.0")
+
 	// A tag that moves is refused.
 	gitIn(t, repo, "commit", "--quiet", "--allow-empty", "-m", "moved")
 	gitIn(t, repo, "tag", "-f", "-a", "-m", "moved", "greeter/v1.1.0")

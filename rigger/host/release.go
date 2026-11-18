@@ -34,6 +34,16 @@ type ModuleRef struct {
 	// Requires are the requirements of the module on the cluster, which
 	// the server checks.
 	Requires *module.Requires `json:"requires,omitempty"`
+	// Signatures are the signatures of the digest, which the admission of
+	// the server verifies against its trusted keys (design 8.2).
+	Signatures []Signature `json:"signatures,omitempty"`
+}
+
+// Signature is a signed statement about a tree digest (design 8.1): a
+// cosign simple signing payload and its signature.
+type Signature struct {
+	Payload   string `json:"payload"`
+	Signature string `json:"signature"`
 }
 
 // Revision is a revision of a release, as the engine needs it.

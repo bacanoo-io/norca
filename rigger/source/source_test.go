@@ -20,8 +20,8 @@ func TestParse(t *testing.T) {
 		expected source.Request
 		err      error
 	}{
-		{address: "example/postgres", expected: source.Request{Kind: source.KindGit, Repository: "github.com/example/rig-registry", Path: "modules/postgres", TagPrefix: "postgres/v"}},
-		{address: "local/nats", expected: source.Request{Kind: source.KindGit, Repository: "file:///srv/registry", Path: "modules/nats", TagPrefix: "nats/v"}},
+		{address: "example/postgres", expected: source.Request{Kind: source.KindGit, Registry: "example", Repository: "github.com/example/rig-registry", Path: "modules/postgres", TagPrefix: "postgres/v"}},
+		{address: "local/nats", expected: source.Request{Kind: source.KindGit, Registry: "local", Repository: "file:///srv/registry", Path: "modules/nats", TagPrefix: "nats/v"}},
 		{address: "github.com/acme/rig-modules//nats", expected: source.Request{Kind: source.KindGit, Repository: "github.com/acme/rig-modules", Path: "nats", TagPrefix: "nats/v"}},
 		{address: "github.com/acme/redis", expected: source.Request{Kind: source.KindGit, Repository: "github.com/acme/redis", Path: ".", TagPrefix: "v"}},
 		{address: "https://git.internal/rig.git//modules/db", expected: source.Request{Kind: source.KindGit, Repository: "https://git.internal/rig.git", Path: "modules/db", TagPrefix: "db/v"}},

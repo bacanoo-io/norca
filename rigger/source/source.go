@@ -35,6 +35,9 @@ type Request struct {
 	// "github.com/acme/rig-modules//nats", "builtin/redis".
 	Source string `json:"source"`
 	Kind   Kind   `json:"kind"`
+	// Registry is the name of the registry of the stack the address names;
+	// empty for another address.
+	Registry string `json:"registry,omitempty"`
 	// Repository is the git repository or the directory; empty for a
 	// built-in module.
 	Repository string `json:"repository,omitempty"`
@@ -154,6 +157,7 @@ func Parse(address string, registries map[string]string) (Request, error) {
 	}
 
 	req.Kind, req.Repository, req.Path, req.TagPrefix = KindGit, inner.Repository, "modules/"+name, name+"/v"
+	req.Registry = reg
 
 	return req, nil
 }

@@ -34,6 +34,9 @@ type LockedModule struct {
 	Commit     string `hcl:"commit,optional"`
 	// Digest is the tree digest of the module (design 8.1).
 	Digest string `hcl:"digest"`
+	// Signers are the IDs of the keys whose signatures of the digest the
+	// trust of the stack took.
+	Signers []string `hcl:"signers,optional"`
 }
 
 // Module returns the entry of a source, nil for none.
@@ -100,6 +103,15 @@ func (l *Lock) Bytes() []byte {
 			if kv[1] != "" {
 				b.SetAttributeValue(kv[0], cty.StringVal(kv[1]))
 			}
+		}
+
+		if len(m.Signers) > 0 {
+			signers := make([]cty.Value, len(m.Signers))
+			for i, s := range m.Signers {
+				signers[i] = cty.StringVal(s)
+			}
+
+			b.SetAttributeValue("signers", cty.ListVal(signers))
 		}
 	}
 

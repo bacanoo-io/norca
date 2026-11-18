@@ -1576,6 +1576,26 @@ Phase 3 as built (2026-11-18):
 - `norca-rig-registry` (next to this repository) holds redis, nats,
   postgres and lib/placement, tagged, with `scripts/check.sh` for its CI.
 
+Phase 4 as built (2026-11-18), signatures and trust:
+
+- **Keys and statements** (package `sign`): ECDSA P-256 keys in the format
+  of cosign (the private key encrypted with scrypt and nacl/secretbox under
+  `RIG_KEY_PASSWORD`), key IDs and the simple signing payload as Norca's
+  admission computes and reads them. `rig key generate|sign|verify`.
+- **Where a signature lives:** in the module, under `.rig-signatures/`, one
+  file per key. A hidden directory is outside the tree digest, so the
+  signature goes with the module from every source (git, a directory, a
+  bundle) without changing what it signs; it is committed before the tag.
+- **Trust:** `trust { registry, require_signature, public_keys }` in the
+  `rig` block of a stack, the rule of a registry or, without `registry`,
+  the default. Checked at `sync` and at every load from the lock; the lock
+  records the signers, which must still sign. A built-in module is part of
+  the program and needs no signature. The request of a release carries the
+  signatures (`Pack.Signatures`), so the admission of the server checks
+  them against its `trusted_keys` (checked against a dev agent).
+- A tag whose version is not the version of the module's metadata is
+  refused.
+
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
 

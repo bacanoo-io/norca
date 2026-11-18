@@ -289,18 +289,24 @@ func settings(r *lang.StackRelease) host.Settings {
 	return host.Settings{Atomic: r.Atomic, Wait: r.Wait == nil || *r.Wait, Timeout: r.Timeout, MaxHistory: r.MaxHistory}
 }
 
-// moduleOrigin is a module and where it came from.
+// moduleOrigin is a module, where it came from and who signed it.
 type moduleOrigin struct {
 	module      *lang.Module
 	source, ref string
+	signers     []string
+	signatures  []host.Signature
 }
 
 // origin is the module of a release of a stack and where it came from: the
 // address and the tag of a source, the path of a local module.
 func origin(r *lang.StackRelease) moduleOrigin {
-	o := moduleOrigin{module: r.Module, source: r.Source}
+	o := moduleOrigin{module: r.Module, source: r.Source, signers: r.Signers}
 	if r.Locked != nil {
 		o.ref = r.Locked.Ref
+	}
+
+	for _, s := range r.Signatures {
+		o.signatures = append(o.signatures, host.Signature{Payload: s.Payload, Signature: s.Signature})
 	}
 
 	return o
@@ -365,6 +371,7 @@ func applyRequest(ref host.ReleaseRef, owner, region string, m moduleOrigin, val
 		Release: ref, Owner: owner, Settings: set,
 		Module: host.ModuleRef{
 			Name: md.Name, Version: md.Version, Source: m.source, Ref: m.ref, Digest: moduleDigest, Requires: &md.Requires,
+			Signers: m.signers, Signatures: m.signatures,
 		},
 		Secrets: map[string]map[string]host.Sensitive{},
 	}

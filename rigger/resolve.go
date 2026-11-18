@@ -10,11 +10,14 @@ import (
 	"io/fs"
 	"log/slog"
 	"path"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 
+	"github.com/bacanoo-io/norca-rig/internal/eval"
 	"github.com/bacanoo-io/norca-rig/internal/lang"
 	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca-rig/sign"
 	"github.com/bacanoo-io/norca-rig/source"
 	"github.com/bacanoo-io/norca-rig/version"
 )
@@ -26,7 +29,10 @@ var ErrNoFetcher = errors.New("the engine has no fetcher of modules (rig.WithFet
 // file of the stack records them (design 8.3): the version, the tag and its
 // commit, and the tree digest, which must match.
 func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnostics {
-	var diags hcl.Diagnostics
+	rules, diags := eval.StackTrust(s, e.limits.FileBytes)
+	if diags.HasErrors() {
+		return diags
+	}
 
 	for _, r := range s.Releases {
 		if r.Address == nil {
@@ -49,17 +55,89 @@ func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnosti
 			continue
 		}
 
-		m, err := e.fetchLocked(ctx, r, entry)
+		fm, err := e.fetchLocked(ctx, r, entry)
+		if err == nil {
+			err = e.trust(rules, r, fm, entry.Signers)
+		}
+
 		if err != nil {
 			diags = append(diags, diagAt(rng, "Module not loaded", err.Error()+"."))
 
 			continue
 		}
 
-		r.Module, r.Locked = m, entry
+		r.Module, r.Locked = fm.module, entry
 	}
 
 	return diags
+}
+
+// trustRule is the rule of a registry, else the default rule (a trust
+// block that names no registry), else none.
+func trustRule(rules []eval.TrustRule, registry string) eval.TrustRule {
+	var def eval.TrustRule
+
+	for _, rule := range rules {
+		switch rule.Registry {
+		case "":
+			def = rule
+		case registry:
+			return rule
+		}
+	}
+
+	return def
+}
+
+// fetchedModule is a module fetched from a source.
+type fetchedModule struct {
+	module     *lang.Module
+	origin     source.Origin
+	signatures []sign.Signature
+}
+
+// ErrNotTrusted is the error of a module the trust of the stack does not
+// take (design 8.2).
+var ErrNotTrusted = errors.New("not signed by a key the stack trusts")
+
+// trust checks the signatures of a fetched module against the trust of the
+// stack: the rule of its registry, else the default rule. A built-in module
+// is part of the program and needs none. locked are the signers the lock
+// file records, which must still sign. It sets the signatures and signers
+// of the release.
+func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetchedModule, locked []string) error {
+	if r.Address.Kind == source.KindBuiltin {
+		return nil
+	}
+
+	rule := trustRule(rules, r.Address.Registry)
+
+	keys := make([]sign.PublicKey, 0, len(rule.Keys))
+
+	for _, text := range rule.Keys {
+		k, err := sign.ParsePublicKey([]byte(text))
+		if err != nil {
+			return fmt.Errorf("a public key of the trust of the stack: %w", err)
+		}
+
+		keys = append(keys, k)
+	}
+
+	signers := sign.Verify(fm.origin.Digest, fm.signatures, keys)
+
+	if rule.Require && len(signers) == 0 {
+		return fmt.Errorf("%s %s: %w", r.Source, fm.origin.Version, ErrNotTrusted)
+	}
+
+	for _, id := range locked {
+		if !slices.Contains(signers, id) {
+			return fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rig stack sync", r.Source, fm.origin.Version, id)
+		}
+	}
+
+	r.Signatures, r.Signers = fm.signatures, signers
+
+	return nil
 }
 
 // meets checks that a version meets a constraint; an empty constraint
@@ -87,42 +165,47 @@ func meets(constraint, v string) error {
 }
 
 // fetchLocked fetches the version a lock entry records and checks it.
-func (e *Engine) fetchLocked(ctx context.Context, r *lang.StackRelease, entry *lang.LockedModule) (*lang.Module, error) {
+func (e *Engine) fetchLocked(ctx context.Context, r *lang.StackRelease, entry *lang.LockedModule) (*fetchedModule, error) {
 	req := *r.Address
 	req.Version, req.Ref, req.Commit = entry.Version, entry.Ref, entry.Commit
 
-	m, origin, err := e.fetchModule(ctx, req)
+	fm, err := e.fetchModule(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	if origin.Digest != entry.Digest {
+	if fm.origin.Digest != entry.Digest {
 		return nil, fmt.Errorf("the content of %s %s is not what the lock file records (%s, now %s)",
-			r.Source, entry.Version, entry.Digest, origin.Digest)
+			r.Source, entry.Version, entry.Digest, fm.origin.Digest)
 	}
 
-	return m, nil
+	return fm, nil
 }
 
-// fetchModule fetches and loads the module of a request, and returns its
-// origin with its tree digest.
-func (e *Engine) fetchModule(ctx context.Context, req source.Request) (*lang.Module, source.Origin, error) {
+// fetchModule fetches and loads the module of a request, with its origin,
+// its tree digest and its signatures.
+func (e *Engine) fetchModule(ctx context.Context, req source.Request) (*fetchedModule, error) {
 	if e.fetcher == nil {
-		return nil, source.Origin{}, ErrNoFetcher
+		return nil, ErrNoFetcher
 	}
 
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.fetch", "source", req.Source, "version", req.Version)
 
-	m, origin, err := e.fetchAndLoad(ctx, req)
+	fm, err := e.fetchAndLoad(ctx, req)
 	span.End(ctx, err)
 
-	return m, origin, err
+	return fm, err
 }
 
-func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*lang.Module, source.Origin, error) {
+func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetchedModule, error) {
 	fetched, err := e.fetcher.Fetch(ctx, req)
 	if err != nil {
-		return nil, source.Origin{}, err
+		return nil, err
+	}
+
+	sigs, err := sign.ReadSignatures(fetched.FS, fetched.Dir)
+	if err != nil {
+		return nil, err
 	}
 
 	prefix := req.Source
@@ -132,26 +215,30 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*lang.Mo
 
 	m, diags := lang.LoadAs(ctx, fetched.FS, fetched.Dir, prefix, e.langLimits())
 	if diags.HasErrors() {
-		return nil, source.Origin{}, diags
+		return nil, diags
 	}
 
 	if want := moduleName(req); want != "" && m.Metadata.Name != want {
-		return nil, source.Origin{}, fmt.Errorf("%s holds the module %q, not %q", req.Source, m.Metadata.Name, want)
+		return nil, fmt.Errorf("%s holds the module %q, not %q", req.Source, m.Metadata.Name, want)
 	}
 
 	digest, err := lang.Digest(m)
 	if err != nil {
-		return nil, source.Origin{}, err
+		return nil, err
 	}
 
 	origin := fetched.Origin
 	origin.Digest = digest
 
-	if origin.Version == "" {
+	switch {
+	case origin.Version == "":
 		origin.Version = m.Metadata.Version
+	case origin.Version != m.Metadata.Version:
+		return nil, fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",
+			req.Source, origin.Ref, origin.Version, m.Metadata.Version)
 	}
 
-	return m, origin, nil
+	return &fetchedModule{module: m, origin: origin, signatures: sigs}, nil
 }
 
 // moduleName is the name a module of a source must have: the last element
@@ -184,6 +271,11 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 		return nil, nil, diags
 	}
 
+	rules, moreDiags := eval.StackTrust(s, e.limits.FileBytes)
+	if diags = append(diags, moreDiags...); moreDiags.HasErrors() {
+		return nil, nil, diags
+	}
+
 	lock := &lang.Lock{}
 
 	for _, r := range s.Releases {
@@ -200,14 +292,19 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 			continue
 		}
 
-		entry, m, err := e.syncRelease(ctx, s, r, upgrade)
+		entry, fm, err := e.syncRelease(ctx, s, r, upgrade)
+		if err == nil {
+			err = e.trust(rules, r, fm, nil)
+		}
+
 		if err != nil {
 			diags = append(diags, diagAt(r.Block.DefRange, "Module not resolved", err.Error()+"."))
 
 			continue
 		}
 
-		r.Module, r.Locked = m, entry
+		entry.Signers = r.Signers
+		r.Module, r.Locked = fm.module, entry
 		lock.Modules = append(lock.Modules, entry)
 	}
 
@@ -222,9 +319,9 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 
 // syncRelease resolves the module of one release: the locked version when
 // it still meets the constraint, else the newest version that does.
-func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRelease, upgrade bool) (*lang.LockedModule, *lang.Module, error) {
+func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRelease, upgrade bool) (*lang.LockedModule, *fetchedModule, error) {
 	if old := s.Lock.Module(r.Source); old != nil && !upgrade && meets(r.Version, old.Version) == nil {
-		m, err := e.fetchLocked(ctx, r, old)
+		fm, err := e.fetchLocked(ctx, r, old)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -232,7 +329,7 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 		entry := *old
 		entry.Constraint = r.Version
 
-		return &entry, m, nil
+		return &entry, fm, nil
 	}
 
 	if e.fetcher == nil {
@@ -252,11 +349,12 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 	req := *r.Address
 	req.Version, req.Ref, req.Commit = pick.Version, pick.Ref, pick.Commit
 
-	m, origin, err := e.fetchModule(ctx, req)
+	fm, err := e.fetchModule(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	origin := fm.origin
 	if err := meets(r.Version, origin.Version); err != nil {
 		return nil, nil, err
 	}
@@ -264,7 +362,7 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 	return &lang.LockedModule{
 		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: req.Repository,
 		Path: req.Path, Ref: origin.Ref, Commit: origin.Commit, Digest: origin.Digest,
-	}, m, nil
+	}, fm, nil
 }
 
 // errNoVersion is the error of a source with no version that meets a

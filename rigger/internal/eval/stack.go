@@ -466,3 +466,53 @@ func (r *stackRun) secretItems(expr hcl.Expression) (map[string]cty.Value, hcl.D
 
 	return items, nil
 }
+
+// TrustRule is a trust block of a stack (design 8.2): the keys a module of
+// a registry, or of any source without a rule of its own, must be signed
+// with.
+type TrustRule struct {
+	// Registry is the registry the rule is for; empty for the default.
+	Registry string
+	// Require refuses a module that no key signed.
+	Require bool
+	// Keys are the PEM of the public keys.
+	Keys []string
+}
+
+// StackTrust evaluates the trust blocks of a stack: registry,
+// require_signature, public_keys (file() reads the files of the stack).
+func StackTrust(s *lang.Stack, fileBytes int64) ([]TrustRule, hcl.Diagnostics) {
+	ctx := &hcl.EvalContext{Functions: moduleFunctions(s.FS, fileBytes)}
+
+	var (
+		rules []TrustRule
+		diags hcl.Diagnostics
+	)
+
+	for _, b := range s.Rig.Trust {
+		var t struct {
+			Registry string   `hcl:"registry,optional"`
+			Require  bool     `hcl:"require_signature,optional"`
+			Keys     []string `hcl:"public_keys,optional"`
+		}
+
+		if moreDiags := decodeBody(b, ctx, &t); moreDiags.HasErrors() {
+			diags = append(diags, moreDiags...)
+
+			continue
+		}
+
+		if slices.ContainsFunc(rules, func(r TrustRule) bool { return r.Registry == t.Registry }) {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Duplicate trust",
+				Detail: fmt.Sprintf("The stack has two trust blocks for the registry %q.", t.Registry), Subject: b.DefRange.Ptr(),
+			})
+
+			continue
+		}
+
+		rules = append(rules, TrustRule{Registry: t.Registry, Require: t.Require, Keys: t.Keys})
+	}
+
+	return rules, diags
+}

@@ -37,6 +37,7 @@ const (
 	cmdStack   = "stack"
 	cmdInstall = "install"
 	cmdRelease = "release"
+	cmdKey     = "key"
 
 	cmdRender   = "render"
 	cmdTest     = "test"
@@ -69,6 +70,13 @@ Commands:
                           install or upgrade one release of a module
   release list|status|history|rollback|uninstall [name] [-namespace ns]
                           one release, without a stack
+  key generate [-out name] write name.key (encrypted with RIG_KEY_PASSWORD)
+                          and name.pub
+  key sign [dir] -key name.key
+                          sign the tree digest of a module into its
+                          .rig-signatures directory
+  key verify [dir] -key name.pub
+                          check that a module is signed by the key
   The cluster is that of NORCA_ADDR and NORCA_TOKEN.
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
@@ -125,6 +133,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runInstall(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdRelease:
 		return runRelease(ctx, logger, stdout, stderr, flags.Args()[1:])
+	case cmdKey:
+		return runKey(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)

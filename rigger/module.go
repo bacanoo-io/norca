@@ -36,6 +36,12 @@ type Module struct {
 	fsys fs.FS
 }
 
+// Digest returns the tree digest of the module and its local child modules
+// (design 8.1): what a signature signs.
+func (m *Module) Digest() (string, error) {
+	return lang.Digest(m.mod)
+}
+
 // Metadata returns the module block of the module.
 func (m *Module) Metadata() module.Metadata {
 	return m.mod.Metadata

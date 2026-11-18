@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/bacanoo-io/norca-rig/sign"
 	"github.com/bacanoo-io/norca-rig/source"
 )
 
@@ -86,6 +87,10 @@ type StackRelease struct {
 	// one. Locked is its entry of the lock file, set by the engine.
 	Address *source.Request
 	Locked  *LockedModule
+	// Signatures are the signatures of the module of a source, Signers the
+	// keys of them the trust of the stack took.
+	Signatures []sign.Signature
+	Signers    []string
 }
 
 // The attributes of a module block of a stack that are expressions.
