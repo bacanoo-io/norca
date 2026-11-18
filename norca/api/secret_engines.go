@@ -61,6 +61,10 @@ type SecretEngineRole struct {
 type SecretEngineOperator struct {
 	Service   string
 	Namespace string `json:",omitempty"`
+
+	// JobID is the job of the operator. A write that leaves it empty takes
+	// the job serving the service then, or keeps the job of the engine.
+	JobID string `json:",omitempty"`
 }
 
 // SecretEngineStub is the list form of an engine.

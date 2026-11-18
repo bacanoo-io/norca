@@ -25,6 +25,7 @@ description = "orders"
 operator {
   service   = "postgres-operator"
   namespace = "platform"
+  job       = "pg-operator"
 }
 
 role "app" {
@@ -42,7 +43,7 @@ role "reader" {}
 		Name:        "postgres",
 		Type:        "operator",
 		Description: "orders",
-		Operator:    &api.SecretEngineOperator{Service: "postgres-operator", Namespace: "platform"},
+		Operator:    &api.SecretEngineOperator{Service: "postgres-operator", Namespace: "platform", JobID: "pg-operator"},
 		Roles: []*api.SecretEngineRole{
 			{Name: "app", TTL: 30 * time.Minute, MaxTTL: 12 * time.Hour,
 				Config: map[string]string{"database": "app"}, Params: []string{"schema"}},
@@ -92,7 +93,7 @@ func TestSecretEngineDeleteCommand_Force(t *testing.T) {
 		_, _, err := client.SecretEngines().Write(&api.SecretEngine{
 			Name:     "pg",
 			Type:     api.SecretEngineTypeOperator,
-			Operator: &api.SecretEngineOperator{Service: "pg"},
+			Operator: &api.SecretEngineOperator{Service: "pg", JobID: "pg-operator"},
 			Roles:    []*api.SecretEngineRole{{Name: "worker", TTL: time.Minute}},
 		}, nil)
 		must.NoError(t, err)

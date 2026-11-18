@@ -25,7 +25,7 @@ func TestHTTP_SecretEngines(t *testing.T) {
 		engine := &api.SecretEngine{
 			Name:     "nats",
 			Type:     api.SecretEngineTypeOperator,
-			Operator: &api.SecretEngineOperator{Service: "pg"},
+			Operator: &api.SecretEngineOperator{Service: "pg", JobID: "pg-operator"},
 			Roles:    []*api.SecretEngineRole{{Name: "worker", TTL: time.Minute}},
 		}
 		_, _, err := engines.CheckedWrite(engine, 5, nil)
@@ -85,7 +85,7 @@ func TestHTTP_SecretEngines_ForceDeleteACL(t *testing.T) {
 		_, _, err := engines.Write(&api.SecretEngine{
 			Name:     "nats",
 			Type:     api.SecretEngineTypeOperator,
-			Operator: &api.SecretEngineOperator{Service: "pg"},
+			Operator: &api.SecretEngineOperator{Service: "pg", JobID: "pg-operator"},
 			Roles:    []*api.SecretEngineRole{{Name: "worker", TTL: time.Minute}},
 		}, root)
 		must.NoError(t, err)

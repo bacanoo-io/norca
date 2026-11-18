@@ -54,9 +54,21 @@ type mockOperator struct {
 	most      atomic.Int32
 }
 
-// startMockOperator starts an operator registered as the service "pg". Its
-// certificate names the job of the service, or certJob if it is set.
+// mockOperatorJob is the job of the operator that operatorEngine names.
+const mockOperatorJob = "pg-operator"
+
+// startMockOperator starts an operator of the job mockOperatorJob registered
+// as the service "pg". Its certificate names the job of the service, or
+// certJob if it is set.
 func startMockOperator(t *testing.T, et *engineTest, certJob string) *mockOperator {
+	t.Helper()
+	return startMockOperatorOfJob(t, et, mockOperatorJob, certJob)
+}
+
+// startMockOperatorOfJob starts an operator of the job registered as the
+// service "pg", with the registration ID "pg-<job>". Its certificate names
+// the job, or certJob if it is set.
+func startMockOperatorOfJob(t *testing.T, et *engineTest, job, certJob string) *mockOperator {
 	t.Helper()
 	root := waitForMTLSRoot(t, et.s)
 	signer, err := et.s.mtls.signer(root)
@@ -69,6 +81,7 @@ func startMockOperator(t *testing.T, et *engineTest, certJob string) *mockOperat
 	must.NoError(t, err)
 	alloc := mock.Alloc()
 	alloc.ClientStatus = structs.AllocClientStatusRunning
+	alloc.JobID, alloc.Job.ID = job, job
 	if certJob == "" {
 		certJob = alloc.JobID
 	}
@@ -99,7 +112,7 @@ func startMockOperator(t *testing.T, et *engineTest, certJob string) *mockOperat
 	must.NoError(t, err)
 	op.alloc = alloc
 	op.reg = &structs.ServiceRegistration{
-		ID: "pg-1", ServiceName: "pg", Namespace: alloc.Namespace, NodeID: alloc.NodeID, Datacenter: "dc1",
+		ID: "pg-" + job, ServiceName: "pg", Namespace: alloc.Namespace, NodeID: alloc.NodeID, Datacenter: "dc1",
 		JobID: alloc.JobID, AllocID: alloc.ID, Address: host, Port: portNum,
 	}
 	op.register(t, et.s)
@@ -173,7 +186,7 @@ func operatorEngine() *structs.SecretEngine {
 		Namespace: structs.DefaultNamespace,
 		Name:      "pg",
 		Type:      structs.SecretEngineTypeOperator,
-		Operator:  &structs.SecretEngineOperator{Service: "pg"},
+		Operator:  &structs.SecretEngineOperator{Service: "pg", JobID: mockOperatorJob},
 		Roles: []*structs.SecretEngineRole{{
 			Name: "worker", TTL: time.Minute, MaxTTL: time.Hour,
 			Config: map[string]string{"database": "app"},
@@ -269,6 +282,78 @@ func TestSecretEngine_OperatorWrongIdentity(t *testing.T) {
 	op.lock.Lock()
 	defer op.lock.Unlock()
 	must.Len(t, 0, op.issued)
+}
+
+// The job of the operator is pinned on the engine when it is written (review
+// finding SRV-3): another job of the namespace that registers a service of
+// the same name, with its own workload certificate, is never called.
+func TestSecretEngine_OperatorJobPinned(t *testing.T) {
+	ci.Parallel(t)
+	et := newEngineTest(t, nil)
+	store := et.s.fsm.State()
+	unpinned := func() *structs.SecretEngine {
+		engine := operatorEngine()
+		engine.Operator.JobID = ""
+		return engine
+	}
+	pinned := func() string {
+		t.Helper()
+		engine, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
+		must.NoError(t, err)
+		must.NotNil(t, engine)
+		return engine.Operator.JobID
+	}
+
+	// Without a running operator the job can't be found: it must be named.
+	_, err := et.upsert(et.root.SecretID, unpinned())
+	must.ErrorContains(t, err, "name the job of the operator")
+
+	// The job that serves the service is pinned.
+	real := startMockOperator(t, et, "")
+	_, err = et.upsert(et.root.SecretID, unpinned())
+	must.NoError(t, err)
+	must.Eq(t, mockOperatorJob, pinned())
+
+	// Another job takes the service over; the operator's job is gone.
+	impostor := startMockOperatorOfJob(t, et, "impostor", "")
+	index, err := store.LatestIndex()
+	must.NoError(t, err)
+	must.NoError(t, store.DeleteServiceRegistrationByID(structs.MsgTypeTestSetup, index+1,
+		real.reg.Namespace, real.reg.ID))
+	_, token := et.alloc(true)
+	_, err = et.create(token)
+	must.ErrorContains(t, err, "has no instances")
+	impostor.lock.Lock()
+	must.Len(t, 0, impostor.issued)
+	impostor.lock.Unlock()
+
+	// The operator's job registers the service again: it is called.
+	real.reg.ID = "pg-again"
+	real.register(t, et.s)
+	_, err = et.create(token)
+	must.NoError(t, err)
+	real.lock.Lock()
+	must.Len(t, 1, real.issued)
+	real.lock.Unlock()
+
+	// A write that names no job keeps the pinned one, although two jobs
+	// serve the service now.
+	_, err = et.upsert(et.root.SecretID, unpinned())
+	must.NoError(t, err)
+	must.Eq(t, mockOperatorJob, pinned())
+
+	// Two jobs serve the service: a new engine must name one.
+	fresh := unpinned()
+	fresh.Name = "pg2"
+	_, err = et.upsert(et.root.SecretID, fresh)
+	must.ErrorContains(t, err, "name the job of the operator")
+
+	// Moving the engine to another job takes a write that names it.
+	moved := unpinned()
+	moved.Operator.JobID = "impostor"
+	_, err = et.upsert(et.root.SecretID, moved)
+	must.NoError(t, err)
+	must.Eq(t, "impostor", pinned())
 }
 
 // The lease ends with the credential, and a renewal reaches the operator.

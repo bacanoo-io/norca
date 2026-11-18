@@ -252,7 +252,8 @@ func formatSecretEngine(e *api.SecretEngine) string {
 		fmt.Sprintf("Description|%s", e.Description),
 	}
 	if e.Operator != nil {
-		kv = append(kv, fmt.Sprintf("Service|%s", e.Operator.Service))
+		kv = append(kv, fmt.Sprintf("Service|%s", e.Operator.Service),
+			fmt.Sprintf("Operator Job|%s", e.Operator.JobID))
 	}
 	kv = append(kv,
 		fmt.Sprintf("Modify Time|%s", formatUnixNanoTime(e.ModifyTime)),
@@ -278,6 +279,7 @@ type secretEngineFile struct {
 type secretEngineOperatorFile struct {
 	Service   string `hcl:"service"`
 	Namespace string `hcl:"namespace,optional"`
+	Job       string `hcl:"job,optional"`
 }
 
 type secretEngineRoleFile struct {
@@ -313,7 +315,7 @@ func parseSecretEngine(path string, content []byte, jsonInput bool) (*api.Secret
 		Description: file.Description,
 	}
 	if o := file.Operator; o != nil {
-		engine.Operator = &api.SecretEngineOperator{Service: o.Service, Namespace: o.Namespace}
+		engine.Operator = &api.SecretEngineOperator{Service: o.Service, Namespace: o.Namespace, JobID: o.Job}
 	}
 	for _, r := range file.Roles {
 		role := &api.SecretEngineRole{Name: r.Name, Config: r.Config, Params: r.Params}
@@ -350,14 +352,17 @@ Usage: norca secret engine apply [options] <input>
 
   Create or update a dynamic secrets engine from a specification file, or
   from standard input with "-". The engine names the service of an operator,
-  which creates the credentials of its target system; the operator may start
-  after the engine.
+  which creates the credentials of its target system. Only the job of the
+  operator is called: without job, the job serving the service when the
+  engine is written, or the job the engine has. An engine written before
+  its operator runs must name the job.
 
       name = "postgres"
       type = "operator"
 
       operator {
         service = "postgres-operator"
+        # job   = "postgres-operator"
       }
 
       role "app" {

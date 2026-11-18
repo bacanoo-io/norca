@@ -217,6 +217,12 @@ type SecretEngineOperator struct {
 	// Namespace is the namespace of the service, by default the namespace
 	// of the engine.
 	Namespace string `json:",omitempty"`
+
+	// JobID is the job of the operator, in Namespace: only instances of the
+	// service registered by this job, presenting its workload certificate,
+	// are called. A write of the engine that leaves it empty takes the job
+	// that serves the service then, or keeps the job the engine has.
+	JobID string `json:",omitempty"`
 }
 
 // SecretEngineRole is a role of an engine: what the credentials of the role

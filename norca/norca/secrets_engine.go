@@ -120,6 +120,11 @@ func (s *Server) secretEngineUpsert(engine *structs.SecretEngine, checkIndex *ui
 	if err != nil {
 		return nil, 0, structs.NewErrRPCCoded(http.StatusBadRequest, err.Error())
 	}
+	if engine.Operator != nil {
+		if engine.Operator.JobID, err = s.secretOperatorJob(engine, existing); err != nil {
+			return nil, 0, err
+		}
+	}
 	syncReq, err := s.secretEngineSyncRequest(engine)
 	if err != nil {
 		return nil, 0, err

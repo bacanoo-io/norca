@@ -158,13 +158,73 @@ type secretOperatorTarget struct {
 	spiffeID string
 }
 
-// secretOperatorTargets returns the instances of the service of an engine,
-// with the SPIFFE ID each must present.
+// secretOperatorNamespace is the namespace of the operator of an engine.
+func secretOperatorNamespace(engine *structs.SecretEngine) string {
+	if engine.Operator.Namespace != "" {
+		return engine.Operator.Namespace
+	}
+	return engine.Namespace
+}
+
+// secretOperatorJob returns the job of the operator to pin on an engine that
+// is written (review finding SRV-3): the job the write names; else the job
+// the engine has, while its service and namespace stay the same; else the
+// one job whose running allocations serve the service. Without such a job,
+// or with several, the write must name it.
+//
+// A job that is re-registered under its ID stays the operator. When the
+// service moves to another job, the engine calls nobody until someone with
+// the right to write the engine names the new job.
+func (s *Server) secretOperatorJob(engine, existing *structs.SecretEngine) (string, error) {
+	if engine.Operator.JobID != "" {
+		return engine.Operator.JobID, nil
+	}
+	namespace := secretOperatorNamespace(engine)
+	if existing != nil && existing.Operator != nil && existing.Operator.JobID != "" &&
+		existing.Operator.Service == engine.Operator.Service && secretOperatorNamespace(existing) == namespace {
+		return existing.Operator.JobID, nil
+	}
+
+	store := s.State()
+	iter, err := store.GetServiceRegistrationByName(nil, namespace, engine.Operator.Service)
+	if err != nil {
+		return "", err
+	}
+	var jobs []string
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		reg := raw.(*structs.ServiceRegistration)
+		alloc, err := store.AllocByID(nil, reg.AllocID)
+		if err != nil {
+			return "", err
+		}
+		if alloc == nil || alloc.ClientTerminalStatus() || alloc.JobID != reg.JobID || slices.Contains(jobs, reg.JobID) {
+			continue
+		}
+		jobs = append(jobs, reg.JobID)
+	}
+	switch len(jobs) {
+	case 1:
+		return jobs[0], nil
+	case 0:
+		return "", structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"service %q in namespace %q has no running instances: name the job of the operator (operator.job)",
+			engine.Operator.Service, namespace)
+	}
+	slices.Sort(jobs)
+	return "", structs.NewErrRPCCodedf(http.StatusBadRequest,
+		"service %q in namespace %q is served by the jobs %q: name the job of the operator (operator.job)",
+		engine.Operator.Service, namespace, jobs)
+}
+
+// secretOperatorTargets returns the instances of the service of an engine
+// that belong to the pinned job of the operator, with the SPIFFE ID each must
+// present.
 func (s *Server) secretOperatorTargets(engine *structs.SecretEngine) ([]secretOperatorTarget, []*x509.Certificate, error) {
 	store := s.State()
-	namespace := engine.Operator.Namespace
-	if namespace == "" {
-		namespace = engine.Namespace
+	namespace := secretOperatorNamespace(engine)
+	job := engine.Operator.JobID
+	if job == "" {
+		return nil, nil, fmt.Errorf("the job of the operator of engine %q is not pinned: write the engine again", engine.Name)
 	}
 	iter, err := store.GetServiceRegistrationByName(nil, namespace, engine.Operator.Service)
 	if err != nil {
@@ -188,20 +248,23 @@ func (s *Server) secretOperatorTargets(engine *structs.SecretEngine) ([]secretOp
 	var targets []secretOperatorTarget
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		reg := raw.(*structs.ServiceRegistration)
+		if reg.JobID != job {
+			continue
+		}
 		alloc, err := store.AllocByID(nil, reg.AllocID)
 		if err != nil {
 			return nil, nil, err
 		}
-		if alloc == nil || alloc.ClientTerminalStatus() {
+		if alloc == nil || alloc.ClientTerminalStatus() || alloc.JobID != job {
 			continue
 		}
 		targets = append(targets, secretOperatorTarget{
 			addr:     net.JoinHostPort(reg.Address, strconv.Itoa(reg.Port)),
-			spiffeID: structs.MTLSWorkloadSPIFFEID(active.TrustDomain, namespace, reg.JobID, alloc.TaskGroup),
+			spiffeID: structs.MTLSWorkloadSPIFFEID(active.TrustDomain, namespace, job, alloc.TaskGroup),
 		})
 	}
 	if len(targets) == 0 {
-		return nil, nil, fmt.Errorf("service %q of the operator has no instances", engine.Operator.Service)
+		return nil, nil, fmt.Errorf("service %q of the operator job %q has no instances", engine.Operator.Service, job)
 	}
 	return targets, pool, nil
 }
