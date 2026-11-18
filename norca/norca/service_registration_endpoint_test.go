@@ -1464,6 +1464,74 @@ func TestServiceRegistration_GetService(t *testing.T) {
 	}
 }
 
+// TestServiceRegistration_WorkloadIdentityNamespace: a workload identity
+// reads the services of its own namespace (template lookups) and of the
+// namespaces its policies give read-job in, not those of every namespace
+// (review finding JOG-10).
+func TestServiceRegistration_WorkloadIdentityNamespace(t *testing.T) {
+	ci.Parallel(t)
+
+	s, _, cleanup := TestACLServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+	waitForActiveRootKey(t, s)
+	st := s.State()
+
+	ns := &structs.Namespace{Name: "platform"}
+	ns.SetHash()
+	must.NoError(t, st.UpsertNamespaces(5, []*structs.Namespace{ns}))
+
+	// services[0] is in the default namespace, services[1] in platform
+	services := mock.ServiceRegistrations()
+	must.NoError(t, st.UpsertServiceRegistrations(structs.MsgTypeTestSetup, 10, services))
+
+	// a workload of the default namespace
+	identity := func(t *testing.T, index uint64) (*structs.Job, string) {
+		allocs := []*structs.Allocation{mock.Alloc()}
+		job := allocs[0].Job
+		must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, index, nil, job))
+		must.NoError(t, signAllocIdentities(s.encrypter, job, allocs))
+		must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, index+1, allocs))
+		return job, allocs[0].SignedIdentities["web"]
+	}
+
+	getService := func(token string, reg *structs.ServiceRegistration) error {
+		req := &structs.ServiceRegistrationByNameRequest{ServiceName: reg.ServiceName,
+			QueryOptions: structs.QueryOptions{Namespace: reg.Namespace, Region: s.Region(), AuthToken: token}}
+		var resp structs.ServiceRegistrationByNameResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationGetServiceRPCMethod, req, &resp)
+	}
+	list := func(token, namespace string) error {
+		req := &structs.ServiceRegistrationListRequest{
+			QueryOptions: structs.QueryOptions{Namespace: namespace, Region: s.Region(), AuthToken: token}}
+		var resp structs.ServiceRegistrationListResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationListRPCMethod, req, &resp)
+	}
+
+	t.Run("own namespace", func(t *testing.T) {
+		_, token := identity(t, 20)
+		must.NoError(t, getService(token, services[0]))
+		must.NoError(t, list(token, services[0].Namespace))
+	})
+	t.Run("other namespace", func(t *testing.T) {
+		_, token := identity(t, 30)
+		must.ErrorContains(t, getService(token, services[1]), structs.ErrPermissionDenied.Error())
+		must.ErrorContains(t, list(token, services[1].Namespace), structs.ErrPermissionDenied.Error())
+	})
+	t.Run("other namespace allowed by a policy", func(t *testing.T) {
+		job, token := identity(t, 40)
+		policy := &structs.ACLPolicy{
+			Name:   "platform-read",
+			Rules:  mock.NamespacePolicy("platform", acl.PolicyRead, nil),
+			JobACL: &structs.JobACL{Namespace: job.Namespace, JobID: job.ID},
+		}
+		policy.SetHash()
+		must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 50, []*structs.ACLPolicy{policy}))
+		must.NoError(t, getService(token, services[1]))
+		must.NoError(t, list(token, services[1].Namespace))
+	})
+}
+
 func TestServiceRegistration_chooseErr(t *testing.T) {
 	ci.Parallel(t)
 

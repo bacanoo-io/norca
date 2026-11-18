@@ -309,8 +309,7 @@ func (s *ServiceRegistration) List(
 	if err != nil {
 		return structs.ErrPermissionDenied
 	}
-	if args.GetIdentity().Claims == nil &&
-		!aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadJob) {
+	if !servicesReadable(args, aclObj, args.RequestNamespace()) {
 		return structs.ErrPermissionDenied
 	}
 
@@ -362,6 +361,18 @@ func (s *ServiceRegistration) List(
 			return s.srv.setReplyQueryMeta(stateStore, state.TableServiceRegistrations, &reply.QueryMeta)
 		},
 	})
+}
+
+// servicesReadable returns whether the caller of a read of service
+// registrations, with aclObj from ResolveClientOrACL, may read those of
+// namespace: with read-job there, or as a workload identity of that
+// namespace (the service lookups of its templates). A workload reads other
+// namespaces only with read-job from its policies.
+func servicesReadable(args structs.RequestWithIdentity, aclObj *acl.ACL, namespace string) bool {
+	if claims := args.GetIdentity().GetClaims(); claims != nil && claims.Namespace == namespace {
+		return true
+	}
+	return aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob)
 }
 
 // listAllServiceRegistrations is used to list service registration held within
@@ -476,8 +487,7 @@ func (s *ServiceRegistration) GetService(
 	if err != nil {
 		return structs.ErrPermissionDenied
 	}
-	if args.GetIdentity().Claims == nil &&
-		!aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadJob) {
+	if !servicesReadable(args, aclObj, args.RequestNamespace()) {
 		return structs.ErrPermissionDenied
 	}
 
