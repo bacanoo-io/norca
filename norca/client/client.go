@@ -2390,7 +2390,9 @@ OUTER:
 			if strings.Contains(err.Error(), "node secret ID does not match") {
 				c.logger.Debug("secret mismatch; re-registering node", "error", err)
 				c.retryRegisterNode()
-			} else if err != noServersErr {
+			} else if err != noServersErr && !errors.Is(err, errNotRegistered) {
+				// Waiting for servers or for the node registration is
+				// not logged here; the registration loop logs why.
 				c.logger.Error("error querying node allocations", "error", err)
 			}
 			retry := c.retryIntv(getAllocRetryIntv)

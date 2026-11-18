@@ -60,6 +60,83 @@ func TestRPC_ShutdownBeforeRegistration(t *testing.T) {
 	must.ErrorIs(t, err, errShuttingDown)
 }
 
+// callRPC makes the call on a goroutine and fails the test if it does not
+// return within the wait.
+func callRPC(t *testing.T, c *Client, wait time.Duration) error {
+	t.Helper()
+	errCh := make(chan error, 1)
+	go func() {
+		var reply structs.ACLWhoAmIResponse
+		errCh <- c.RPC("ACL.WhoAmI", &structs.GenericRequest{}, &reply)
+	}()
+	select {
+	case err := <-errCh:
+		return err
+	case <-time.After(wait):
+		t.Fatalf("RPC still waiting for the node registration after %s", wait)
+		return nil
+	}
+}
+
+// TestRPC_RegistrationWaitIsBounded: a call made before the node registered
+// waits for the registration no longer than the RPC hold timeout, and then
+// fails, instead of waiting as long as the servers are unreachable (review
+// finding MUK-26).
+func TestRPC_RegistrationWaitIsBounded(t *testing.T) {
+	ci.Parallel(t)
+
+	t.Run("no servers", func(t *testing.T) {
+		c := newRPCTestClient(t)
+		err := callRPC(t, c, 5*time.Second)
+		must.ErrorIs(t, err, noServersErr)
+	})
+
+	t.Run("servers known", func(t *testing.T) {
+		c := newRPCTestClient(t)
+		c.servers.SetServers([]*servers.Server{{Addr: closedAddr(t)}})
+		err := callRPC(t, c, 5*time.Second)
+		must.ErrorIs(t, err, errNotRegistered)
+	})
+
+	t.Run("registered meanwhile", func(t *testing.T) {
+		c := newRPCTestClient(t)
+		c.config.RPCHoldTimeout = time.Minute
+		errCh := make(chan error, 1)
+		go func() { errCh <- c.waitRegistered() }()
+		close(c.registeredCh)
+		select {
+		case err := <-errCh:
+			must.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("still waiting after the registration")
+		}
+	})
+}
+
+// TestClient_ResolveToken_NotRegistered: the token resolution of a client
+// endpoint (exec, fs, ...) on a client that never registered and has no
+// reachable server fails instead of hanging.
+func TestClient_ResolveToken_NotRegistered(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := TestClient(t, func(c *config.Config) {
+		c.ACLEnabled = true
+		c.RPCHoldTimeout = 100 * time.Millisecond
+	})
+	defer cleanup()
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := c.ResolveToken("6c6e3d4a-1a1e-4a7b-8f5c-0d3c8c8e2a11")
+		errCh <- err
+	}()
+	select {
+	case err := <-errCh:
+		must.ErrorIs(t, err, noServersErr)
+	case <-time.After(10 * time.Second):
+		t.Fatal("token resolution still waiting for the node registration")
+	}
+}
+
 // TestRPC_ShutdownAfterFailedCall: a call that failed while the client shuts
 // down returns the failure, not nil.
 func TestRPC_ShutdownAfterFailedCall(t *testing.T) {

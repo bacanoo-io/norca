@@ -51,21 +51,56 @@ func (c *Client) StreamingRpcHandler(method string) (structs.StreamingRpcHandler
 	return c.streamingRpcs.GetHandler(method)
 }
 
-// errShuttingDown is returned by the RPC methods when the client shuts down
-// before the call completed. The call may not have been made, so its reply
-// holds nothing.
-var errShuttingDown = errors.New("client is shutting down")
+var (
+	// errShuttingDown is returned by the RPC methods when the client shuts
+	// down before the call completed. The call may not have been made, so
+	// its reply holds nothing.
+	errShuttingDown = errors.New("client is shutting down")
+
+	// errNotRegistered is returned by RPC when the node has not registered
+	// with the servers within the RPC hold timeout.
+	errNotRegistered = errors.New("node is not registered with the servers yet")
+)
 
 // RPC is used to forward an RPC call to a nomad server, or fail if no servers.
 func (c *Client) RPC(method string, args any, reply any) error {
 	// Block if we have not yet registered the node, to enforce that we only
 	// send authenticated calls after the node has been registered
-	select {
-	case <-c.registeredCh:
-	case <-c.shutdownCh:
-		return errShuttingDown
+	if err := c.waitRegistered(); err != nil {
+		return err
 	}
 	return c.rpc(method, args, reply)
+}
+
+// waitRegistered waits until the node has registered with the servers, but
+// no longer than rpc retries a call while the servers are unreachable
+// (RPCHoldTimeout): a caller gets an error, as it does from rpc, instead of
+// waiting for as long as the servers stay unreachable. A client restarted
+// after a registration does not wait: the stored registration closes
+// registeredCh.
+func (c *Client) waitRegistered() error {
+	select {
+	case <-c.registeredCh:
+		return nil
+	default:
+	}
+
+	timer, stop := helper.NewSafeTimer(c.GetConfig().RPCHoldTimeout)
+	defer stop()
+
+	select {
+	case <-c.registeredCh:
+		return nil
+	case <-c.shutdownCh:
+		return errShuttingDown
+	case <-timer.C:
+		if c.servers.NumServers() == 0 {
+			// Callers already treat this one as the normal state
+			// while waiting for servers.
+			return noServersErr
+		}
+		return fmt.Errorf("%w (waited %s)", errNotRegistered, c.GetConfig().RPCHoldTimeout)
+	}
 }
 
 // UnauthenticatedRPC special-cases the Node.Register RPC call, forwarding the
