@@ -374,6 +374,17 @@ RUN_QUERY:
 			return nil, index, err
 		}
 
+		// Norca: an abandoned store never changes again, so the query would
+		// run in a busy loop on it until the context ends. The callers hold
+		// the store and are restarted on the new one (the leader re-runs its
+		// actions after a restore); until then, wait for the context.
+		select {
+		case <-abandonCh:
+			<-ctx.Done()
+			return nil, index, ctx.Err()
+		default:
+		}
+
 		goto RUN_QUERY
 	}
 

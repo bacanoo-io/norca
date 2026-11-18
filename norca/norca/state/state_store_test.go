@@ -111,6 +111,30 @@ func TestStateStore_Blocking_MinQuery(t *testing.T) {
 	}
 }
 
+// A blocking query on a store abandoned by a snapshot restore waits for its
+// context instead of running the query again and again: the store never
+// changes again, and the loop starved the Raft goroutines of the leader
+// while a restore replicated.
+func TestStateStore_Blocking_Abandoned(t *testing.T) {
+	ci.Parallel(t)
+
+	runs := 0
+	queryFn := func(ws memdb.WatchSet, s *StateStore) (interface{}, uint64, error) {
+		runs++
+		return nil, 5, nil
+	}
+
+	state := testStateStore(t)
+	time.AfterFunc(10*time.Millisecond, state.Abandon)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, idx, err := state.BlockingQuery(queryFn, 10, ctx)
+	must.ErrorIs(t, err, context.DeadlineExceeded)
+	must.Eq(t, 5, idx)
+	must.LessEq(t, 2, runs, must.Sprint("the query ran again on the abandoned store"))
+}
+
 // COMPAT 0.11: Uses AllocUpdateRequest.Alloc
 // This test checks that:
 // 1) The job is denormalized
