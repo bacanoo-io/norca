@@ -76,11 +76,25 @@ func (m *Module) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 			"metadata.hcl of a module holds a module block with its name and version.")}
 	}
 
-	b := md.Module
-	rng := blockRange(file.Body, "module")
+	md2, moreDiags := md.Module.metadata(blockRange(file.Body, "module"), "module")
+	m.Metadata, diags = md2, append(diags, moreDiags...)
+
+	if md.UI != nil {
+		for _, t := range md.UI.Tabs {
+			m.Tabs = append(m.Tabs, module.Tab{Name: t.Name, Label: t.Label, Icon: t.Icon})
+		}
+	}
+
+	return diags
+}
+
+// metadata checks the block of a module or of a stack (what) and returns
+// it as metadata.
+func (b *moduleBlock) metadata(rng hcl.Range, what string) (module.Metadata, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
 
 	if !moduleName.MatchString(b.Name) {
-		diags = append(diags, errorAt(rng, "Invalid module name",
+		diags = append(diags, errorAt(rng, "Invalid "+what+" name",
 			fmt.Sprintf("%q is not a name: lower case letters, digits and -, at most 63.", b.Name)))
 	}
 
@@ -91,24 +105,55 @@ func (m *Module) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 			fmt.Sprintf("%q is not a semver version such as 1.2.0.", b.Version)))
 	}
 
-	m.Metadata = module.Metadata{
+	md := module.Metadata{
 		Name: b.Name, Version: b.Version, Description: b.Description, URL: b.URL,
 		License: b.License, Category: b.Category, Keywords: b.Keywords, Icon: b.Icon, Library: b.Library,
 	}
 
 	if r := b.Requires; r != nil {
-		m.Metadata.Requires = module.Requires{Norca: r.Norca, Features: r.Features}
+		md.Requires = module.Requires{Norca: r.Norca, Features: r.Features}
 		for _, rm := range r.Modules {
-			m.Metadata.Requires.Modules = append(m.Metadata.Requires.Modules,
+			md.Requires.Modules = append(md.Requires.Modules,
 				module.RequiredModule{Name: rm.Name, Source: rm.Source, Version: rm.Version, When: rm.When})
 		}
 	}
 
-	if md.UI != nil {
-		for _, t := range md.UI.Tabs {
-			m.Tabs = append(m.Tabs, module.Tab{Name: t.Name, Label: t.Label, Icon: t.Icon})
-		}
+	return md, diags
+}
+
+// stackMetadataFile is metadata.hcl of a published stack (design 7.5).
+type stackMetadataFile struct {
+	Stack *moduleBlock `hcl:"stack,block"`
+}
+
+// decodeMetadata decodes metadata.hcl of a stack: its stack block, with the
+// name of the rig block and a version.
+func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
+	var md stackMetadataFile
+
+	diags := gohcl.DecodeBody(file.Body, nil, &md)
+	if diags.HasErrors() {
+		return diags
 	}
+
+	rng := blockRange(file.Body, "stack")
+
+	if md.Stack == nil {
+		return hcl.Diagnostics{errorAt(rng, "Missing stack block",
+			"metadata.hcl of a stack holds a stack block with its name and version (design 7.5).")}
+	}
+
+	meta, moreDiags := md.Stack.metadata(rng, "stack")
+	diags = append(diags, moreDiags...)
+
+	switch {
+	case meta.Version == "":
+		diags = append(diags, errorAt(rng, "Missing version", "A published stack has a version (design 7.5)."))
+	case meta.Library:
+		diags = append(diags, errorAt(rng, "Library stack", "A stack is installed; library is an attribute of a module."))
+	}
+
+	s.Metadata = &meta
 
 	return diags
 }

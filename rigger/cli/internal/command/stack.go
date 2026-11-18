@@ -20,11 +20,17 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	rig "github.com/bacanoo-io/norca-rig"
+	"github.com/bacanoo-io/norca-rig/source"
 )
 
 // stackFlags are the flags of rig stack <command>.
 type stackFlags struct {
-	dir     string
+	dir string
+	// address is the source of a published stack, version its constraint
+	// (design 7.5); empty for a stack in a directory.
+	address string
+	version string
+	key     string
 	files   listFlag
 	vars    listFlag
 	json    bool
@@ -45,7 +51,7 @@ const (
 // runStack runs rig stack <command> [dir] [flags].
 func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
-		warn(stderr, "stack needs a command: sync, validate, plan, apply, status or destroy")
+		warn(stderr, "stack needs a command: sync, validate, plan, apply, status, destroy or publish")
 
 		return exitError
 	}
@@ -61,9 +67,17 @@ func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 		return exitError
 	}
 
+	if f.address != "" && (cmd == cmdSync || cmd == cmdPublish) {
+		warn(stderr, "stack %s works on a stack in a directory", cmd)
+
+		return exitError
+	}
+
 	var fn func(context.Context) error
 
 	switch cmd {
+	case cmdPublish:
+		fn = func(ctx context.Context) error { return publishStack(ctx, logger, stdout, stderr, f) }
 	case cmdValidate:
 		fn = func(ctx context.Context) error { return validateStack(ctx, logger, stdout, stderr, f) }
 	case cmdSync:
@@ -100,6 +114,8 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.BoolVar(&f.prune, "prune", false, "apply: uninstall the releases the stack owns and no longer has")
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
 	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
+	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")
+	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIG_KEY_PASSWORD)")
 
 	if err := flags.Parse(args); err != nil {
 		return nil, err
@@ -117,15 +133,42 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 		return nil, errOneStackDir
 	}
 
+	if _, err := os.Stat(f.dir); err != nil && isStackAddress(f.dir) {
+		f.address = f.dir
+	}
+
 	return f, nil
 }
 
-var errOneStackDir = errors.New("a stack command takes one directory")
+var errOneStackDir = errors.New("a stack command takes one directory or the source of a published stack")
+
+// isStackAddress reports whether arg is the source of a published stack
+// rather than a directory: <namespace>/<name> or a git address.
+func isStackAddress(arg string) bool {
+	if strings.HasPrefix(arg, ".") || filepath.IsAbs(arg) || !strings.Contains(arg, "/") {
+		return false
+	}
+
+	req, err := source.Parse(arg, nil)
+
+	return err == nil && (req.Kind == source.KindGlobal || req.Kind == source.KindGit)
+}
 
 // loadStack loads the stack in dir, with the root it reads its modules
 // from, and the values of the flags (files relative to the working
 // directory).
 func loadStack(ctx context.Context, eng *rig.Engine, f *stackFlags) (*rig.Stack, rig.Values, hcl.Diagnostics, error) {
+	if f.address != "" {
+		s, diags := eng.FetchStack(ctx, f.address, f.version)
+		if diags.HasErrors() {
+			return s, nil, diags, nil
+		}
+
+		values, moreDiags := readValues(&renderFlags{files: f.files, vars: f.vars})
+
+		return s, values, append(diags, moreDiags...), nil
+	}
+
 	info, err := os.Stat(f.dir)
 	if err != nil {
 		return nil, nil, nil, err

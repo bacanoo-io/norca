@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -110,6 +111,15 @@ func newIndexer(logger *slog.Logger, dir, today string, replace []string) (*inde
 	if err != nil {
 		return nil, err
 	}
+
+	// The modules of the stacks of the registry come from the registry
+	// itself.
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	fetcher.SetGlobalRegistry(abs)
 
 	ix := &indexer.Indexer{Dir: dir, Engine: eng, Fetcher: fetcher, Today: today, Replace: map[string]string{}}
 

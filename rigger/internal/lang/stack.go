@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/bacanoo-io/norca-rig/module"
 	"github.com/bacanoo-io/norca-rig/sign"
 	"github.com/bacanoo-io/norca-rig/source"
 )
@@ -38,6 +39,9 @@ type Stack struct {
 	Secrets []*hcl.Block
 	// ValueFiles are the paths of the value files under values/.
 	ValueFiles []string
+	// Metadata is the stack block of metadata.hcl of a published stack
+	// (design 7.5); nil for a stack that has none.
+	Metadata *module.Metadata
 	// Lock is the lock file of the stack; nil without one.
 	Lock    *Lock
 	Sources map[string][]byte
@@ -151,7 +155,66 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 		diags = append(diags, s.loadRelease(ctx, root, r, limits)...)
 	}
 
+	if s.Metadata != nil && !diags.HasErrors() {
+		diags = append(diags, s.checkPublished()...)
+	}
+
 	return s, diags
+}
+
+// checkPublished checks the rules of a published stack (design 7.5): the
+// name of its metadata is that of its rig block, and its own modules and
+// their children lie in its directory, so that its digest covers them.
+func (s *Stack) checkPublished() hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if s.Metadata.Name != s.Rig.Name {
+		diags = append(diags, errorAt(s.Rig.Range, "Names differ",
+			fmt.Sprintf("metadata.hcl names the stack %q, the rig block %q.", s.Metadata.Name, s.Rig.Name)))
+	}
+
+	for _, r := range s.Releases {
+		if r.Module == nil || r.Address != nil {
+			continue
+		}
+
+		for _, dir := range treeDirs(r.Module) {
+			if !s.inModules(dir) {
+				diags = append(diags, errorAt(r.Block.DefRange, "Module outside the stack",
+					dir+" is not in modules/ of the stack: a published stack carries its own modules (design 7.5)."))
+
+				break
+			}
+		}
+	}
+
+	return diags
+}
+
+// inModules reports whether a directory of the root lies in modules/ of the
+// stack.
+func (s *Stack) inModules(dir string) bool {
+	rel := path.Clean(dir)
+
+	if s.Dir != "." {
+		var ok bool
+		if rel, ok = strings.CutPrefix(rel, s.Dir+"/"); !ok {
+			return false
+		}
+	}
+
+	return strings.HasPrefix(rel, "modules/")
+}
+
+// treeDirs are the directories of a module and of its local children.
+func treeDirs(m *Module) []string {
+	dirs := []string{m.Dir}
+
+	for _, c := range m.Children {
+		dirs = append(dirs, treeDirs(c.Module)...)
+	}
+
+	return dirs
 }
 
 // readFiles reads and decodes the files of the stack.
@@ -271,7 +334,7 @@ func (s *Stack) decodeFile(p string, src []byte, file *hcl.File) hcl.Diagnostics
 
 		return append(diags, moreDiags...)
 	case "metadata.hcl":
-		return nil // the stack block of a published stack (design 7.5)
+		return s.decodeMetadata(file)
 	default:
 		return append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError, Summary: "Unknown file",

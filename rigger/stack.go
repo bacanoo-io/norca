@@ -22,13 +22,17 @@ import (
 	"github.com/bacanoo-io/norca-rig/host"
 	"github.com/bacanoo-io/norca-rig/internal/eval"
 	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca-rig/module"
 	"github.com/bacanoo-io/norca-rig/oplog"
 	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca-rig/source"
 )
 
 // Stack is a loaded stack (design 6.4).
 type Stack struct {
 	s *lang.Stack
+	// origin is set for a stack fetched from a source.
+	origin *StackOrigin
 }
 
 // Name is the name of the stack, the owner of its releases.
@@ -43,6 +47,47 @@ func (s *Stack) ValueFiles() []string { return slices.Clone(s.s.ValueFiles) }
 // ReadValueFile reads a value file of the stack, such as values/dev.vars.hcl.
 func (s *Stack) ReadValueFile(p string) ([]byte, error) { return fs.ReadFile(s.s.FS, p) }
 
+// Metadata is the stack block of a published stack (design 7.5); nil for a
+// stack without metadata.hcl.
+func (s *Stack) Metadata() *module.Metadata {
+	if s.s.Metadata == nil {
+		return nil
+	}
+
+	md := *s.s.Metadata
+
+	return &md
+}
+
+// Digest is the tree digest of the stack directory (design 7.5): its own
+// modules, values and lock file included.
+func (s *Stack) Digest() (string, error) { return lang.StackDigest(s.s) }
+
+// LockedModule is a module of a source other than the stack's own, as the
+// lock file pins it.
+type LockedModule struct {
+	Source  string      `json:"source"`
+	Kind    source.Kind `json:"kind"`
+	Version string      `json:"version"`
+	Digest  string      `json:"digest"`
+}
+
+// LockedModules are the modules of the stack from sources, as its lock
+// file pins them, each once, in the order of the releases.
+func (s *Stack) LockedModules() []LockedModule {
+	var out []LockedModule
+
+	for _, r := range s.s.Releases {
+		if r.Address == nil || r.Locked == nil || slices.ContainsFunc(out, func(m LockedModule) bool { return m.Source == r.Source }) {
+			continue
+		}
+
+		out = append(out, LockedModule{Source: r.Source, Kind: r.Address.Kind, Version: r.Locked.Version, Digest: r.Locked.Digest})
+	}
+
+	return out
+}
+
 // LoadStack loads the stack in the directory dir of root, and the modules
 // of its local sources, inside root (design 6.4).
 func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (*Stack, hcl.Diagnostics) {
@@ -54,6 +99,14 @@ func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (*Stack,
 	}
 
 	span.End(ctx, diagsErr(diags))
+
+	return &Stack{s: s}, diags
+}
+
+// ReadStack loads the stack in the directory dir of root without fetching
+// the modules of its sources: for its metadata and its digest.
+func (e *Engine) ReadStack(ctx context.Context, root fs.FS, dir string) (*Stack, hcl.Diagnostics) {
+	s, diags := lang.LoadStack(ctx, root, dir, e.langLimits())
 
 	return &Stack{s: s}, diags
 }

@@ -100,6 +100,15 @@ func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
 	return os.DirFS(tree), nil
 }
 
+// entryKind is the kind of the entry of a request.
+func entryKind(req source.Request) index.Kind {
+	if req.Stack {
+		return index.KindStack
+	}
+
+	return index.KindModule
+}
+
 // globalVersions lists the versions the entry of a module lists, but the
 // blocked ones.
 func (f *Fetcher) globalVersions(ctx context.Context, req source.Request) ([]source.Available, error) {
@@ -108,9 +117,11 @@ func (f *Fetcher) globalVersions(ctx context.Context, req source.Request) ([]sou
 		return nil, err
 	}
 
-	entry, err := index.ReadEntry(idx.fsys, index.KindModule, req.Namespace, req.Name)
+	kind := entryKind(req)
+
+	entry, err := index.ReadEntry(idx.fsys, kind, req.Namespace, req.Name)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("the global registry lists no module %s/%s: %w", req.Namespace, req.Name, err)
+		return nil, fmt.Errorf("the global registry lists no %s %s/%s: %w", kind, req.Namespace, req.Name, err)
 	}
 
 	if err != nil {
@@ -120,7 +131,7 @@ func (f *Fetcher) globalVersions(ctx context.Context, req source.Request) ([]sou
 	var out []source.Available
 
 	for _, v := range entry.Versions {
-		if _, blocked := idx.advisories.Blocked(index.KindModule, req.Namespace, req.Name, v.Version); blocked {
+		if _, blocked := idx.advisories.Blocked(kind, req.Namespace, req.Name, v.Version); blocked {
 			continue
 		}
 
@@ -148,7 +159,9 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 		return source.Fetched{}, err
 	}
 
-	entry, err := index.ReadEntry(idx.fsys, index.KindModule, req.Namespace, req.Name)
+	kind := entryKind(req)
+
+	entry, err := index.ReadEntry(idx.fsys, kind, req.Namespace, req.Name)
 	if err != nil {
 		return source.Fetched{}, err
 	}
@@ -158,7 +171,7 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 		return source.Fetched{}, fmt.Errorf("the global registry lists no version %s of %s: %w", req.Version, req.Source, fs.ErrNotExist)
 	}
 
-	if adv, blocked := idx.advisories.Blocked(index.KindModule, req.Namespace, req.Name, v.Version); blocked {
+	if adv, blocked := idx.advisories.Blocked(kind, req.Namespace, req.Name, v.Version); blocked {
 		return source.Fetched{}, fmt.Errorf("%s %s: %w: %s (%s)", req.Source, v.Version, ErrBlocked, adv.Reason, adv.Decision)
 	}
 
@@ -185,7 +198,7 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 		listing.Signatures = append(listing.Signatures, source.ListedSignature{KeyID: s.KeyID, Signature: s.Signature})
 	}
 
-	for _, adv := range idx.advisories.For(index.KindModule, req.Namespace, req.Name, v.Version) {
+	for _, adv := range idx.advisories.For(kind, req.Namespace, req.Name, v.Version) {
 		listing.Warnings = append(listing.Warnings, adv.Reason)
 	}
 

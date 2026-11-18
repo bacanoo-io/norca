@@ -13,7 +13,6 @@ import (
 
 // The files and the messages of the tests.
 const (
-	stackFile    = "stack.hcl"
 	metadataFile = "metadata.hcl"
 	isValid      = "is valid"
 )

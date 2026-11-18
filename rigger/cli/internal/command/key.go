@@ -129,37 +129,75 @@ func writeNew(p string, data []byte, perm os.FileMode) error {
 	return f.Close()
 }
 
-// signModule signs the tree digest of the module in dir and writes the
-// signature into its .rig-signatures directory, which the digest leaves
-// out.
+// signed is what a signature names: a module, or a published stack.
+type signed struct {
+	what, name, version, digest string
+}
+
+// readSigned reads the module or the published stack (a directory with
+// stack.hcl) in dir and its tree digest.
+func readSigned(ctx context.Context, logger *slog.Logger, stderr io.Writer, dir string) (signed, error) {
+	eng, err := offlineEngine(logger)
+	if err != nil {
+		return signed{}, err
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, stackFile)); err == nil {
+		root, rel, err := moduleRoot(dir)
+		if err != nil {
+			return signed{}, err
+		}
+
+		s, diags := eng.ReadStack(ctx, os.DirFS(root), rel)
+		if diags.HasErrors() {
+			return signed{}, reportDiags(stderr, dir, diags)
+		}
+
+		md := s.Metadata()
+		if md == nil {
+			return signed{}, errUnpublished
+		}
+
+		digest, err := s.Digest()
+
+		return signed{what: "stack", name: md.Name, version: md.Version, digest: digest}, err
+	}
+
+	m, diags, err := loadModule(ctx, eng, dir)
+	if err != nil {
+		return signed{}, err
+	}
+
+	if diags.HasErrors() {
+		return signed{}, reportDiags(stderr, dir, diags)
+	}
+
+	digest, err := m.Digest()
+	md := m.Metadata()
+
+	return signed{what: "module", name: md.Name, version: md.Version, digest: digest}, err
+}
+
+// stackFile is the file that makes a directory a stack.
+const stackFile = "stack.hcl"
+
+var errUnpublished = errors.New("a stack is signed when it is published: it needs metadata.hcl with its stack block (design 7.5)")
+
+// signModule signs the tree digest of the module or published stack in dir
+// and writes the signature into its .rig-signatures directory, which the
+// digest leaves out.
 func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir, keyFile string) error {
 	key, err := readPrivateKey(keyFile)
 	if err != nil {
 		return err
 	}
 
-	eng, err := offlineEngine(logger)
+	t, err := readSigned(ctx, logger, stderr, dir)
 	if err != nil {
 		return err
 	}
 
-	m, diags, err := loadModule(ctx, eng, dir)
-	if err != nil {
-		return err
-	}
-
-	if diags.HasErrors() {
-		return reportDiags(stderr, dir, diags)
-	}
-
-	digest, err := m.Digest()
-	if err != nil {
-		return err
-	}
-
-	md := m.Metadata()
-
-	s, err := sign.Sign(key, digest, md.Name, md.Version)
+	s, err := sign.Sign(key, t.digest, t.name, t.version)
 	if err != nil {
 		return err
 	}
@@ -184,7 +222,7 @@ func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		return err
 	}
 
-	_, err = fmt.Fprintf(stdout, "signed %s %s (%s) with %s: %s\n", md.Name, md.Version, digest, id, p)
+	_, err = fmt.Fprintf(stdout, "signed %s %s (%s) with %s: %s\n", t.name, t.version, t.digest, id, p)
 
 	return err
 }
@@ -225,24 +263,12 @@ func verifyModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 		return err
 	}
 
-	eng, err := offlineEngine(logger)
+	t, err := readSigned(ctx, logger, stderr, dir)
 	if err != nil {
 		return err
 	}
 
-	m, diags, err := loadModule(ctx, eng, dir)
-	if err != nil {
-		return err
-	}
-
-	if diags.HasErrors() {
-		return reportDiags(stderr, dir, diags)
-	}
-
-	digest, err := m.Digest()
-	if err != nil {
-		return err
-	}
+	digest := t.digest
 
 	sigs, err := sign.ReadSignatures(os.DirFS(dir), ".")
 	if err != nil {

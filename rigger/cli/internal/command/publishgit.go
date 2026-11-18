@@ -32,33 +32,55 @@ var (
 // repository, <name>/v<version> for one in a directory. The tag is not
 // pushed; the global registry lists it from the repository once it is.
 func publishGit(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir, keyFile string) error {
+	if err := validateModule(ctx, logger, io.Discard, stderr, dir); err != nil {
+		return err
+	}
+
+	t, err := readSigned(ctx, logger, stderr, dir)
+	if err != nil {
+		return err
+	}
+
+	return tagVersion(ctx, logger, stdout, stderr, dir, keyFile, t)
+}
+
+// publishStack publishes the stack in a directory as publishGit a module
+// (design 7.5): it validates the stack with its lock file, which must pin
+// every module of a source, then signs and tags it.
+func publishStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *stackFlags) error {
+	if err := validateStack(ctx, logger, io.Discard, stderr, f); err != nil {
+		return err
+	}
+
+	t, err := readSigned(ctx, logger, stderr, f.dir)
+	if err != nil {
+		return err
+	}
+
+	if t.what != "stack" {
+		return errUnpublished
+	}
+
+	return tagVersion(ctx, logger, stdout, stderr, f.dir, f.key, t)
+}
+
+// tagVersion signs the module or stack in dir with key into .rig-signatures
+// and commits the signature, then tags the commit with the tag of the
+// version: v<version> at the root of the repository, <name>/v<version> in a
+// directory. The tag is not pushed.
+func tagVersion(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir, keyFile string, t signed) error {
 	top, rel, err := repositoryOf(ctx, dir)
 	if err != nil {
 		return err
 	}
 
-	if err := validateModule(ctx, logger, io.Discard, stderr, dir); err != nil {
-		return err
-	}
-
-	eng, err := offlineEngine(logger)
-	if err != nil {
-		return err
-	}
-
-	m, _, err := loadModule(ctx, eng, dir)
-	if err != nil {
-		return err
-	}
-
-	md := m.Metadata()
-	if md.Version == "" {
+	if t.version == "" {
 		return errNoVersion
 	}
 
-	tag := "v" + md.Version
+	tag := "v" + t.version
 	if rel != "." {
-		tag = path.Base(rel) + "/v" + md.Version
+		tag = path.Base(rel) + "/v" + t.version
 	}
 
 	if err := publishable(ctx, top, rel, tag); err != nil {
@@ -66,12 +88,12 @@ func publishGit(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	}
 
 	if keyFile == "" {
-		warn(stderr, "%s %s is not signed (-key): the global registry lists only signed versions", md.Name, md.Version)
-	} else if err := commitSignature(ctx, logger, stdout, stderr, top, rel, dir, keyFile, md.Name+": sign "+md.Version); err != nil {
+		warn(stderr, "%s %s is not signed (-key): the global registry lists only signed versions", t.name, t.version)
+	} else if err := commitSignature(ctx, logger, stdout, stderr, top, rel, dir, keyFile, t.name+": sign "+t.version); err != nil {
 		return err
 	}
 
-	if _, err := gitOut(ctx, top, "tag", "-a", "-m", md.Name+" "+md.Version, tag); err != nil {
+	if _, err := gitOut(ctx, top, "tag", "-a", "-m", t.name+" "+t.version, tag); err != nil {
 		return err
 	}
 
@@ -80,7 +102,7 @@ func publishGit(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		return err
 	}
 
-	_, err = fmt.Fprintf(stdout, "tagged %s %s as %s at %s; push it: git push origin %s\n", md.Name, md.Version, tag, commit, tag)
+	_, err = fmt.Fprintf(stdout, "tagged %s %s %s as %s at %s; push it: git push origin %s\n", t.what, t.name, t.version, tag, commit, tag)
 
 	return err
 }

@@ -72,11 +72,11 @@ func writeFile(t *testing.T, p, data string) {
 // publishedRegistry publishes the greeter 1.0.0 signed and 1.1.0 unsigned,
 // lists them in a global registry of the namespace acme, which it
 // commits, and returns the repository, the registry and the entry.
-func publishedRegistry(t *testing.T) (repo, reg, entry string) {
+func publishedRegistry(t *testing.T) (repo, reg, entry, keys string) {
 	t.Helper()
 
 	repo = greeterRepo(t, "1.0.0")
-	keys := t.TempDir()
+	keys = t.TempDir()
 
 	t.Setenv("RIG_CACHE_DIR", t.TempDir())
 	t.Setenv(passwordEnv, "secret")
@@ -112,7 +112,7 @@ func publishedRegistry(t *testing.T) (repo, reg, entry string) {
 		"keys/acme/acme.pub":   string(pub),
 	})
 
-	out := rigRun(t, exitOK, []string{"listed acme/greeter 1.0.0", "acme/greeter 1.1.0 (greeter/v1.1.0): not signed by a key of the namespace"},
+	out := rigRun(t, exitOK, []string{"listed module acme/greeter 1.0.0", "acme/greeter 1.1.0 (greeter/v1.1.0): not signed by a key of the namespace"},
 		"index", "update", "-dir", reg, "-today", "2026-11-18")
 
 	entry = filepath.Join(reg, "modules", "a", "acme", "greeter.json")
@@ -134,11 +134,11 @@ func publishedRegistry(t *testing.T) (repo, reg, entry string) {
 	gitIn(t, reg, "add", "-A")
 	gitIn(t, reg, "commit", "--quiet", "-m", "acme/greeter 1.0.0")
 
-	return repo, reg, entry
+	return repo, reg, entry, keys
 }
 
 func TestRun_GlobalRegistry(t *testing.T) {
-	repo, reg, entry := publishedRegistry(t)
+	repo, reg, entry, keys := publishedRegistry(t)
 
 	// A stack takes acme/greeter from the global registry.
 	t.Setenv("RIG_GLOBAL_REGISTRY", reg)
@@ -155,8 +155,40 @@ func TestRun_GlobalRegistry(t *testing.T) {
 
 	rigRun(t, exitOK, []string{isValid}, "stack", "validate", stack)
 
+	publishedStack(t, repo, reg, keys)
 	advisories(t, reg, stack)
 	tampered(t, reg, entry, stack)
+}
+
+// publishedStack publishes a stack over acme/greeter in the repository,
+// lists it, and installs it from the registry.
+func publishedStack(t *testing.T, repo, reg, keys string) {
+	t.Helper()
+
+	dir := filepath.Join(repo, "stacks", "greeting")
+	writeFile(t, filepath.Join(dir, metadataFile), "stack {\n  name    = \"greeting\"\n  version = \"1.0.0\"\n}\n")
+	writeFile(t, filepath.Join(dir, stackFile), "rig {\n  name = \"greeting\"\n}\n\nmodule \"hello\" {\n  source  = \"acme/greeter\"\n  version = \"~> 1.0\"\n}\n")
+
+	// Publishing needs the lock file.
+	rigRunErr(t, "acme/greeter has no entry in rig.lock.hcl", "stack", "publish", dir, "-key", filepath.Join(keys, "acme.key"))
+	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	gitIn(t, repo, "add", "-A")
+	gitIn(t, repo, "commit", "--quiet", "-m", "greeting 1.0.0")
+	rigRun(t, exitOK, []string{"tagged stack greeting 1.0.0 as greeting/v1.0.0"}, "stack", "publish", dir, "-key", filepath.Join(keys, "acme.key"))
+
+	rigRun(t, exitOK, []string{"listed stack acme/greeting 1.0.0"}, "index", "update", "-dir", reg, "-today", "2026-11-18")
+
+	data, err := os.ReadFile(filepath.Join(reg, "stacks", "a", "acme", "greeting.json"))
+	if err != nil || !strings.Contains(string(data), `"source": "acme/greeter"`) || !strings.Contains(string(data), `"path": "stacks/greeting"`) {
+		t.Fatalf("stack entry = %s, %v", data, err)
+	}
+
+	rigRun(t, exitOK, []string{isValid}, "index", "check", "-dir", reg, "-base", "HEAD")
+	rigRun(t, exitOK, []string{"stack greeting", isValid}, "stack", "validate", "acme/greeting", "-version", "~> 1.0")
+	rigRunErr(t, "no version meets", "stack", "validate", "acme/greeting", "-version", "~> 2.0")
+
+	gitIn(t, reg, "add", "-A")
+	gitIn(t, reg, "commit", "--quiet", "-m", "acme/greeting 1.0.0")
 }
 
 // advisories checks that a warning is shown and a block refuses.

@@ -23,7 +23,9 @@ import (
 	rig "github.com/bacanoo-io/norca-rig"
 	"github.com/bacanoo-io/norca-rig/cli/internal/fetch"
 	"github.com/bacanoo-io/norca-rig/index"
+	"github.com/bacanoo-io/norca-rig/module"
 	"github.com/bacanoo-io/norca-rig/sign"
+	"github.com/bacanoo-io/norca-rig/source"
 	"github.com/bacanoo-io/norca-rig/version"
 )
 
@@ -49,8 +51,9 @@ type Outcome struct {
 	Name      string
 	Version   string
 	Tag       string
-	// Listed is set for a version added to its entry.
+	// Listed is set for a version added to its entry, of the kind.
 	Listed bool
+	Kind   index.Kind
 	// Problem is why the tag is not listed, or what is wrong with a listed
 	// version.
 	Problem string
@@ -58,7 +61,7 @@ type Outcome struct {
 
 func (o Outcome) String() string {
 	if o.Listed {
-		return fmt.Sprintf("listed %s/%s %s (%s)", o.Namespace, o.Name, o.Version, o.Tag)
+		return fmt.Sprintf("listed %s %s/%s %s (%s)", o.Kind, o.Namespace, o.Name, o.Version, o.Tag)
 	}
 
 	return fmt.Sprintf("%s/%s %s (%s): %s", o.Namespace, o.Name, o.Version, o.Tag, o.Problem)
@@ -117,17 +120,18 @@ func (ix *Indexer) keys(namespace string) ([]sign.PublicKey, error) {
 	return keys, nil
 }
 
-// versionTag is a tag of a module version of a repository.
+// versionTag is a tag of a version of a repository: of a module or a
+// stack, which the tree of the tag tells.
 type versionTag struct {
-	name, version, dir string
-	kind               index.Kind
+	name, version string
+	layout        string
 }
 
 // parseTag reads a tag of a repository of a layout: <name>/v<version> of a
 // module in modules/<name> or a stack in stacks/<name> of a registry
-// repository, v<version> of a repository of one module.
+// repository, v<version> of a repository of one module or stack.
 func parseTag(repo index.Repository, tag string) (versionTag, bool) {
-	var vt versionTag
+	vt := versionTag{layout: repo.Layout}
 
 	switch repo.Layout {
 	case index.LayoutRegistry:
@@ -136,14 +140,14 @@ func parseTag(repo index.Repository, tag string) (versionTag, bool) {
 			return vt, false
 		}
 
-		vt = versionTag{name: name, version: v, dir: "modules/" + name, kind: index.KindModule}
+		vt.name, vt.version = name, v
 	case index.LayoutModule:
 		v, ok := strings.CutPrefix(tag, "v")
 		if !ok {
 			return vt, false
 		}
 
-		vt = versionTag{name: repositoryName(repo.URL), version: v, dir: ".", kind: index.KindModule}
+		vt.name, vt.version = repositoryName(repo.URL), v
 	default:
 		return vt, false
 	}
@@ -155,14 +159,25 @@ func parseTag(repo index.Repository, tag string) (versionTag, bool) {
 	return vt, true
 }
 
-// expectedTag is the tag and directory of a version of a module of a
-// repository.
-func expectedTag(repo index.Repository, name, v string) (tag, dir string) {
-	if repo.Layout == index.LayoutModule {
-		return "v" + v, "."
+// dir is the directory of a module or stack of the tag.
+func (vt versionTag) dir(kind index.Kind) string {
+	switch {
+	case vt.layout == index.LayoutModule:
+		return "."
+	case kind == index.KindStack:
+		return "stacks/" + vt.name
+	default:
+		return "modules/" + vt.name
+	}
+}
+
+// tag is the tag of the version.
+func (vt versionTag) tag() string {
+	if vt.layout == index.LayoutModule {
+		return "v" + vt.version
 	}
 
-	return name + "/v" + v, "modules/" + name
+	return vt.name + "/v" + vt.version
 }
 
 // repositoryName is the last element of the path of a repository, without
@@ -173,55 +188,93 @@ func repositoryName(url string) string {
 
 var (
 	errNotSigned = errors.New("not signed by a key of the namespace")
-	errStack     = errors.New("stacks of a registry are not listed yet")
+	errNoSource  = errors.New("neither a module nor a stack at the tag")
+	errBoth      = errors.New("both a module and a stack of the name; a tag names one")
 )
 
-// inspect reads a version from its source at a tag, validates it, and
+// tree is the files of a tag and what they hold.
+type tree struct {
+	fsys   fs.FS
+	commit string
+	kind   index.Kind
+	dir    string
+}
+
+// readTree fetches the files of a tag and tells whether it holds a module
+// or a stack: metadata.hcl without stack.hcl is a module, stack.hcl a stack.
+func (ix *Indexer) readTree(ctx context.Context, url string, vt versionTag) (tree, error) {
+	fsys, commit, err := ix.Fetcher.Tree(ctx, ix.location(url), vt.tag())
+	if err != nil {
+		return tree{}, err
+	}
+
+	t := tree{fsys: fsys, commit: commit}
+
+	isModule := func(dir string) bool {
+		_, metaErr := fs.Stat(fsys, path.Join(dir, "metadata.hcl"))
+		_, stackErr := fs.Stat(fsys, path.Join(dir, "stack.hcl"))
+
+		return metaErr == nil && stackErr != nil
+	}
+	isStack := func(dir string) bool {
+		_, err := fs.Stat(fsys, path.Join(dir, "stack.hcl"))
+
+		return err == nil
+	}
+
+	module, stack := isModule(vt.dir(index.KindModule)), isStack(vt.dir(index.KindStack))
+
+	switch {
+	case module && stack:
+		return t, errBoth
+	case module:
+		t.kind = index.KindModule
+	case stack:
+		t.kind = index.KindStack
+	default:
+		return t, errNoSource
+	}
+
+	t.dir = vt.dir(t.kind)
+
+	return t, nil
+}
+
+// inspect reads a version from the tree of its tag, validates it, and
 // returns what the index lists of it: the signatures that verify with a
 // key of the namespace only, errNotSigned with the rest when there are
 // none.
-func (ix *Indexer) inspect(ctx context.Context, keys []sign.PublicKey, url string, vt versionTag, tag string) (index.Version, error) {
-	fsys, commit, err := ix.Fetcher.Tree(ctx, ix.location(url), tag)
+func (ix *Indexer) inspect(ctx context.Context, keys []sign.PublicKey, url string, vt versionTag, t tree) (index.Version, error) {
+	var (
+		md     module.Metadata
+		digest string
+		pins   []index.LockedModule
+		err    error
+	)
+
+	if t.kind == index.KindStack {
+		md, digest, pins, err = ix.inspectStack(ctx, t)
+	} else {
+		md, digest, err = ix.inspectModule(ctx, t)
+	}
+
 	if err != nil {
 		return index.Version{}, err
 	}
 
-	if _, err := fs.Stat(fsys, path.Join(vt.dir, "metadata.hcl")); err != nil {
-		if _, stackErr := fs.Stat(fsys, path.Join("stacks", vt.name, "metadata.hcl")); stackErr == nil {
-			return index.Version{}, errStack
-		}
-
-		return index.Version{}, fmt.Errorf("no module in %s at the tag", vt.dir)
-	}
-
-	m, diags := ix.Engine.LoadModuleAt(ctx, fsys, vt.dir)
-	if diags.HasErrors() {
-		return index.Version{}, diags
-	}
-
-	md := m.Metadata()
 	if md.Name != vt.name || md.Version != vt.version {
 		return index.Version{}, fmt.Errorf("the metadata says %s %s", md.Name, md.Version)
 	}
 
-	if diags := ix.Engine.ValidateModule(ctx, m); diags.HasErrors() {
-		return index.Version{}, diags
-	}
-
-	digest, err := m.Digest()
-	if err != nil {
-		return index.Version{}, err
-	}
-
 	v := index.Version{
-		Version: vt.version, Repository: url, Path: vt.dir, Tag: tag, Commit: commit, Digest: digest,
-		Requires: requires(md.Requires.Norca, md.Requires.Features, md.Requires.Modules), Listed: ix.Today,
+		Version: vt.version, Repository: url, Path: t.dir, Tag: vt.tag(), Commit: t.commit, Digest: digest,
+		Requires: requires(md.Requires.Norca, md.Requires.Features, md.Requires.Modules), Modules: pins, Listed: ix.Today,
 	}
 
 	// A version without a signature of the namespace is returned with
 	// errNotSigned: Check verifies the signatures an entry lists by
 	// themselves.
-	sigs, signErr := signatures(fsys, vt.dir, digest, md.Name, md.Version, keys)
+	sigs, signErr := signatures(t.fsys, t.dir, digest, md.Name, md.Version, keys)
 	if signErr != nil && !errors.Is(signErr, errNotSigned) {
 		return index.Version{}, signErr
 	}
@@ -229,7 +282,7 @@ func (ix *Indexer) inspect(ctx context.Context, keys []sign.PublicKey, url strin
 	v.Signatures = sigs
 
 	if md.Icon != "" {
-		data, err := fs.ReadFile(fsys, path.Join(vt.dir, md.Icon))
+		data, err := fs.ReadFile(t.fsys, path.Join(t.dir, md.Icon))
 		if err != nil {
 			return index.Version{}, fmt.Errorf("the icon: %w", err)
 		}
@@ -239,6 +292,76 @@ func (ix *Indexer) inspect(ctx context.Context, keys []sign.PublicKey, url strin
 	}
 
 	return v, signErr
+}
+
+// inspectModule loads and validates the module of a tree.
+func (ix *Indexer) inspectModule(ctx context.Context, t tree) (module.Metadata, string, error) {
+	m, diags := ix.Engine.LoadModuleAt(ctx, t.fsys, t.dir)
+	if diags.HasErrors() {
+		return module.Metadata{}, "", diags
+	}
+
+	if diags := ix.Engine.ValidateModule(ctx, m); diags.HasErrors() {
+		return module.Metadata{}, "", diags
+	}
+
+	digest, err := m.Digest()
+
+	return m.Metadata(), digest, err
+}
+
+// ErrOutside is the error of a stack that uses a module outside the
+// registry.
+var ErrOutside = errors.New("a stack of the registry uses only modules of the registry, its own and built-in ones")
+
+// inspectStack loads a published stack with the modules its lock pins,
+// from the registry itself, and validates it with each of its value files.
+func (ix *Indexer) inspectStack(ctx context.Context, t tree) (module.Metadata, string, []index.LockedModule, error) {
+	s, diags := ix.Engine.LoadStack(ctx, t.fsys, t.dir)
+	if diags.HasErrors() {
+		return module.Metadata{}, "", nil, diags
+	}
+
+	md := s.Metadata()
+	if md == nil {
+		return module.Metadata{}, "", nil, errors.New("the stack has no metadata.hcl") //nolint:err113 // one message
+	}
+
+	var pins []index.LockedModule
+
+	for _, m := range s.LockedModules() {
+		if m.Kind != source.KindGlobal && m.Kind != source.KindBuiltin {
+			return module.Metadata{}, "", nil, fmt.Errorf("%s: %w", m.Source, ErrOutside)
+		}
+
+		pins = append(pins, index.LockedModule{Source: m.Source, Version: m.Version, Digest: m.Digest})
+	}
+
+	for _, p := range s.ValueFiles() {
+		src, err := s.ReadValueFile(p)
+		if err != nil {
+			return module.Metadata{}, "", nil, err
+		}
+
+		vals, diags := rig.ParseValues(p, src)
+		if !diags.HasErrors() {
+			diags = append(diags, ix.Engine.ValidateStack(ctx, s, vals)...)
+		}
+
+		if diags.HasErrors() {
+			return module.Metadata{}, "", nil, diags
+		}
+	}
+
+	if len(s.ValueFiles()) == 0 {
+		if diags := ix.Engine.ValidateStack(ctx, s, nil); diags.HasErrors() {
+			return module.Metadata{}, "", nil, diags
+		}
+	}
+
+	digest, err := s.Digest()
+
+	return *md, digest, pins, err
 }
 
 // signatures returns the signatures of a module that a key of the

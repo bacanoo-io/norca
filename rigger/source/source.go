@@ -45,9 +45,12 @@ type Request struct {
 	// Registry is the name of the registry of the stack the address names;
 	// empty for another address.
 	Registry string `json:"registry,omitempty"`
-	// Namespace and Name name a module of the global registry.
+	// Namespace and Name name a module or stack of the global registry.
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
+	// Stack is set for a published stack (design 7.5): the stacks of the
+	// global registry, stacks/<name> of a registry repository.
+	Stack bool `json:"stack,omitempty"`
 	// Repository is the git repository or the directory; empty for a
 	// built-in module.
 	Repository string `json:"repository,omitempty"`

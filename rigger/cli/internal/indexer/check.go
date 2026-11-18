@@ -243,12 +243,6 @@ func (ix *Indexer) checkVersion(ctx context.Context, le listedEntry, v *index.Ve
 		return
 	}
 
-	if le.kind == index.KindStack {
-		report("%s: %v", where, errStack)
-
-		return
-	}
-
 	i := slices.IndexFunc(ns.Repositories, func(r index.Repository) bool { return r.URL == v.Repository })
 	if i < 0 {
 		report("%s: %s is not a repository of the namespace", where, v.Repository)
@@ -256,34 +250,50 @@ func (ix *Indexer) checkVersion(ctx context.Context, le listedEntry, v *index.Ve
 		return
 	}
 
-	repo := ns.Repositories[i]
+	vt := versionTag{name: e.Name, version: v.Version, layout: ns.Repositories[i].Layout}
 
-	tag, dir := expectedTag(repo, e.Name, v.Version)
-	if v.Tag != tag || v.Path != dir {
-		report("%s: the tag and path of the layout %s are %s and %s", where, repo.Layout, tag, dir)
+	if v.Tag != vt.tag() || v.Path != vt.dir(le.kind) {
+		report("%s: the tag and path of the layout %s are %s and %s", where, vt.layout, vt.tag(), vt.dir(le.kind))
 
 		return
 	}
 
-	got, err := ix.inspect(ctx, keys, v.Repository, versionTag{name: e.Name, version: v.Version, dir: dir, kind: le.kind}, tag)
+	t, err := ix.readTree(ctx, v.Repository, vt)
+	if err == nil && t.kind != le.kind {
+		err = fmt.Errorf("the tag holds a %s", t.kind) //nolint:err113 // one message
+	}
+
+	if err != nil {
+		report("%s: %v", where, err)
+
+		return
+	}
+
+	got, err := ix.inspect(ctx, keys, v.Repository, vt, t)
 	if err != nil && !errors.Is(err, errNotSigned) {
 		report("%s: %v", where, err)
 
 		return
 	}
 
+	compare(where, &got, v, report)
+	ix.checkSignatures(where, e.Name, v, keys, report)
+}
+
+// compare reports how a listed version differs from its source.
+func compare(where string, got, v *index.Version, report func(string, ...any)) {
 	switch {
 	case got.Commit != v.Commit:
-		report("%s: the tag %s points to %s, the entry lists %s", where, tag, got.Commit, v.Commit)
+		report("%s: the tag %s points to %s, the entry lists %s", where, v.Tag, got.Commit, v.Commit)
 	case got.Digest != v.Digest:
 		report("%s: the digest of the source is %s, the entry lists %s", where, got.Digest, v.Digest)
 	case got.Icon != v.Icon:
 		report("%s: the icon of the source is %q, the entry lists %q", where, got.Icon, v.Icon)
 	case !sameJSON(got.Requires, v.Requires):
 		report("%s: the requirements are not those of the source", where)
+	case !sameJSON(got.Modules, v.Modules):
+		report("%s: the modules are not those the lock file of the source pins", where)
 	}
-
-	ix.checkSignatures(where, e.Name, v, keys, report)
 }
 
 // checkSignatures checks that every listed signature verifies with the key

@@ -12,6 +12,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/bacanoo-io/norca-rig/module"
 )
 
 // Digest returns the tree digest of m (design 8.1): sha256 over one line
@@ -26,6 +28,11 @@ func Digest(m *Module) (string, error) {
 		return "", err
 	}
 
+	return treeDigest(lines), nil
+}
+
+// treeDigest is the digest of the lines of the files, sorted by path.
+func treeDigest(lines map[string]string) string {
 	names := make([]string, 0, len(lines))
 	for name := range lines {
 		names = append(names, name)
@@ -38,7 +45,7 @@ func Digest(m *Module) (string, error) {
 		_, _ = io.WriteString(h, lines[name]+"  "+name+"\n") // a hash takes every write
 	}
 
-	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
+	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
 
 // digestFiles adds the digests of the files of m and of its children, named
@@ -88,4 +95,16 @@ func digestFiles(m *Module, prefix string, lines map[string]string) error {
 	}
 
 	return nil
+}
+
+// StackDigest returns the tree digest of a published stack (design 7.5):
+// the digest of Digest over the files of the stack directory, its own
+// modules, values, examples and lock file included, hidden files left out.
+func StackDigest(s *Stack) (string, error) {
+	lines := map[string]string{}
+	if err := digestFiles(&Module{FS: s.FS, Metadata: module.Metadata{Name: s.Rig.Name}}, "", lines); err != nil {
+		return "", err
+	}
+
+	return treeDigest(lines), nil
 }
