@@ -238,7 +238,14 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 	}
 	st := &volumeRequestStatus{}
 	if err := structs.DecodeObjectPart(obj.Status, st); err != nil {
-		st = &volumeRequestStatus{}
+		if obj.Deleting() && spec.policy() == volumeRequestRetain {
+			// The volume stays: what the status says of it is not
+			// needed to let the request go.
+			o.finishDeletion(p, obj, spec, &volumeRequestStatus{}, nil, nil, false)
+			return
+		}
+		o.holdUndecodableStatus(p, obj, err)
+		return
 	}
 
 	vol, err := p.store.CSIVolumeByID(p.ws, obj.Namespace, obj.Name)
@@ -319,6 +326,35 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 		volumeStatusFrom(st, vol)
 	}
 	o.writeRequest(p, obj, st, out, &finalizers)
+}
+
+// holdUndecodableStatus leaves a request whose status can't be decoded (a
+// server of another version wrote it) as it is: the status says which
+// volume is the request's own, and an empty one in its place would take
+// that volume for somebody else's. Nothing is created, changed or deleted,
+// and a deleted request that would deregister or delete its volume is not
+// let go, until a status that can be decoded is written; the conditions say
+// so (best effort: a status the kind's schema refuses can't take them).
+func (o *volumeRequestOperator) holdUndecodableStatus(p *volumeRequestPass, obj *structs.CustomObject, err error) {
+	o.logger.Warn("volume request with a status that can't be decoded is left alone", "namespace", obj.Namespace,
+		"request", obj.Name, "error", err)
+	status := structs.CopyObjectMap(obj.Status)
+	conditions := newConditionSet(obj.Status, p.now)
+	conditions.set(structs.CertificateConditionReady, false, "InvalidStatus",
+		fmt.Sprintf("the status can't be decoded (%v): it says which volume is the request's own, so it is kept, "+
+			"and the volume is not created, changed or deleted until it can be", err))
+	conditions.set(structs.CertificateConditionDegraded, true, "", "")
+	status[structs.ObjectStatusConditions] = conditions.list()
+	normalized, err := structs.NormalizeObjectMap(status)
+	if err != nil || structs.ObjectMapsEqual(obj.Status, normalized) {
+		return
+	}
+	changed := obj.Copy()
+	changed.Status = normalized
+	if _, err := o.srv.writeOperatorObject(changed); err != nil && !structs.IsObjectConflictError(err) {
+		o.logger.Warn("failed to write the status of a volume request", "request", obj.Name,
+			"namespace", obj.Namespace, "error", err)
+	}
 }
 
 // deleteUnregistered deletes the volume that a create of the request may have

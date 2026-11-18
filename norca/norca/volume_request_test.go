@@ -5,6 +5,7 @@ package norca
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -1331,4 +1332,74 @@ func TestVolumeRequest_PassEndsWithTheLeadership(t *testing.T) {
 	plugin.set(func(f *fakeVolumeCSI) {
 		must.Eq(t, 0, len(f.creates), must.Sprint("a deposed leader called the plugin"))
 	})
+}
+
+// A status that can't be decoded says which volume is the request's own: it
+// is not written over with an empty one, which would take the volume for
+// somebody else's, and nothing is done to the volume until it can be
+// decoded. A deleted request that retains its volume goes; one that would
+// delete it waits (review finding MUK-15).
+func TestVolumeRequest_UndecodableStatusIsKept(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false)
+	defer cleanup()
+
+	for name, policy := range map[string]string{"held": "delete", "kept": "retain"} {
+		_, err := c.apply("default", csiVolumeRequestKind, name, volumeSpec(func(m map[string]any) { m["deletion_policy"] = policy }))
+		must.NoError(t, err)
+	}
+	created := map[string]uint64{}
+	for _, name := range []string{"held", "kept"} {
+		st := c.waitRequest(name, "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+			return readyReason(obj) == "True" && st.VolumeCreateIndex > 0
+		})
+		created[name] = st.VolumeCreateIndex
+
+		// Only the servers write the status: it is written as by a
+		// server of another version, whose counter does not fit an int.
+		for i := 0; ; i++ {
+			must.Less(t, 20, i, must.Sprint("status of the request could not be written"))
+			cur := c.get("default", csiVolumeRequestKind, name)
+			changed := cur.Copy()
+			changed.Status = structs.CopyObjectMap(cur.Status)
+			changed.Status["drifts"] = 1e30
+			resp, _, err := c.s.raftApply(structs.CustomObjectUpsertRequestType, &structs.CustomObjectUpsertStateRequest{
+				Object: changed, ExpectedModifyIndex: cur.ModifyIndex,
+				WriteRequest: structs.WriteRequest{Region: "global"},
+			})
+			if respErr, ok := resp.(error); ok && err == nil {
+				err = respErr
+			}
+			if err == nil {
+				break
+			}
+			must.True(t, structs.IsObjectConflictError(err), must.Sprintf("%v", err))
+		}
+	}
+
+	kept := func(obj *structs.CustomObject) bool {
+		return fmt.Sprint(obj.Status["drifts"]) == "1e+30" &&
+			fmt.Sprint(obj.Status["volumeCreateIndex"]) == fmt.Sprint(created[obj.Name])
+	}
+	var obj *structs.CustomObject
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		obj = c.get("default", csiVolumeRequestKind, "held")
+		return readyReason(obj) == "InvalidStatus" || !kept(obj)
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+	must.True(t, kept(obj), must.Sprintf("the status was written over: %v", obj.Status))
+	must.Eq(t, "InvalidStatus", readyReason(obj))
+	must.True(t, objectConditionTrue(obj.Status, structs.CertificateConditionDegraded))
+
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "kept"))
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "held"))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("default", csiVolumeRequestKind, "kept") == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("kept gone"))
+	must.NotNil(t, c.volume("kept"))
+	time.Sleep(500 * time.Millisecond)
+	held := c.get("default", csiVolumeRequestKind, "held")
+	must.NotNil(t, held, must.Sprint("a request whose volume is not known went without deleting it"))
+	must.True(t, kept(held), must.Sprintf("the status was written over: %v", held.Status))
+	must.NotNil(t, c.volume("held"))
+	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 0, f.deletes) })
 }
