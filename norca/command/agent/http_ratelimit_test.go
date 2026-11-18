@@ -220,6 +220,49 @@ func TestTokenRateLimiter_Cap(t *testing.T) {
 	l.mu.Unlock()
 }
 
+// An idle bucket is dropped only once it would be full again: a client that
+// empties a bucket which takes longer than the idle time to refill does not
+// get a full one back by waiting out the idle time (review finding SEC-23).
+func TestTokenRateLimiter_IdleDropKeepsEmptyBucket(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	// 1200 requests at one per second: 20 minutes to refill
+	l, err := newTokenRateLimiter(config.Limits{
+		TokenReadRequestsPerSecond: pointer.Of(1),
+		TokenReadBurst:             pointer.Of(1200),
+	}, func(secret string) string { return strings.TrimPrefix(secret, "secret-") })
+	must.NoError(t, err)
+	l.now = func() time.Time { return now }
+
+	// takeAll returns how many requests go at once
+	takeAll := func(secret, addr string) int {
+		n := 0
+		for {
+			ok, _ := l.allow(secret, addr, true)
+			if !ok {
+				return n
+			}
+			n++
+		}
+	}
+	must.Eq(t, 1200, takeAll("", "192.0.2.1:1"))
+	must.Eq(t, 1200, takeAll("secret-a", "192.0.2.1:1"))
+
+	// after twelve idle minutes, 720 requests have come back, not 1200
+	now = now.Add(tokenRateLimitIdle + 2*time.Minute)
+	must.Eq(t, 720, takeAll("", "192.0.2.1:1"))
+	must.Eq(t, 720, takeAll("secret-a", "192.0.2.1:1"))
+
+	// once full again, an idle bucket is dropped
+	now = now.Add(21 * time.Minute)
+	l.allow("", "192.0.2.2:1", true)
+	l.mu.Lock()
+	must.MapNotContainsKey(t, l.clients, "192.0.2.1")
+	must.MapNotContainsKey(t, l.buckets, "a")
+	l.mu.Unlock()
+}
+
 // The client address is the one of the connection: headers a client sets do
 // not choose the bucket.
 func TestHTTP_TokenRateLimit_ClientAddress(t *testing.T) {

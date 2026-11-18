@@ -29,7 +29,8 @@ import (
 const anonymousBucket = ""
 
 // tokenRateLimitIdle is how long the buckets of a token or of a client
-// address that sends no request are kept.
+// address that sends no request are kept at least; they are dropped only once
+// they are full again.
 const tokenRateLimitIdle = 10 * time.Minute
 
 // tokenRateLimitMaxBuckets is the most tokens, and the most client addresses,
@@ -68,6 +69,18 @@ type tokenRateLimiter struct {
 type tokenBuckets struct {
 	read, write *rate.Limiter
 	seen        time.Time
+}
+
+// fullAt reports whether both buckets are full at now, so that dropping them
+// gives nothing back: the next request starts with new, full buckets. An idle
+// bucket that refills more slowly than tokenRateLimitIdle is kept until then,
+// or a client could empty it and get it back full by waiting out the idle
+// time.
+func (b *tokenBuckets) fullAt(now time.Time) bool {
+	full := func(lim *rate.Limiter) bool {
+		return lim.TokensAt(now) >= float64(lim.Burst())
+	}
+	return full(b.read) && full(b.write)
 }
 
 // newTokenRateLimiter returns the limiter of the limits, nil when both limits
@@ -195,7 +208,7 @@ func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, ti
 	if now.Sub(l.lastSweep) > time.Minute {
 		for _, m := range []map[string]*tokenBuckets{l.buckets, l.clients} {
 			for k, b := range m {
-				if now.Sub(b.seen) > tokenRateLimitIdle {
+				if now.Sub(b.seen) > tokenRateLimitIdle && b.fullAt(now) {
 					delete(m, k)
 				}
 			}
