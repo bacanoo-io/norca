@@ -8,8 +8,8 @@ output "next_steps" {
   value       = <<-EOT
     The service ${rig.release} runs ${var.count} instance(s) in namespace ${rig.namespace}.
       norca service info ${rig.release}
-    %{ if var.database != null ~}
+    %{if var.database != null~}
     It reads its database credentials from the secret ${var.database_secret}.
-    %{ endif ~}
+    %{endif~}
   EOT
 }

@@ -196,7 +196,7 @@ func showValue(v cty.Value) string {
 
 	switch {
 	case v.IsNull():
-		return "null"
+		return nullText
 	case !v.IsKnown():
 		return "(known after evaluation)"
 	case v.Type() == cty.String:

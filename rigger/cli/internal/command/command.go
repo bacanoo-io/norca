@@ -32,6 +32,7 @@ const (
 	cmdHelp    = "help"
 	cmdVersion = "version"
 	cmdModule  = "module"
+	cmdFmt     = "fmt"
 
 	cmdRender   = "render"
 	cmdTest     = "test"
@@ -43,6 +44,9 @@ const usage = `Usage: rig [flags] <command>
 Commands:
   help                    print this help
   version                 print the version of rig
+  fmt [-check] [path ...] format the .hcl files under the paths (the current
+                          directory); -check lists those that are not
+                          formatted and fails
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
                           (dir: the current one)
@@ -90,6 +94,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		})
 	case cmdModule:
 		return runModule(ctx, logger, stdout, stderr, flags.Args()[1:])
+	case cmdFmt:
+		return runFmt(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)

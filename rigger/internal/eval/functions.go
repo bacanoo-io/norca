@@ -43,7 +43,7 @@ func Functions() map[string]function.Function {
 		"zipmap": stdlib.ZipmapFunc,
 
 		"csvdecode": stdlib.CSVDecodeFunc, "jsondecode": stdlib.JSONDecodeFunc,
-		"jsonencode": stdlib.JSONEncodeFunc, "formatdate": stdlib.FormatDateFunc,
+		"jsonencode": jsonEncode, "yamlencode": yamlEncode, "tomlencode": tomlEncode, "natsconf": natsconf, "formatdate": stdlib.FormatDateFunc,
 		"timeadd": stdlib.TimeAddFunc,
 
 		"alltrue": allTrue, "anytrue": anyTrue,

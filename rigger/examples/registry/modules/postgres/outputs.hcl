@@ -24,11 +24,11 @@ output "next_steps" {
   value = <<-EOT
     PostgreSQL ${local.job} on node ${var.node}, port ${var.port}.
       norca secret put ${local.superuser_secret} password=-
-    %{ for d in var.databases ~}
+    %{for d in var.databases~}
       norca secret put ${local.app_secret[d.name]} user=${coalesce(d.owner, d.name)} password=-
-    %{ endfor ~}
-    %{ if var.backup.enabled ~}
+    %{endfor~}
+    %{if var.backup.enabled~}
     Dumps: ${var.backup.schedule} to bucket ${var.backup.s3.bucket}, kept ${var.backup.keep_days} days.
-    %{ endif ~}
+    %{endif~}
   EOT
 }

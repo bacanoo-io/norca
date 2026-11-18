@@ -43,9 +43,18 @@ func TestReplace(t *testing.T) {
 		},
 		{
 			name: "the addresses of a service as a list of a configuration", place: runref.PlaceTemplate,
-			text: runref.Part{Kind: runref.KindServices, Name: "nats-cluster", Scheme: "nats-route", ExcludeSelf: true, Quote: runref.QuoteConf}.String(),
+			text: runref.Part{
+				Kind: runref.KindServices, Name: "nats-cluster", Scheme: "nats-route", ExcludeSelf: true,
+				Quote: runref.QuoteConf, Lead: ", ", Sep: ", ",
+			}.String(),
 			expected: `{{ $first := true }}{{ range nomadService "nats-cluster" }}{{ if ne .AllocID (env "NORCA_ALLOC_ID") }}` +
-				"{{ if not $first }}\n{{ end }}{{ $first = false }}" + `"nats-route://{{ .Address }}:{{ .Port }}"{{ end }}{{ end }}`,
+				`{{ if $first }}, {{ else }}, {{ end }}{{ $first = false }}"nats-route://{{ .Address }}:{{ .Port }}"{{ end }}{{ end }}`,
+		},
+		{
+			name: "the addresses of a service in a template", place: runref.PlaceTemplate,
+			text: runref.Part{Kind: runref.KindServices, Name: "db"}.String(),
+			expected: `{{ $first := true }}{{ range nomadService "db" }}` +
+				`{{ if $first }}{{ else }},{{ end }}{{ $first = false }}{{ .Address }}:{{ .Port }}{{ end }}`,
 		},
 		{name: "malformed", text: "xx", place: runref.PlaceJob, err: runref.ErrInvalid},
 	}

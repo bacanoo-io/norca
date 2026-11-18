@@ -15,10 +15,10 @@ cluster yet; that is phase 2.
 | Jobs | decoded by Norca's own decoder (a copy of `jobspec2` with `DecodeJob` in `cli/internal/jobspec2` until phase 7); meta-arguments and the `hook` block taken off first |
 | Runtime values (design 4.2) | `runtime`, `runtime_env`, `secret_ref`, `variable_ref`, `service_address`, `service_addresses` and the runtime references of a job are placeholders (package `runref`); the host writes them as `${...}` in a job's attributes and as `{{ env }}` / `norcaSecret` / `nomadVar` / `nomadService` in task templates |
 | Secrets (design 6.3) | a sensitive value goes only into an item of a Variable, where it becomes a secret item; anywhere else it is an error |
-| Functions | the HCL standard set under the usual names (`coalesce` skips empty strings), `file`, `templatefile` (inside the module only), `image_ref`, `natsconf` |
+| Functions | the HCL standard set under the usual names (`coalesce` skips empty strings, `length` counts objects), `issensitive`, `file`, `templatefile` (inside the module only), `image_ref`; the encoders `jsonencode`, `yamlencode`, `tomlencode`, `natsconf` written for Rig, runtime values quoted where they sit |
 | Hooks (design 5) | `hook { on, weight, timeout, delete }`, written by the Norca host as the `pack.hook*` meta keys of today's release API |
 | Tests (design 7.4) | `test` blocks of `tests/*.rigtest.hcl`: values in, assertions over `resource.<block>.<name>` (the block as written) and `output.<name>`, or an expected error |
-| CLI | `rig module validate [dir]` (files, icon, tests parsed, example values rendered); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
+| CLI | `rig fmt [-check]`; `rig module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rig module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rig module test [dir]`; log as a tree or JSON |
 
 ## What is checked
 
@@ -36,9 +36,8 @@ cluster yet; that is phase 2.
 
 ## What is not there yet
 
-- Phase 1: `rig fmt`, the warning on an unused variable, the encoders
-  `yamlencode` and `tomlencode`, a schema per resource kind (the kinds other
-  than jobs are the value of their block as JSON until then).
+- Phase 1: a schema per resource kind (the kinds other than jobs are the
+  value of their block as JSON until their kind is implemented).
 - Phase 2 on: releases (install, plan, apply, status, destroy), stacks,
   registries and versions, the lock file, signatures and trust, the global
   registry, the embedding into Norca.

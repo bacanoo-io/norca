@@ -1502,8 +1502,16 @@ locals and child modules in the order of their references, checks, the
 module's functions, runtime references resolved where they land, resources
 with `enabled`/`for_each`/`count`, hooks, sensitive values, outputs) through
 `Engine.Evaluate`; `natsconf`; and `module render` with Norca's job decoder.
-Next: `module test`, `fmt`, the warning on an unused variable, and the other
-encoders (`yamlencode`, `tomlencode`).
+`module test`; `fmt`; the warning on an unused variable in `module validate`;
+and the encoders `jsonencode`, `yamlencode`, `tomlencode`, `natsconf`, all
+Rig's own: an object's attributes by name, every string double-quoted and
+escaped, a runtime value quoted for where it sits, the addresses of
+`service_addresses()` as the last items of an inline list (so that an empty
+catalog still gives a list). `yamlencode` writes block style, `tomlencode`
+the values of a table before its subtables and a list of objects as an
+array of tables; JSON and YAML keep null, NATS and TOML leave it out. Phase 1
+is done but for a schema per resource kind (other kinds than jobs are the
+value of their block as JSON until their kind is implemented).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).

@@ -31,7 +31,6 @@ func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	funcs["variable_ref"] = itemFunc(runref.KindVariable)
 	funcs["service_address"] = serviceAddress
 	funcs["service_addresses"] = serviceAddresses
-	funcs["natsconf"] = natsconf
 
 	return funcs
 }

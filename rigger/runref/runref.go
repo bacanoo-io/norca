@@ -86,6 +86,12 @@ type Part struct {
 	NoPort bool `json:"p,omitempty"`
 	// ExcludeSelf leaves the own allocation out of the addresses.
 	ExcludeSelf bool `json:"x,omitempty"`
+	// Lead is written before the first address, Sep between two: an
+	// encoder that writes the addresses into a list sets them (", " after
+	// the known items of the list). Without Sep the addresses are
+	// separated by commas.
+	Lead string `json:"l,omitempty"`
+	Sep  string `json:"e,omitempty"`
 }
 
 // String returns the placeholder of the part.
@@ -295,13 +301,17 @@ func (p Part) address() string {
 	return a
 }
 
-// services is the list of the addresses of a service: separated by commas,
-// or with QuoteConf one double-quoted address per line, as an item of a
-// list of an encoded configuration.
+// services is the list of the addresses of a service: Lead before the
+// first, Sep (a comma by default) between two, each double-quoted with
+// QuoteConf, as the items of a list of an encoded configuration.
 func (p Part) services() string {
 	sep, prefix, suffix := ",", "", ""
+	if p.Sep != "" {
+		sep = p.Sep
+	}
+
 	if p.Quote == QuoteConf {
-		sep, prefix, suffix = "\n", `"`, `"`
+		prefix, suffix = `"`, `"`
 	}
 
 	var b strings.Builder
@@ -314,7 +324,7 @@ func (p Part) services() string {
 		b.WriteString(`{{ if ne .AllocID (env "NORCA_ALLOC_ID") }}`)
 	}
 
-	b.WriteString(`{{ if not $first }}` + sep + `{{ end }}{{ $first = false }}`)
+	b.WriteString(`{{ if $first }}` + p.Lead + `{{ else }}` + sep + `{{ end }}{{ $first = false }}`)
 	b.WriteString(prefix + p.address() + suffix)
 
 	if p.ExcludeSelf {
