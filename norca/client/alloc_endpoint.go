@@ -270,6 +270,13 @@ func (a *Allocations) execImpl(encoder *codec.Encoder, decoder *codec.Decoder, e
 		}
 	}
 
+	// check the ACL policies bound to the allocation's job
+	if aclObj != nil && !aclObj.IsManagement() {
+		if code, err := a.checkExecBoundPolicies(alloc, req.QueryOptions.AuthToken); err != nil {
+			return code, err
+		}
+	}
+
 	allocState, err := a.c.GetAllocState(req.AllocID)
 	if err != nil {
 		code := pointer.Of(int64(500))
@@ -305,6 +312,48 @@ func (a *Allocations) execImpl(encoder *codec.Encoder, decoder *codec.Decoder, e
 	}
 
 	return nil, nil
+}
+
+// checkExecBoundPolicies asks the servers whether the bearer token may exec
+// into the allocation as far as the ACL policies bound to its job go (review
+// finding JOG-14). A command run in a task sees the task's environment and
+// secrets directory, and with them its workload identity token and the
+// policies bound to the job; only the servers know those policies and the
+// token's roles. So every exec with a token that isn't management asks
+// Alloc.CheckExecBoundPolicies, whichever way the exec reached the client,
+// and nothing is cached: a policy bound or a role changed a moment ago
+// counts. When the servers can't answer, the exec is refused (fail closed),
+// even into an allocation whose job has no bound policies: the client
+// doesn't know which ones have.
+func (a *Allocations) checkExecBoundPolicies(alloc *nstructs.Allocation, bearerToken string) (*int64, error) {
+	args := nstructs.AllocSpecificRequest{
+		AllocID: alloc.ID,
+		QueryOptions: nstructs.QueryOptions{
+			Region:    a.c.Region(),
+			Namespace: alloc.Namespace,
+			AuthToken: bearerToken,
+		},
+	}
+	var reply nstructs.GenericResponse
+	err := a.c.RPC("Alloc.CheckExecBoundPolicies", &args, &reply)
+
+	// Client.RPC returns nil without asking when the client shuts down.
+	select {
+	case <-a.c.shutdownCh:
+		return nil, errors.New("client is shutting down")
+	default:
+	}
+
+	if err == nil {
+		return nil, nil
+	}
+	if code, msg, ok := nstructs.CodeFromRPCCodedErr(err); ok {
+		return pointer.Of(int64(code)), errors.New(msg)
+	}
+	if nstructs.IsErrPermissionDenied(err) {
+		return pointer.Of(int64(403)), err
+	}
+	return nil, fmt.Errorf("exec needs the servers to check the ACL policies bound to the job of allocation %q, and they could not: %w", alloc.ID, err)
 }
 
 // newExecStream returns a new exec stream as expected by drivers that interpolate with RPC streaming format

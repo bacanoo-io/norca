@@ -429,6 +429,14 @@ func (a *ClientAllocations) exec(conn io.ReadWriteCloser) {
 		// client ultimately checks if AllocNodeExec is required
 		handleStreamResultError(structs.ErrPermissionDenied, nil, encoder)
 		return
+	} else if denied, err := a.srv.execBoundPoliciesDenied(snap, aclObj, args.GetIdentity(), alloc); err != nil {
+		handleStreamResultError(err, nil, encoder)
+		return
+	} else if denied != nil {
+		// The client checks the same with Alloc.CheckExecBoundPolicies,
+		// whichever way the exec reaches it (JOG-14).
+		handleStreamResultError(denied, pointer.Of(int64(403)), encoder)
+		return
 	}
 
 	nodeID := alloc.NodeID

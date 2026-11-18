@@ -126,6 +126,34 @@ func (j *Job) checkJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL, 
 	return denied
 }
 
+// boundPoliciesNotHeld returns the ID of the job whose bound ACL policies the
+// allocations of job are granted (boundPolicyJobID) and the quoted names of
+// those policies the identity doesn't hold. missing is empty when the
+// identity holds them all, when none are bound, and when aclObj is nil (ACLs
+// disabled) or a management ACL.
+func (s *Server) boundPoliciesNotHeld(snap *state.StateSnapshot, aclObj *acl.ACL,
+	identity *structs.AuthenticatedIdentity, job *structs.Job) (boundID string, missing []string, err error) {
+
+	if aclObj == nil || aclObj.IsManagement() {
+		return "", nil, nil
+	}
+	boundID = boundPolicyJobID(job)
+	bound, err := jobBoundPolicyNames(snap, job.Namespace, boundID)
+	if err != nil || len(bound) == 0 {
+		return boundID, nil, err
+	}
+	held, err := s.heldPolicyNames(snap, identity)
+	if err != nil {
+		return boundID, nil, err
+	}
+	for _, name := range bound {
+		if !held[name] {
+			missing = append(missing, strconv.Quote(name))
+		}
+	}
+	return boundID, missing, nil
+}
+
 // missingBoundPolicies returns as denied the 403 error of
 // checkJobBoundPolicies when ACL policies are bound to the job and the
 // identity doesn't hold all of them, whether or not the registration would
@@ -134,26 +162,9 @@ func (j *Job) checkJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL, 
 func (s *Server) missingBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL,
 	identity *structs.AuthenticatedIdentity, job *structs.Job) (denied, err error) {
 
-	if aclObj == nil || aclObj.IsManagement() {
-		return nil, nil
-	}
-	boundID := boundPolicyJobID(job)
-	bound, err := jobBoundPolicyNames(snap, job.Namespace, boundID)
-	if err != nil || len(bound) == 0 {
+	boundID, missing, err := s.boundPoliciesNotHeld(snap, aclObj, identity, job)
+	if err != nil || len(missing) == 0 {
 		return nil, err
-	}
-	held, err := s.heldPolicyNames(snap, identity)
-	if err != nil {
-		return nil, err
-	}
-	var missing []string
-	for _, name := range bound {
-		if !held[name] {
-			missing = append(missing, strconv.Quote(name))
-		}
-	}
-	if len(missing) == 0 {
-		return nil, nil
 	}
 	to := "it"
 	if boundID != job.ID {
