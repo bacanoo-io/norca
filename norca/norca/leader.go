@@ -548,20 +548,21 @@ START:
 		// Perform a two-way diff
 		delete, update := diffNamespaces(s.State(), req.MinQueryIndex, resp.Namespaces)
 
-		// Delete namespaces that should not exist
-		if len(delete) > 0 {
+		// Delete namespaces that should not exist. Norca: one at a time,
+		// as the state store refuses a whole request for one namespace that
+		// still holds something here (a job, a volume, a variable, an
+		// object): the others are deleted all the same.
+		for _, name := range delete {
 			args := &structs.NamespaceDeleteRequest{
-				Namespaces: delete,
+				Namespaces: []string{name},
 			}
 			_, index, err := s.raftApply(structs.NamespaceDeleteRequestType, args)
 			if err != nil {
-				s.logger.Error("failed to delete namespaces", "error", err)
+				s.logger.Error("failed to delete namespace", "namespace", name, "error", err)
 				// Norca: an index says the request was applied and the
-				// state store refused it (a namespace deleted in the
-				// authoritative region still holds something here). That
-				// must not stop the replication of the other namespaces:
-				// go on with the updates, as when the refusal was not
-				// reported.
+				// state store refused it. That must not stop the
+				// replication of the other namespaces: go on, as when
+				// the refusal was not reported.
 				if index == 0 {
 					goto ERR_WAIT
 				}

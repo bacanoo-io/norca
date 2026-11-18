@@ -1805,6 +1805,53 @@ func TestLeader_ReplicateNamespaces(t *testing.T) {
 	})
 }
 
+// A namespace deleted in the authoritative region that still holds a job
+// in this one is kept here; the other namespaces deleted with it are
+// deleted (review finding MUK-3).
+func TestLeader_ReplicateNamespaces_DeleteRefused(t *testing.T) {
+	ci.Parallel(t)
+	s1, root, cleanupS1 := TestACLServer(t, func(c *Config) {
+		c.Region = "region1"
+		c.AuthoritativeRegion = "region1"
+	})
+	defer cleanupS1()
+	s2, _, cleanupS2 := TestACLServer(t, func(c *Config) {
+		c.Region = "region2"
+		c.AuthoritativeRegion = "region1"
+		c.ReplicationBackoff = 20 * time.Millisecond
+		c.ReplicationToken = root.SecretID
+	})
+	defer cleanupS2()
+	TestJoin(t, s1, s2)
+	testutil.WaitForLeader(t, s1.RPC)
+	testutil.WaitForLeader(t, s2.RPC)
+
+	busy, empty := mock.Namespace(), mock.Namespace()
+	must.NoError(t, s1.State().UpsertNamespaces(100, []*structs.Namespace{busy, empty}))
+	exists := func(name string) bool {
+		out, err := s2.State().NamespaceByName(nil, name)
+		must.NoError(t, err)
+		return out != nil
+	}
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return exists(busy.Name) && exists(empty.Name)
+	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)), must.Sprint("the namespaces are replicated"))
+
+	// A job that is not terminal holds the namespace busy in region2.
+	job := mock.Job()
+	job.Namespace = busy.Name
+	must.NoError(t, s2.State().UpsertJob(structs.MsgTypeTestSetup, 1000, nil, job))
+
+	// Both are deleted in one write: replication sees both gone at once.
+	must.NoError(t, s1.State().DeleteNamespaces(200, []string{busy.Name, empty.Name}))
+
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return !exists(empty.Name)
+	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)),
+		must.Sprint("the deletion of the busy namespace held back the empty one"))
+	must.True(t, exists(busy.Name), must.Sprint("the namespace with a job was deleted"))
+}
+
 func TestLeader_DiffNamespaces(t *testing.T) {
 	ci.Parallel(t)
 
