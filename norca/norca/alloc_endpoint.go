@@ -203,9 +203,9 @@ func (a *Alloc) GetAllocs(args *structs.AllocsGetRequest,
 
 	authErr := a.srv.Authenticate(a.ctx, args)
 
-	// Ensure the connection was initiated by a client if TLS is used.
-	err := validateTLSCertificateLevel(a.srv, a.ctx, tlsCertificateLevelClient)
-	if err != nil {
+	// Ensure the request stays in the region and, if TLS is used, that the
+	// connection was initiated by a client or server of the region.
+	if err := a.srv.checkNodeRPCRegion(a.ctx, args); err != nil {
 		return err
 	}
 	if done, err := a.srv.forward("Alloc.GetAllocs", args, args, reply); done {

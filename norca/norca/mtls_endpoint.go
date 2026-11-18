@@ -95,6 +95,9 @@ func (m *MTLS) Roots(args *structs.MTLSRootsRequest, reply *structs.MTLSRootsRes
 // the CSR, so private keys never travel over RPC.
 func (m *MTLS) SignCertificate(args *structs.MTLSSignRequest, reply *structs.MTLSSignResponse) error {
 	authErr := m.srv.Authenticate(m.ctx, args)
+	if err := m.srv.checkNodeRPCRegion(m.ctx, args); err != nil {
+		return err
+	}
 	if done, err := m.srv.forward("MTLS.SignCertificate", args, args, reply); done {
 		return err
 	}

@@ -102,6 +102,9 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 	// that initial request; we lean on mTLS for handling that safely
 	authErr := n.srv.Authenticate(n.ctx, args)
 
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		return err
+	}
 	isForwarded := args.IsForwarded()
 	if done, err := n.srv.forward("Node.Register", args, args, reply); done {
 		// We have a valid node connection since there is no error from the
@@ -556,6 +559,9 @@ func (n *Node) callerIsNode(args structs.RequestWithIdentity, nodeID string) boo
 func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *structs.NodeUpdateResponse) error {
 	authErr := n.srv.Authenticate(n.ctx, args)
 
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		return err
+	}
 	isForwarded := args.IsForwarded()
 	if done, err := n.srv.forward("Node.UpdateStatus", args, args, reply); done {
 		// We have a valid node connection since there is no error from the
@@ -1235,6 +1241,9 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 	reply *structs.NodeClientAllocsResponse) error {
 
 	authErr := n.srv.Authenticate(n.ctx, args)
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		return err
+	}
 	isForwarded := args.IsForwarded()
 	if done, err := n.srv.forward("Node.GetClientAllocs", args, args, reply); done {
 		// We have a valid node connection since there is no error from the
@@ -1390,9 +1399,9 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 
 	authErr := n.srv.Authenticate(n.ctx, args)
 
-	// Ensure the connection was initiated by another client if TLS is used.
-	err := validateTLSCertificateLevel(n.srv, n.ctx, tlsCertificateLevelClient)
-	if err != nil {
+	// Ensure the request stays in the region and, if TLS is used, that the
+	// connection was initiated by a client or server of the region.
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
 		return err
 	}
 	if done, err := n.srv.forward("Node.UpdateAlloc", args, args, reply); done {
@@ -1887,6 +1896,10 @@ func (n *Node) DeriveVaultToken(args *structs.DeriveVaultTokenRequest, reply *st
 		}
 	}
 
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		setError(err, false)
+		return nil
+	}
 	if done, err := n.srv.forward("Node.DeriveVaultToken", args, args, reply); done {
 		setError(err, structs.IsRecoverable(err) || err == structs.ErrNoLeader)
 		return nil
@@ -2114,6 +2127,10 @@ func (n *Node) DeriveSIToken(args *structs.DeriveSITokenRequest, reply *structs.
 		}
 	}
 
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		setError(err, false)
+		return nil
+	}
 	if done, err := n.srv.forward("Node.DeriveSIToken", args, args, reply); done {
 		setError(err, structs.IsRecoverable(err) || err == structs.ErrNoLeader)
 		return nil
@@ -2341,9 +2358,9 @@ func (n *Node) EmitEvents(args *structs.EmitNodeEventsRequest, reply *structs.Em
 
 	authErr := n.srv.Authenticate(n.ctx, args)
 
-	// Ensure the connection was initiated by another client if TLS is used.
-	err := validateTLSCertificateLevel(n.srv, n.ctx, tlsCertificateLevelClient)
-	if err != nil {
+	// Ensure the request stays in the region and, if TLS is used, that the
+	// connection was initiated by a client or server of the region.
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
 		return err
 	}
 	if done, err := n.srv.forward("Node.EmitEvents", args, args, reply); done {

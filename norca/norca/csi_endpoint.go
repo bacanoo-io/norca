@@ -459,6 +459,9 @@ func (v *CSIVolume) Deregister(args *structs.CSIVolumeDeregisterRequest, reply *
 func (v *CSIVolume) Claim(args *structs.CSIVolumeClaimRequest, reply *structs.CSIVolumeClaimResponse) error {
 
 	authErr := v.srv.Authenticate(v.ctx, args)
+	if err := v.srv.checkNodeRPCRegion(v.ctx, args); err != nil {
+		return err
+	}
 	if done, err := v.srv.forward("CSIVolume.Claim", args, args, reply); done {
 		return err
 	}

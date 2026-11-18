@@ -44,8 +44,9 @@ func (s *ServiceRegistration) Upsert(
 
 	authErr := s.srv.Authenticate(s.ctx, args)
 
-	// Ensure the connection was initiated by a client if TLS is used.
-	if err := validateTLSCertificateLevel(s.srv, s.ctx, tlsCertificateLevelClient); err != nil {
+	// Ensure the request stays in the region and, if TLS is used, that the
+	// connection was initiated by a client or server of the region.
+	if err := s.srv.checkNodeRPCRegion(s.ctx, args); err != nil {
 		return err
 	}
 	if done, err := s.srv.forward(structs.ServiceRegistrationUpsertRPCMethod, args, args, reply); done {

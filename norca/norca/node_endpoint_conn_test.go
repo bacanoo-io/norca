@@ -92,9 +92,10 @@ func TestClientEndpoint_UpdateStatus_ConnOfNodeOnly(t *testing.T) {
 // node does not exist, both returned without an error although nobody
 // checked the node's secret (GetClientAllocs refuses an unknown node since
 // review finding JOG-5); the first server then took the caller's connection
-// for the newest connection of the node. The node itself still registers its
-// connection through every path: at the server it reaches, and through a
-// follower that forwards to the leader.
+// for the newest connection of the node. Since review finding JOG-18 the
+// first server refuses both, as node RPCs stay in their region. The node
+// itself still registers its connection through every path: at the server it
+// reaches, and through a follower that forwards to the leader.
 func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) {
 	ci.Parallel(t)
 
@@ -177,8 +178,7 @@ func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) 
 	takeovers := []struct {
 		name    string
 		request func(victim *structs.Node) (string, any, any)
-		// refused is the error of a region that does not know the node,
-		// or "" when the call passes there.
+		// refused is the error of the call, or "" when the call passes.
 		refused string
 	}{
 		{
@@ -186,14 +186,19 @@ func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) 
 			request: func(victim *structs.Node) (string, any, any) {
 				return clientAllocs(victim.ID, uuid.Generate(), otherRegion, "", false)
 			},
-			// an unknown node is answered like a wrong secret
-			refused: "node secret ID does not match",
+			// node RPCs are not forwarded to another region (review
+			// finding JOG-18); before, the other region answered the
+			// unknown node like a wrong secret
+			refused: nodeRPCRegionErr,
 		},
 		{
 			name: "Register addressed to the other region",
 			request: func(victim *structs.Node) (string, any, any) {
 				return register(forged(victim.ID), otherRegion, "")
 			},
+			// before review finding JOG-18 the other region registered the
+			// node and the call passed
+			refused: nodeRPCRegionErr,
 		},
 	}
 	for _, s := range servers {
@@ -201,9 +206,9 @@ func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) 
 			t.Run(s.name+"/"+tc.name, func(t *testing.T) {
 				victim := newNode(t)
 				method, req, reply := tc.request(victim)
-				// The other region does not know the node: where it has
-				// nothing to refuse, that the call passes is what the
-				// takeover needed.
+				// Where the call passes, that it passes is what the
+				// takeover needs; the connection must not become the
+				// node's either way.
 				err := call(t, s.srv, method, req, reply)
 				if tc.refused != "" {
 					must.ErrorContains(t, err, tc.refused)

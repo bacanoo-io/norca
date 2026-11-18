@@ -600,6 +600,9 @@ func (n *NetworkPolicy) Status(args *structs.NetworkPolicyStatusRequest, reply *
 // capabilities in the namespace of the allocation.
 func (n *NetworkPolicy) GetAllocRules(args *structs.NetworkPolicyAllocRequest, reply *structs.NetworkPolicyAllocResponse) error {
 	authErr := n.srv.Authenticate(n.ctx, args)
+	if err := n.srv.checkNodeRPCRegion(n.ctx, args); err != nil {
+		return err
+	}
 	if done, err := n.srv.forward("NetworkPolicy.GetAllocRules", args, args, reply); done {
 		return err
 	}
