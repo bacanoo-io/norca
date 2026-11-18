@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/stream"
@@ -449,7 +450,7 @@ func encodeEventJSON(ev *structs.Event) ([]byte, error) {
 // ensurePushStream creates the stream of the pack push notices. Its subject
 // is the one only the servers publish (bus.PushStoredSubject), so that its
 // acknowledgements go to the servers only; what a pipeline publishes on
-// <prefix>.packs.pushed is stored by relayPushNotices.
+// <prefix>.packs.pushed is stored by pushRelay.
 func (s *Server) ensurePushStream(ctx context.Context, js jetstream.JetStream) error {
 	prefix := s.config.Bus.Events.SubjectPrefix
 	return bus.EnsureStream(ctx, js, pushStreamName, "Norca pack push notices",
@@ -464,47 +465,114 @@ func (s *Server) ensurePushStream(ctx context.Context, js jetstream.JetStream) e
 		})
 }
 
-// relayPushNotices stores the pack push notices that connections with the
-// bus rule for them publish on <prefix>.packs.pushed (and below it): every
+// pushRelay stores the pack push notices that connections with the bus
+// rule for them publish on <prefix>.packs.pushed (and below it): every
 // server subscribes in one queue group, and the one that gets a notice
 // publishes its body on the subject of the stream. The notice is taken as
 // it is, without its reply subject and its headers: the publisher gets no
 // acknowledgement (a stream would send it wherever the publisher said), and
-// sets no JetStream header of the stored message. A notice published while
-// no server listens, or that can't be stored, is lost; the API
-// (Packs.NotifyPush) confirms a notice.
-func (s *Server) relayPushNotices(ctx context.Context, js jetstream.JetStream) error {
+// sets no JetStream header of the stored message (the relay sets only the
+// message ID). A notice published while no server listens, or that is empty
+// or too large, is lost; the API (Packs.NotifyPush) confirms a notice. A
+// notice the relay took but could not store is kept, at most
+// pushRelayBuffer of them, and stored first by the next run of the relay
+// (its loop restarts after the error).
+type pushRelay struct {
+	srv *Server
+
+	// pending are the notices taken and not stored yet, oldest first.
+	// Only the loop of the relay uses them, one run at a time.
+	pending []pushRelayNotice
+}
+
+// pushRelayNotice is a notice of the relay with the message ID it is
+// stored with, so that a store retried after a timeout is not stored twice
+// (the stream drops duplicates within a minute).
+type pushRelayNotice struct {
+	id   string
+	data []byte
+}
+
+// run is a run of the relay loop (busRetryLoop).
+func (r *pushRelay) run(ctx context.Context, js jetstream.JetStream) error {
+	s := r.srv
 	if err := s.ensurePushStream(ctx, js); err != nil {
 		return fmt.Errorf("creating the stream %s: %w", pushStreamName, err)
+	}
+	if err := r.store(ctx, js); err != nil {
+		return err
 	}
 	prefix := s.config.Bus.Events.SubjectPrefix
 	nc := js.Conn()
 	notices := make(chan *nats.Msg, pushRelayBuffer)
+	var subs []*nats.Subscription
+	// On the way out the subscriptions end first, so that the other
+	// servers get the notices published from then on; the notices this
+	// one took meanwhile are kept for its next run.
+	defer func() {
+		for _, sub := range subs {
+			_ = sub.Unsubscribe()
+		}
+		for {
+			select {
+			case msg := <-notices:
+				r.keep(msg)
+			default:
+				return
+			}
+		}
+	}()
 	for _, subject := range []string{prefix + "." + bus.PushSubject, prefix + "." + bus.PushSubject + ".>"} {
 		sub, err := nc.ChanQueueSubscribe(subject, pushRelayQueue, notices)
 		if err != nil {
 			return fmt.Errorf("subscribing to %s: %w", subject, err)
 		}
-		defer func() { _ = sub.Unsubscribe() }()
+		subs = append(subs, sub)
 	}
-	stored := prefix + "." + bus.PushStoredSubject
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case msg := <-notices:
-			if len(msg.Data) == 0 || len(msg.Data) > pushNoticeMaxSize {
-				s.logger.Debug("system bus: a pack push notice of the bus is left out", "subject", msg.Subject, "size", len(msg.Data))
-				continue
-			}
-			storeCtx, cancel := context.WithTimeout(ctx, pushRelayTimeout)
-			_, err := js.Publish(storeCtx, stored, msg.Data)
-			cancel()
-			if err != nil {
-				return fmt.Errorf("storing a pack push notice of the bus: %w", err)
+			r.keep(msg)
+			if err := r.store(ctx, js); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+// keep adds a notice to the pending ones. An empty or too large one is left
+// out; beyond pushRelayBuffer the oldest is dropped.
+func (r *pushRelay) keep(msg *nats.Msg) {
+	if len(msg.Data) == 0 || len(msg.Data) > pushNoticeMaxSize {
+		r.srv.logger.Debug("system bus: a pack push notice of the bus is left out", "subject", msg.Subject, "size", len(msg.Data))
+		return
+	}
+	if len(r.pending) >= pushRelayBuffer {
+		r.srv.logger.Warn("system bus: too many pack push notices could not be stored, the oldest is dropped", "kept", len(r.pending))
+		r.pending[0] = pushRelayNotice{}
+		r.pending = r.pending[1:]
+	}
+	r.pending = append(r.pending, pushRelayNotice{id: uuid.Generate(), data: msg.Data})
+}
+
+// store stores the pending notices in order. A failure keeps the notice
+// that failed and the ones after it.
+func (r *pushRelay) store(ctx context.Context, js jetstream.JetStream) error {
+	stored := r.srv.config.Bus.Events.SubjectPrefix + "." + bus.PushStoredSubject
+	for len(r.pending) > 0 {
+		n := r.pending[0]
+		storeCtx, cancel := context.WithTimeout(ctx, pushRelayTimeout)
+		_, err := js.Publish(storeCtx, stored, n.data, jetstream.WithMsgID(n.id))
+		cancel()
+		if err != nil {
+			return fmt.Errorf("storing a pack push notice of the bus (%d kept): %w", len(r.pending), err)
+		}
+		r.pending[0] = pushRelayNotice{}
+		r.pending = r.pending[1:]
+	}
+	return nil
 }
 
 // consumePushNotices syncs the registries named by pack push notices. The

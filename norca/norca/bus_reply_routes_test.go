@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -454,4 +455,27 @@ func TestBusEvents_PushNoticeRelay(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a token published the stored subject of the push notices")
 	}
+
+	// A notice the relay takes but can't store (here the stream is gone)
+	// is kept and stored by the next run of the relay, which creates the
+	// stream again (review finding MUK-18).
+	must.NoError(t, js.DeleteStream(t.Context(), pushStreamName))
+	must.NoError(t, nc.Publish("norca.packs.pushed", []byte(`{"Registry":"kept-test"}`)))
+	must.NoError(t, nc.Flush())
+	waitBus(t, func() (bool, error) {
+		stream, err := js.Stream(t.Context(), pushStreamName)
+		if err != nil {
+			return false, err
+		}
+		info, err := stream.Info(t.Context())
+		if err != nil {
+			return false, err
+		}
+		for seq := info.State.FirstSeq; seq != 0 && seq <= info.State.LastSeq; seq++ {
+			if msg, err := stream.GetMsg(t.Context(), seq); err == nil && bytes.Contains(msg.Data, []byte("kept-test")) {
+				return true, nil
+			}
+		}
+		return false, errors.New("the notice that could not be stored was lost")
+	})
 }

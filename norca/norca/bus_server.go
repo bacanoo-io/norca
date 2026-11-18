@@ -106,7 +106,7 @@ func (s *Server) setupBus() error {
 	go s.busRetryLoop(s.shutdownCtx, "consuming the task group usage", s.consumeTelemetry)
 	go s.busRetryLoop(s.shutdownCtx, "answering the stream information requests of the readers", s.serveReaderStreamInfo)
 	if s.config.Bus.Events.Enabled {
-		go s.busRetryLoop(s.shutdownCtx, "storing the pack push notices of the bus", s.relayPushNotices)
+		go s.busRetryLoop(s.shutdownCtx, "storing the pack push notices of the bus", (&pushRelay{srv: s}).run)
 	}
 	return nil
 }
