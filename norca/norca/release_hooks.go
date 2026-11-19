@@ -77,7 +77,7 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 	fail := func(status, format string, args ...any) *structs.ReleaseHookResult {
 		result.Status, result.Message = status, fmt.Sprintf(format, args...)
 		if res.HookDeletePolicy() == structs.ReleaseHookDeleteAlways {
-			_ = op.deleteResource(ref)
+			_ = op.purgeHookJob(ref)
 		}
 		return result
 	}
@@ -95,10 +95,13 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 		result.Message = "a job of this ID exists and does not belong to the release"
 		return result
 	}
-	if err := op.deleteResource(ref); err != nil {
+	if err := op.purgeHookJob(ref); err != nil {
 		return fail(structs.ReleaseHookFailed, "failed to purge the previous run: %v", err)
 	}
-	if _, err := op.applyResource(res); err != nil {
+	// Registered only if the ID is still free: a job registered since the
+	// purge is not overwritten.
+	var absent uint64
+	if _, err := op.applyResourceAt(res, &absent); err != nil {
 		return fail(structs.ReleaseHookFailed, "failed to register: %v", err)
 	}
 
@@ -109,7 +112,7 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 	case err != nil:
 		// Stop a hook that ran out of time, unless it is kept for debugging.
 		if res.HookDeletePolicy() != structs.ReleaseHookDeleteNever {
-			_ = op.deleteResource(ref)
+			_ = op.purgeHookJob(ref)
 		}
 		return fail(structs.ReleaseHookTimeout, "%v", err)
 	case !ok:
@@ -118,11 +121,30 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 
 	result.Status, result.Message = structs.ReleaseHookSucceeded, msg
 	if res.HookDeletePolicy() != structs.ReleaseHookDeleteNever {
-		if err := op.deleteResource(ref); err != nil {
+		if err := op.purgeHookJob(ref); err != nil {
 			op.warn("failed to purge hook job %q: %v", job.ID, err)
 		}
 	}
 	return result
+}
+
+// purgeHookJob purges the job of a hook if it is the release's. The job is
+// read again right before: its ID may have been taken by a job that is not
+// the release's since the hook was registered (review finding ATM-2). A
+// purge has no check-and-set, so only a job registered within the purge
+// RPC itself can still be hit.
+func (op *releaseOp) purgeHookJob(ref *structs.ReleaseResourceRef) error {
+	job, err := op.m.srv.State().JobByID(nil, ref.Namespace, ref.Name)
+	switch {
+	case err != nil:
+		return err
+	case job == nil:
+		return nil
+	case !jobOfRelease(job, op.namespace, op.name):
+		op.warn("hook job %q was not purged: a job that does not belong to the release has its ID", ref.Name)
+		return nil
+	}
+	return op.deleteResource(ref)
 }
 
 // waitHookJob waits until a hook job has finished: all its evaluations and
@@ -138,6 +160,9 @@ func (op *releaseOp) waitHookJob(ctx context.Context, hook *structs.Job) (bool, 
 		}
 		if job == nil {
 			return false, "the hook job was removed", nil
+		}
+		if !jobOfRelease(job, op.namespace, op.name) {
+			return false, "the hook job was replaced by a job that does not belong to the release", nil
 		}
 		evals, err := store.EvalsByJob(ws, hook.Namespace, hook.ID)
 		if err != nil {

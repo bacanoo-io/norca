@@ -11,6 +11,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/admission"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
@@ -212,4 +213,51 @@ func TestRelease_VariableWriteIsCheckedAndSet(t *testing.T) {
 	})
 	must.NoError(t, err)
 	must.Eq(t, map[string]string{"user": "admin2", "password": "rotated"}, items())
+}
+
+// A hook job is registered only while its ID is free (review finding
+// ATM-2): the check-and-set write of a job is refused when the job exists
+// or changed, and leaves it alone.
+func TestRelease_ApplyResourceAtJob(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	defer cancel()
+	stored := func() *structs.Job {
+		t.Helper()
+		job, err := c.srv.State().JobByID(nil, "default", "migrate")
+		must.NoError(t, err)
+		return job
+	}
+	job := func(image string) *structs.ReleaseResource {
+		j := mock.BatchJob()
+		j.ID, j.Name, j.Namespace = "migrate", "migrate", "default"
+		j.Meta = map[string]string{"image": image}
+		return &structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: j}
+	}
+
+	var absent uint64
+	_, err := op.applyResourceAt(job("v1"), &absent)
+	must.NoError(t, err)
+	first := stored().JobModifyIndex
+
+	// It exists now: neither "absent" nor another index is written.
+	_, err = op.applyResourceAt(job("v2"), &absent)
+	must.ErrorContains(t, err, RegisterEnforceIndexErrPrefix)
+	stale := first - 1
+	_, err = op.applyResourceAt(job("v2"), &stale)
+	must.ErrorContains(t, err, RegisterEnforceIndexErrPrefix)
+	must.Eq(t, first, stored().JobModifyIndex)
+	must.Eq(t, "v1", stored().Meta["image"])
+
+	// The index it has: written.
+	_, err = op.applyResourceAt(job("v2"), &first)
+	must.NoError(t, err)
+	must.Eq(t, "v2", stored().Meta["image"])
+
+	// Other types have no check-and-set write here.
+	_, err = op.applyResourceAt(&structs.ReleaseResource{Type: structs.ReleaseResourceNamespace,
+		Namespace: &structs.Namespace{Name: "app-ns"}}, &absent)
+	must.ErrorContains(t, err, "check-and-set")
 }

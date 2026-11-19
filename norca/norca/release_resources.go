@@ -304,11 +304,13 @@ func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, 
 }
 
 // applyResourceAt is applyResource, and with index set a check-and-set write
-// of a Variable: it is written only if its ModifyIndex is still *index, 0
-// meaning that it must not exist. A changed Variable fails with an error
-// wrapping errReleaseResourceChanged. Other types can't be written so.
+// of a Variable or a job: it is written only if its ModifyIndex (of a job:
+// JobModifyIndex) is still *index, 0 meaning that it must not exist. A
+// changed Variable fails with an error wrapping errReleaseResourceChanged, a
+// changed job with the error of the job endpoint, which starts with
+// RegisterEnforceIndexErrPrefix. Other types can't be written so.
 func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64) (*applyResult, error) {
-	if index != nil && res.Type != structs.ReleaseResourceVariable {
+	if index != nil && res.Type != structs.ReleaseResourceVariable && res.Type != structs.ReleaseResourceJob {
 		return nil, fmt.Errorf("a %s can't be written with check-and-set", res.Type)
 	}
 	srv := op.m.srv
@@ -397,10 +399,12 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 		if res.Submission != nil {
 			sub = res.Submission.Copy()
 		}
+		req := &structs.JobRegisterRequest{Job: j, Submission: sub, WriteRequest: op.writeRequest(j.Namespace)}
+		if index != nil {
+			req.EnforceIndex, req.JobModifyIndex = true, *index
+		}
 		var reply structs.JobRegisterResponse
-		err := srv.RPC("Job.Register", &structs.JobRegisterRequest{
-			Job: j, Submission: sub, WriteRequest: op.writeRequest(j.Namespace),
-		}, &reply)
+		err := srv.RPC("Job.Register", req, &reply)
 		out.evalID, out.warnings = reply.EvalID, reply.Warnings
 		return out, err
 	}

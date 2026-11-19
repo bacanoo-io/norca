@@ -5,12 +5,14 @@ package norca
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 // A release only purges a job under the ID of one of its hooks when the job
@@ -87,4 +89,63 @@ func TestRelease_HookJobOfAnotherOwnerIsKept(t *testing.T) {
 	must.NoError(t, err)
 	must.Nil(t, c.get("default", "app"))
 	must.NotNil(t, live(), must.Sprint("the unrelated job after the release was deleted"))
+}
+
+// A hook job is purged only while it is the release's (review finding
+// ATM-2): a job that took its ID while the hook ran is not purged when the
+// hook ends, and the release does not wait for it.
+func TestRelease_HookJobReplacedWhileRunningIsKept(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	hook := mock.BatchJob()
+	hook.ID, hook.Name, hook.Namespace = "migrate", "migrate", ""
+	hook.Meta = map[string]string{
+		structs.ReleaseMetaHook:        structs.ReleaseHookPreInstall,
+		structs.ReleaseMetaHookTimeout: "5s",
+	}
+	live := func() *structs.Job {
+		job, err := c.srv.State().JobByID(nil, "default", "migrate")
+		must.NoError(t, err)
+		return job
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.apply("default", "app", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "app"},
+			Resources: []*structs.ReleaseResource{
+				{Type: structs.ReleaseResourceJob, Job: testReleaseJob("app-web")},
+				{Type: structs.ReleaseResourceJob, Job: hook},
+			},
+		})
+		done <- err
+	}()
+
+	// The hook runs (it can't finish without nodes); somebody registers a
+	// job of the same ID that is not the release's.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		job := live()
+		return jobOfRelease(job, "default", "app")
+	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)))
+	unrelated := mock.BatchJob()
+	unrelated.ID, unrelated.Name, unrelated.Namespace = "migrate", "migrate", "default"
+	var reg structs.JobRegisterResponse
+	// Another connection: the install is waiting on c.codec.
+	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, c.srv), "Job.Register", &structs.JobRegisterRequest{
+		Job:          unrelated,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: c.token},
+	}, &reg))
+
+	select {
+	case err := <-done:
+		must.Error(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("the install did not end")
+	}
+	job := live()
+	must.NotNil(t, job, must.Sprint("the job that took the ID of the hook was purged"))
+	must.Eq(t, "", job.Meta[structs.ReleaseMetaRelease])
+	must.Eq(t, reg.JobModifyIndex, job.JobModifyIndex)
 }
