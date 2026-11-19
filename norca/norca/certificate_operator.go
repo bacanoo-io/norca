@@ -330,11 +330,15 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 
 	switch refused := o.refusal(p, obj, spec, issuerObj, issuerSpec, secret, ours); {
 	case refused != nil:
-		// Nothing is issued for a certificate that is not allowed; what it
-		// has stays until it expires. An open order is dropped.
+		// Nothing is issued for a certificate that is not allowed, and an
+		// open order is dropped. What it has stays until it expires, unless
+		// the namespace lost the names: then it is taken back.
 		out.failedReason, out.failedMessage = refused.reason, refused.message
 		o.dropOrder(p, &st)
 		st.Failures, st.RetryAt = 0, ""
+		if refused.lostNames {
+			o.withdraw(p, obj, spec, &st, secret, ours, refused.message, out)
+		}
 
 	default:
 		why := o.issuanceNeeded(p, spec, &st, have, issuerSpec)
@@ -402,7 +406,14 @@ func certificateFailure(status map[string]any) (reason, message string) {
 }
 
 // certificateRefusal says why nothing may be issued for a certificate.
-type certificateRefusal struct{ reason, message string }
+type certificateRefusal struct {
+	reason, message string
+
+	// lostNames: the namespace may not ask for the names or the issuer of
+	// the certificate (NamesNotAllowed), whatever kind of issuer signs
+	// them; what it holds is taken back (withdraw).
+	lostNames bool
+}
 
 // refusal checks what must hold before anything is issued for a
 // certificate: the spec, the issuer, what the namespace may ask for, and
@@ -413,23 +424,117 @@ func (o *certificateOperator) refusal(p *certificatePass, obj *structs.CustomObj
 	issuerObj *structs.CustomObject, issuerSpec *structs.CertificateIssuerSpec, secret *structs.Secret, ours bool) *certificateRefusal {
 
 	if err := spec.Validate(); err != nil {
-		return &certificateRefusal{"InvalidSpec", err.Error()}
+		return &certificateRefusal{reason: "InvalidSpec", message: err.Error()}
 	}
 	if issuerObj == nil || issuerObj.Deleting() {
-		return &certificateRefusal{"IssuerNotFound", fmt.Sprintf("the issuer %q does not exist", spec.Issuer)}
+		return &certificateRefusal{reason: "IssuerNotFound", message: fmt.Sprintf("the issuer %q does not exist", spec.Issuer)}
 	}
 	ns, err := p.store.NamespaceByName(nil, obj.Namespace)
 	if err != nil {
-		return &certificateRefusal{"NamespaceLookupFailed", err.Error()}
+		return &certificateRefusal{reason: "NamespaceLookupFailed", message: err.Error()}
 	}
 	if err := structs.CheckCertificateNames(spec, ns, issuerSpec.Builtin != nil); err != nil {
-		return &certificateRefusal{"NamesNotAllowed", err.Error()}
+		// IP addresses that an issuer recreated as an external one can't
+		// sign are no right the namespace lost.
+		lost := structs.CheckCertificateNames(spec, ns, true) != nil
+		return &certificateRefusal{reason: "NamesNotAllowed", message: err.Error(), lostNames: lost}
 	}
 	if secret != nil && !ours {
-		return &certificateRefusal{"SecretConflict", fmt.Sprintf(
+		return &certificateRefusal{reason: "SecretConflict", message: fmt.Sprintf(
 			"the secret %q exists and was not written for this certificate: delete it or choose another secret_path", spec.SecretPath)}
 	}
 	return nil
+}
+
+// withdraw takes back the certificate of a namespace that may no longer ask
+// for its names or its issuer (review finding ATM-21): the names may be
+// another namespace's now, and the key and a valid certificate for them must
+// not stay with it until the certificate expires. A certificate that is
+// still valid is revoked with its issuer (cessationOfOperation), what the
+// secret holds for the certificate is destroyed (removeSecret), and then the
+// status no longer says that a certificate is held. A failed revocation
+// keeps the serial in the status for the next pass to try again; the secret
+// is emptied all the same.
+func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
+	st *structs.CertificateStatus, secret *structs.Secret, ours bool, why string, out *certificateOutcome) {
+
+	serial := st.Serial
+	notAfter, _ := time.Parse(time.RFC3339, st.NotAfter)
+	revoked := true
+	if serial != "" && st.Revoke != serial && p.now.Before(notAfter) {
+		err := o.srv.revokeWithIssuer(p.store, obj, st, structs.CertificateRevokeReasonCessationOfOperation)
+		if err != nil {
+			revoked = false
+			o.logger.Warn("failed to revoke the certificate of a namespace that may no longer ask for it",
+				"namespace", obj.Namespace, "certificate", obj.Name, "serial", serial, "error", err)
+			out.failedMessage += fmt.Sprintf("; revoking the certificate with the serial %s failed: %v", serial, err)
+			p.want(p.now.Add(operatorsRetry))
+		} else {
+			st.Revoke = serial
+		}
+	}
+
+	removed, err := o.removeSecret(obj, spec, secret, ours)
+	if errors.Is(err, structs.ErrSecretConflict) {
+		o.secretChanged(p, obj, spec)
+		return
+	}
+	if err != nil {
+		o.logger.Warn("failed to take the certificate of a namespace that may no longer ask for it out of its secret",
+			"namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
+		out.failedMessage += fmt.Sprintf("; taking the certificate out of the secret %q failed: %v", spec.SecretPath, err)
+		p.want(p.now.Add(operatorsRetry))
+		return
+	}
+	// The secret holds no certificate of the operator now.
+	out.ready = false
+	if !revoked || (serial == "" && !removed) {
+		return
+	}
+
+	*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke}
+	message := fmt.Sprintf("the namespace may no longer ask for this certificate (%s)", why)
+	if serial != "" && st.Revoke == serial {
+		message += fmt.Sprintf(": the certificate with the serial %s is revoked", serial)
+	}
+	if removed {
+		message += fmt.Sprintf("; what the secret %q held for it is destroyed", spec.SecretPath)
+	}
+	operatorCount(structs.CertificateKind, "withdrawn")
+	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Withdrawn", message)
+}
+
+// removeSecret destroys what the secret of a certificate holds for it: with
+// delete_secret the whole secret, as at the deletion of the certificate
+// (finishDeletion), else every version that is not destroyed yet (the
+// metadata, with the label of the certificate, stays for the next issuance).
+// The operator writes nothing else into the secret. Only a secret that is
+// the certificate's own is touched, and only as the pass read it: one
+// changed since fails with structs.ErrSecretConflict. It reports whether
+// anything was destroyed.
+func (o *certificateOperator) removeSecret(obj *structs.CustomObject, spec *structs.CertificateSpec, secret *structs.Secret, ours bool) (bool, error) {
+	if secret == nil || !ours {
+		return false, nil
+	}
+	read := secret.ModifyIndex
+	args := &structs.SecretVersionsRequest{Path: spec.SecretPath, CheckIndex: &read}
+	args.Namespace = obj.Namespace
+	args.Region = o.srv.Region()
+	if !spec.DeleteSecret {
+		for _, v := range secret.Versions {
+			if !v.Destroyed {
+				args.Versions = append(args.Versions, v.Version)
+			}
+		}
+		if len(args.Versions) == 0 {
+			return false, nil
+		}
+	}
+	_, _, err := o.srv.secretVersionsOp(structs.SecretOpDestroy, args)
+	if errors.Is(err, structs.ErrSecretNotFound) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // issuanceNeeded says why a certificate has to be issued now, or "".

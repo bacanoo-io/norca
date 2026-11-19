@@ -455,15 +455,20 @@ func TestCertificate_Refusals(t *testing.T) {
 	must.NoError(t, err)
 	issued := c.waitFor("default", "web-tls", "issued", certReady)
 
-	// The namespace loses the name: nothing new is issued, the certificate
-	// it has stays.
+	// The namespace loses the name: nothing new is issued, and the
+	// certificate it has is taken back (TestCertificate_LostNames).
 	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
-	kept := c.waitFor("default", "web-tls", "NamesNotAllowed", failed("NamesNotAllowed"))
-	must.Eq(t, issued.Serial, kept.Serial)
+	withdrawn := c.waitFor("default", "web-tls", "NamesNotAllowed", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return failed("NamesNotAllowed")(obj, st) && st.Serial == ""
+	})
+	must.Eq(t, issued.Serial, withdrawn.Revoke)
 	obj, _ := c.certificate("default", "web-tls")
-	must.True(t, objectConditionTrue(obj.Status, structs.CertificateConditionReady))
+	must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionReady))
 	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
-	c.waitFor("default", "web-tls", "allowed again", failed(""))
+	again := c.waitFor("default", "web-tls", "allowed again", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return failed("")(obj, st) && certReady(obj, st)
+	})
+	must.NotEq(t, issued.Serial, again.Serial)
 
 	// A secret that is someone else's is not overwritten.
 	var w structs.SecretWriteResponse
@@ -473,6 +478,173 @@ func TestCertificate_Refusals(t *testing.T) {
 	must.NoError(t, err)
 	c.waitFor("default", "taken", "SecretConflict", failed("SecretConflict"))
 	must.Eq(t, "mine", c.secretItems("default", "certs/taken")["cert"])
+}
+
+// eventReasons returns the reasons of the events of an object.
+func (c *certTest) eventReasons(ns, kind, name string) []string {
+	c.t.Helper()
+	var events structs.CustomObjectEventsResponse
+	must.NoError(c.t, c.s.RPC("CustomObject.ListEvents", &structs.CustomObjectSpecificRequest{
+		Group: structs.OperatorsGroup, Kind: kind, Name: name, QueryOptions: c.query(ns),
+	}, &events))
+	var reasons []string
+	for _, ev := range events.Events {
+		reasons = append(reasons, ev.Reason)
+	}
+	return reasons
+}
+
+// crlSerials returns the serial numbers in the revocation list of the active
+// issuing CA.
+func (c *certTest) crlSerials() []string {
+	c.t.Helper()
+	var resp structs.CertificateCRLResponse
+	must.NoError(c.t, c.s.RPC("Certificate.CRL", &structs.CertificateCRLRequest{QueryOptions: c.query("")}, &resp))
+	block, _ := pem.Decode([]byte(resp.CRL))
+	must.NotNil(c.t, block)
+	crl, err := x509.ParseRevocationList(block.Bytes)
+	must.NoError(c.t, err)
+	var serials []string
+	for _, entry := range crl.RevokedCertificateEntries {
+		serials = append(serials, certificateSerial(&x509.Certificate{SerialNumber: entry.SerialNumber}))
+	}
+	return serials
+}
+
+// withdrawn reports whether the operator took back the certificate of a
+// namespace that lost its names.
+func withdrawn(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+	reason, _ := certificateFailure(obj.Status)
+	return reason == "NamesNotAllowed" && st.Serial == ""
+}
+
+// A namespace that loses the right to the names of a certificate (its
+// certificate_dns_suffixes, certificate_ip_addresses or certificate_issuers
+// change) does not keep the key and a valid certificate for names that may
+// now be another namespace's (review finding ATM-21): the certificate is
+// revoked and taken out of the secret, and the status no longer says it is
+// held.
+func TestCertificate_LostNames(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+
+	readSecret := func(path string) *structs.Secret {
+		t.Helper()
+		secret, err := c.s.State().SecretByPath(nil, "default", path)
+		must.NoError(t, err)
+		return secret
+	}
+
+	// Without delete_secret the secret stays, with every version that held
+	// the certificate destroyed; with it the secret goes.
+	_, err = c.apply("default", structs.CertificateKind, "kept", map[string]any{
+		"issuer": "internal", "dns_names": []any{"kept.example.com"}, "secret_path": "certs/kept"})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "gone", map[string]any{
+		"issuer": "internal", "dns_names": []any{"gone.example.com"}, "secret_path": "certs/gone", "delete_secret": true})
+	must.NoError(t, err)
+	kept := c.waitFor("default", "kept", "issued", certReady)
+	gone := c.waitFor("default", "gone", "issued", certReady)
+
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	for _, tc := range []struct {
+		name, path string
+		issued     *structs.CertificateStatus
+	}{
+		{"kept", "certs/kept", kept},
+		{"gone", "certs/gone", gone},
+	} {
+		st := c.waitFor("default", tc.name, "withdrawn", withdrawn)
+		must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: tc.issued.Serial}, *st,
+			must.Sprint("nothing in the status says a certificate is held"))
+		obj, _ := c.certificate("default", tc.name)
+		must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionReady))
+		must.SliceContains(t, c.eventReasons("default", structs.CertificateKind, tc.name), "Withdrawn")
+		must.SliceContains(t, c.crlSerials(), tc.issued.Serial)
+		_, _, err := c.s.secretReadValue("default", tc.path, tc.issued.SecretVersion)
+		must.Error(t, err, must.Sprint("the version with the certificate can't be read"))
+	}
+	secret := readSecret("certs/kept")
+	must.NotNil(t, secret)
+	must.Eq(t, "kept", secret.Labels[structs.SecretLabelCertificate])
+	for _, v := range secret.Versions {
+		must.True(t, v.Destroyed, must.Sprintf("version %d is destroyed", v.Version))
+	}
+	must.Nil(t, readSecret("certs/gone"))
+
+	// Allowed again, a new certificate is issued into the same secret.
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	again := c.waitFor("default", "kept", "issued again", certReady)
+	must.NotEq(t, kept.Serial, again.Serial)
+	must.Eq(t, []string{"ca", "cert", "key"}, c.secretItems("default", "certs/kept").Keys())
+	c.waitFor("default", "gone", "issued again", certReady)
+
+	// A namespace that may no longer use the issuer loses its certificates
+	// too.
+	c.allow("default", map[string]string{
+		structs.NamespaceMetaCertificateDNSSuffixes: "example.com",
+		structs.NamespaceMetaCertificateIssuers:     "other",
+	})
+	st := c.waitFor("default", "kept", "withdrawn for the issuer", withdrawn)
+	must.Eq(t, again.Serial, st.Revoke)
+}
+
+// A certificate is taken back only when the namespace lost the names, not
+// when the issuer it names can't sign them: an IP address certificate of the
+// built-in issuer whose issuer was recreated as an external one stays.
+func TestCertificate_LostNamesRefusal(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{
+		structs.NamespaceMetaCertificateDNSSuffixes: "example.com",
+		structs.NamespaceMetaCertificateIPAddresses: "10.0.0.0/24",
+	})
+	o := newCertificateOperator(c.s, c.s.logger)
+	p := &certificatePass{now: time.Now(), store: c.s.State()}
+	obj := &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateKind, Namespace: "default", Name: "web-tls"}
+	issuerObj := &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateIssuerKind, Name: "issuer"}
+	external := &structs.CertificateIssuerSpec{External: &structs.CertificateIssuerExternal{Controller: "test"}}
+	builtin := &structs.CertificateIssuerSpec{Builtin: &structs.CertificateIssuerBuiltin{}}
+
+	tests := []struct {
+		name   string
+		spec   *structs.CertificateSpec
+		issuer *structs.CertificateIssuerSpec
+		lost   bool
+	}{
+		{
+			name:   "an IP address with an external issuer",
+			spec:   &structs.CertificateSpec{Issuer: "issuer", IPAddresses: []string{"10.0.0.5"}, SecretPath: "certs/web"},
+			issuer: external,
+		},
+		{
+			name:   "an IP address the namespace lost",
+			spec:   &structs.CertificateSpec{Issuer: "issuer", IPAddresses: []string{"10.0.1.5"}, SecretPath: "certs/web"},
+			issuer: builtin,
+			lost:   true,
+		},
+		{
+			name:   "a DNS name the namespace lost",
+			spec:   &structs.CertificateSpec{Issuer: "issuer", DNSNames: []string{"web.example.org"}, SecretPath: "certs/web"},
+			issuer: external,
+			lost:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			refused := o.refusal(p, obj, tt.spec, issuerObj, tt.issuer, nil, false)
+			must.NotNil(t, refused)
+			must.Eq(t, "NamesNotAllowed", refused.reason)
+			must.Eq(t, tt.lost, refused.lostNames)
+		})
+	}
 }
 
 func TestCertificate_ACL(t *testing.T) {
@@ -900,6 +1072,62 @@ func TestCertificate_ExternalIssuerChain(t *testing.T) {
 	})
 	must.Eq(t, "", renewed.Revoke)
 	must.Eq(t, []string{"cert", "key"}, c.secretItems("default", "certs/web").Keys())
+}
+
+// The certificate of an external issuer that a namespace may no longer ask
+// for is taken out of the secret and revoked by the issuer (review finding
+// ATM-21), with the reason cessationOfOperation.
+func TestCertificate_ExternalIssuerLostNames(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+
+	root := newTestCA(t, "acme root", nil)
+	intermediate := newTestCA(t, "acme issuing", root)
+	_, err := c.apply("", structs.CertificateIssuerKind, "acme", map[string]any{"external": map[string]any{"controller": "test"}})
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateIssuerKind, "acme", map[string]any{
+		"heartbeat": time.Now().UTC().Format(time.RFC3339), "roots": root.pem}))
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "acme", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+
+	ordered := c.waitFor("default", "web-tls", "an order", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool { return st.Order != "" })
+	order := c.get("", structs.CertificateOrderKind, ordered.Order)
+	must.NotNil(t, order)
+	orderSpec := &structs.CertificateOrderSpec{}
+	must.NoError(t, structs.DecodeObjectPart(order.Spec, orderSpec))
+	csr, err := parseWorkloadCSR(orderSpec.CSR)
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateOrderKind, ordered.Order, map[string]any{
+		"state": "valid", "chain": intermediate.sign(t, csr.PublicKey, csr.DNSNames, nil) + intermediate.pem}))
+	issued := c.waitFor("default", "web-tls", "issued", certReady)
+
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	st := c.waitFor("default", "web-tls", "withdrawn", withdrawn)
+	must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: issued.Serial}, *st)
+	must.SliceContains(t, c.eventReasons("default", structs.CertificateKind, "web-tls"), "Withdrawn")
+
+	// Every version of the secret that held the key is destroyed.
+	secret, err := c.s.State().SecretByPath(nil, "default", "certs/web")
+	must.NoError(t, err)
+	must.NotNil(t, secret)
+	for _, v := range secret.Versions {
+		must.True(t, v.Destroyed, must.Sprintf("version %d is destroyed", v.Version))
+	}
+
+	// The issuer has a revocation order for the serial, and no order for a
+	// new certificate is placed.
+	orders, err := listObjects(c.s.State(), nil, structs.CertificateOrderKind, "")
+	must.NoError(t, err)
+	must.Len(t, 1, orders)
+	revocation := &structs.CertificateOrderSpec{}
+	must.NoError(t, structs.DecodeObjectPart(orders[0].Spec, revocation))
+	must.Eq(t, issued.Serial, revocation.Revoke)
+	must.Eq(t, "default/web-tls", revocation.Certificate)
+	must.Eq[any](t, "cessationOfOperation", orders[0].Spec["reason"])
 }
 
 // An imported CA is never rotated by the leader. When it is about to expire

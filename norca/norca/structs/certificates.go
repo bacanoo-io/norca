@@ -62,6 +62,14 @@ const (
 	CertificateSecretItemCA      = "ca"
 	CertificateSecretItemNextKey = "next_key"
 
+	// CertificateRevokeReasonCessationOfOperation is the reason of the
+	// revocation of a certificate whose namespace may no longer ask for its
+	// names: the name of the CRLReason of RFC 5280, section 5.3.1, that the
+	// CA/Browser Forum Baseline Requirements (section 7.2.2) give for a
+	// subscriber that no longer controls or may no longer use a name of the
+	// certificate.
+	CertificateRevokeReasonCessationOfOperation = "cessationOfOperation"
+
 	// CertificateDefaultValidity and CertificateMaxValidity bound the
 	// validity of certificates of the built-in issuer.
 	CertificateDefaultValidity = 90 * 24 * time.Hour
@@ -340,6 +348,10 @@ type CertificateOrderSpec struct {
 	CSR         string   `json:"csr,omitempty"`
 	DNSNames    []string `json:"dns_names,omitempty"`
 	Revoke      string   `json:"revoke,omitempty"`
+
+	// Reason is the reason of a revocation, the name of an RFC 5280
+	// CRLReason (CertificateRevokeReason*); empty for none (unspecified).
+	Reason string `json:"reason,omitempty"`
 }
 
 // CertificateOrderStatus is the status of a CertificateOrder object, written

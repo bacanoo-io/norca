@@ -114,7 +114,8 @@ const certificateOrderKindSchema = `{
         "certificate": {"type": "string", "minLength": 1},
         "csr": {"type": "string"},
         "dns_names": {"type": "array", "items": {"type": "string"}},
-        "revoke": {"type": "string"}
+        "revoke": {"type": "string"},
+        "reason": {"type": "string"}
       },
       "additionalProperties": false
     },

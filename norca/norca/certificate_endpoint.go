@@ -235,7 +235,7 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			return nil
 		}
 
-		if err := c.revokeWithIssuer(snap, obj, status); err != nil {
+		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, ""); err != nil {
 			return err
 		}
 		changed := obj.Copy()
@@ -255,19 +255,15 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 }
 
 // revokeWithIssuer tells the issuer of a certificate that its current
-// certificate is revoked.
-func (c *Certificate) revokeWithIssuer(snap *state.StateSnapshot, obj *structs.CustomObject, status *structs.CertificateStatus) error {
-	_, issuer, err := certificateIssuer(snap, status.Issuer)
-	if err != nil {
-		return err
-	}
+// certificate is revoked, for the reason (the name of an RFC 5280 CRLReason,
+// "" for none). The certificate operator calls it too.
+func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomObject, status *structs.CertificateStatus, reason string) error {
 	notAfter, _ := time.Parse(time.RFC3339, status.NotAfter)
 
-	if issuer == nil || issuer.Builtin != nil {
-		if status.Authority == "" {
-			return nil
-		}
-		_, err := c.srv.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
+	// A certificate with an authority was signed by the built-in issuer,
+	// whatever the issuer of that name is now.
+	if status.Authority != "" {
+		_, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
 			Serial:      status.Serial,
 			Certificate: obj.Namespace + "/" + obj.Name,
 			RevokedAt:   time.Now().UTC().Truncate(time.Second),
@@ -275,10 +271,21 @@ func (c *Certificate) revokeWithIssuer(snap *state.StateSnapshot, obj *structs.C
 		})
 		return err
 	}
+	issuerObj, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateIssuerKind, "", status.Issuer)
+	if err != nil || issuerObj == nil {
+		return err
+	}
+	issuer := &structs.CertificateIssuerSpec{}
+	if err := structs.DecodeObjectPart(issuerObj.Spec, issuer); err != nil {
+		return err
+	}
+	if issuer.External == nil {
+		return nil
+	}
 
 	// An external issuer revokes through an order of its own.
 	name := fmt.Sprintf("%s.%s.revoke-%.16s", obj.Namespace, obj.Name, status.Serial)
-	existing, err := snap.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateOrderKind, "", name)
+	existing, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateOrderKind, "", name)
 	if err != nil || existing != nil {
 		return err
 	}
@@ -286,11 +293,12 @@ func (c *Certificate) revokeWithIssuer(snap *state.StateSnapshot, obj *structs.C
 		Issuer:      status.Issuer,
 		Certificate: obj.Namespace + "/" + obj.Name,
 		Revoke:      status.Serial,
+		Reason:      reason,
 	})
 	if err != nil {
 		return err
 	}
-	_, err = c.srv.writeOperatorObject(&structs.CustomObject{
+	_, err = s.writeOperatorObject(&structs.CustomObject{
 		Group:     structs.OperatorsGroup,
 		Kind:      structs.CertificateOrderKind,
 		Name:      name,
