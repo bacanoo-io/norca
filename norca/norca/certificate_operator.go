@@ -472,12 +472,14 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 	notAfter, _ := time.Parse(time.RFC3339, st.NotAfter)
 	revoked, unrevocable := true, ""
 	if serial != "" && p.now.Before(notAfter) {
+		// Asked for, as by Certificate.Revoke: should the namespace get the
+		// names back before the revocation is done, a new certificate is
+		// issued (issuanceNeeded).
+		st.Revoke = serial
 		revoked, unrevocable = o.revokeWithdrawn(p, obj, st, out)
-		switch {
-		case unrevocable != "":
+		if unrevocable != "" {
+			st.Revoke = ""
 			out.failedMessage += "; " + unrevocable
-		case revoked:
-			st.Revoke = serial
 		}
 	}
 
@@ -901,9 +903,10 @@ func (o *certificateOperator) issueExternal(p *certificatePass, obj *structs.Cus
 		return
 	}
 
-	// The key waits in the secret, next to the current certificate.
+	// The key waits in the secret, next to the current certificate. A
+	// secret whose versions a withdrawal destroyed holds none.
 	items := structs.SecretItems{}
-	if secret != nil {
+	if secret != nil && !secret.Destroyed {
 		current, _, err := o.srv.secretReadValue(obj.Namespace, spec.SecretPath, 0)
 		if err != nil {
 			o.fail(p, obj, st, out, "SecretReadFailed", err.Error())

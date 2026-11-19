@@ -1232,6 +1232,72 @@ func TestCertificate_ExternalIssuerLostNames(t *testing.T) {
 	), must.Sprint("the done revocation order is removed"))
 }
 
+// A namespace that gets the names of a certificate of an external issuer back
+// gets a new certificate, whether the withdrawal still waits for the
+// revocation or is over and left the secret with its versions destroyed
+// (review finding ATM-21).
+func TestCertificate_ExternalIssuerNamesBack(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+
+	root := newTestCA(t, "acme root", nil)
+	intermediate := newTestCA(t, "acme issuing", root)
+	_, err := c.apply("", structs.CertificateIssuerKind, "acme", map[string]any{"external": map[string]any{"controller": "test"}})
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateIssuerKind, "acme", map[string]any{
+		"heartbeat": time.Now().UTC().Format(time.RFC3339), "roots": root.pem}))
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "acme", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+
+	// issue plays the controller for the next issuance order.
+	issue := func(previous string) *structs.CertificateStatus {
+		t.Helper()
+		ordered := c.waitFor("default", "web-tls", "an order", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool { return st.Order != "" })
+		order := c.get("", structs.CertificateOrderKind, ordered.Order)
+		must.NotNil(t, order)
+		orderSpec := &structs.CertificateOrderSpec{}
+		must.NoError(t, structs.DecodeObjectPart(order.Spec, orderSpec))
+		csr, err := parseWorkloadCSR(orderSpec.CSR)
+		must.NoError(t, err)
+		must.NoError(t, c.status("", structs.CertificateOrderKind, ordered.Order, map[string]any{
+			"state": "valid", "chain": intermediate.sign(t, csr.PublicKey, csr.DNSNames, nil) + intermediate.pem}))
+		issued := c.waitFor("default", "web-tls", "issued", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+			return certReady(obj, st) && st.Serial != previous
+		})
+		must.Eq(t, []string{"cert", "key"}, c.secretItems("default", "certs/web").Keys())
+		return issued
+	}
+	first := issue("")
+
+	// Back while the withdrawal waits for the revocation.
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	revocation := certificateRevokeOrderName("default", "web-tls", first.Serial)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateOrderKind, revocation) != nil }),
+		wait.Timeout(30*time.Second),
+		wait.Gap(50*time.Millisecond),
+	), must.Sprint("the revocation order is placed"))
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	second := issue(first.Serial)
+
+	// Back after the withdrawal is over.
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	revocation = certificateRevokeOrderName("default", "web-tls", second.Serial)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateOrderKind, revocation) != nil }),
+		wait.Timeout(30*time.Second),
+		wait.Gap(50*time.Millisecond),
+	), must.Sprint("the revocation order is placed"))
+	must.NoError(t, c.status("", structs.CertificateOrderKind, revocation, map[string]any{"state": "valid"}))
+	c.waitFor("default", "web-tls", "withdrawn", withdrawn)
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	issue(second.Serial)
+}
+
 // A namespace that loses the names of a certificate whose issuer is gone too
 // loses the certificate all the same (review finding ATM-21): the lost right
 // is found before the missing issuer. The certificate of the built-in issuer
