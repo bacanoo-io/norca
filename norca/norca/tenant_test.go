@@ -339,6 +339,12 @@ func TestTenant_WriteChecks(t *testing.T) {
 		{"dns meta by hand", map[string]any{"namespace": map[string]any{
 			"meta": map[string]any{structs.NamespaceMetaDNSSuffixes: "x"}}}, "dns_suffixes"},
 		{"bad dns suffix", map[string]any{"dns_suffixes": []any{"not a name"}}, "dns_suffixes"},
+		{"cidrs without isolation", map[string]any{"network": map[string]any{
+			"allow_from_cidrs": []any{"10.0.0.0/24"}}}, "need isolation"},
+		{"required without isolation", map[string]any{"network": map[string]any{
+			"required": false}}, "need isolation"},
+		{"bad cidr", map[string]any{"network": map[string]any{
+			"isolation": "namespace", "allow_from_cidrs": []any{"10.0.0.1"}}}, "allow_from_cidrs"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

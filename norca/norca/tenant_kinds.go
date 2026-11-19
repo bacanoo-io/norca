@@ -6,6 +6,7 @@ package norca
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"regexp"
 	"slices"
 	"sort"
@@ -68,7 +69,9 @@ const tenantKindSchema = `{
           "type": "object",
           "properties": {
             "isolation": {"type": "string", "enum": ["none", "namespace"], "default": "none"},
-            "allow_from_namespaces": {"type": "array", "maxItems": 64, "items": {"type": "string", "minLength": 1}}
+            "allow_from_namespaces": {"type": "array", "maxItems": 64, "items": {"type": "string", "minLength": 1}},
+            "allow_from_cidrs": {"type": "array", "maxItems": 256, "items": {"type": "string", "minLength": 1}},
+            "required": {"type": "boolean"}
           },
           "additionalProperties": false
         },
@@ -152,6 +155,19 @@ type tenantSpec struct {
 	Network struct {
 		Isolation           string   `json:"isolation"`
 		AllowFromNamespaces []string `json:"allow_from_namespaces"`
+
+		// AllowFromCIDRs lets in traffic from these prefixes (TEN-11): the
+		// namespace peers match allocations on the same node only, so the
+		// instances of the tenant on other nodes and a load balancer, which
+		// arrive with the address of a node, need the node subnet or the
+		// addresses of the load balancer here.
+		AllowFromCIDRs []string `json:"allow_from_cidrs"`
+
+		// Required false places the groups on nodes that can't enforce the
+		// isolation too (host networking, nodes without nftables), with
+		// warnings: the enforcement best_effort of the network policy. Unset
+		// or true is required.
+		Required *bool `json:"required"`
 	} `json:"network"`
 	CertificateDNSSuffixes []string `json:"certificate_dns_suffixes"`
 	CertificateIPAddresses []string `json:"certificate_ip_addresses"`
@@ -395,6 +411,15 @@ func (s *tenantSpec) validate(name string) error {
 			return fmt.Errorf("network: allow_from_namespaces lists namespaces; with every namespace use isolation = %q", structs.TenantIsolationNone)
 		}
 	}
+	if s.Network.Isolation != structs.TenantIsolationNamespace &&
+		(len(s.Network.AllowFromCIDRs) > 0 || s.Network.Required != nil) {
+		return fmt.Errorf("network: allow_from_cidrs and required need isolation = %q", structs.TenantIsolationNamespace)
+	}
+	for _, cidr := range s.Network.AllowFromCIDRs {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			return fmt.Errorf("network: allow_from_cidrs: %q is not an IP prefix (address/length)", cidr)
+		}
+	}
 	for _, addr := range s.CertificateIPAddresses {
 		if net.ParseIP(addr) == nil {
 			if _, _, err := net.ParseCIDR(addr); err != nil {
@@ -505,10 +530,20 @@ func (s *tenantSpec) desired(name string) (*tenantDesired, error) {
 				peers = append(peers, &structs.NetworkPolicyPeer{Namespace: other})
 			}
 		}
+		if len(s.Network.AllowFromCIDRs) > 0 {
+			cidrs := slices.Clone(s.Network.AllowFromCIDRs)
+			sort.Strings(cidrs)
+			peers = append(peers, &structs.NetworkPolicyPeer{CIDR: slices.Compact(cidrs)})
+		}
+		enforcement := structs.NetworkPolicyEnforcementRequired
+		if s.Network.Required != nil && !*s.Network.Required {
+			enforcement = structs.NetworkPolicyEnforcementBestEffort
+		}
 		d.network = &structs.NetworkPolicy{
 			Name:        structs.TenantNetworkPolicyName,
 			Namespace:   ns,
 			Description: fmt.Sprintf("Isolation of the tenant %s: traffic in from its own namespace and the listed ones only", name),
+			Enforcement: enforcement,
 			Ingress:     []*structs.NetworkPolicyRule{{Name: "tenant", Peers: peers}},
 		}
 	}
