@@ -372,6 +372,20 @@ func TestBus_StandaloneToCluster(t *testing.T) {
 	_, err = os.Stat(s1.StandaloneStoreDir())
 	must.NoError(t, err)
 
+	// The moment JetStream is reported ready, its API answers (MUK-23): a
+	// meta leader shows as soon as it is elected but answers only after it
+	// processed its first entries, and a request in between got no answer
+	// from any server.
+	probe, err := s1.Connect()
+	must.NoError(t, err)
+	defer probe.Close()
+	for deadline := time.Now().Add(20 * time.Second); !s1.JetStreamReady(); {
+		must.True(t, time.Now().Before(deadline), must.Sprint("JetStream never ready"))
+		time.Sleep(time.Millisecond)
+	}
+	_, err = probe.Request("$JS.API.STREAM.INFO.OLD", nil, 2*time.Second)
+	must.NoError(t, err, must.Sprint("the first API request after JetStreamReady was not answered"))
+
 	select {
 	case <-reconnected:
 	case <-time.After(10 * time.Second):
@@ -389,15 +403,16 @@ func TestBus_StandaloneToCluster(t *testing.T) {
 	}, func(err error) { t.Fatal(err) })
 
 	// The streams of the standalone bus are not carried over; new ones work.
-	// Right after the cluster formed, nats-server (v2.15.3) may leave the
-	// first API request from this server unanswered when the meta leader is
-	// the other server: asked again with a short timeout.
+	// A meta leader answers the API only after it processed its first
+	// entries (MUK-23): JetStreamReady waits for an answer, after which the
+	// first request is answered, whichever server leads.
 	testutil.WaitForResult(func() (bool, error) {
-		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-		defer cancel()
-		_, err := js.Stream(ctx, "OLD")
-		return errors.Is(err, jetstream.ErrStreamNotFound), fmt.Errorf("the stream OLD: %v", err)
+		return s1.JetStreamReady(), errors.New("JetStream API not ready")
 	}, func(err error) { t.Fatal(err) })
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	_, err = js.Stream(ctx, "OLD")
+	must.ErrorIs(t, err, jetstream.ErrStreamNotFound)
 	createStream(t, js, jetstream.StreamConfig{Name: "NEW", Subjects: []string{"new.>"}, Replicas: 2})
 
 	// The key-value buckets of the standalone store can be read from the

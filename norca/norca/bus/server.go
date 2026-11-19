@@ -71,6 +71,12 @@ type Server struct {
 	// connection in its account (clientAuth.Check).
 	registerLock sync.Mutex
 
+	// apiLock guards apiServer and apiLeader: the embedded server and the
+	// meta leader whose JetStream API answered (JetStreamReady).
+	apiLock   sync.Mutex
+	apiServer *natsserver.Server
+	apiLeader string
+
 	l sync.Mutex
 	// clients are the authenticated connections by NATS client ID, with the
 	// credentials and grant they were admitted with, for Revalidate.
@@ -432,14 +438,55 @@ func (s *Server) Connect(options ...nats.Option) (*nats.Conn, error) {
 	return nats.Connect("", options...)
 }
 
+// apiCheckTimeout bounds the JetStream API request of JetStreamReady.
+const apiCheckTimeout = 250 * time.Millisecond
+
 // JetStreamReady reports whether JetStream can be used: it runs and, when
-// clustered, has a meta leader.
+// clustered, has a meta leader that answers the JetStream API.
+//
+// A meta leader shows in Jsz as soon as it is elected, but it answers API
+// requests only once it has processed its first entries; a request in
+// between gets no answer from any server (review finding MUK-23;
+// nats-server 2.15.1 and later no longer report a smaller cluster in that
+// gap). So, once per meta leader and embedded server, the readiness is
+// confirmed by an API request ($JS.API.INFO) that must be answered. A later
+// election of the same server is not checked again; the callers retry.
 func (s *Server) JetStreamReady() bool {
-	jsz, err := s.server().Jsz(&natsserver.JSzOptions{})
+	ns := s.server()
+	jsz, err := ns.Jsz(&natsserver.JSzOptions{})
 	if err != nil || jsz.Disabled {
 		return false
 	}
-	return jsz.Meta == nil || jsz.Meta.Leader != ""
+	if jsz.Meta == nil {
+		return true
+	}
+	leader := jsz.Meta.Leader
+	if leader == "" {
+		return false
+	}
+
+	s.apiLock.Lock()
+	defer s.apiLock.Unlock()
+	if s.apiServer == ns && s.apiLeader == leader {
+		return true
+	}
+	if !s.jetStreamAPIAnswers() {
+		return false
+	}
+	s.apiServer, s.apiLeader = ns, leader
+	return true
+}
+
+// jetStreamAPIAnswers sends $JS.API.INFO over an in-process connection and
+// reports whether an answer came within apiCheckTimeout.
+func (s *Server) jetStreamAPIAnswers() bool {
+	nc, err := s.Connect(nats.Name("norca-server-jetstream-check"), nats.MaxReconnects(0))
+	if err != nil {
+		return false
+	}
+	defer nc.Close()
+	_, err = nc.Request("$JS.API.INFO", nil, apiCheckTimeout)
+	return err == nil
 }
 
 // ClientURL is the URL of the client listener, for tests and logs.
