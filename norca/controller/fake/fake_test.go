@@ -69,6 +69,35 @@ func TestBackend_VariablesCAS(t *testing.T) {
 	must.True(t, errors.Is(err, controller.ErrNotFound))
 }
 
+func TestBackend_EnforceRegisterJob(t *testing.T) {
+	b := New()
+	ctx := context.Background()
+	job := func(image string) *api.Job {
+		return &api.Job{ID: pointerOf("web"), Meta: map[string]string{"image": image}}
+	}
+
+	// Absent: only a registration that expects no job is applied.
+	must.ErrorIs(t, b.EnforceRegisterJob(ctx, job("v1"), 5), controller.ErrConflict)
+	must.Nil(t, b.GetJob("default", "web"))
+	must.NoError(t, b.EnforceRegisterJob(ctx, job("v1"), 0))
+	first := *b.GetJob("default", "web").JobModifyIndex
+
+	// Present: a registration that expects no job, or another index, is
+	// refused and changes nothing.
+	must.ErrorIs(t, b.EnforceRegisterJob(ctx, job("v2"), 0), controller.ErrConflict)
+	must.ErrorIs(t, b.EnforceRegisterJob(ctx, job("v2"), first+1), controller.ErrConflict)
+	must.Eq(t, "v1", b.GetJob("default", "web").Meta["image"])
+
+	// The matching index: applied.
+	must.NoError(t, b.EnforceRegisterJob(ctx, job("v2"), first))
+	stored := b.GetJob("default", "web")
+	must.Eq(t, "v2", stored.Meta["image"])
+	must.Greater(t, first, *stored.JobModifyIndex)
+	must.Eq(t, 5, b.Calls("EnforceRegisterJob"))
+}
+
+func pointerOf[T any](v T) *T { return &v }
+
 // TestBackend_ListEmptyThenStream lists a kind with no object, writes one, and
 // starts the stream the way a watch does (from the list index + 1, exact): the
 // object written between the list and the stream is delivered. A list of an

@@ -6,6 +6,8 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -71,4 +73,77 @@ func TestAPIBackend_DeleteVariable(t *testing.T) {
 	must.ErrorIs(t, b.DeleteVariable(ctx, "default", "crd/x/K/a", 6), ErrConflict)
 	must.NoError(t, b.DeleteVariable(ctx, "default", "crd/x/K/a", 7))
 	must.Nil(t, srv.stored)
+}
+
+// jobServer answers job registrations like the servers do: a registration
+// with EnforceIndex whose JobModifyIndex is not the stored one is refused
+// with an error that starts with api.RegisterEnforceIndexErrPrefix.
+type jobServer struct {
+	mu     sync.Mutex
+	stored uint64 // JobModifyIndex of the stored job, 0: none
+	deny   bool
+}
+
+func (s *jobServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r.Method != http.MethodPut || r.URL.Path != "/v1/jobs" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req api.JobRegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	switch {
+	case s.deny:
+		http.Error(w, "Permission denied", http.StatusForbidden)
+	case req.EnforceIndex && req.JobModifyIndex != s.stored:
+		http.Error(w, fmt.Sprintf("%s %d: job exists with conflicting job modify index: %d",
+			api.RegisterEnforceIndexErrPrefix, req.JobModifyIndex, s.stored), http.StatusInternalServerError)
+	default:
+		s.stored += 10
+		_ = json.NewEncoder(w).Encode(&api.JobRegisterResponse{JobModifyIndex: s.stored})
+	}
+}
+
+func (s *jobServer) index() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stored
+}
+
+func TestAPIBackend_EnforceRegisterJob(t *testing.T) {
+	srv := &jobServer{}
+	ts := httptest.NewServer(srv)
+	defer ts.Close()
+	client, err := api.NewClient(&api.Config{Address: ts.URL})
+	must.NoError(t, err)
+	b := NewBackend(client)
+	ctx := context.Background()
+	id := "web"
+	job := &api.Job{ID: &id}
+
+	// Absent: a registration that expects a job is a conflict.
+	must.ErrorIs(t, b.EnforceRegisterJob(ctx, job, 3), ErrConflict)
+	must.NoError(t, b.EnforceRegisterJob(ctx, job, 0))
+	must.Eq(t, 10, srv.index())
+
+	// Present: no job expected, or another index, is a conflict.
+	err = b.EnforceRegisterJob(ctx, job, 0)
+	must.ErrorIs(t, err, ErrConflict)
+	must.StrContains(t, err.Error(), api.RegisterEnforceIndexErrPrefix)
+	must.ErrorIs(t, b.EnforceRegisterJob(ctx, job, 9), ErrConflict)
+	must.NoError(t, b.EnforceRegisterJob(ctx, job, 10))
+	must.Eq(t, 20, srv.index())
+
+	// Other errors are not conflicts.
+	srv.mu.Lock()
+	srv.deny = true
+	srv.mu.Unlock()
+	err = b.EnforceRegisterJob(ctx, job, 20)
+	must.Error(t, err)
+	must.False(t, errors.Is(err, ErrConflict))
+	must.Eq(t, http.StatusForbidden, statusCode(err))
 }

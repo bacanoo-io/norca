@@ -541,6 +541,33 @@ func (b *Backend) RegisterJob(_ context.Context, job *api.Job) error {
 	return nil
 }
 
+// EnforceRegisterJob registers job if the stored job's JobModifyIndex is
+// modifyIndex (0: the job must not exist), like the servers with
+// EnforceIndex; a mismatch returns an error wrapping controller.ErrConflict.
+func (b *Backend) EnforceRegisterJob(_ context.Context, job *api.Job, modifyIndex uint64) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.callLocked("EnforceRegisterJob"); err != nil {
+		return err
+	}
+	if job.ID == nil {
+		panic("job without ID")
+	}
+	ns := "default"
+	if job.Namespace != nil {
+		ns = defaultNS(*job.Namespace)
+	}
+	var current uint64
+	if cur, exists := b.jobs[key(ns, *job.ID)]; exists {
+		current = *cur.JobModifyIndex
+	}
+	if current != modifyIndex {
+		return fmt.Errorf("%w: job %s/%s: job modify index %d, not %d", controller.ErrConflict, ns, *job.ID, current, modifyIndex)
+	}
+	b.registerJobLocked(job)
+	return nil
+}
+
 // PutJob registers a job without recording a call, like a user running
 // "job run".
 func (b *Backend) PutJob(job *api.Job) {

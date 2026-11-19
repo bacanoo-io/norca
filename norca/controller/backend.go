@@ -74,6 +74,11 @@ type JobsAPI interface {
 	// RegisterJob registers (creates or updates) a job.
 	RegisterJob(ctx context.Context, job *api.Job) error
 
+	// EnforceRegisterJob registers job if the stored job's JobModifyIndex is
+	// modifyIndex (0: the job must not exist); a mismatch returns an error
+	// wrapping ErrConflict.
+	EnforceRegisterJob(ctx context.Context, job *api.Job, modifyIndex uint64) error
+
 	// DeregisterJob stops a job, purging it if purge is set. A job that
 	// does not exist is not an error.
 	DeregisterJob(ctx context.Context, namespace, id string, purge bool) error
@@ -377,6 +382,21 @@ func (b *apiBackend) RegisterJob(ctx context.Context, job *api.Job) error {
 	}
 	w := (&api.WriteOptions{Namespace: ns}).WithContext(ctx)
 	_, _, err := b.client.Jobs().Register(job, w)
+	return err
+}
+
+func (b *apiBackend) EnforceRegisterJob(ctx context.Context, job *api.Job, modifyIndex uint64) error {
+	ns := ""
+	if job.Namespace != nil {
+		ns = *job.Namespace
+	}
+	w := (&api.WriteOptions{Namespace: ns}).WithContext(ctx)
+	_, _, err := b.client.Jobs().EnforceRegister(job, modifyIndex, w)
+	// The servers refuse a mismatch with an error that starts with
+	// api.RegisterEnforceIndexErrPrefix, at the endpoint and at apply time.
+	if err != nil && strings.Contains(err.Error(), api.RegisterEnforceIndexErrPrefix) {
+		return fmt.Errorf("%w: %w", ErrConflict, err)
+	}
 	return err
 }
 
