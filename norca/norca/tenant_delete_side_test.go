@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -49,6 +50,18 @@ func newTenantArmedTest(t *testing.T, target string) (*certTest, *atomic.Pointer
 func waitGeneration(c *certTest, name string) *structs.CustomObject {
 	c.t.Helper()
 	return waitTenant(c, name, "ready", tenantReady)
+}
+
+// recordReleaseOwner records, past the claims, a release that owns the
+// resources of the keys, as an operation of another leader would.
+func recordReleaseOwner(t *testing.T, s *Server, name string, refs ...*structs.ReleaseResourceRef) {
+	t.Helper()
+	_, err := s.releases.writeRelease(&structs.Release{
+		ID: uuid.Generate(), Namespace: "default", Name: name,
+		Spec:   &structs.ReleaseSpec{MaxHistory: structs.DefaultReleaseMaxHistory, Revision: 1},
+		Status: &structs.ReleaseStatus{Phase: structs.ReleasePhaseDeployed, Revision: 1, Resources: refs},
+	}, 0)
+	must.NoError(t, err)
 }
 
 // replaceRole deletes the role of the name and creates another role of the
@@ -117,4 +130,102 @@ func TestTenant_RoleByRecordedID(t *testing.T) {
 			must.SliceNotContains(t, tenantResources(c.get("", structs.TenantKind, "team-a")), "acl-role//team-a-developer")
 		})
 	}
+}
+
+// A tenant does not delete a resource it lists that a release owns, or that
+// a release operation is writing (review finding ATM-13): one a release
+// owns is dropped from the tenant's list with an event, one being written
+// waits. Both delete paths deleted what the tenant listed without asking.
+func TestTenant_DeleteLeavesReleaseResource(t *testing.T) {
+	ci.Parallel(t)
+
+	// The resources the tenant no longer wants.
+	t.Run("no longer wanted", func(t *testing.T) {
+		ci.Parallel(t)
+		c, armed := newTenantArmedTest(t, "namespace//team-r")
+		_, err := c.apply("", structs.TenantKind, "team-r", map[string]any{
+			"namespace": map[string]any{"description": "R1"},
+			"roles":     map[string]any{"developer": []any{"submit-job"}},
+		})
+		must.NoError(t, err)
+		waitGeneration(c, "team-r")
+
+		// While the pass that drops the role writes the namespace, a
+		// release records the policy of the role as its own.
+		record := func(s *Server) {
+			recordReleaseOwner(t, s, "rel", &structs.ReleaseResourceRef{Type: structs.ReleaseResourceACLPolicy, Name: "team-r-developer"})
+		}
+		armed.Store(&record)
+		_, err = c.apply("", structs.TenantKind, "team-r", map[string]any{"namespace": map[string]any{"description": "R2"}})
+		must.NoError(t, err)
+		obj := waitGeneration(c, "team-r")
+		must.Nil(t, armed.Load(), must.Sprint("the release was not recorded during the pass"))
+
+		policy, err := c.s.State().ACLPolicyByName(nil, "team-r-developer")
+		must.NoError(t, err)
+		must.NotNil(t, policy, must.Sprint("the tenant deleted a policy a release owns"))
+		must.SliceNotContains(t, tenantResources(obj), "acl-policy//team-r-developer")
+		role, err := c.s.State().GetACLRoleByName(nil, "team-r-developer")
+		must.NoError(t, err)
+		must.Nil(t, role, must.Sprint("the tenant's own role was not deleted"))
+		mustHaveEvent(t, c, obj, "NotDeleted", "team-r-developer")
+	})
+
+	// A deleted tenant.
+	t.Run("tenant deleted", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			return c.s.releases.ensureKinds()
+		}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+		_, err := c.apply("", structs.TenantKind, "team-d", map[string]any{
+			"roles": map[string]any{"developer": []any{"submit-job"}, "viewer": []any{"read-logs"}},
+		})
+		must.NoError(t, err)
+		stored := waitGeneration(c, "team-d")
+
+		// A release owns one policy of the tenant, and a release operation
+		// is writing the other one.
+		recordReleaseOwner(t, c.s, "rel", &structs.ReleaseResourceRef{Type: structs.ReleaseResourceACLPolicy, Name: "team-d-developer"})
+		claims := c.s.releases.claims
+		op := claims.claimant(claimRelease, "default/other")
+		claims.claim(op, []string{"acl-policy//team-d-viewer"})
+		defer claims.release(op)
+
+		// The deletion, driven by hand on what the tenant listed.
+		deleting := stored.Copy()
+		deleting.DeletionTime = time.Now().UnixNano()
+		deleting.Finalizers = []string{structs.OperatorsFinalizer}
+		deleting.Status = map[string]any{"resources": []any{
+			map[string]any{"type": structs.TenantResourceACLPolicy, "name": "team-d-developer"},
+			map[string]any{"type": structs.TenantResourceACLPolicy, "name": "team-d-viewer"},
+		}}
+		o := newTenantOperator(c.s, c.s.logger)
+		o.finishDeletion(newTenantPass(t, c.s), deleting)
+
+		for _, name := range []string{"team-d-developer", "team-d-viewer"} {
+			policy, err := c.s.State().ACLPolicyByName(nil, name)
+			must.NoError(t, err)
+			must.NotNil(t, policy, must.Sprintf("the deleted tenant deleted the policy %s of a release", name))
+		}
+		mustHaveEvent(t, c, stored, "NotDeleted", "team-d-developer")
+	})
+}
+
+// mustHaveEvent checks that the event log of the object has an event of the
+// reason whose message holds what.
+func mustHaveEvent(t *testing.T, c *certTest, obj *structs.CustomObject, reason, what string) {
+	t.Helper()
+	log, err := c.s.State().ObjectEventLog(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
+	must.NoError(t, err)
+	must.NotNil(t, log, must.Sprint("the object has no events"))
+	var seen []string
+	for _, e := range log.Events {
+		if e.Reason == reason && strings.Contains(e.Message, what) {
+			return
+		}
+		seen = append(seen, e.Reason+": "+e.Message)
+	}
+	t.Fatalf("no event %s about %s: %q", reason, what, seen)
 }

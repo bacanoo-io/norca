@@ -642,6 +642,20 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			delete(w.owned, ref.key())
 			continue
 		}
+		owner, writer, err := o.releaseHas(w.claimant, ref)
+		switch {
+		case err != nil:
+			w.failures = append(w.failures, fmt.Sprintf("deleting %s: %v", ref, err))
+			continue
+		case writer != "":
+			// Deleted in a later pass, if it is still the tenant's then.
+			w.conflicts = append(w.conflicts, fmt.Sprintf("%s is being written by %s", ref, writer))
+			continue
+		case owner != "":
+			delete(w.owned, ref.key())
+			o.releaseOwnsEvent(obj, ref, owner)
+			continue
+		}
 		if err := o.deleteResource(ref); err != nil {
 			w.failures = append(w.failures, fmt.Sprintf("deleting %s: %v", ref, err))
 			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
@@ -877,7 +891,10 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 
 	// In the order of a deletion: an adopted namespace is given back, and
 	// names its own quota again, before the quota the tenant created for
-	// it is deleted.
+	// it is deleted. What the tenant deletes it claims first (releaseHas).
+	claims := o.srv.releases.claims
+	claimant := claims.claimant(claimTenant, obj.Name)
+	defer claims.release(claimant)
 	for _, ref := range sortedForDeletion(owned) {
 		if (ref.Type == structs.TenantResourceACLPolicy || ref.Type == structs.TenantResourceACLRole) && !o.srv.config.ACLEnabled {
 			delete(owned, ref.key())
@@ -907,6 +924,21 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 				continue
 			}
 		}
+		owner, writer, err := o.releaseHas(claimant, ref)
+		switch {
+		case err != nil || writer != "":
+			// Deleted in a later pass, if it is still the tenant's then.
+			if err != nil {
+				o.logger.Warn("failed to read the owners of a resource of a deleted tenant", "tenant", obj.Name, "resource", ref.String(), "error", err)
+			}
+			p.want(p.now.Add(operatorsRetry))
+			o.writeRemaining(obj, owned, "")
+			return
+		case owner != "":
+			delete(owned, ref.key())
+			o.releaseOwnsEvent(obj, ref, owner)
+			continue
+		}
 		if err := o.deleteResource(ref); err != nil {
 			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
 			p.want(p.now.Add(operatorsRetry))
@@ -926,6 +958,37 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 		return
 	}
 	o.srv.finalizeObjectIfReady(written)
+}
+
+// releaseHas checks, right before a tenant deletes a resource it lists,
+// whether a release has it (review finding ATM-13): writer is the release
+// operation (or the pass over another tenant) that claims it now, owner the
+// release that lists it in its status, in the state as it is now. The
+// claimant of the tenant claims the resource first, so that no release
+// operation takes it while the tenant deletes it, and reads the owners
+// after that (resource_claims.go). The claims and the write checks should
+// never let a resource be both a tenant's and a release's; this keeps the
+// tenant from deleting it if it is.
+func (o *tenantOperator) releaseHas(claimant resourceClaimant, ref tenantResourceRef) (owner, writer string, err error) {
+	if others := o.srv.releases.claims.claim(claimant, []string{ref.key()}); len(others) > 0 {
+		return "", others[ref.key()].String(), nil
+	}
+	snap, err := o.srv.State().Snapshot()
+	if err != nil {
+		return "", "", err
+	}
+	releases, err := releaseOwners(snap)
+	if err != nil {
+		return "", "", err
+	}
+	return releases[ref.key()], "", nil
+}
+
+// releaseOwnsEvent reports a resource a tenant listed and did not delete
+// because a release owns it: the tenant no longer lists it.
+func (o *tenantOperator) releaseOwnsEvent(obj *structs.CustomObject, ref tenantResourceRef, owner string) {
+	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "NotDeleted",
+		fmt.Sprintf("did not delete %s: it belongs to the release %s; the tenant no longer lists it", ref, owner))
 }
 
 // reportGivenBack says, once, what a deleted tenant gives back and leaves in
