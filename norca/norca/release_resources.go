@@ -32,6 +32,11 @@ type liveResource struct {
 	modifyIndex uint64
 	version     uint64
 
+	// createIndex is the index at which the resource was created: one
+	// deleted and created again since the release recorded it has a newer
+	// one (review finding ATM-7).
+	createIndex uint64
+
 	// hash is the hash of the content (releaseResourceHash), compared in
 	// memory only. refHash is what the status of the release records and
 	// drift detection compares: the same, except for a Variables entry,
@@ -68,14 +73,14 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			return live, err
 		}
 		res.Namespace = ns.Copy()
-		live.modifyIndex = ns.ModifyIndex
+		live.modifyIndex, live.createIndex = ns.ModifyIndex, ns.CreateIndex
 	case structs.ReleaseResourceQuota:
 		q, err := snap.QuotaSpecByName(nil, ref.Name)
 		if err != nil || q == nil {
 			return live, err
 		}
 		res.Quota = q.Copy()
-		live.modifyIndex = q.ModifyIndex
+		live.modifyIndex, live.createIndex = q.ModifyIndex, q.CreateIndex
 	case structs.ReleaseResourceACLPolicy:
 		p, err := snap.ACLPolicyByName(nil, ref.Name)
 		if err != nil || p == nil {
@@ -83,7 +88,7 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 		}
 		cp := *p
 		res.ACLPolicy = &cp
-		live.modifyIndex = p.ModifyIndex
+		live.modifyIndex, live.createIndex = p.ModifyIndex, p.CreateIndex
 	case structs.ReleaseResourceVariable:
 		v, err := snap.GetVariable(nil, ref.Namespace, ref.Name)
 		if err != nil || v == nil {
@@ -98,7 +103,7 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			return nil, err
 		}
 		res.Variable = dv
-		live.modifyIndex = v.ModifyIndex
+		live.modifyIndex, live.createIndex = v.ModifyIndex, v.CreateIndex
 		if live.refHash, err = m.releaseVariableHash(ref, v.KeyID, dv.Items); err != nil {
 			return nil, err
 		}
@@ -112,14 +117,14 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			return live, err
 		}
 		res.ObjectKind = k.Copy()
-		live.modifyIndex = k.ModifyIndex
+		live.modifyIndex, live.createIndex = k.ModifyIndex, k.CreateIndex
 	case structs.ReleaseResourceAdmissionPolicy:
 		p, err := snap.AdmissionPolicyByName(nil, ref.Name)
 		if err != nil || p == nil {
 			return live, err
 		}
 		res.AdmissionPolicy = p.Copy()
-		live.modifyIndex = p.ModifyIndex
+		live.modifyIndex, live.createIndex = p.ModifyIndex, p.CreateIndex
 	case structs.ReleaseResourceExternalService:
 		reg, err := snap.GetServiceRegistrationByID(nil, ref.Namespace, ref.Name)
 		if err != nil || reg == nil {
@@ -133,7 +138,7 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			Namespace: reg.Namespace,
 			Service:   structs.ExternalServiceSpecFromRegistration(reg),
 		}
-		live.modifyIndex = reg.ModifyIndex
+		live.modifyIndex, live.createIndex = reg.ModifyIndex, reg.CreateIndex
 	case structs.ReleaseResourceObject:
 		group, kind, name, err := splitObjectRefName(ref.Name)
 		if err != nil {
@@ -144,7 +149,7 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			return live, err
 		}
 		res.Object = o.Copy()
-		live.modifyIndex = o.ModifyIndex
+		live.modifyIndex, live.createIndex = o.ModifyIndex, o.CreateIndex
 		live.version = o.Generation
 	case structs.ReleaseResourceJob:
 		j, err := snap.JobByID(nil, ref.Namespace, ref.Name)
@@ -152,7 +157,7 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 			return live, err
 		}
 		res.Job = j.Copy()
-		live.modifyIndex = j.JobModifyIndex
+		live.modifyIndex, live.createIndex = j.JobModifyIndex, j.CreateIndex
 		live.version = j.Version
 	default:
 		return nil, fmt.Errorf("unknown resource type %q", ref.Type)

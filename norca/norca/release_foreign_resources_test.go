@@ -304,10 +304,14 @@ func TestRelease_FailedApplyRecordsWhatItApplied(t *testing.T) {
 
 	// The team's own jobs "h2-bad" and "h3-never" exist already, of no
 	// release.
-	for i, id := range []string{"h2-bad", "h3-never"} {
+	// They are registered through Raft: a create index ahead of the Raft
+	// index would read as a job created after the release recorded it.
+	for _, id := range []string{"h2-bad", "h3-never"} {
 		job := mock.Job()
 		job.ID, job.Name, job.Namespace = id, id, "a"
-		must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, uint64(2000+i), nil, job))
+		must.NoError(t, c.srv.RPC("Job.Register", &structs.JobRegisterRequest{
+			Job: job, WriteRequest: structs.WriteRequest{Region: "global", Namespace: "a", AuthToken: c.token},
+		}, new(structs.JobRegisterResponse)))
 	}
 
 	pack := func(bad bool) []*structs.ReleaseResource {

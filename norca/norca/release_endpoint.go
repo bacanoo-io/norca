@@ -397,6 +397,11 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 
 	op, cancel := m.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
 	defer cancel()
+	// The uninstall claims each resource right before it deletes it
+	// (stillReleases), so that no other release operation or tenant pass
+	// writes it meanwhile.
+	op.claim = m.claims.claimant(claimRelease, namespace+"/"+args.Name)
+	defer m.claims.release(op.claim)
 	rel.Status.Phase = structs.ReleasePhaseUninstalling
 	rel.Status.LastOperation = &structs.ReleaseOperation{
 		Action: structs.ReleaseActionUninstall, Revision: rel.Status.Revision, User: op.user, StartTime: nowRFC3339(),
@@ -407,8 +412,10 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 
 	fail := func(cause error) error {
 		rel.Status.Phase = structs.ReleasePhaseFailed
+		rel.Status.Resources = op.withoutDisowned(rel.Status.Resources)
 		rel.Status.LastOperation.Error = cause.Error()
 		rel.Status.LastOperation.EndTime = nowRFC3339()
+		rel.Status.LastOperation.Warnings = op.warnings
 		if _, err := m.writeLatestRelease(rel); err != nil {
 			m.logger.Warn("failed to record failed uninstall", "release", rel.Name, "error", err)
 		}
@@ -477,6 +484,10 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 		return err
 	}
 
+	// The answer says what the uninstall left (op.disown): the release
+	// object with its warnings is gone.
+	rel.Status.LastOperation.EndTime = nowRFC3339()
+	rel.Status.LastOperation.Warnings = op.warnings
 	reply.Release = rel
 	reply.Changes = op.changes
 	reply.Index = max(1, r.srv.raft.AppliedIndex())

@@ -81,6 +81,13 @@ type releaseOp struct {
 	// the resources it takes over from other releases, by key.
 	claim resourceClaimant
 	taken map[string]string
+
+	// disowned are the resources of the release, by key, that the
+	// operation did not delete because they are not the release's
+	// (stillReleases, review finding ATM-7): the release no longer lists
+	// them. restored are those an atomic restore wrote or deleted.
+	disowned map[string]bool
+	restored map[string]bool
 }
 
 // appliedChange is a change made by an operation, with the state of the
@@ -158,6 +165,8 @@ func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespac
 		name:      name,
 		args:      args,
 		ctx:       ctx,
+		disowned:  map[string]bool{},
+		restored:  map[string]bool{},
 	}, cancel
 }
 
@@ -820,7 +829,7 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 	rel.Status.Phase = structs.ReleasePhaseFailed
 	if rolledBack || op.atomic {
 		rel.Status.Revision = prevRevision
-		rel.Status.Resources = previous
+		rel.Status.Resources = m.afterRestore(op, previous)
 		reason := "Failed"
 		if rolledBack {
 			reason = "RolledBack"
@@ -915,6 +924,35 @@ func (m *releaseManager) ownedAfterFailure(op *releaseOp, previous []*structs.Re
 		if ref, ok := byKey[k]; ok {
 			out = append(out, ref)
 		}
+	}
+	return op.withoutDisowned(out)
+}
+
+// afterRestore returns the resources a release owns after a failed atomic
+// operation: the previous ones, but those it disowned. Of a resource the
+// restore wrote or created again the modify index and version recorded are
+// those it has now, so that a later removal or uninstall knows it as the
+// release's (stillReleases); its hash stays the one recorded before, which
+// drift detection compares.
+func (m *releaseManager) afterRestore(op *releaseOp, previous []*structs.ReleaseResourceRef) []*structs.ReleaseResourceRef {
+	refs := op.withoutDisowned(previous)
+	if len(op.restored) == 0 {
+		return refs
+	}
+	snap, err := m.srv.State().Snapshot()
+	if err != nil {
+		return refs
+	}
+	out := make([]*structs.ReleaseResourceRef, 0, len(refs))
+	for _, ref := range refs {
+		if ref != nil && op.restored[ref.Key()] {
+			if live, err := m.readLive(snap, ref); err == nil && live.exists() {
+				fresh := *ref
+				fresh.ModifyIndex, fresh.Version = live.modifyIndex, live.version
+				ref = &fresh
+			}
+		}
+		out = append(out, ref)
 	}
 	return out
 }
@@ -1652,21 +1690,33 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 	}
 	var errs []error
 	for _, ref := range refs {
-		snap, err := op.m.srv.State().Snapshot()
-		if err != nil {
-			return err
+		if op.disowned[ref.Key()] {
+			continue
 		}
-		before, err := op.m.readLive(snap, ref)
+		snap, before, why, err := op.stillReleases(ref)
 		if err != nil {
 			return err
 		}
 		if !before.exists() {
 			continue
 		}
+		if why != "" {
+			op.disown(ref, why)
+			continue
+		}
 		if ref.Type == structs.ReleaseResourceQuota {
-			// Detach the quota from the namespaces deleted with it.
+			// Detach the quota from the namespaces deleted with it, if
+			// they are still the release's.
 			for _, nsRef := range refs {
-				if nsRef.Type != structs.ReleaseResourceNamespace {
+				if nsRef.Type != structs.ReleaseResourceNamespace || op.disowned[nsRef.Key()] {
+					continue
+				}
+				_, live, why, err := op.stillReleases(nsRef)
+				if err != nil {
+					return err
+				}
+				if why != "" && live.exists() {
+					op.disown(nsRef, why)
 					continue
 				}
 				ns, err := snap.NamespaceByName(nil, nsRef.Name)
@@ -1680,12 +1730,25 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 				}
 			}
 		}
+		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeDelete}
+		op.changes = append(op.changes, change)
+		// Deleted as read, where the endpoint can check it; otherwise the
+		// deletion RPC itself is the window left after the read.
+		var index *uint64
+		if releaseDeletesChecked(ref.Type) {
+			index = &before.modifyIndex
+		}
+		err = op.deleteResourceAt(ref, index)
+		if errors.Is(err, errReleaseResourceChanged) {
+			// Changed since the read: left as it is.
+			change.Error = "not deleted: " + err.Error()
+			op.warn("%s was not deleted: it changed while the release deleted it", ref)
+			continue
+		}
 		if record {
 			op.applied = append(op.applied, &appliedChange{ref: ref, before: before, deleted: true})
 		}
-		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeDelete}
-		op.changes = append(op.changes, change)
-		if err := op.deleteResource(ref); err != nil {
+		if err != nil {
 			change.Error = err.Error()
 			if record {
 				return fmt.Errorf("deleting %s: %w", ref, err)
@@ -1694,6 +1757,103 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 		}
 	}
 	return structs.ReleaseErrors(errs)
+}
+
+// stillReleases reads a resource the release recorded (ref, from its
+// status) right before the release deletes it, and says why it is not the
+// release's to delete, "" when it is (review finding ATM-7). A resource
+// deleted and created again since the release recorded it (its create index
+// is newer than the modify index recorded) is somebody else's, even with
+// the release's name; one only changed since (drift) is still the
+// release's. Nor is one the release's that a tenant or another release owns
+// in the state as it is now, or that another release operation or a pass
+// over a tenant claims (resource_claims.go): the operation claims the
+// resource first, then reads. A resource recorded without a modify index
+// (the hook jobs of an uninstall, which the caller knows by the marks of the
+// release) is checked for its owners only.
+func (op *releaseOp) stillReleases(ref *structs.ReleaseResourceRef) (*state.StateSnapshot, *liveResource, string, error) {
+	key := ref.Key()
+	var held string
+	if op.claim.id != 0 {
+		if others := op.m.claims.claim(op.claim, []string{key}); len(others) > 0 {
+			held = fmt.Sprintf("it is being written by %s", others[key])
+		}
+	}
+	snap, err := op.m.srv.State().Snapshot()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	live, err := op.m.readLive(snap, ref)
+	if err != nil || !live.exists() || held != "" {
+		return snap, live, held, err
+	}
+	tenants, err := tenantOwners(snap)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if tenant, ok := tenants[key]; ok {
+		return snap, live, fmt.Sprintf("it belongs to the tenant %q", tenant), nil
+	}
+	self := op.namespace + "/" + op.name
+	other, err := otherReleaseOwner(snap, key, self)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if other != "" {
+		return snap, live, fmt.Sprintf("it belongs to release %q", other), nil
+	}
+	if ref.ModifyIndex != 0 && live.createIndex > ref.ModifyIndex {
+		return snap, live, "it was deleted and created again since the release recorded it", nil
+	}
+	return snap, live, "", nil
+}
+
+// otherReleaseOwner returns a release other than self ("namespace/name")
+// that lists the resource of the key in its status, "" if none does.
+func otherReleaseOwner(snap *state.StateSnapshot, key, self string) (string, error) {
+	iter, err := snap.CustomObjects(nil, structs.ReleaseObjectGroup, structs.ReleaseKind, structs.AllNamespacesSentinel, state.SortDefault)
+	if err != nil {
+		return "", err
+	}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		rel, err := structs.ReleaseFromObject(raw.(*structs.CustomObject))
+		if err != nil || rel.Namespace+"/"+rel.Name == self {
+			continue
+		}
+		for _, ref := range rel.Status.Resources {
+			if ref != nil && ref.Key() == key {
+				return rel.Namespace + "/" + rel.Name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// disown records that the operation leaves a resource of the release that is
+// not the release's to delete (stillReleases): it is not deleted, the
+// operation warns, and the release no longer lists it.
+func (op *releaseOp) disown(ref *structs.ReleaseResourceRef, why string) {
+	op.disowned[ref.Key()] = true
+	op.warn("%s was not deleted: %s; the release no longer lists it", ref, why)
+	op.changes = append(op.changes, &structs.ReleaseResourceChange{
+		Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeDelete,
+		Error: "not deleted: " + why,
+	})
+}
+
+// withoutDisowned returns refs without the resources the operation
+// disowned.
+func (op *releaseOp) withoutDisowned(refs []*structs.ReleaseResourceRef) []*structs.ReleaseResourceRef {
+	if len(op.disowned) == 0 {
+		return refs
+	}
+	out := make([]*structs.ReleaseResourceRef, 0, len(refs))
+	for _, ref := range refs {
+		if ref != nil && !op.disowned[ref.Key()] {
+			out = append(out, ref)
+		}
+	}
+	return out
 }
 
 // withSecrets returns the Variable to write: the items of the pack plus the
@@ -1798,6 +1958,9 @@ func (op *releaseOp) restoreChange(c *appliedChange, attempted bool) error {
 	if errors.Is(err, errReleaseResourceChanged) {
 		op.warn("%s was not restored: it changed while the operation restored it, and is left as it is", c.ref)
 		return nil
+	}
+	if err == nil {
+		op.restored[c.ref.Key()] = true
 	}
 	return err
 }

@@ -233,3 +233,134 @@ func TestRelease_RestoreOfDeletion(t *testing.T) {
 	must.SliceLen(t, 1, op.warnings)
 	must.StrContains(t, op.warnings[0], `namespace "del-taken"`)
 }
+
+// A resource a release recorded that somebody else deleted and created again
+// under its name is not the release's: an upgrade that drops it from the pack
+// leaves it, warns, and no longer lists it, while a resource that was only
+// changed (drift) is still the release's and deleted (review finding ATM-7).
+// The removal deleted by name whatever had the name.
+func TestRelease_RemovalKeepsRecreated(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	gone, drifted, stays := releaseNamespace("rm-gone", "v1"), releaseNamespace("rm-drift", "v1"), releaseNamespace("rm-stays", "v1")
+	goneVar := releaseVariable("rm/gone", "v1")
+	_, err := c.apply("default", "rm", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "rm"}, Atomic: pointer.Of(false),
+		Resources: []*structs.ReleaseResource{gone, drifted, stays, goneVar},
+	})
+	must.NoError(t, err)
+
+	c.dropNamespace("rm-gone")
+	c.putNamespace(&structs.Namespace{Name: "rm-gone", Description: "foreign"})
+	c.dropVariable("rm/gone")
+	c.putVariable("rm/gone", "foreign")
+	c.putNamespace(&structs.Namespace{Name: "rm-drift", Description: "by hand"})
+
+	resp, err := c.apply("default", "rm", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "rm"}, Atomic: pointer.Of(false),
+		Resources: []*structs.ReleaseResource{releaseNamespace("rm-stays", "v1")},
+	})
+	must.NoError(t, err)
+
+	must.Eq(t, "foreign", c.namespaceDescription("rm-gone"), must.Sprint("the removal deleted what somebody else created"))
+	must.Eq(t, "foreign", c.variableValue("rm/gone"), must.Sprint("the removal deleted what somebody else created"))
+	must.Eq(t, "<none>", c.namespaceDescription("rm-drift"), must.Sprint("a drifted resource of the release was not deleted"))
+	for _, res := range []*structs.ReleaseResource{gone, goneVar} {
+		must.True(t, mentions(resp.Warnings, res), must.Sprintf("no warning names %s: %q", res.Ref(), resp.Warnings))
+	}
+	must.Eq(t, []string{stays.Ref().String()}, recorded(c.get("default", "rm")))
+}
+
+// An uninstall leaves a resource the release recorded that somebody else
+// deleted and created again under its name, and says so in its changes; a
+// drifted resource of the release is deleted (review finding ATM-7).
+func TestRelease_UninstallKeepsRecreated(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	gone, drifted := releaseNamespace("un-gone", "v1"), releaseNamespace("un-drift", "v1")
+	goneVar := releaseVariable("un/gone", "v1")
+	_, err := c.apply("default", "un", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "un"}, Atomic: pointer.Of(false),
+		Resources: []*structs.ReleaseResource{gone, drifted, goneVar},
+	})
+	must.NoError(t, err)
+
+	c.dropNamespace("un-gone")
+	c.putNamespace(&structs.Namespace{Name: "un-gone", Description: "foreign"})
+	c.dropVariable("un/gone")
+	c.putVariable("un/gone", "foreign")
+	c.putNamespace(&structs.Namespace{Name: "un-drift", Description: "by hand"})
+
+	resp, err := c.uninstall("default", "un", "")
+	must.NoError(t, err)
+	must.Nil(t, c.get("default", "un"))
+
+	must.Eq(t, "foreign", c.namespaceDescription("un-gone"), must.Sprint("the uninstall deleted what somebody else created"))
+	must.Eq(t, "foreign", c.variableValue("un/gone"), must.Sprint("the uninstall deleted what somebody else created"))
+	must.Eq(t, "<none>", c.namespaceDescription("un-drift"), must.Sprint("a drifted resource of the release was not deleted"))
+	for _, res := range []*structs.ReleaseResource{gone, goneVar} {
+		found := false
+		for _, ch := range resp.Changes {
+			if ch.Type == res.Type && ch.Name == res.Ref().Name && strings.Contains(ch.Error, "not deleted") {
+				found = true
+			}
+		}
+		must.True(t, found, must.Sprintf("no change says %s was not deleted", res.Ref()))
+	}
+}
+
+// A resource an atomic restore created again after the operation deleted it
+// is still the release's: the restore records its new modify index, and an
+// uninstall deletes it (ATM-7).
+func TestRelease_RestoredStaysTheRelease(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	policy := &structs.ReleaseResource{Type: structs.ReleaseResourceACLPolicy, ACLPolicy: &structs.ACLPolicy{
+		Name: "ar-policy", Rules: `namespace "default" { policy = "read" }`,
+	}}
+	_, err := c.apply("default", "ar", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "ar"}, Atomic: pointer.Of(false),
+		Resources: []*structs.ReleaseResource{policy, releaseNamespace("ar-busy", "v1"), releaseNamespace("ar-keep", "v1")},
+	})
+	must.NoError(t, err)
+
+	// The upgrade drops the policy and the namespace; the namespace can't
+	// be deleted, which has a Variable now, so the policy deleted before it
+	// is created again.
+	var resp structs.VariablesApplyResponse
+	must.NoError(t, c.srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
+		Op: structs.VarOpSet,
+		Var: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Namespace: "ar-busy", Path: "in/it"},
+			Items:            map[string]string{"k": "v"},
+		},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "ar-busy", AuthToken: c.token},
+	}, &resp))
+	_, err = c.apply("default", "ar", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "ar"}, Atomic: pointer.Of(true),
+		Resources: []*structs.ReleaseResource{releaseNamespace("ar-keep", "v1")},
+	})
+	must.ErrorContains(t, err, "rolled back to revision 1")
+	pol, err := c.srv.State().ACLPolicyByName(nil, "ar-policy")
+	must.NoError(t, err)
+	must.NotNil(t, pol, must.Sprint("the restore did not create the policy again"))
+
+	// The uninstall deletes it.
+	must.NoError(t, c.srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
+		Op:           structs.VarOpDelete,
+		Var:          &structs.VariableDecrypted{VariableMetadata: structs.VariableMetadata{Namespace: "ar-busy", Path: "in/it"}},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "ar-busy", AuthToken: c.token},
+	}, &resp))
+	un, err := c.uninstall("default", "ar", "")
+	must.NoError(t, err)
+	pol, err = c.srv.State().ACLPolicyByName(nil, "ar-policy")
+	must.NoError(t, err)
+	must.Nil(t, pol, must.Sprintf("the uninstall left the policy the restore created: %v", un.Changes))
+	must.Eq(t, "<none>", c.namespaceDescription("ar-busy"))
+}
