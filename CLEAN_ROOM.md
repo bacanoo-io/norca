@@ -510,6 +510,7 @@ each names the failing test and its output before the change.
 | `a20739414`, `bfda2b1a6` | `client/rpc.go`, `client/client.go` | A client RPC cut off by the shutdown returns an error instead of nil; an RPC waits for the node registration at most `RPCHoldTimeout`; the heartbeat, node event and alloc sync loops stop at the shutdown |
 | `518bd87fe` | `norca/node_endpoint.go`, `norca/alloc_endpoint.go`, `norca/csi_endpoint.go`, `norca/service_registration_endpoint.go` | The RPCs of nodes stay in their region: a request that names another region is refused, and with `verify_server_hostname` a node RPC needs a certificate of the server's own region |
 | `ee7784a54` | `norca/rpc_test.go` | Tests only: which certificates may register a new node over TLS |
+| `9495965e7` | `client/allocdir/alloc_dir.go` | The file system API (`ReadAt`, `List`, `Stat`) refuses a path into the secrets or private directory of a task also through a symbolic link, and on Linux checks the file it opened by the name of its descriptor, so a link swapped after the checks leads neither into those directories nor out of the allocation directory |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
