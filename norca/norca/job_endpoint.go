@@ -123,6 +123,25 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 	}
 }
 
+// checkJobEnforceIndex applies the check-and-set of a job registration
+// (Norca): with enforce set, the JobModifyIndex of the stored job (existing)
+// must be jmi, and with jmi 0 the job must not exist. The endpoint checks it
+// on its snapshot, the FSM again when the registration is applied.
+func checkJobEnforceIndex(existing *structs.Job, enforce bool, jmi uint64) error {
+	switch {
+	case !enforce:
+		return nil
+	case existing == nil && jmi != 0:
+		return fmt.Errorf("%s %d: job does not exist", RegisterEnforceIndexErrPrefix, jmi)
+	case existing != nil && jmi == 0:
+		return fmt.Errorf("%s 0: job already exists", RegisterEnforceIndexErrPrefix)
+	case existing != nil && jmi != existing.JobModifyIndex:
+		return fmt.Errorf("%s %d: job exists with conflicting job modify index: %d",
+			RegisterEnforceIndexErrPrefix, jmi, existing.JobModifyIndex)
+	}
+	return nil
+}
+
 // Register is used to upsert a job for scheduling
 func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegisterResponse) error {
 	authErr := j.srv.Authenticate(j.ctx, args)
@@ -280,19 +299,10 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		return err
 	}
 
-	// If EnforceIndex set, check it before trying to apply
-	if args.EnforceIndex {
-		jmi := args.JobModifyIndex
-		if existingJob != nil {
-			if jmi == 0 {
-				return fmt.Errorf("%s 0: job already exists", RegisterEnforceIndexErrPrefix)
-			} else if jmi != existingJob.JobModifyIndex {
-				return fmt.Errorf("%s %d: job exists with conflicting job modify index: %d",
-					RegisterEnforceIndexErrPrefix, jmi, existingJob.JobModifyIndex)
-			}
-		} else if jmi != 0 {
-			return fmt.Errorf("%s %d: job does not exist", RegisterEnforceIndexErrPrefix, jmi)
-		}
+	// If EnforceIndex set, check it before trying to apply; the FSM checks
+	// it again when the registration is applied (Norca).
+	if err := checkJobEnforceIndex(existingJob, args.EnforceIndex, args.JobModifyIndex); err != nil {
+		return err
 	}
 
 	// Validate job transitions if its an update

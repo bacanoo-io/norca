@@ -690,6 +690,22 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 		return n.applyScaleJob(msgType, &req, index)
 	}
 
+	// Norca: the check-and-set of the registration holds when it is
+	// applied, not only on the snapshot the endpoint checked it on.
+	if req.EnforceIndex {
+		existing, err := n.state.JobByID(nil, req.Job.Namespace, req.Job.ID)
+		if err != nil {
+			n.logger.Error("JobByID lookup failed", "error", err)
+			return err
+		}
+		if err := checkJobEnforceIndex(existing, true, req.JobModifyIndex); err != nil {
+			// An answer for the writer, which reads the job again: not an
+			// error of the servers.
+			n.logger.Debug("JobRegister refused", "job", req.Job.NamespacedID(), "error", err)
+			return err
+		}
+	}
+
 	if err := n.state.UpsertJob(msgType, index, req.Submission, req.Job); err != nil {
 		n.logger.Error("UpsertJob failed", "error", err)
 		return err
