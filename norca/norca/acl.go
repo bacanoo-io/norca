@@ -457,9 +457,13 @@ func (s *Server) resolvePoliciesForClaims(claims *structs.IdentityClaims) ([]*st
 		return nil, fmt.Errorf("allocation does not exist")
 	}
 
-	// Find any policies attached to the job (its parent's for a child job;
-	// Job.Register checks the same job ID, see checkJobBoundPolicies)
-	jobId := boundPolicyJobID(alloc.Job)
+	// Find any policies attached to the job (the first job of its chain of
+	// parents for a child job; Job.Register checks the same job ID, see
+	// checkJobBoundPolicies)
+	jobId, err := boundPolicyJobID(snap, alloc.Job)
+	if err != nil {
+		return nil, err
+	}
 	iter, err := snap.ACLPolicyByJob(nil, alloc.Namespace, jobId)
 	if err != nil {
 		return nil, err

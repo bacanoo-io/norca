@@ -308,10 +308,11 @@ func TestJobBoundPolicies_PeriodicForceChildRunsUnderParentPolicies(t *testing.T
 
 // A parameterized job that is also periodic: a dispatch makes a periodic
 // child, and the launches of that child have the child as their parent.
-// CURRENT BEHAVIOUR: the policies are looked up by the direct parent only, so
-// these grandchildren run without the policies bound to the parameterized
-// job, and their identity names the child, not the bound job.
-func TestJobBoundPolicies_PeriodicDispatchGrandchildLosesPolicies(t *testing.T) {
+// The policies are looked up along the chain of parents (review finding
+// MUK-24; this test asserted the defect before, as CURRENT BEHAVIOUR): the
+// grandchildren run with the policies bound to the parameterized job. Their
+// identity still names the dispatched child, their direct parent.
+func TestJobBoundPolicies_PeriodicDispatchGrandchildGetsPolicies(t *testing.T) {
 	ci.Parallel(t)
 	f, cleanup := newJobBoundFixture(t)
 	defer cleanup()
@@ -342,10 +343,8 @@ func TestJobBoundPolicies_PeriodicDispatchGrandchildLosesPolicies(t *testing.T) 
 	must.True(t, strings.HasPrefix(grandchild.ID, child.ID+structs.PeriodicLaunchSuffix))
 
 	claims, names := f.boundPolicies(grandchild)
-	// CURRENT BEHAVIOUR: the identity names the dispatched child, and no
-	// bound policy applies.
 	must.Eq(t, child.ID, claims.JobID)
-	must.SliceEmpty(t, names)
+	must.Eq(t, []string{"pp-job"}, names)
 }
 
 // A policy stays bound to a namespace and a job ID when the job is gone: a

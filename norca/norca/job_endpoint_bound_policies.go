@@ -14,14 +14,33 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
+// maxParentDepth bounds the chain of parents boundPolicyJobID follows. The
+// deepest chain is two: the launch of a periodic job that was dispatched
+// from a periodic parameterized job.
+const maxParentDepth = 3
+
 // boundPolicyJobID returns the ID of the job whose bound ACL policies the
-// allocations of job are granted: the parent's for a dispatched or periodic
-// child, the job's own otherwise (see resolvePoliciesForClaims).
-func boundPolicyJobID(job *structs.Job) string {
-	if job.ParentID != "" {
-		return job.ParentID
+// allocations of job are granted (see resolvePoliciesForClaims): the job's
+// own, else the first job of its chain of parents. A dispatched or periodic
+// child gets its parent's; the launch of a periodic job dispatched from a
+// periodic parameterized job gets the policies of the parameterized job
+// (review finding MUK-24), not those of the dispatched job, which nobody
+// binds policies to. A parent that is gone ends the chain at the last job
+// known, which has none bound.
+func boundPolicyJobID(snap *state.StateSnapshot, job *structs.Job) (string, error) {
+	id, parent := job.ID, job.ParentID
+	for depth := 0; parent != "" && depth < maxParentDepth; depth++ {
+		id = parent
+		p, err := snap.JobByID(nil, job.Namespace, parent)
+		if err != nil {
+			return "", err
+		}
+		if p == nil {
+			break
+		}
+		parent = p.ParentID
 	}
-	return job.ID
+	return id, nil
 }
 
 // jobBoundPolicyNames returns the sorted names of the ACL policies bound to
@@ -137,7 +156,10 @@ func (s *Server) boundPoliciesNotHeld(snap *state.StateSnapshot, aclObj *acl.ACL
 	if aclObj == nil || aclObj.IsManagement() {
 		return "", nil, nil
 	}
-	boundID = boundPolicyJobID(job)
+	boundID, err = boundPolicyJobID(snap, job)
+	if err != nil {
+		return "", nil, err
+	}
 	bound, err := jobBoundPolicyNames(snap, job.Namespace, boundID)
 	if err != nil || len(bound) == 0 {
 		return boundID, nil, err
@@ -167,8 +189,12 @@ func (s *Server) missingBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL
 		return nil, err
 	}
 	to := "it"
-	if boundID != job.ID {
+	switch boundID {
+	case job.ID:
+	case job.ParentID:
 		to = "its parent job " + strconv.Quote(boundID)
+	default:
+		to = "the job " + strconv.Quote(boundID) + " its parent comes from"
 	}
 	return structs.NewErrRPCCodedf(http.StatusForbidden,
 		"%s: job %q runs with the ACL policies bound to %s, so a token that changes it must hold them; the token doesn't hold %s",
