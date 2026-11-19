@@ -143558,9 +143558,9 @@ func (x *NetworkPolicyUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(6)
+				r.WriteArrayStart(7)
 			} else {
-				r.WriteMapStart(6)
+				r.WriteMapStart(7)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -143586,6 +143586,33 @@ func (x *NetworkPolicyUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					if false {
 					} else {
 						h.encSlicePtrtoNetworkPolicy(([]*NetworkPolicy)(x.NetworkPolicies), e)
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ExpectedModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ExpectedModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
 					}
 				}
 			}
@@ -143782,6 +143809,15 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromMap(l int, d *codec1978.
 					h.decSlicePtrtoNetworkPolicy((*[]*NetworkPolicy)(&x.NetworkPolicies), d)
 				}
 			}
+		case "ExpectedModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.ExpectedModifyIndex = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -143823,16 +143859,16 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj11 int
-	var yyb11 bool
-	var yyhl11 bool = l >= 0
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	var yyj13 int
+	var yyb13 bool
+	var yyhl13 bool = l >= 0
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143845,13 +143881,32 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 			h.decSlicePtrtoNetworkPolicy((*[]*NetworkPolicy)(&x.NetworkPolicies), d)
 		}
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ExpectedModifyIndex = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+		}
+	}
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
+	} else {
+		yyb13 = r.CheckBreak()
+	}
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143861,13 +143916,13 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143877,13 +143932,13 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143893,13 +143948,13 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143909,13 +143964,13 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -143926,17 +143981,17 @@ func (x *NetworkPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec197
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj11++
-		if yyhl11 {
-			yyb11 = yyj11 > l
+		yyj13++
+		if yyhl13 {
+			yyb13 = yyj13 > l
 		} else {
-			yyb11 = r.CheckBreak()
+			yyb13 = r.CheckBreak()
 		}
-		if yyb11 {
+		if yyb13 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj11-1, "")
+		z.DecStructFieldNotFound(yyj13-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -191381,9 +191436,9 @@ func (x *QuotaSpecUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(6)
+				r.WriteArrayStart(7)
 			} else {
-				r.WriteMapStart(6)
+				r.WriteMapStart(7)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -191409,6 +191464,33 @@ func (x *QuotaSpecUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					if false {
 					} else {
 						h.encSlicePtrtoQuotaSpec(([]*QuotaSpec)(x.Quotas), e)
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ExpectedModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ExpectedModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
 					}
 				}
 			}
@@ -191605,6 +191687,15 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromMap(l int, d *codec1978.Deco
 					h.decSlicePtrtoQuotaSpec((*[]*QuotaSpec)(&x.Quotas), d)
 				}
 			}
+		case "ExpectedModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.ExpectedModifyIndex = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -191646,16 +191737,16 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj11 int
-	var yyb11 bool
-	var yyhl11 bool = l >= 0
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	var yyj13 int
+	var yyb13 bool
+	var yyhl13 bool = l >= 0
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191668,13 +191759,32 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 			h.decSlicePtrtoQuotaSpec((*[]*QuotaSpec)(&x.Quotas), d)
 		}
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ExpectedModifyIndex = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+		}
+	}
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
+	} else {
+		yyb13 = r.CheckBreak()
+	}
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191684,13 +191794,13 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191700,13 +191810,13 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191716,13 +191826,13 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191732,13 +191842,13 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -191749,17 +191859,17 @@ func (x *QuotaSpecUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj11++
-		if yyhl11 {
-			yyb11 = yyj11 > l
+		yyj13++
+		if yyhl13 {
+			yyb13 = yyj13 > l
 		} else {
-			yyb11 = r.CheckBreak()
+			yyb13 = r.CheckBreak()
 		}
-		if yyb11 {
+		if yyb13 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj11-1, "")
+		z.DecStructFieldNotFound(yyj13-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -366817,9 +366927,9 @@ func (x *NamespaceUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(6)
+				r.WriteArrayStart(7)
 			} else {
-				r.WriteMapStart(6)
+				r.WriteMapStart(7)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -366845,6 +366955,33 @@ func (x *NamespaceUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					if false {
 					} else {
 						h.encSlicePtrtoNamespace(([]*Namespace)(x.Namespaces), e)
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ExpectedModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ExpectedModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
 					}
 				}
 			}
@@ -367041,6 +367178,15 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromMap(l int, d *codec1978.Deco
 					h.decSlicePtrtoNamespace((*[]*Namespace)(&x.Namespaces), d)
 				}
 			}
+		case "ExpectedModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.ExpectedModifyIndex = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -367082,16 +367228,16 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj11 int
-	var yyb11 bool
-	var yyhl11 bool = l >= 0
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	var yyj13 int
+	var yyb13 bool
+	var yyhl13 bool = l >= 0
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367104,13 +367250,32 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 			h.decSlicePtrtoNamespace((*[]*Namespace)(&x.Namespaces), d)
 		}
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ExpectedModifyIndex = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+		}
+	}
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
+	} else {
+		yyb13 = r.CheckBreak()
+	}
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367120,13 +367285,13 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367136,13 +367301,13 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367152,13 +367317,13 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367168,13 +367333,13 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -367185,17 +367350,17 @@ func (x *NamespaceUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj11++
-		if yyhl11 {
-			yyb11 = yyj11 > l
+		yyj13++
+		if yyhl13 {
+			yyb13 = yyj13 > l
 		} else {
-			yyb11 = r.CheckBreak()
+			yyb13 = r.CheckBreak()
 		}
-		if yyb11 {
+		if yyb13 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj11-1, "")
+		z.DecStructFieldNotFound(yyj13-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -403339,9 +403504,9 @@ func (x *ACLPolicyUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(6)
+				r.WriteArrayStart(7)
 			} else {
-				r.WriteMapStart(6)
+				r.WriteMapStart(7)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -403367,6 +403532,33 @@ func (x *ACLPolicyUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					if false {
 					} else {
 						h.encSlicePtrtoACLPolicy(([]*ACLPolicy)(x.Policies), e)
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ExpectedModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ExpectedModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
 					}
 				}
 			}
@@ -403563,6 +403755,15 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromMap(l int, d *codec1978.Deco
 					h.decSlicePtrtoACLPolicy((*[]*ACLPolicy)(&x.Policies), d)
 				}
 			}
+		case "ExpectedModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.ExpectedModifyIndex = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -403604,16 +403805,16 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj11 int
-	var yyb11 bool
-	var yyhl11 bool = l >= 0
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	var yyj13 int
+	var yyb13 bool
+	var yyhl13 bool = l >= 0
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403626,13 +403827,32 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 			h.decSlicePtrtoACLPolicy((*[]*ACLPolicy)(&x.Policies), d)
 		}
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ExpectedModifyIndex = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+		}
+	}
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
+	} else {
+		yyb13 = r.CheckBreak()
+	}
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403642,13 +403862,13 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403658,13 +403878,13 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403674,13 +403894,13 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403690,13 +403910,13 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj11++
-	if yyhl11 {
-		yyb11 = yyj11 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb11 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb11 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -403707,17 +403927,17 @@ func (x *ACLPolicyUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.De
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj11++
-		if yyhl11 {
-			yyb11 = yyj11 > l
+		yyj13++
+		if yyhl13 {
+			yyb13 = yyj13 > l
 		} else {
-			yyb11 = r.CheckBreak()
+			yyb13 = r.CheckBreak()
 		}
-		if yyb11 {
+		if yyb13 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj11-1, "")
+		z.DecStructFieldNotFound(yyj13-1, "")
 	}
 	r.ReadArrayEnd()
 }
