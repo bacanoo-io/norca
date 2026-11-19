@@ -214,13 +214,16 @@ func (w *deploymentWatcher) SetAllocHealth(
 			}
 
 			var err error
-			j, err = w.latestStableJob()
+			var predates *uint64
+			j, predates, err = w.latestStableJob()
 			if err != nil {
 				return err
 			}
 
 			if j != nil {
 				j, desc = w.handleRollbackValidity(j, desc)
+			} else if predates != nil {
+				desc = noApprovedRollbackTarget(desc, *predates)
 			}
 			break
 		}
@@ -392,14 +395,18 @@ func (w *deploymentWatcher) failDeployment(desc string, resp *structs.Deployment
 	var rollbackJob *structs.Job
 	if rollback {
 		var err error
-		rollbackJob, err = w.latestStableJob()
+		var predates *uint64
+		rollbackJob, predates, err = w.latestStableJob()
 		if err != nil {
 			return err
 		}
 
-		if rollbackJob != nil {
+		switch {
+		case rollbackJob != nil:
 			rollbackJob, desc = w.handleRollbackValidity(rollbackJob, desc)
-		} else {
+		case predates != nil:
+			desc = noApprovedRollbackTarget(desc, *predates)
+		default:
 			desc = structs.DeploymentStatusDescriptionNoRollbackTarget(desc)
 		}
 	}
@@ -577,16 +584,20 @@ FAIL:
 	var j *structs.Job
 	if rollback {
 		var err error
-		j, err = w.latestStableJob()
+		var predates *uint64
+		j, predates, err = w.latestStableJob()
 		if err != nil {
 			w.logger.Error("failed to lookup latest stable job", "error", err)
 		}
 
 		// Description should include that the job is being rolled back to
 		// version N
-		if j != nil {
+		switch {
+		case j != nil:
 			j, desc = w.handleRollbackValidity(j, desc)
-		} else {
+		case predates != nil:
+			desc = noApprovedRollbackTarget(desc, *predates)
+		default:
 			desc = structs.DeploymentStatusDescriptionNoRollbackTarget(desc)
 		}
 	}
@@ -803,27 +814,78 @@ func (w *deploymentWatcher) doneGroups(d *structs.Deployment) map[string]bool {
 	return groups
 }
 
-// latestStableJob returns the latest stable job. It may be nil if none exist
-func (w *deploymentWatcher) latestStableJob() (*structs.Job, error) {
+// latestStableJob returns the latest stable version of the job that an auto
+// revert may register again. It may be nil if none exist.
+//
+// The allocations of a job get the ACL policies bound to it (JobACL), and
+// since review finding JOG-2 a registration that changes such a job needs a
+// token that holds them. An auto revert registers an older version through
+// Raft without a token, so it goes only to a version registered after the
+// policies bound to the job last changed: one that a holder of the policies
+// registered, or that had nothing bound to run under (JOG-17). An older
+// stable version, which the stability flags of any token with submit-job
+// can pick, is not reverted to; predates is then its version, and the
+// deployment fails without a rollback.
+func (w *deploymentWatcher) latestStableJob() (stable *structs.Job, predates *uint64, err error) {
 	snap, err := w.state.Snapshot()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	versions, err := snap.JobVersionsByID(nil, w.j.Namespace, w.j.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var stable *structs.Job
 	for _, job := range versions {
 		if job.Stable {
 			stable = job
 			break
 		}
 	}
+	if stable == nil {
+		return nil, nil, nil
+	}
 
-	return stable, nil
+	bound, err := boundPoliciesModifyIndex(snap, stable)
+	if err != nil {
+		return nil, nil, err
+	}
+	if stable.JobModifyIndex <= bound {
+		return nil, pointer.Of(stable.Version), nil
+	}
+	return stable, nil, nil
+}
+
+// boundPoliciesModifyIndex returns the highest ModifyIndex of the ACL
+// policies bound to job (to its parent for a dispatched or periodic child,
+// as the allocations get them), 0 when none are bound.
+func boundPoliciesModifyIndex(snap *state.StateSnapshot, job *structs.Job) (uint64, error) {
+	jobID := job.ID
+	if job.ParentID != "" {
+		jobID = job.ParentID
+	}
+	iter, err := snap.ACLPolicyByJob(nil, job.Namespace, jobID)
+	if err != nil {
+		return 0, err
+	}
+	var index uint64
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		p := raw.(*structs.ACLPolicy)
+		if p.JobACL == nil || p.JobACL.Namespace != job.Namespace || p.JobACL.JobID != jobID {
+			continue
+		}
+		index = max(index, p.ModifyIndex)
+	}
+	return index, nil
+}
+
+// noApprovedRollbackTarget is the status description of a deployment that
+// fails without the rollback to the stable version, which predates the ACL
+// policies bound to the job (see latestStableJob).
+func noApprovedRollbackTarget(baseDescription string, version uint64) string {
+	return fmt.Sprintf("%s - not rolling back to stable job version %d: it was registered before the ACL policies bound to the job last changed",
+		baseDescription, version)
 }
 
 // createBatchedUpdate creates an eval for the given index as well as updating
