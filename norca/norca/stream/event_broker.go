@@ -218,6 +218,16 @@ func (e *EventBroker) SetBaseIndexes(index uint64, byTopic map[structs.Topic]uin
 	e.eventBuf.watermarks.setBase(index, byTopic)
 }
 
+// RaiseBaseIndex tells the broker that the Raft log continues at index+1
+// after a hole above the index of its restored state (Norca, MUK-16): a
+// restore of an older snapshot (raft.Restore) jumps the log past the
+// indexes its watchers saw, and the state then holds a history they don't
+// know. An exact-index subscription at or below index is refused
+// (ErrIndexNotAvailable), so a watcher lists again instead of resuming.
+func (e *EventBroker) RaiseBaseIndex(index uint64) {
+	e.eventBuf.watermarks.raiseBase(index)
+}
+
 // CloseAll closes all subscriptions
 func (e *EventBroker) CloseAll() {
 	e.subscriptions.closeAll()

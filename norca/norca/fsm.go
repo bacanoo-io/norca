@@ -9,6 +9,7 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
@@ -101,6 +102,12 @@ type nomadFSM struct {
 
 	// config is the FSM config
 	config *FSMConfig
+
+	// restoreHoleCheck is set by a restore and cleared by the next Apply,
+	// which raises the base index of the event broker when the log skips
+	// indexes above the restored state (see checkRestoreHole). Restore and
+	// Apply run on the FSM goroutine of Raft.
+	restoreHoleCheck atomic.Bool
 
 	// enterpriseAppliers holds the set of enterprise only LogAppliers
 	enterpriseAppliers LogAppliers
@@ -217,6 +224,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 
 	// Witness this write
 	n.timetable.Witness(log.Index, time.Now().UTC())
+
+	if n.restoreHoleCheck.Swap(false) {
+		n.checkRestoreHole(log.Index)
+	}
 
 	// Check if this message type should be ignored when unknown. This is
 	// used so that new commands can be added with developer control if older
@@ -2098,7 +2109,37 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 	// blocking queries won't see any changes and need to be woken up.
 	stateOld.Abandon()
 
+	n.restoreHoleCheck.Store(true)
 	return nil
+}
+
+// checkRestoreHole is called with the index of the first log applied after a
+// restore (review finding MUK-16). A restore of an older snapshot
+// (raft.Restore, by operator snapshot restore or a full backup restore)
+// gives the restored state the indexes of the snapshot, while the log goes
+// on after the index the cluster had reached, so the next log skips the
+// indexes between. A watcher that saw those indexes in the old history
+// would resume above the restored state once a write lifted the state
+// index past it (the wait of Event.stream, MUK-4, catches only a state that
+// stays below), and miss that the state went back. The base index of the
+// event broker is raised to the index before this log, before the log is
+// applied, so such a resume is refused and the watcher lists again. A log
+// that follows the restored state directly leaves the base as it is; a
+// small hole (a snapshot installed on a follower, a server started from
+// its snapshot, with logs that change no state in between) only makes
+// watchers of those indexes list again.
+func (n *nomadFSM) checkRestoreHole(index uint64) {
+	latest, err := n.state.LatestIndex()
+	if err != nil || index <= latest+1 {
+		return
+	}
+	broker, err := n.state.EventBroker()
+	if err != nil {
+		return // the event broker is not enabled
+	}
+	n.logger.Info("the log continues after a hole above the restored state; event stream watchers below it list again",
+		"restored_index", latest, "next_index", index)
+	broker.RaiseBaseIndex(index - 1)
 }
 
 // failLeakedDeployments is used to fail deployments that do not have a job.

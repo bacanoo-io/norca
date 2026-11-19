@@ -56,6 +56,21 @@ func (w *indexWatermarks) setBase(base uint64, byTopic map[structs.Topic]uint64)
 	}
 }
 
+// raiseBase raises the base to index for every topic, when it is higher:
+// the history of the state below it is not the one this buffer follows
+// (see EventBroker.RaiseBaseIndex), so the per topic indexes no longer
+// narrow it.
+func (w *indexWatermarks) raiseBase(index uint64) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if index <= w.base {
+		return
+	}
+	w.base = index
+	w.baseByTopic = nil
+}
+
 // recordDropped records the events of an item dropped from the buffer.
 func (w *indexWatermarks) recordDropped(item *bufferItem) {
 	if item == nil || item.Events == nil || len(item.Events.Events) == 0 {
