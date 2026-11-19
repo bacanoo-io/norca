@@ -522,6 +522,7 @@ each names the failing test and its output before the change.
 | `97d0470ae`, `50dc2e27e`, `e8fadee43`, `9a74eb6db`, `452dc4e6b`, `d75ef4508` | `norca/config.go` | Unexported test hooks of the tenant and release code (Norca components) only |
 | `9a74eb6db` | `norca/leader.go` | Establishing and revoking leadership starts and ends the term of the release operations (a Norca component), so an operation stops writing when its server loses leadership |
 | `f837d8ba4` | `norca/config.go` | An unexported test hook of the tenant operator (a Norca component) only |
+| `63687f8d8` | `command/agent/http.go`, `norca/rpc.go` | The HTTP and RPC connection limits (`http_max_conns_per_client`, `rpc_max_conns_per_client`, the RPC stream limit) count an IPv6 client by its /64 instead of its exact address, through a Norca helper (`helper/connprefix`) that wraps the connection only for the limiter (a host with a /64 could open the limit again from every address of it) |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
