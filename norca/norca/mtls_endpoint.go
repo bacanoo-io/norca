@@ -132,7 +132,11 @@ func (m *MTLS) SignCertificate(args *structs.MTLSSignRequest, reply *structs.MTL
 	if alloc == nil || alloc.Job == nil {
 		return structs.NewErrRPCCodedf(http.StatusNotFound, "allocation %s not found", claims.AllocationID)
 	}
-	if alloc.Namespace != claims.Namespace || alloc.JobID != claims.JobID {
+	// The identity of a dispatched or periodic child names its parent job
+	// (Allocation.ToIdentityClaims), as the SPIFFE ID below does
+	// (mtlsWorkloadJobID); comparing with alloc.JobID refused every child
+	// (review finding MUK-28).
+	if alloc.Namespace != claims.Namespace || mtlsWorkloadJobID(alloc.Job) != claims.JobID {
 		return structs.ErrPermissionDenied
 	}
 	if alloc.TerminalStatus() {
