@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -71,8 +72,45 @@ type Config struct {
 	// TTL of the answers.
 	TTL time.Duration
 
-	// Namespaces answered for; the first is the default.
+	// Namespaces answered for; the first is the default. Entries after the
+	// first may be patterns (path.Match: *, ?, [...]), for example "team-*"
+	// or "*"; the first must be a namespace name.
 	Namespaces []string
+}
+
+// isNamespacePattern reports whether an entry of Config.Namespaces is a
+// pattern rather than a namespace name.
+func isNamespacePattern(s string) bool {
+	return strings.ContainsAny(s, "*?[")
+}
+
+// validateNamespaces checks Config.Namespaces (review finding PLD-3).
+func validateNamespaces(namespaces []string) error {
+	if isNamespacePattern(namespaces[0]) {
+		return fmt.Errorf("the first of namespaces (%q) is the namespace of names without one and must be a namespace, not a pattern", namespaces[0])
+	}
+	for _, ns := range namespaces[1:] {
+		if _, err := path.Match(ns, ""); err != nil {
+			return fmt.Errorf("namespaces: %q is not a valid pattern: %v", ns, err)
+		}
+	}
+	return nil
+}
+
+// answersNamespace reports whether the server answers for the namespace:
+// it is in Config.Namespaces or matches one of its patterns.
+func (s *Server) answersNamespace(namespace string) bool {
+	for _, entry := range s.cfg.Namespaces {
+		if entry == namespace {
+			return true
+		}
+		if isNamespacePattern(entry) {
+			if ok, _ := path.Match(entry, namespace); ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Server is the DNS server.
@@ -94,6 +132,9 @@ type Server struct {
 func New(logger hclog.Logger, cfg Config, resolver Resolver) (*Server, error) {
 	if len(cfg.Namespaces) == 0 {
 		cfg.Namespaces = []string{structs.DefaultNamespace}
+	}
+	if err := validateNamespaces(cfg.Namespaces); err != nil {
+		return nil, err
 	}
 	cfg.Domain = strings.Trim(strings.ToLower(cfg.Domain), ".")
 
@@ -272,39 +313,43 @@ func (s *Server) parseService(zone string, labels []string) (*serviceLookup, err
 	}
 
 	if zone == consulDomain {
-		// <service>.service[.<datacenter>].consul
+		// <service>.service[.<datacenter>].consul, and Consul's labeled
+		// form: [.<namespace>.ns][.<datacenter>.dc]
+		datacenter := ""
+		switch {
+		case len(rest) == 0:
+		case len(rest) == 1:
+			datacenter = rest[0]
+		case len(rest) == 2 && rest[1] == "ns":
+			lookup.query.Namespace = rest[0]
+		case len(rest) == 2 && rest[1] == "dc":
+			datacenter = rest[0]
+		case len(rest) == 4 && rest[1] == "ns" && rest[3] == "dc":
+			lookup.query.Namespace, datacenter = rest[0], rest[2]
+		default:
+			return nil, errors.New("not a Consul service name")
+		}
+		if datacenter != "" {
+			if s.cfg.ConsulDatacenterIsRegion {
+				lookup.query.Region = datacenter
+			} else {
+				lookup.query.Datacenter = datacenter
+			}
+		}
+	} else {
 		switch len(rest) {
 		case 0:
+		case 2:
+			lookup.query.Region = rest[1]
+			fallthrough
 		case 1:
-			if s.cfg.ConsulDatacenterIsRegion {
-				lookup.query.Region = rest[0]
-			} else {
-				lookup.query.Datacenter = rest[0]
-			}
+			lookup.query.Namespace = rest[0]
 		default:
 			return nil, errors.New("too many labels")
 		}
-		return lookup, nil
 	}
 
-	switch len(rest) {
-	case 0:
-	case 2:
-		lookup.query.Region = rest[1]
-		fallthrough
-	case 1:
-		lookup.query.Namespace = rest[0]
-	default:
-		return nil, errors.New("too many labels")
-	}
-
-	allowed := false
-	for _, ns := range s.cfg.Namespaces {
-		if ns == lookup.query.Namespace {
-			allowed = true
-		}
-	}
-	lookup.refused = !allowed
+	lookup.refused = !s.answersNamespace(lookup.query.Namespace)
 	return lookup, nil
 }
 

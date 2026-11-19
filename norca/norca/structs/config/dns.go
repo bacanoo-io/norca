@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -47,8 +48,9 @@ type DNSConfig struct {
 	TTL string `hcl:"ttl"`
 
 	// Namespaces are the namespaces whose services the DNS server answers
-	// for. The first one is used for names without a namespace. Defaults to
-	// ["default"].
+	// for. The first one is used for names without a namespace and must be a
+	// name; the others may be patterns (path.Match: *, ?, [...]), such as
+	// "team-*" or "*". Defaults to ["default"].
 	Namespaces []string `hcl:"namespaces"`
 
 	// Token is the ACL token used to read the catalog. Defaults to the
@@ -192,9 +194,16 @@ func (c *DNSConfig) Validate() error {
 	if c.IsConsulCompat() && domain == "consul" {
 		mErr.Errors = append(mErr.Errors, errors.New(`dns consul_compat cannot be used with domain "consul"`))
 	}
-	for _, ns := range c.Namespaces {
-		if ns == "" {
+	for i, ns := range c.Namespaces {
+		switch {
+		case ns == "":
 			mErr.Errors = append(mErr.Errors, errors.New("dns namespaces must not be empty"))
+		case i == 0 && strings.ContainsAny(ns, "*?["):
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("the first of dns namespaces (%q) is the namespace of names without one and must be a namespace, not a pattern", ns))
+		default:
+			if _, err := path.Match(ns, ""); err != nil {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf("dns namespaces: %q is not a valid pattern: %v", ns, err))
+			}
 		}
 	}
 	return mErr.ErrorOrNil()
