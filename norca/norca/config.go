@@ -448,6 +448,11 @@ type Config struct {
 	// write.
 	releaseBeforeRestore func(release string, ref *structs.ReleaseResourceRef)
 
+	// releaseBeforeDelete, when set, runs right before a release operation
+	// deletes a resource the release recorded (a removal or an uninstall).
+	// For tests: what happens while the operation runs.
+	releaseBeforeDelete func(release string, ref *structs.ReleaseResourceRef)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

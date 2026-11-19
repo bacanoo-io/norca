@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -158,7 +159,10 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 		return err
 	}
 
-	op, cancel := r.srv.releases.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	op, cancel, err := r.srv.releases.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	if err != nil {
+		return err
+	}
 	defer cancel()
 	in := &applyInput{
 		pack:           args.Pack,
@@ -301,7 +305,10 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 		return structs.NewErrRPCCodedf(http.StatusNotFound, "revision %d of release %q not found (it may have been pruned)", target, args.Name)
 	}
 
-	op, cancel := r.srv.releases.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	op, cancel, err := r.srv.releases.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	if err != nil {
+		return err
+	}
 	defer cancel()
 	in := &applyInput{
 		action:      structs.ReleaseActionRollback,
@@ -395,7 +402,10 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 		}
 	}
 
-	op, cancel := m.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	op, cancel, err := m.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	if err != nil {
+		return err
+	}
 	defer cancel()
 	// The uninstall claims each resource right before it deletes it
 	// (stillReleases), so that no other release operation or tenant pass
@@ -406,17 +416,28 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 	rel.Status.LastOperation = &structs.ReleaseOperation{
 		Action: structs.ReleaseActionUninstall, Revision: rel.Status.Revision, User: op.user, StartTime: nowRFC3339(),
 	}
+	if op.leadershipEnded() {
+		return op.interruptedError()
+	}
 	if rel, err = m.writeRelease(rel, obj.ModifyIndex); err != nil {
 		return err
 	}
+	op.fence = newReleaseFence(rel)
 
+	// An uninstall that a leader change interrupted records nothing
+	// (release_leader.go).
 	fail := func(cause error) error {
+		if op.interrupted() {
+			return op.interruptedError()
+		}
 		rel.Status.Phase = structs.ReleasePhaseFailed
 		rel.Status.Resources = op.withoutDisowned(rel.Status.Resources)
 		rel.Status.LastOperation.Error = cause.Error()
 		rel.Status.LastOperation.EndTime = nowRFC3339()
 		rel.Status.LastOperation.Warnings = op.warnings
-		if _, err := m.writeLatestRelease(rel); err != nil {
+		if _, err := op.writeLatestRelease(rel); errors.Is(err, errReleaseInterrupted) {
+			return op.interruptedError()
+		} else if err != nil {
 			m.logger.Warn("failed to record failed uninstall", "release", rel.Name, "error", err)
 		}
 		return fmt.Errorf("uninstalling release %q failed: %w", rel.Name, cause)
@@ -467,6 +488,9 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 	}
 
 	// Delete the revisions, then the release.
+	if err := op.interruption(); err != nil {
+		return fail(err)
+	}
 	snap, err = r.srv.State().Snapshot()
 	if err != nil {
 		return err
@@ -480,8 +504,8 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 			return fail(err)
 		}
 	}
-	if err := m.deleteObject(structs.ReleaseKind, namespace, args.Name); err != nil {
-		return err
+	if err := op.deleteRelease(); err != nil {
+		return op.answer(err)
 	}
 
 	// The answer says what the uninstall left (op.disown): the release
@@ -607,10 +631,20 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 		return structs.NewErrRPCCodedf(http.StatusNotFound, "revision %d of release %q not found", rel.Status.Revision, args.Name)
 	}
 
-	op, cancel := m.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	op, cancel, err := m.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
+	if err != nil {
+		return err
+	}
 	defer cancel()
+	// The test runs while the release stays as it was read: a leader change
+	// that marked it failed, or an operation started on a new leader, stops
+	// it (release_leader.go).
+	op.fence = newReleaseFence(rel)
 	result := &structs.ReleaseTestResult{Revision: rev.Revision, StartTime: nowRFC3339()}
 	testErr := op.runHooks(rev.Resources, structs.ReleaseHookTest)
+	if op.interrupted() {
+		return op.interruptedError()
+	}
 	result.EndTime = nowRFC3339()
 	result.Hooks = op.hooks
 	result.Succeeded = testErr == nil
@@ -622,8 +656,8 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 		evType, reason, msg = structs.ObjectEventTypeWarning, "TestFailed", testErr.Error()
 	}
 	m.recordEvent(namespace, args.Name, evType, reason, msg, nil)
-	if _, err := m.writeLatestRelease(rel); err != nil {
-		return err
+	if _, err := op.writeLatestRelease(rel); err != nil {
+		return op.answer(err)
 	}
 	reply.Result = result
 	reply.Index = max(1, r.srv.raft.AppliedIndex())

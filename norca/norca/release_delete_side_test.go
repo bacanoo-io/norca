@@ -209,7 +209,8 @@ func TestRelease_RestoreOfDeletion(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)
 	defer cleanup()
-	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "del", 0)
+	op, cancel, err := c.srv.releases.newOp(nil, c.token, "default", "del", 0)
+	must.NoError(t, err)
 	defer cancel()
 
 	// What the operation deleted, as it read it before.

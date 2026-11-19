@@ -40,7 +40,8 @@ func TestRelease_DeleteResourceRefused(t *testing.T) {
 	must.NoError(t, err)
 	must.NoError(t, store.UpsertNamespaces(index+1, []*structs.Namespace{{Name: "nonexistent", Quota: "app-quota"}}))
 
-	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	op, cancel, err := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	must.NoError(t, err)
 	defer cancel()
 	ref := &structs.ReleaseResourceRef{Type: structs.ReleaseResourceQuota, Name: "app-quota"}
 	err = op.deleteResource(ref)
@@ -51,7 +52,8 @@ func TestRelease_DeleteResourceRefused(t *testing.T) {
 	must.NotNil(t, quota)
 
 	// A token the servers don't know is refused too.
-	unknown, cancelUnknown := c.srv.releases.newOp(nil, uuid.Generate(), "default", "app", 0)
+	unknown, cancelUnknown, err := c.srv.releases.newOp(nil, uuid.Generate(), "default", "app", 0)
+	must.NoError(t, err)
 	defer cancelUnknown()
 	must.Error(t, unknown.deleteResource(ref))
 
@@ -222,7 +224,8 @@ func TestRelease_ApplyResourceAtJob(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)
 	defer cleanup()
-	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	op, cancel, err := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	must.NoError(t, err)
 	defer cancel()
 	stored := func() *structs.Job {
 		t.Helper()
@@ -238,7 +241,7 @@ func TestRelease_ApplyResourceAtJob(t *testing.T) {
 	}
 
 	var absent uint64
-	_, err := op.applyResourceAt(job("v1"), &absent)
+	_, err = op.applyResourceAt(job("v1"), &absent)
 	must.NoError(t, err)
 	first := stored().JobModifyIndex
 
@@ -273,7 +276,8 @@ func TestRelease_ApplyResourceAtOtherTypes(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)
 	defer cleanup()
-	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	op, cancel, err := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	must.NoError(t, err)
 	defer cancel()
 	ns := func(desc string) *structs.ReleaseResource {
 		return &structs.ReleaseResource{Type: structs.ReleaseResourceNamespace, Namespace: &structs.Namespace{Name: "cas-ns", Description: desc}}

@@ -88,6 +88,11 @@ type releaseOp struct {
 	// them. restored are those an atomic restore wrote or deleted.
 	disowned map[string]bool
 	restored map[string]bool
+
+	// fence is the state the operation put its release in: it writes only
+	// while the release is still so (release_leader.go, ATM-12). nil
+	// before the operation wrote its release.
+	fence *releaseFence
 }
 
 // appliedChange is a change made by an operation, with the state of the
@@ -144,11 +149,17 @@ type applyInput struct {
 	serverRendered bool
 }
 
-func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespace, name string, timeout time.Duration) (*releaseOp, context.CancelFunc) {
+// newOp starts an operation on a release in the current leadership term
+// (release_leader.go): it fails on a server that is not the leader. The
+// function returned ends it.
+func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespace, name string, timeout time.Duration) (*releaseOp, context.CancelFunc, error) {
 	if timeout <= 0 {
 		timeout = structs.DefaultReleaseTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel, err := m.beginOp(timeout)
+	if err != nil {
+		return nil, nil, err
+	}
 	user := admissionUser(args)
 	who := user.Name
 	if who == "" {
@@ -167,7 +178,7 @@ func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespac
 		ctx:       ctx,
 		disowned:  map[string]bool{},
 		restored:  map[string]bool{},
-	}, cancel
+	}, cancel, nil
 }
 
 func (op *releaseOp) warn(format string, args ...any) {
@@ -661,9 +672,13 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if relObj != nil {
 		expected = relObj.ModifyIndex
 	}
+	if op.leadershipEnded() {
+		return op.interruptedError()
+	}
 	if rel, err = m.writeRelease(rel, expected); err != nil {
 		return err
 	}
+	op.fence = newReleaseFence(rel)
 
 	refs := make([]*structs.ReleaseResourceRef, 0, len(resources))
 	for _, res := range resources {
@@ -713,6 +728,9 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		}
 	}
 
+	if execErr == nil {
+		execErr = op.interruption()
+	}
 	if execErr != nil {
 		return m.finishFailed(op, rel, rev, prevRevision, previous, execErr)
 	}
@@ -769,8 +787,8 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	m.supersede(op, prevRevision, revNum)
 
-	if rel, err = m.writeLatestRelease(rel); err != nil {
-		return err
+	if rel, err = op.writeLatestRelease(rel); err != nil {
+		return op.answer(err)
 	}
 	if len(taken) > 0 {
 		m.releaseTakenResources(op, taken)
@@ -787,39 +805,33 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	return nil
 }
 
-// writeLatestRelease writes the release over the latest stored version: the
-// status of a release changes only while the operation holds its lock, but
-// the drift checker may have updated it.
-func (m *releaseManager) writeLatestRelease(rel *structs.Release) (*structs.Release, error) {
-	snap, err := m.srv.State().Snapshot()
-	if err != nil {
-		return nil, err
-	}
-	obj, _, err := releaseObject(snap, rel.Namespace, rel.Name)
-	if err != nil {
-		return nil, err
-	}
-	var expected uint64
-	if obj != nil {
-		expected = obj.ModifyIndex
-	}
-	return m.writeRelease(rel, expected)
-}
-
 // finishFailed records a failed operation. An atomic operation restores the
-// state before it, so that the previous revision is deployed again.
+// state before it, so that the previous revision is deployed again. An
+// operation that a leader change interrupted records and restores nothing
+// (release_leader.go).
 func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *structs.ReleaseRevision,
 	prevRevision uint64, previous []*structs.ReleaseResourceRef, cause error) error {
 
+	if op.interrupted() {
+		return op.interruptedError()
+	}
 	now := time.Now()
 	msg := cause.Error()
 	rolledBack := false
 	if op.atomic && (len(op.applied) > 0 || op.attempted != nil) {
 		rel.Status.Phase = structs.ReleasePhaseRollingBack
-		if written, err := m.writeLatestRelease(rel); err == nil {
+		written, err := op.writeLatestRelease(rel)
+		switch {
+		case errors.Is(err, errReleaseInterrupted):
+			return op.interruptedError()
+		case err == nil:
 			rel = written
 		}
-		if errs := op.restore(); len(errs) > 0 {
+		errs := op.restore()
+		if op.interrupted() {
+			return op.interruptedError()
+		}
+		if len(errs) > 0 {
 			msg = fmt.Sprintf("%s; restoring the previous state failed: %v", msg, structs.ReleaseErrors(errs))
 		} else {
 			rolledBack = true
@@ -868,7 +880,9 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 			m.supersede(op, prevRevision, rev.Revision)
 		}
 	}
-	if _, err := m.writeLatestRelease(rel); err != nil {
+	if _, err := op.writeLatestRelease(rel); errors.Is(err, errReleaseInterrupted) {
+		return op.interruptedError()
+	} else if err != nil {
 		m.logger.Warn("failed to record failed release operation", "release", rel.Name, "error", err)
 	}
 
@@ -1511,6 +1525,9 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 			}
 		}
 		if err := op.ctx.Err(); err != nil {
+			if op.leadershipEnded() {
+				return errReleaseInterrupted
+			}
 			return fmt.Errorf("the operation timed out")
 		}
 
@@ -1678,6 +1695,13 @@ func (op *releaseOp) beforeApply(ref *structs.ReleaseResourceRef) {
 	}
 }
 
+// beforeDelete runs the test hook releaseBeforeDelete, if set.
+func (op *releaseOp) beforeDelete(ref *structs.ReleaseResourceRef) {
+	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeDelete != nil {
+		cfg.releaseBeforeDelete(op.namespace+"/"+op.name, ref)
+	}
+}
+
 // deleteResources deletes resources in the given (deletion) order. Quotas
 // are detached from namespaces that are deleted with them first. With
 // record, the deletions are recorded for an atomic restore.
@@ -1738,7 +1762,11 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 		if releaseDeletesChecked(ref.Type) {
 			index = &before.modifyIndex
 		}
+		op.beforeDelete(ref)
 		err = op.deleteResourceAt(ref, index)
+		if errors.Is(err, errReleaseInterrupted) {
+			return err
+		}
 		if errors.Is(err, errReleaseResourceChanged) {
 			// Changed since the read: left as it is.
 			change.Error = "not deleted: " + err.Error()
@@ -1903,6 +1931,9 @@ func (op *releaseOp) restore() []error {
 		c := changes[i]
 		if err := op.restoreChange(c, c == op.attempted); err != nil {
 			errs = append(errs, fmt.Errorf("restoring %s: %w", c.ref, err))
+			if errors.Is(err, errReleaseInterrupted) {
+				break
+			}
 		}
 	}
 	return errs

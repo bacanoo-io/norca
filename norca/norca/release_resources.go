@@ -346,9 +346,15 @@ func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, 
 // A refused write fails with an error that wraps errReleaseResourceChanged;
 // for a job it keeps the message of the job endpoint, which starts with
 // RegisterEnforceIndexErrPrefix. Other types can't be written so.
+//
+// An operation that a leader change interrupted writes nothing
+// (release_leader.go): the write fails with errReleaseInterrupted.
 func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64) (*applyResult, error) {
 	if index != nil && !releaseWritesChecked(res.Type) {
 		return nil, fmt.Errorf("a %s can't be written with check-and-set", res.Type)
+	}
+	if err := op.interruption(); err != nil {
+		return nil, err
 	}
 	out, err := op.applyResourceRPC(res, index)
 	if index != nil && err != nil && !errors.Is(err, errReleaseResourceChanged) {
@@ -506,10 +512,14 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 // deleteResourceAt is deleteResource, and with index set a check-and-set
 // deletion (releaseDeletesChecked): the resource is deleted only if its
 // ModifyIndex is still *index. A refused deletion fails with an error that
-// wraps errReleaseResourceChanged. Other types can't be deleted so.
+// wraps errReleaseResourceChanged. Other types can't be deleted so. An
+// interrupted operation deletes nothing, as applyResourceAt.
 func (op *releaseOp) deleteResourceAt(ref *structs.ReleaseResourceRef, index *uint64) error {
 	if index != nil && !releaseDeletesChecked(ref.Type) {
 		return fmt.Errorf("a %s can't be deleted with check-and-set", ref.Type)
+	}
+	if err := op.interruption(); err != nil {
+		return err
 	}
 	srv := op.m.srv
 	var generic structs.GenericResponse

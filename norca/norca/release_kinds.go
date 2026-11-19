@@ -225,11 +225,17 @@ type releaseManager struct {
 	logger hclog.Logger
 
 	// lock guards busy, the releases with a running operation, kindsReady,
-	// and packCacheDir.
+	// packCacheDir, term and ended.
 	lock         sync.Mutex
 	busy         map[string]struct{}
 	kindsReady   bool
 	packCacheDir string
+
+	// term is the leadership term operations start in, nil while this
+	// server is not the leader; ended are the terms ended since the last
+	// one began (release_leader.go, review finding ATM-12).
+	term  *releaseTerm
+	ended []*releaseTerm
 
 	// syncLock serializes the syncs of pack registries, which replace
 	// directories of the pack cache.
@@ -313,9 +319,15 @@ func objectKindDefinitionEqual(a, b *structs.ObjectKind) bool {
 // a leader change as failed and checks the releases for drift periodically.
 // The built-in kinds are registered by the first release operation, so that
 // clusters without releases don't list them.
+//
+// Operations of an earlier term of this server stop first: they hold their
+// releases busy until they have, and failInterrupted leaves busy releases.
 func (s *Server) releaseLeaderLoop(stopCh chan struct{}) {
 	m := s.releases
 	m.resetKinds()
+	if !m.waitEndedTerms(stopCh) {
+		return
+	}
 	m.failInterrupted()
 
 	// Spread the drift checks of several leaders.
@@ -510,12 +522,19 @@ func (m *releaseManager) writeObject(obj *structs.CustomObject, expected uint64)
 
 // deleteObject deletes an object of a built-in kind.
 func (m *releaseManager) deleteObject(kind, namespace, name string) error {
+	return m.deleteObjectAt(kind, namespace, name, 0)
+}
+
+// deleteObjectAt deletes an object of a built-in kind, with expected (not
+// 0) only while it has that modify index.
+func (m *releaseManager) deleteObjectAt(kind, namespace, name string, expected uint64) error {
 	req := &structs.CustomObjectDeleteStateRequest{
-		Group:        structs.ReleaseObjectGroup,
-		Kind:         kind,
-		Namespace:    namespace,
-		Name:         name,
-		WriteRequest: structs.WriteRequest{Region: m.srv.Region()},
+		Group:               structs.ReleaseObjectGroup,
+		Kind:                kind,
+		Namespace:           namespace,
+		Name:                name,
+		ExpectedModifyIndex: expected,
+		WriteRequest:        structs.WriteRequest{Region: m.srv.Region()},
 	}
 	_, _, err := m.srv.raftApply(structs.CustomObjectDeleteRequestType|structs.IgnoreUnknownTypeFlag, req)
 	return err

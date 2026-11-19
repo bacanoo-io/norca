@@ -405,6 +405,10 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Enable the periodic dispatcher, since we are now the leader.
 	s.periodicDispatcher.SetEnabled(true)
 
+	// Norca: release operations run in a term of this leadership, which
+	// revokeLeadership ends (review finding ATM-12).
+	s.releases.setLeader(true)
+
 	// Activate RPC now that local FSM caught up with Raft (as evident by Barrier call success)
 	// and all leader related components (e.g. broker queue) are enabled.
 	// Auxiliary processes (e.g. background, bookkeeping, and cleanup tasks can start after)
@@ -1570,6 +1574,9 @@ func (s *Server) revokeLeadership() error {
 	// End the HA lock of the built-in secret store first, so that its core
 	// stops acting as active before anything else is torn down.
 	s.secretStore.SetLeader(false)
+
+	// Norca: running release operations stop writing (review finding ATM-12).
+	s.releases.setLeader(false)
 
 	// Clear the leader token since we are no longer the leader.
 	s.setLeaderAcl("")
