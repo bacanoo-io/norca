@@ -350,7 +350,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if networkPolicyMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
-		if err := o.upsertNetworkPolicy(want); err != nil {
+		if err := o.upsertNetworkPolicy(live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 

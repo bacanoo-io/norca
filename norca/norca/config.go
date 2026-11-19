@@ -432,6 +432,11 @@ type Config struct {
 	// tests: what is committed between the read and the register.
 	volumeRequestBeforeRegister func(vol *structs.CSIVolume)
 
+	// tenantBeforeWrite, when set, runs right before the tenant operator
+	// writes a namespace, quota, ACL policy or network policy its pass
+	// read. For tests: what is committed between the read and the write.
+	tenantBeforeWrite func(ref tenantResourceRef)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

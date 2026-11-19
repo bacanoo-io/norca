@@ -372,9 +372,12 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			if live != nil && quotaSpecMatches(live, desired.quota) {
 				return true
 			}
+			o.beforeWrite(quotaRef)
 			err := o.upsertQuota(live, desired.quota)
 			w.wrote(quotaRef, live != nil, err)
-			return err == nil || live != nil
+			// A quota changed or created by somebody else since the
+			// read stops the pass: the next one decides whose it is.
+			return err == nil || live != nil && !structs.IsIndexConflictError(err)
 		})
 	}
 
@@ -399,9 +402,12 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		if liveNS != nil && namespaceMatches(liveNS, desired.namespace, manageQuota) {
 			return true
 		}
+		o.beforeWrite(nsRef)
 		err := o.upsertNamespace(liveNS, desired.namespace, manageQuota)
 		w.wrote(nsRef, liveNS != nil, err)
-		return err == nil || liveNS != nil
+		// A namespace changed or created by somebody else since the
+		// read stops the pass: the next one decides whose it is.
+		return err == nil || liveNS != nil && !structs.IsIndexConflictError(err)
 	})
 
 	acls := o.srv.config.ACLEnabled
@@ -418,6 +424,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			}
 			writes = append(writes, func() bool {
 				if live == nil || live.Rules != policy.Rules || live.Description != policy.Description {
+					o.beforeWrite(ref)
 					w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
 				}
 				return true
@@ -458,7 +465,8 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		case w.take(netRef, networkPolicyOriginal(live), networkPolicyOriginal(desired.network)):
 			writes = append(writes, func() bool {
 				if live == nil || !networkPolicyMatches(live, desired.network) {
-					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(desired.network))
+					o.beforeWrite(netRef)
+					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(live, desired.network))
 				}
 				return true
 			})
@@ -923,7 +931,11 @@ func sortedForDeletion(refs map[string]tenantResourceRef) []tenantResourceRef {
 }
 
 // The writes, through the endpoints of the types, with the rights of the
-// servers.
+// servers. Each is a check-and-set on what the tenant read (live): a create
+// only while the resource does not exist, a change only while it has the
+// modify index of live. What somebody else wrote since the read is not
+// overwritten; the write fails with a conflict (structs.IsIndexConflictError)
+// and the next pass, reading again, decides.
 
 func (o *tenantOperator) writeRequest(namespace string) structs.WriteRequest {
 	return structs.WriteRequest{Region: o.srv.Region(), Namespace: namespace, AuthToken: o.srv.getLeaderAcl()}
@@ -940,10 +952,16 @@ func (o *tenantOperator) upsertNamespace(live, desired *structs.Namespace, quota
 			ns.Quota = desired.Quota
 		}
 	}
+	var expected uint64
+	if live != nil {
+		expected = live.ModifyIndex
+	}
 	ns.CreateIndex, ns.ModifyIndex, ns.Hash = 0, 0, nil
 	var resp structs.GenericResponse
 	return o.srv.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
-		Namespaces: []*structs.Namespace{ns}, WriteRequest: o.writeRequest(""),
+		Namespaces:          []*structs.Namespace{ns},
+		ExpectedModifyIndex: map[string]uint64{ns.Name: expected},
+		WriteRequest:        o.writeRequest(""),
 	}, &resp)
 }
 
@@ -957,10 +975,16 @@ func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
 		q.Description, q.Enforce = desired.Description, desired.Enforce
 		q.Limits = desired.Copy().Limits
 	}
+	var expected uint64
+	if live != nil {
+		expected = live.ModifyIndex
+	}
 	q.CreateIndex, q.ModifyIndex, q.Hash = 0, 0, nil
 	var resp structs.GenericResponse
 	return o.srv.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
-		Quotas: []*structs.QuotaSpec{q}, WriteRequest: o.writeRequest(""),
+		Quotas:              []*structs.QuotaSpec{q},
+		ExpectedModifyIndex: map[string]uint64{q.Name: expected},
+		WriteRequest:        o.writeRequest(""),
 	}, &resp)
 }
 
@@ -968,13 +992,19 @@ func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
 // is attached to, which a tenant has no field for, stays.
 func (o *tenantOperator) upsertPolicy(live, p *structs.ACLPolicy) error {
 	policy := *p
+	var expected uint64
+	if live != nil {
+		expected = live.ModifyIndex
+	}
 	if live != nil && live.JobACL != nil {
 		jobACL := *live.JobACL
 		policy.JobACL = &jobACL
 	}
 	var resp structs.GenericResponse
 	return o.srv.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
-		Policies: []*structs.ACLPolicy{&policy}, WriteRequest: o.writeRequest(""),
+		Policies:            []*structs.ACLPolicy{&policy},
+		ExpectedModifyIndex: map[string]uint64{policy.Name: expected},
+		WriteRequest:        o.writeRequest(""),
 	}, &resp)
 }
 
@@ -996,11 +1026,24 @@ func (o *tenantOperator) upsertRole(live, desired *structs.ACLRole) (string, err
 	return role.ID, nil
 }
 
-func (o *tenantOperator) upsertNetworkPolicy(p *structs.NetworkPolicy) error {
+func (o *tenantOperator) upsertNetworkPolicy(live, p *structs.NetworkPolicy) error {
+	var expected uint64
+	if live != nil {
+		expected = live.ModifyIndex
+	}
 	var resp structs.GenericResponse
 	return o.srv.RPC("NetworkPolicy.UpsertNetworkPolicies", &structs.NetworkPolicyUpsertRequest{
-		NetworkPolicies: []*structs.NetworkPolicy{p.Copy()}, WriteRequest: o.writeRequest(p.Namespace),
+		NetworkPolicies:     []*structs.NetworkPolicy{p.Copy()},
+		ExpectedModifyIndex: map[string]uint64{structs.NetworkPolicyIndexKey(p.Namespace, p.Name): expected},
+		WriteRequest:        o.writeRequest(p.Namespace),
 	}, &resp)
+}
+
+// beforeWrite runs the test hook tenantBeforeWrite, if set.
+func (o *tenantOperator) beforeWrite(ref tenantResourceRef) {
+	if o.srv.config != nil && o.srv.config.tenantBeforeWrite != nil {
+		o.srv.config.tenantBeforeWrite(ref)
+	}
 }
 
 // resourceExists reports whether a resource of a tenant is in the state.
