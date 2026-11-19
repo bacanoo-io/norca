@@ -37,10 +37,11 @@ func TestWatcher_FailDeployment_RollbackBoundPolicies(t *testing.T) {
 		stableAt []uint64 // versions marked stable afterwards
 	}
 	cases := []struct {
-		name     string
-		steps    []step
-		revertTo *uint64 // nil: no rollback
-		desc     string
+		name      string
+		steps     []step
+		anyStable bool    // auto_revert_bound_policies = "any_stable"
+		revertTo  *uint64 // nil: no rollback
+		desc      string
 	}{
 		{
 			name:     "stable version before the binding",
@@ -67,6 +68,13 @@ func TestWatcher_FailDeployment_RollbackBoundPolicies(t *testing.T) {
 				{version: true}},
 			revertTo: nil,
 			desc:     "not rolling back to stable job version 0",
+		},
+		{
+			name:      "stable version before the binding, any_stable",
+			steps:     []step{{version: true, stable: true}, {bind: true}, {version: true}},
+			anyStable: true,
+			revertTo:  pointer.Of(uint64(0)),
+			desc:      "rolling back to job version 0",
 		},
 		{
 			name:     "no policy bound",
@@ -136,6 +144,7 @@ func TestWatcher_FailDeployment_RollbackBoundPolicies(t *testing.T) {
 			d.TaskGroups["web"].AutoRevert = true
 			must.NoError(t, m.state.UpsertDeployment(m.nextIndex(), d))
 
+			w.SetAutoRevertAnyStable(tc.anyStable)
 			w.SetEnabled(true, m.state)
 			testutil.WaitForResult(func() (bool, error) { return watchersCount(w) == 1, nil },
 				func(err error) { t.Fatalf("expected 1 deployment watcher, have %d", watchersCount(w)) })

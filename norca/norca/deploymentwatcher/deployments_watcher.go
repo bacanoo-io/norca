@@ -89,6 +89,13 @@ type Watcher struct {
 	// their peer regions
 	multiregionPoll multiregionPoll
 
+	// autoRevertAnyStable lets an automatic revert go to the latest stable
+	// version of a job with bound ACL policies even when it was registered
+	// before the policies last changed (the server option
+	// auto_revert_bound_policies = "any_stable", its default; see
+	// latestStableJob). The server sets it; the zero value is "strict".
+	autoRevertAnyStable bool
+
 	// watchers is the set of active watchers, one per deployment
 	watchers map[string]*deploymentWatcher
 
@@ -121,6 +128,16 @@ func NewDeploymentsWatcher(logger log.Logger,
 		updateBatchDuration: updateBatchDuration,
 		logger:              logger.Named("deployments_watcher"),
 	}
+}
+
+// SetAutoRevertAnyStable sets whether an automatic revert of a job with
+// bound ACL policies may go to a stable version registered before the
+// policies last changed (see latestStableJob). The deployments watched from
+// then on use it.
+func (w *Watcher) SetAutoRevertAnyStable(anyStable bool) {
+	w.l.Lock()
+	defer w.l.Unlock()
+	w.autoRevertAnyStable = anyStable
 }
 
 // SetEnabled is used to control if the watcher is enabled. The watcher
@@ -283,7 +300,7 @@ func (w *Watcher) addLocked(d *structs.Deployment) (*deploymentWatcher, error) {
 	}
 
 	watcher := newDeploymentWatcher(w.ctx, w.queryLimiter, w.logger, w.state, d, job,
-		w, w.deploymentRPC, w.jobRPC, w.multiregionPoll)
+		w, w.deploymentRPC, w.jobRPC, w.multiregionPoll, w.autoRevertAnyStable)
 	w.watchers[d.ID] = watcher
 	return watcher, nil
 }

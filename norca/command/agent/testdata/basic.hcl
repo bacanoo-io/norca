@@ -111,6 +111,7 @@ server {
   enabled                       = true
   authoritative_region          = "foobar"
   replication_backoff           = "45s"
+  auto_revert_bound_policies    = "any_stable"
   bootstrap_expect              = 5
   data_dir                      = "/tmp/data"
   num_schedulers                = 2

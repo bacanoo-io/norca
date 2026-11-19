@@ -202,6 +202,16 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 		}
 		conf.ReplicationBackoff = dur
 	}
+	switch agentConfig.Server.AutoRevertBoundPolicies {
+	case "":
+	case "strict":
+		conf.AutoRevertAnyStable = false
+	case "any_stable":
+		conf.AutoRevertAnyStable = true
+	default:
+		return nil, fmt.Errorf(`auto_revert_bound_policies must be "strict" or "any_stable", not %q`,
+			agentConfig.Server.AutoRevertBoundPolicies)
+	}
 
 	if agentConfig.Datacenter != "" {
 		conf.Datacenter = agentConfig.Datacenter

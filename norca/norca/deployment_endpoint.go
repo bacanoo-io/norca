@@ -130,10 +130,16 @@ func (d *Deployment) Fail(args *structs.DeploymentFailRequest, reply *structs.De
 	}
 
 	// Check namespace submit-job permissions
-	if aclObj, err := d.srv.ResolveACL(args); err != nil {
+	aclObj, err := d.srv.ResolveACL(args)
+	if err != nil {
 		return err
 	} else if aclObj != nil && !aclObj.AllowNsOp(deploy.Namespace, acl.NamespaceCapabilitySubmitJob) {
 		return structs.ErrPermissionDenied
+	}
+
+	// Failing the deployment starts its automatic revert (Norca, JOG-17).
+	if err := d.srv.steerRevertBoundPolicies(snap, aclObj, args.GetIdentity(), deploy.Namespace, deploy.JobID); err != nil {
+		return err
 	}
 
 	if !deploy.Active() {
@@ -421,10 +427,17 @@ func (d *Deployment) SetAllocHealth(args *structs.DeploymentAllocHealthRequest, 
 	}
 
 	// Check namespace submit-job permissions
-	if aclObj, err := d.srv.ResolveACL(args); err != nil {
+	aclObj, err := d.srv.ResolveACL(args)
+	if err != nil {
 		return err
 	} else if aclObj != nil && !aclObj.AllowNsOp(deploy.Namespace, acl.NamespaceCapabilitySubmitJob) {
 		return structs.ErrPermissionDenied
+	}
+
+	// Unhealthy allocations start the automatic revert of the deployment,
+	// healthy ones make its version stable (Norca, JOG-17).
+	if err := d.srv.steerRevertBoundPolicies(snap, aclObj, args.GetIdentity(), deploy.Namespace, deploy.JobID); err != nil {
+		return err
 	}
 
 	if !deploy.Active() {

@@ -358,6 +358,13 @@ type Config struct {
 	// This is a tunable knob for testing primarily.
 	ReplicationBackoff time.Duration
 
+	// AutoRevertAnyStable lets the automatic revert of a deployment go to the
+	// latest stable version of a job with bound ACL policies even when that
+	// version was registered before the policies last changed (Norca, the
+	// server option auto_revert_bound_policies, "any_stable" by default).
+	// Off ("strict"), such a deployment fails without a revert.
+	AutoRevertAnyStable bool
+
 	// ReplicationToken is the ACL Token Secret ID used to fetch from
 	// the Authoritative Region.
 	ReplicationToken string
@@ -648,6 +655,7 @@ func DefaultConfig() *Config {
 		StatsCollectionInterval:          1 * time.Minute,
 		TLSConfig:                        &config.TLSConfig{},
 		ReplicationBackoff:               30 * time.Second,
+		AutoRevertAnyStable:              true,
 		EnableEventBroker:                true,
 		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,

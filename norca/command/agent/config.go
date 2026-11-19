@@ -501,6 +501,12 @@ type ServerConfig struct {
 	// of a namespace deletion this region refused (Norca). Default 30s.
 	ReplicationBackoff string `hcl:"replication_backoff"`
 
+	// AutoRevertBoundPolicies chooses the version the automatic revert of a
+	// deployment goes to for a job with bound ACL policies (Norca):
+	// "any_stable" (default) the latest stable version; "strict" a stable
+	// version registered after the policies last changed, else no revert.
+	AutoRevertBoundPolicies string `hcl:"auto_revert_bound_policies"`
+
 	// BootstrapExpect tries to automatically bootstrap the Consul cluster,
 	// by withholding peers until enough servers join.
 	BootstrapExpect int `hcl:"bootstrap_expect"`
@@ -2148,6 +2154,9 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	}
 	if b.ReplicationBackoff != "" {
 		result.ReplicationBackoff = b.ReplicationBackoff
+	}
+	if b.AutoRevertBoundPolicies != "" {
+		result.AutoRevertBoundPolicies = b.AutoRevertBoundPolicies
 	}
 	if b.BootstrapExpect > 0 {
 		result.BootstrapExpect = b.BootstrapExpect

@@ -1792,3 +1792,37 @@ func TestAgent_ServerConfig_ReplicationBackoff(t *testing.T) {
 		})
 	}
 }
+
+// auto_revert_bound_policies chooses where the automatic revert of a job
+// with bound ACL policies goes (JOG-17): "any_stable" by default, as in
+// Nomad v1.6.5; "strict" turns AutoRevertAnyStable off; any other value is
+// refused at start-up.
+func TestAgent_ServerConfig_AutoRevertBoundPolicies(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		value string
+		want  bool
+		err   string
+	}{
+		{value: "", want: true},
+		{value: "strict", want: false},
+		{value: "any_stable", want: true},
+		{value: "any", err: `auto_revert_bound_policies must be "strict" or "any_stable", not "any"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.value, func(t *testing.T) {
+			conf := DevConfig(nil)
+			must.NoError(t, conf.normalizeAddrs())
+			conf.Server.AutoRevertBoundPolicies = tc.value
+
+			serverConf, err := convertServerConfig(conf)
+			if tc.err != "" {
+				must.ErrorContains(t, err, tc.err)
+				return
+			}
+			must.NoError(t, err)
+			must.Eq(t, tc.want, serverConf.AutoRevertAnyStable)
+		})
+	}
+}

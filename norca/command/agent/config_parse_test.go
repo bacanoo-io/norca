@@ -100,6 +100,7 @@ var basicConfig = &Config{
 		Enabled:                   true,
 		AuthoritativeRegion:       "foobar",
 		ReplicationBackoff:        "45s",
+		AutoRevertBoundPolicies:   "any_stable",
 		BootstrapExpect:           5,
 		DataDir:                   "/tmp/data",
 		RaftMultiplier:            pointer.Of(4),

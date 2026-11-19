@@ -348,3 +348,78 @@ func TestJobEndpoint_BoundPolicies_AnyChangeOfTheJob(t *testing.T) {
 		})
 	}
 }
+
+// The requests that steer the automatic revert of a job with bound ACL
+// policies need a token that holds them (review finding JOG-17, option C):
+// Job.Stable chooses the version a revert registers, Deployment.Fail and
+// Deployment.SetAllocHealth start the revert. Before, submit-job was enough
+// to pick a version from before the binding and fail the deployment of the
+// policy holder. A job without bound policies keeps the old rule.
+func TestJobEndpoint_BoundPolicies_SteerTheRevert(t *testing.T) {
+	ci.Parallel(t)
+	f, cleanup := newBoundPolicyFixture(t)
+	defer cleanup()
+	store := f.srv.fsm.State()
+
+	free := mock.Job()
+	must.NoError(t, f.register(free.Copy(), f.team.SecretID))
+
+	index, err := store.LatestIndex()
+	must.NoError(t, err)
+	deployment := func(job *structs.Job, index uint64) *structs.Deployment {
+		d := mock.Deployment()
+		d.Namespace, d.JobID = job.Namespace, job.ID
+		must.NoError(t, store.UpsertDeployment(index, d))
+		return d
+	}
+	ctrlDeploy := deployment(f.ctrl, index+1)
+	freeDeploy := deployment(free, index+2)
+
+	write := func(token string) structs.WriteRequest {
+		return structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: token}
+	}
+	stable := func(jobID, token string) error {
+		var resp structs.JobStabilityResponse
+		return f.call("Job.Stable", &structs.JobStabilityRequest{
+			JobID: jobID, JobVersion: 0, Stable: true, WriteRequest: write(token),
+		}, &resp)
+	}
+	fail := func(d *structs.Deployment, token string) error {
+		var resp structs.DeploymentUpdateResponse
+		return f.call("Deployment.Fail", &structs.DeploymentFailRequest{
+			DeploymentID: d.ID, WriteRequest: write(token),
+		}, &resp)
+	}
+	health := func(d *structs.Deployment, token string) error {
+		var resp structs.DeploymentUpdateResponse
+		return f.call("Deployment.SetAllocHealth", &structs.DeploymentAllocHealthRequest{
+			DeploymentID: d.ID, UnhealthyAllocationIDs: []string{uuid.Generate()}, WriteRequest: write(token),
+		}, &resp)
+	}
+	notDenied := func(err error) {
+		t.Helper()
+		if err != nil {
+			must.StrNotContains(t, err.Error(), "Permission denied")
+		}
+	}
+
+	for name, call := range map[string]func(token string) error{
+		"Job.Stable":                func(token string) error { return stable("ctrl", token) },
+		"Deployment.Fail":           func(token string) error { return fail(ctrlDeploy, token) },
+		"Deployment.SetAllocHealth": func(token string) error { return health(ctrlDeploy, token) },
+	} {
+		err := call(f.team.SecretID)
+		must.ErrorContains(t, err, "403,Permission denied", must.Sprint(name))
+		must.ErrorContains(t, err, `"ctrl-policy"`, must.Sprint(name))
+	}
+
+	notDenied(stable("ctrl", f.holder.SecretID))
+	notDenied(stable("ctrl", f.roleHolder.SecretID))
+	notDenied(health(ctrlDeploy, f.holder.SecretID))
+	notDenied(fail(ctrlDeploy, f.root.SecretID))
+
+	// a job without bound policies: submit-job is enough, as before
+	notDenied(stable(free.ID, f.team.SecretID))
+	notDenied(health(freeDeploy, f.team.SecretID))
+	notDenied(fail(freeDeploy, f.team.SecretID))
+}

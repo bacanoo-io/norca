@@ -136,9 +136,12 @@ func TestConfig_Merge(t *testing.T) {
 			NomadServiceDiscovery: pointer.Of(false),
 		},
 		Server: &ServerConfig{
-			Enabled:                false,
-			AuthoritativeRegion:    "global",
-			ReplicationBackoff:     "30s",
+			Enabled:             false,
+			AuthoritativeRegion: "global",
+			ReplicationBackoff:  "30s",
+
+			AutoRevertBoundPolicies: "strict",
+
 			BootstrapExpect:        1,
 			DataDir:                "/tmp/data1",
 			ProtocolVersion:        1,
@@ -344,9 +347,12 @@ func TestConfig_Merge(t *testing.T) {
 			NomadServiceDiscovery: pointer.Of(false),
 		},
 		Server: &ServerConfig{
-			Enabled:                true,
-			AuthoritativeRegion:    "global2",
-			ReplicationBackoff:     "45s",
+			Enabled:             true,
+			AuthoritativeRegion: "global2",
+			ReplicationBackoff:  "45s",
+
+			AutoRevertBoundPolicies: "any_stable",
+
 			BootstrapExpect:        2,
 			DataDir:                "/tmp/data2",
 			ProtocolVersion:        2,

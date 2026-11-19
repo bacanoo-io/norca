@@ -1326,6 +1326,7 @@ func (s *Server) setupDeploymentWatcher() error {
 		s.config.DeploymentQueryRateLimit,
 		deploymentwatcher.CrossDeploymentUpdateBatchDuration,
 	)
+	s.deploymentWatcher.SetAutoRevertAnyStable(s.config.AutoRevertAnyStable)
 
 	return nil
 }

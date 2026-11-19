@@ -739,7 +739,8 @@ func (j *Job) Stable(args *structs.JobStabilityRequest, reply *structs.JobStabil
 	defer metrics.MeasureSince([]string{"nomad", "job", "stable"}, time.Now())
 
 	// Check for read-job permissions
-	if aclObj, err := j.srv.ResolveACL(args); err != nil {
+	aclObj, err := j.srv.ResolveACL(args)
+	if err != nil {
 		return err
 	} else if aclObj != nil && !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
 		return structs.ErrPermissionDenied
@@ -753,6 +754,12 @@ func (j *Job) Stable(args *structs.JobStabilityRequest, reply *structs.JobStabil
 	// Lookup the job by version
 	snap, err := j.srv.fsm.State().Snapshot()
 	if err != nil {
+		return err
+	}
+
+	// The stability flags choose the version an automatic revert registers
+	// (Norca, JOG-17).
+	if err := j.srv.steerRevertBoundPolicies(snap, aclObj, args.GetIdentity(), args.RequestNamespace(), args.JobID); err != nil {
 		return err
 	}
 

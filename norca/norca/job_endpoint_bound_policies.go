@@ -221,3 +221,31 @@ func (s *Server) releaseJobBoundPolicies(snap *state.StateSnapshot, aclObj *acl.
 	}
 	return denied
 }
+
+// steerRevertBoundPolicies authorizes a request that steers the automatic
+// revert of a job (review finding JOG-17, option C): marking a version
+// stable or unstable (Job.Stable), failing a deployment (Deployment.Fail),
+// or setting the health of its allocations (Deployment.SetAllocHealth). For
+// a job with ACL policies bound to it, such a request needs a token that
+// holds them, or a management token, as a registration that changes the
+// job does (checkJobBoundPolicies): the revert registers a stable version
+// again without a token, and with the server option
+// auto_revert_bound_policies = "any_stable" it may be a version from before
+// the binding. It returns nil for a job that doesn't exist; the caller
+// reports that.
+func (s *Server) steerRevertBoundPolicies(snap *state.StateSnapshot, aclObj *acl.ACL,
+	identity *structs.AuthenticatedIdentity, namespace, jobID string) error {
+
+	if aclObj == nil || aclObj.IsManagement() {
+		return nil
+	}
+	job, err := snap.JobByID(nil, namespace, jobID)
+	if err != nil || job == nil {
+		return err
+	}
+	denied, err := s.missingBoundPolicies(snap, aclObj, identity, job)
+	if err != nil {
+		return err
+	}
+	return denied
+}

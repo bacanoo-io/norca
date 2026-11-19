@@ -76,6 +76,9 @@ type deploymentWatcher struct {
 	multiregionCh   chan struct{}
 	multiregionPoll multiregionPoll
 
+	// autoRevertAnyStable: see Watcher.autoRevertAnyStable.
+	autoRevertAnyStable bool
+
 	// state is the state that is watched for state changes.
 	state *state.StateStore
 
@@ -119,7 +122,8 @@ type deploymentWatcher struct {
 func newDeploymentWatcher(parent context.Context, queryLimiter *rate.Limiter,
 	logger log.Logger, state *state.StateStore, d *structs.Deployment,
 	j *structs.Job, triggers deploymentTriggers,
-	deploymentRPC DeploymentRPC, jobRPC JobRPC, mrPoll multiregionPoll) *deploymentWatcher {
+	deploymentRPC DeploymentRPC, jobRPC JobRPC, mrPoll multiregionPoll,
+	autoRevertAnyStable bool) *deploymentWatcher {
 
 	ctx, exitFn := context.WithCancel(parent)
 	w := &deploymentWatcher{
@@ -138,6 +142,8 @@ func newDeploymentWatcher(parent context.Context, queryLimiter *rate.Limiter,
 		ctx:                ctx,
 		exitFn:             exitFn,
 		parentCtx:          parent,
+
+		autoRevertAnyStable: autoRevertAnyStable,
 	}
 
 	// Start the long lived watcher that scans for allocation updates
@@ -817,6 +823,11 @@ func (w *deploymentWatcher) doneGroups(d *structs.Deployment) map[string]bool {
 // latestStableJob returns the latest stable version of the job that an auto
 // revert may register again. It may be nil if none exist.
 //
+// With autoRevertAnyStable (the server option auto_revert_bound_policies =
+// "any_stable") it returns the latest stable version, as Nomad v1.6.5 does;
+// the requests that choose that version or start the revert still need the
+// bound policies (steerRevertBoundPolicies of the server). Otherwise:
+//
 // The allocations of a job get the ACL policies bound to it (JobACL), and
 // since review finding JOG-2 a registration that changes such a job needs a
 // token that holds them. An auto revert registers an older version through
@@ -843,8 +854,8 @@ func (w *deploymentWatcher) latestStableJob() (stable *structs.Job, predates *ui
 			break
 		}
 	}
-	if stable == nil {
-		return nil, nil, nil
+	if stable == nil || w.autoRevertAnyStable {
+		return stable, nil, nil
 	}
 
 	bound, err := boundPoliciesModifyIndex(snap, stable)
