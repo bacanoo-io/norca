@@ -75750,9 +75750,9 @@ func (x *CertificateOrderSpec) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(5)
+				r.WriteArrayStart(6)
 			} else {
-				r.WriteMapStart(5)
+				r.WriteMapStart(6)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -75890,6 +75890,33 @@ func (x *CertificateOrderSpec) CodecEncodeSelf(e *codec1978.Encoder) {
 				}
 			}
 			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Reason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Reason))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Reason\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Reason`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Reason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Reason))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
 				r.WriteArrayEnd()
 			} else {
 				r.WriteMapEnd()
@@ -75979,6 +76006,12 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromMap(l int, d *codec1978.Decode
 			} else {
 				x.Revoke = (string)(r.DecodeString())
 			}
+		case "Reason":
+			if r.TryDecodeAsNil() {
+				x.Reason = ""
+			} else {
+				x.Reason = (string)(r.DecodeString())
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -75990,16 +76023,16 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj10 int
-	var yyb10 bool
-	var yyhl10 bool = l >= 0
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	var yyj11 int
+	var yyb11 bool
+	var yyhl11 bool = l >= 0
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -76009,13 +76042,13 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.Issuer = (string)(r.DecodeString())
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -76025,13 +76058,13 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.Certificate = (string)(r.DecodeString())
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -76041,13 +76074,13 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.CSR = (string)(r.DecodeString())
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -76060,13 +76093,13 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 			z.F.DecSliceStringX(&x.DNSNames, d)
 		}
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -76076,18 +76109,34 @@ func (x *CertificateOrderSpec) codecDecodeSelfFromArray(l int, d *codec1978.Deco
 	} else {
 		x.Revoke = (string)(r.DecodeString())
 	}
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
+	} else {
+		yyb11 = r.CheckBreak()
+	}
+	if yyb11 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Reason = ""
+	} else {
+		x.Reason = (string)(r.DecodeString())
+	}
 	for {
-		yyj10++
-		if yyhl10 {
-			yyb10 = yyj10 > l
+		yyj11++
+		if yyhl11 {
+			yyb11 = yyj11 > l
 		} else {
-			yyb10 = r.CheckBreak()
+			yyb11 = r.CheckBreak()
 		}
-		if yyb10 {
+		if yyb11 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj10-1, "")
+		z.DecStructFieldNotFound(yyj11-1, "")
 	}
 	r.ReadArrayEnd()
 }
