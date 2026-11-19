@@ -1084,8 +1084,16 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 
 			// Finalizers of the request are added; removing them takes the
 			// finalizers endpoint. Adding one requires manage-finalizers.
+			// The finalizer of the servers is left out unless the token is a
+			// management token (SEC-19): the finalizers endpoint refuses it
+			// (checkOperatorsFinalizerChange), but an apply of an exported
+			// object or a selective restore carries it, and a built-in
+			// operator puts it on its own objects itself.
 			added := false
 			for _, f := range in.Finalizers {
+				if f == structs.OperatorsFinalizer && aclObj != nil && !aclObj.IsManagement() {
+					continue
+				}
 				if !slices.Contains(obj.Finalizers, f) {
 					obj.Finalizers = append(obj.Finalizers, f)
 					added = true
