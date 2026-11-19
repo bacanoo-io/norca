@@ -291,11 +291,43 @@ func (op *releaseOp) writeRequest(namespace string) structs.WriteRequest {
 type applyResult struct {
 	evalID   string
 	warnings string
+
+	// index is the modify index of the resource after the write (of a job
+	// its JobModifyIndex) as the endpoint answered it, 0 when the endpoint
+	// does not say (an external service: an unchanged registration keeps
+	// its index, whatever the answer says).
+	index uint64
 }
 
 // errReleaseResourceChanged is the error of a check-and-set write of a
 // resource that changed since the release read it: nothing was written.
 var errReleaseResourceChanged = errors.New("changed since the release read it")
+
+// changedError is the refusal of a check-and-set write or deletion by the
+// endpoint of a type: errReleaseResourceChanged, with the message of the
+// endpoint.
+type changedError struct{ err error }
+
+func (e *changedError) Error() string   { return e.err.Error() }
+func (e *changedError) Unwrap() []error { return []error{errReleaseResourceChanged, e.err} }
+
+// releaseWritesChecked reports whether a resource of the type can be written
+// with check-and-set (applyResourceAt).
+func releaseWritesChecked(resourceType string) bool {
+	switch resourceType {
+	case structs.ReleaseResourceNamespace, structs.ReleaseResourceQuota, structs.ReleaseResourceACLPolicy,
+		structs.ReleaseResourceVariable, structs.ReleaseResourceObjectKind, structs.ReleaseResourceObject,
+		structs.ReleaseResourceJob:
+		return true
+	}
+	return false
+}
+
+// releaseDeletesChecked reports whether a resource of the type can be
+// deleted with check-and-set (deleteResourceAt).
+func releaseDeletesChecked(resourceType string) bool {
+	return resourceType == structs.ReleaseResourceVariable || resourceType == structs.ReleaseResourceObject
+}
 
 // applyResource creates or updates a resource through the endpoint of its
 // type.
@@ -304,15 +336,37 @@ func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, 
 }
 
 // applyResourceAt is applyResource, and with index set a check-and-set write
-// of a Variable or a job: it is written only if its ModifyIndex (of a job:
-// JobModifyIndex) is still *index, 0 meaning that it must not exist. A
-// changed Variable fails with an error wrapping errReleaseResourceChanged, a
-// changed job with the error of the job endpoint, which starts with
+// (releaseWritesChecked): the resource is written only if its ModifyIndex (of
+// a job: JobModifyIndex) is still *index, 0 meaning that it must not exist.
+// A refused write fails with an error that wraps errReleaseResourceChanged;
+// for a job it keeps the message of the job endpoint, which starts with
 // RegisterEnforceIndexErrPrefix. Other types can't be written so.
 func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64) (*applyResult, error) {
-	if index != nil && res.Type != structs.ReleaseResourceVariable && res.Type != structs.ReleaseResourceJob {
+	if index != nil && !releaseWritesChecked(res.Type) {
 		return nil, fmt.Errorf("a %s can't be written with check-and-set", res.Type)
 	}
+	out, err := op.applyResourceRPC(res, index)
+	if index != nil && err != nil && !errors.Is(err, errReleaseResourceChanged) {
+		switch res.Type {
+		case structs.ReleaseResourceNamespace, structs.ReleaseResourceQuota, structs.ReleaseResourceACLPolicy:
+			if structs.IsIndexConflictError(err) {
+				err = &changedError{err}
+			}
+		case structs.ReleaseResourceObjectKind, structs.ReleaseResourceObject:
+			if structs.IsObjectConflictError(err) {
+				err = &changedError{err}
+			}
+		case structs.ReleaseResourceJob:
+			if strings.Contains(err.Error(), RegisterEnforceIndexErrPrefix) {
+				err = &changedError{err}
+			}
+		}
+	}
+	return out, err
+}
+
+// applyResourceRPC sends the write of applyResourceAt.
+func (op *releaseOp) applyResourceRPC(res *structs.ReleaseResource, index *uint64) (*applyResult, error) {
 	srv := op.m.srv
 	out := &applyResult{}
 	var generic structs.GenericResponse
@@ -320,21 +374,33 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 	case structs.ReleaseResourceNamespace:
 		ns := res.Namespace.Copy()
 		ns.CreateIndex, ns.ModifyIndex, ns.Hash = 0, 0, nil
-		return out, srv.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
-			Namespaces: []*structs.Namespace{ns}, WriteRequest: op.writeRequest(""),
-		}, &generic)
+		req := &structs.NamespaceUpsertRequest{Namespaces: []*structs.Namespace{ns}, WriteRequest: op.writeRequest("")}
+		if index != nil {
+			req.ExpectedModifyIndex = map[string]uint64{ns.Name: *index}
+		}
+		err := srv.RPC("Namespace.UpsertNamespaces", req, &generic)
+		out.index = generic.Index
+		return out, err
 	case structs.ReleaseResourceQuota:
 		q := res.Quota.Copy()
 		q.CreateIndex, q.ModifyIndex, q.Hash = 0, 0, nil
-		return out, srv.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
-			Quotas: []*structs.QuotaSpec{q}, WriteRequest: op.writeRequest(""),
-		}, &generic)
+		req := &structs.QuotaSpecUpsertRequest{Quotas: []*structs.QuotaSpec{q}, WriteRequest: op.writeRequest("")}
+		if index != nil {
+			req.ExpectedModifyIndex = map[string]uint64{q.Name: *index}
+		}
+		err := srv.RPC("Quota.UpsertQuotaSpecs", req, &generic)
+		out.index = generic.Index
+		return out, err
 	case structs.ReleaseResourceACLPolicy:
 		p := *res.ACLPolicy
 		p.CreateIndex, p.ModifyIndex, p.Hash = 0, 0, nil
-		return out, srv.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
-			Policies: []*structs.ACLPolicy{&p}, WriteRequest: op.writeRequest(""),
-		}, &generic)
+		req := &structs.ACLPolicyUpsertRequest{Policies: []*structs.ACLPolicy{&p}, WriteRequest: op.writeRequest("")}
+		if index != nil {
+			req.ExpectedModifyIndex = map[string]uint64{p.Name: *index}
+		}
+		err := srv.RPC("ACL.UpsertPolicies", req, &generic)
+		out.index = generic.Index
+		return out, err
 	case structs.ReleaseResourceVariable:
 		v := res.Variable.Copy()
 		v.CreateIndex, v.ModifyIndex, v.CreateTime, v.ModifyTime = 0, 0, 0, 0
@@ -352,21 +418,29 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 			err = reply.Error
 		case reply.IsConflict():
 			err = fmt.Errorf("the variable %q (namespace %q) %w", v.Path, v.Namespace, errReleaseResourceChanged)
+		case reply.Output != nil:
+			out.index = reply.Output.ModifyIndex
 		}
 		return out, err
 	case structs.ReleaseResourceObjectKind:
 		k := res.ObjectKind.Copy()
 		k.CreateIndex, k.ModifyIndex = 0, 0
 		var reply structs.ObjectKindUpsertResponse
-		return out, srv.RPC("ObjectKind.UpsertObjectKind", &structs.ObjectKindUpsertRequest{
-			ObjectKind: k, WriteRequest: op.writeRequest(""),
+		err := srv.RPC("ObjectKind.UpsertObjectKind", &structs.ObjectKindUpsertRequest{
+			ObjectKind: k, CAS: index, WriteRequest: op.writeRequest(""),
 		}, &reply)
+		if err == nil && reply.ObjectKind != nil {
+			out.index = reply.ObjectKind.ModifyIndex
+		}
+		return out, err
 	case structs.ReleaseResourceAdmissionPolicy:
 		p := res.AdmissionPolicy.Copy()
 		p.CreateIndex, p.ModifyIndex = 0, 0
-		return out, srv.RPC("AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
+		err := srv.RPC("AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
 			AdmissionPolicies: []*structs.AdmissionPolicy{p}, WriteRequest: op.writeRequest(""),
 		}, &generic)
+		out.index = generic.Index
+		return out, err
 	case structs.ReleaseResourceExternalService:
 		reg, err := res.ExternalService.Service.Registration()
 		if err != nil {
@@ -387,9 +461,13 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 			ns = op.namespace
 		}
 		var reply structs.CustomObjectWriteResponse
-		return out, srv.RPC("CustomObject.Apply", &structs.CustomObjectApplyRequest{
-			Object: o, WriteRequest: op.writeRequest(ns),
+		err := srv.RPC("CustomObject.Apply", &structs.CustomObjectApplyRequest{
+			Object: o, CAS: index, WriteRequest: op.writeRequest(ns),
 		}, &reply)
+		if err == nil && reply.Object != nil {
+			out.index = reply.Object.ModifyIndex
+		}
+		return out, err
 	case structs.ReleaseResourceJob:
 		j := res.Job.Copy()
 		j.CreateIndex, j.ModifyIndex, j.JobModifyIndex = 0, 0, 0
@@ -406,6 +484,9 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 		var reply structs.JobRegisterResponse
 		err := srv.RPC("Job.Register", req, &reply)
 		out.evalID, out.warnings = reply.EvalID, reply.Warnings
+		if err == nil {
+			out.index = reply.JobModifyIndex
+		}
 		return out, err
 	}
 	return out, fmt.Errorf("unknown resource type %q", res.Type)
@@ -414,6 +495,17 @@ func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64
 // deleteResource deletes a resource through the endpoint of its type. A
 // resource that doesn't exist is not an error.
 func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
+	return op.deleteResourceAt(ref, nil)
+}
+
+// deleteResourceAt is deleteResource, and with index set a check-and-set
+// deletion (releaseDeletesChecked): the resource is deleted only if its
+// ModifyIndex is still *index. A refused deletion fails with an error that
+// wraps errReleaseResourceChanged. Other types can't be deleted so.
+func (op *releaseOp) deleteResourceAt(ref *structs.ReleaseResourceRef, index *uint64) error {
+	if index != nil && !releaseDeletesChecked(ref.Type) {
+		return fmt.Errorf("a %s can't be deleted with check-and-set", ref.Type)
+	}
 	srv := op.m.srv
 	var generic structs.GenericResponse
 	var err error
@@ -431,14 +523,21 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 			Names: []string{ref.Name}, WriteRequest: op.writeRequest(""),
 		}, &generic)
 	case structs.ReleaseResourceVariable:
+		v := &structs.VariableDecrypted{VariableMetadata: structs.VariableMetadata{Namespace: ref.Namespace, Path: ref.Name}}
+		varOp := structs.VarOpDelete
+		if index != nil {
+			varOp, v.ModifyIndex = structs.VarOpDeleteCAS, *index
+		}
 		var reply structs.VariablesApplyResponse
 		err = srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
-			Op:           structs.VarOpDelete,
-			Var:          &structs.VariableDecrypted{VariableMetadata: structs.VariableMetadata{Namespace: ref.Namespace, Path: ref.Name}},
-			WriteRequest: op.writeRequest(ref.Namespace),
+			Op: varOp, Var: v, WriteRequest: op.writeRequest(ref.Namespace),
 		}, &reply)
-		if err == nil && reply.Error != nil {
+		switch {
+		case err != nil:
+		case reply.Error != nil:
 			err = reply.Error
+		case reply.IsConflict():
+			err = fmt.Errorf("the variable %q (namespace %q) %w", ref.Name, ref.Namespace, errReleaseResourceChanged)
 		}
 	case structs.ReleaseResourceObjectKind:
 		group, kind, perr := structs.ParseObjectKindRef(ref.Name)
@@ -472,8 +571,11 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 		}
 		var reply structs.CustomObjectWriteResponse
 		err = srv.RPC("CustomObject.Delete", &structs.CustomObjectDeleteRequest{
-			Group: group, Kind: kind, Name: name, WriteRequest: op.writeRequest(ns),
+			Group: group, Kind: kind, Name: name, CAS: index, WriteRequest: op.writeRequest(ns),
 		}, &reply)
+		if index != nil && structs.IsObjectConflictError(err) {
+			err = &changedError{err}
+		}
 	case structs.ReleaseResourceJob:
 		var reply structs.JobDeregisterResponse
 		err = srv.RPC("Job.Deregister", &structs.JobDeregisterRequest{

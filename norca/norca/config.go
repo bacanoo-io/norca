@@ -442,6 +442,12 @@ type Config struct {
 	// tests: what is committed while the operation runs.
 	releaseBeforeApply func(release string, ref *structs.ReleaseResourceRef)
 
+	// releaseBeforeRestore, when set, runs right before a failed atomic
+	// release operation writes back or deletes a resource it read to
+	// restore it. For tests: what is committed between that read and the
+	// write.
+	releaseBeforeRestore func(release string, ref *structs.ReleaseResourceRef)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

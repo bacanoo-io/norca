@@ -256,8 +256,64 @@ func TestRelease_ApplyResourceAtJob(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, "v2", stored().Meta["image"])
 
-	// Other types have no check-and-set write here.
-	_, err = op.applyResourceAt(&structs.ReleaseResource{Type: structs.ReleaseResourceNamespace,
-		Namespace: &structs.Namespace{Name: "app-ns"}}, &absent)
+	// A refused write wraps errReleaseResourceChanged.
+	_, err = op.applyResourceAt(job("v3"), &absent)
+	must.ErrorIs(t, err, errReleaseResourceChanged)
+
+	// Types whose endpoints have no check-and-set can't be written so.
+	_, err = op.applyResourceAt(&structs.ReleaseResource{Type: structs.ReleaseResourceAdmissionPolicy,
+		AdmissionPolicy: &structs.AdmissionPolicy{Name: "app-policy"}}, &absent)
 	must.ErrorContains(t, err, "check-and-set")
+}
+
+// The check-and-set writes and deletions of the other types (ATM-6): a
+// namespace is created only while it does not exist and changed only at the
+// index it has, and a Variable is deleted only at the index it has.
+func TestRelease_ApplyResourceAtOtherTypes(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+	op, cancel := c.srv.releases.newOp(nil, c.token, "default", "app", 0)
+	defer cancel()
+	ns := func(desc string) *structs.ReleaseResource {
+		return &structs.ReleaseResource{Type: structs.ReleaseResourceNamespace, Namespace: &structs.Namespace{Name: "cas-ns", Description: desc}}
+	}
+	read := func(ref *structs.ReleaseResourceRef) *liveResource {
+		t.Helper()
+		snap, err := c.srv.State().Snapshot()
+		must.NoError(t, err)
+		live, err := c.srv.releases.readLive(snap, ref)
+		must.NoError(t, err)
+		return live
+	}
+
+	var absent uint64
+	written, err := op.applyResourceAt(ns("v1"), &absent)
+	must.NoError(t, err)
+	live := read(ns("").Ref())
+	must.Eq(t, live.modifyIndex, written.index, must.Sprint("the answer does not give the modify index of the write"))
+	_, err = op.applyResourceAt(ns("v2"), &absent)
+	must.ErrorIs(t, err, errReleaseResourceChanged)
+	stale := live.modifyIndex - 1
+	_, err = op.applyResourceAt(ns("v2"), &stale)
+	must.ErrorIs(t, err, errReleaseResourceChanged)
+	must.Eq(t, "v1", read(ns("").Ref()).res.Namespace.Description)
+	_, err = op.applyResourceAt(ns("v2"), &live.modifyIndex)
+	must.NoError(t, err)
+	must.Eq(t, "v2", read(ns("").Ref()).res.Namespace.Description)
+
+	v := &structs.ReleaseResource{Type: structs.ReleaseResourceVariable, Variable: &structs.VariableDecrypted{
+		VariableMetadata: structs.VariableMetadata{Namespace: "default", Path: "cas/v"}, Items: map[string]string{"k": "v"},
+	}}
+	written, err = op.applyResourceAt(v, &absent)
+	must.NoError(t, err)
+	must.Eq(t, read(v.Ref()).modifyIndex, written.index)
+	stale = written.index - 1
+	must.ErrorIs(t, op.deleteResourceAt(v.Ref(), &stale), errReleaseResourceChanged)
+	must.True(t, read(v.Ref()).exists())
+	must.NoError(t, op.deleteResourceAt(v.Ref(), &written.index))
+	must.False(t, read(v.Ref()).exists())
+
+	// Types whose endpoints have no check-and-set can't be deleted so.
+	must.ErrorContains(t, op.deleteResourceAt(ns("").Ref(), &absent), "check-and-set")
 }

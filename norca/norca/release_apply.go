@@ -88,6 +88,14 @@ type releaseOp struct {
 type appliedChange struct {
 	ref    *structs.ReleaseResourceRef
 	before *liveResource
+
+	// What the operation left, so that the restore changes only a resource
+	// that is still so (review finding ATM-6): deleted for a deletion; for
+	// a write, written is what the operation wrote and index the modify
+	// index the endpoint answered for it (applyResult.index, 0 if unknown).
+	deleted bool
+	written *structs.ReleaseResource
+	index   uint64
 }
 
 // applyInput is an install, upgrade or rollback.
@@ -1416,13 +1424,39 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 	var deferred []*structs.ReleaseResource
 	flushDeferred := func() error {
 		for _, res := range deferred {
-			op.beforeApply(res.Ref())
+			ref := res.Ref()
+			// The namespace was written without its quota: the restore
+			// compares it with this second write now.
+			var change *appliedChange
+			for _, c := range slices.Backward(op.applied) {
+				if c.ref.Key() == ref.Key() && !c.deleted {
+					change = c
+					break
+				}
+			}
+			if change == nil {
+				snap, err := op.m.srv.State().Snapshot()
+				if err != nil {
+					return err
+				}
+				before, err := op.m.readLive(snap, ref)
+				if err != nil {
+					return err
+				}
+				change = &appliedChange{ref: ref, before: before}
+			}
+			op.beforeApply(ref)
 			if err := op.checkOwner(aclObj, res); err != nil {
-				return fmt.Errorf("%s: %w", res.Ref(), err)
+				return fmt.Errorf("%s: %w", ref, err)
 			}
-			if _, err := op.applyResource(res); err != nil {
-				return fmt.Errorf("%s: %w", res.Ref(), err)
+			result, err := op.applyResource(res)
+			if err != nil {
+				return fmt.Errorf("%s: %w", ref, err)
 			}
+			if change.written == nil {
+				op.applied = append(op.applied, change)
+			}
+			change.written, change.index = res, result.index
 		}
 		deferred = nil
 		return nil
@@ -1524,13 +1558,13 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 			// A resource that changed meanwhile was not written: restoring
 			// it would overwrite the change.
 			if !errors.Is(err, errReleaseResourceChanged) {
-				op.attempted = &appliedChange{ref: ref, before: before}
+				op.attempted = &appliedChange{ref: ref, before: before, written: toApply}
 			}
 			return fmt.Errorf("%s: %w", ref, err)
 		}
 		// Applied: only now is the resource one the release may keep as its
 		// own after a failure (SEC-5). One whose endpoint refused it is not.
-		op.applied = append(op.applied, &appliedChange{ref: ref, before: before})
+		op.applied = append(op.applied, &appliedChange{ref: ref, before: before, written: toApply, index: result.index})
 		if result.warnings != "" {
 			op.warn("%s: %s", ref, result.warnings)
 		}
@@ -1647,7 +1681,7 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 			}
 		}
 		if record {
-			op.applied = append(op.applied, &appliedChange{ref: ref, before: before})
+			op.applied = append(op.applied, &appliedChange{ref: ref, before: before, deleted: true})
 		}
 		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeDelete}
 		op.changes = append(op.changes, change)
@@ -1707,17 +1741,96 @@ func (op *releaseOp) restore() []error {
 	var errs []error
 	for i := len(changes) - 1; i >= 0; i-- {
 		c := changes[i]
-		var err error
-		if c.before.exists() {
-			_, err = op.applyResource(c.before.res)
-		} else {
-			err = op.deleteResource(c.ref)
-		}
-		if err != nil {
+		if err := op.restoreChange(c, c == op.attempted); err != nil {
 			errs = append(errs, fmt.Errorf("restoring %s: %w", c.ref, err))
 		}
 	}
 	return errs
+}
+
+// restoreChange puts a resource back as it was before the operation, but
+// only if it is still as the operation left it (review finding ATM-6): what
+// somebody else changed, deleted or created since is theirs, and the
+// operation leaves it and warns. The resource is read again right before,
+// and written back with check-and-set against what was read where its
+// endpoint has one (releaseWritesChecked, releaseDeletesChecked); a deletion
+// of the other types is unconditional, so the deletion RPC itself is the
+// window left. attempted is the change whose apply failed: whether its
+// endpoint wrote anything is not known.
+func (op *releaseOp) restoreChange(c *appliedChange, attempted bool) error {
+	snap, err := op.m.srv.State().Snapshot()
+	if err != nil {
+		return err
+	}
+	live, err := op.m.readLive(snap, c.ref)
+	if err != nil {
+		return err
+	}
+	switch {
+	case !live.exists() && !c.before.exists(),
+		live.exists() && c.before.exists() && live.modifyIndex == c.before.modifyIndex:
+		// As it was before: nothing to restore.
+		return nil
+	case !op.leftByOperation(c, live, attempted):
+		what := "it changed after the operation wrote it"
+		if c.deleted {
+			what = "it was created again after the operation deleted it"
+		}
+		op.warn("%s was not restored: %s, and is left as it is", c.ref, what)
+		return nil
+	}
+
+	op.beforeRestore(c.ref)
+	read := live.modifyIndex // 0: it does not exist
+	if c.before.exists() {
+		var index *uint64
+		if releaseWritesChecked(c.ref.Type) {
+			index = &read
+		}
+		_, err = op.applyResourceAt(c.before.res, index)
+	} else {
+		var index *uint64
+		if releaseDeletesChecked(c.ref.Type) {
+			index = &read
+		}
+		err = op.deleteResourceAt(c.ref, index)
+	}
+	if errors.Is(err, errReleaseResourceChanged) {
+		op.warn("%s was not restored: it changed while the operation restored it, and is left as it is", c.ref)
+		return nil
+	}
+	return err
+}
+
+// leftByOperation reports whether the live resource is still as the change
+// left it: deleted, or written by the operation and not changed since. A
+// write is compared by the modify index its endpoint answered, or else by
+// its content. Jobs and objects can't be compared by their content
+// (resourceChanged): of the failed apply of one (attempted, no index) the
+// marks of the release tell, which only the release writes.
+func (op *releaseOp) leftByOperation(c *appliedChange, live *liveResource, attempted bool) bool {
+	switch {
+	case c.deleted:
+		return !live.exists()
+	case !live.exists() || c.written == nil:
+		return false
+	case !attempted && c.index != 0:
+		return live.modifyIndex == c.index
+	case c.ref.Type == structs.ReleaseResourceJob:
+		return attempted && jobOfRelease(live.res.Job, op.namespace, op.name)
+	case c.ref.Type == structs.ReleaseResourceObject:
+		return attempted && slices.ContainsFunc(live.res.Object.Owners, func(o *structs.ObjectOwnerReference) bool {
+			return o != nil && o.Kind == structs.ReleaseKindRef && o.Namespace == op.namespace && o.Name == op.name
+		})
+	}
+	return !resourceChanged(c.written, live)
+}
+
+// beforeRestore runs the test hook releaseBeforeRestore, if set.
+func (op *releaseOp) beforeRestore(ref *structs.ReleaseResourceRef) {
+	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeRestore != nil {
+		cfg.releaseBeforeRestore(op.namespace+"/"+op.name, ref)
+	}
 }
 
 // secretsByPath indexes the secrets of a request by "namespace/path".
