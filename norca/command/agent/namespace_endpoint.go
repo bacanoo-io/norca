@@ -98,6 +98,14 @@ func (s *HTTPServer) namespaceUpdate(resp http.ResponseWriter, req *http.Request
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
+	// Norca: ?cas=<modify index> makes the write a check-and-set; 0
+	// creates a namespace that must not exist yet.
+	if isCAS, index, err := parseCAS(req); err != nil {
+		return nil, err
+	} else if isCAS {
+		args.ExpectedModifyIndex = map[string]uint64{namespace.Name: index}
+	}
+
 	var out structs.GenericResponse
 	if err := s.agent.RPC("Namespace.UpsertNamespaces", &args, &out); err != nil {
 		return nil, err

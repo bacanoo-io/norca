@@ -136,6 +136,19 @@ func (s *HTTPServer) networkPolicyUpsert(resp http.ResponseWriter, req *http.Req
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
+	// ?cas=<modify index> makes the write a check-and-set; 0 creates a
+	// policy that must not exist yet. The policy is in the namespace of
+	// the request unless it names one, as the endpoint has it.
+	if isCAS, index, err := parseCAS(req); err != nil {
+		return nil, err
+	} else if isCAS {
+		namespace := policy.Namespace
+		if namespace == "" {
+			namespace = args.RequestNamespace()
+		}
+		args.ExpectedModifyIndex = map[string]uint64{structs.NetworkPolicyIndexKey(namespace, policy.Name): index}
+	}
+
 	var out structs.GenericResponse
 	if err := s.agent.RPC("NetworkPolicy.UpsertNetworkPolicies", &args, &out); err != nil {
 		return nil, err

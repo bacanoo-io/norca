@@ -123,6 +123,11 @@ func (n *NetworkPolicies) Info(name string, q *QueryOptions) (*NetworkPolicy, *Q
 
 // Register creates or updates a network policy.
 func (n *NetworkPolicies) Register(policy *NetworkPolicy, w *WriteOptions) (*WriteMeta, error) {
+	return n.register(policy, "", w)
+}
+
+// register writes a network policy, with query appended to the path.
+func (n *NetworkPolicies) register(policy *NetworkPolicy, query string, w *WriteOptions) (*WriteMeta, error) {
 	if policy == nil || policy.Name == "" {
 		return nil, errors.New("missing network policy name")
 	}
@@ -135,7 +140,7 @@ func (n *NetworkPolicies) Register(policy *NetworkPolicy, w *WriteOptions) (*Wri
 		nw.Namespace = policy.Namespace
 		w = &nw
 	}
-	return n.client.put("/v1/network-policy/"+url.PathEscape(policy.Name), policy, nil, w)
+	return n.client.put("/v1/network-policy/"+url.PathEscape(policy.Name)+query, policy, nil, w)
 }
 
 // Delete deletes a network policy of the namespace of the write options.
