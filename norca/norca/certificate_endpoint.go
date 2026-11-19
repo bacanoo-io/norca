@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -235,7 +236,8 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			return nil
 		}
 
-		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, ""); err != nil {
+		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, ""); err != nil &&
+			!errors.Is(err, errCertificateNotRevocable) {
 			return err
 		}
 		changed := obj.Copy()
@@ -254,33 +256,47 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 	}
 }
 
+// errCertificateNotRevocable is the error of a revocation that no issuer is
+// left to make; it says why.
+var errCertificateNotRevocable = errors.New("nobody can revoke the certificate")
+
 // revokeWithIssuer tells the issuer of a certificate that its current
 // certificate is revoked, for the reason (the name of an RFC 5280 CRLReason,
-// "" for none). The certificate operator calls it too.
+// "" for none). The certificate operator calls it too. It fails with
+// errCertificateNotRevocable when no issuer is left to revoke the
+// certificate: the CA that signed it is gone (only after every certificate
+// it signed has expired), or the external issuer is gone or was recreated as
+// a built-in one.
 func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomObject, status *structs.CertificateStatus, reason string) error {
 	notAfter, _ := time.Parse(time.RFC3339, status.NotAfter)
 
 	// A certificate with an authority was signed by the built-in issuer,
 	// whatever the issuer of that name is now.
 	if status.Authority != "" {
-		_, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
+		found, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
 			Serial:      status.Serial,
 			Certificate: obj.Namespace + "/" + obj.Name,
 			RevokedAt:   time.Now().UTC().Truncate(time.Second),
 			NotAfter:    notAfter,
 		})
+		if err == nil && !found {
+			err = fmt.Errorf("%w: the certificate authority %s that signed it is gone", errCertificateNotRevocable, status.Authority)
+		}
 		return err
 	}
 	issuerObj, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateIssuerKind, "", status.Issuer)
-	if err != nil || issuerObj == nil {
+	if err != nil {
 		return err
+	}
+	if issuerObj == nil {
+		return fmt.Errorf("%w: the issuer %q is gone", errCertificateNotRevocable, status.Issuer)
 	}
 	issuer := &structs.CertificateIssuerSpec{}
 	if err := structs.DecodeObjectPart(issuerObj.Spec, issuer); err != nil {
 		return err
 	}
 	if issuer.External == nil {
-		return nil
+		return fmt.Errorf("%w: the issuer %q is no longer the external issuer that signed it", errCertificateNotRevocable, status.Issuer)
 	}
 
 	// An external issuer revokes through an order of its own.

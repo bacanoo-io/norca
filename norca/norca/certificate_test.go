@@ -494,6 +494,23 @@ func (c *certTest) eventReasons(ns, kind, name string) []string {
 	return reasons
 }
 
+// eventMessages returns the messages of the events of an object with a
+// reason.
+func (c *certTest) eventMessages(ns, kind, name, reason string) []string {
+	c.t.Helper()
+	var events structs.CustomObjectEventsResponse
+	must.NoError(c.t, c.s.RPC("CustomObject.ListEvents", &structs.CustomObjectSpecificRequest{
+		Group: structs.OperatorsGroup, Kind: kind, Name: name, QueryOptions: c.query(ns),
+	}, &events))
+	var messages []string
+	for _, ev := range events.Events {
+		if ev.Reason == reason {
+			messages = append(messages, ev.Message)
+		}
+	}
+	return messages
+}
+
 // crlSerials returns the serial numbers in the revocation list of the active
 // issuing CA.
 func (c *certTest) crlSerials() []string {
@@ -616,32 +633,51 @@ func TestCertificate_LostNamesRefusal(t *testing.T) {
 	tests := []struct {
 		name   string
 		spec   *structs.CertificateSpec
-		issuer *structs.CertificateIssuerSpec
+		issuer *structs.CertificateIssuerSpec // nil: the issuer is gone
+		reason string
 		lost   bool
 	}{
 		{
 			name:   "an IP address with an external issuer",
 			spec:   &structs.CertificateSpec{Issuer: "issuer", IPAddresses: []string{"10.0.0.5"}, SecretPath: "certs/web"},
 			issuer: external,
+			reason: "NamesNotAllowed",
 		},
 		{
 			name:   "an IP address the namespace lost",
 			spec:   &structs.CertificateSpec{Issuer: "issuer", IPAddresses: []string{"10.0.1.5"}, SecretPath: "certs/web"},
 			issuer: builtin,
+			reason: "NamesNotAllowed",
 			lost:   true,
 		},
 		{
 			name:   "a DNS name the namespace lost",
 			spec:   &structs.CertificateSpec{Issuer: "issuer", DNSNames: []string{"web.example.org"}, SecretPath: "certs/web"},
 			issuer: external,
+			reason: "NamesNotAllowed",
 			lost:   true,
+		},
+		{
+			name:   "a DNS name the namespace lost, the issuer gone",
+			spec:   &structs.CertificateSpec{Issuer: "issuer", DNSNames: []string{"web.example.org"}, SecretPath: "certs/web"},
+			reason: "NamesNotAllowed",
+			lost:   true,
+		},
+		{
+			name:   "the issuer gone",
+			spec:   &structs.CertificateSpec{Issuer: "issuer", DNSNames: []string{"web.example.com"}, SecretPath: "certs/web"},
+			reason: "IssuerNotFound",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			refused := o.refusal(p, obj, tt.spec, issuerObj, tt.issuer, nil, false)
+			issuer, issuerSpec := issuerObj, tt.issuer
+			if issuerSpec == nil {
+				issuer, issuerSpec = nil, &structs.CertificateIssuerSpec{}
+			}
+			refused := o.refusal(p, obj, tt.spec, issuer, issuerSpec, nil, false)
 			must.NotNil(t, refused)
-			must.Eq(t, "NamesNotAllowed", refused.reason)
+			must.Eq(t, tt.reason, refused.reason)
 			must.Eq(t, tt.lost, refused.lostNames)
 		})
 	}
@@ -1128,6 +1164,78 @@ func TestCertificate_ExternalIssuerLostNames(t *testing.T) {
 	must.Eq(t, issued.Serial, revocation.Revoke)
 	must.Eq(t, "default/web-tls", revocation.Certificate)
 	must.Eq[any](t, "cessationOfOperation", orders[0].Spec["reason"])
+}
+
+// A namespace that loses the names of a certificate whose issuer is gone too
+// loses the certificate all the same (review finding ATM-21): the lost right
+// is found before the missing issuer. The certificate of the built-in issuer
+// is listed in the revocation list of its CA, which outlives the issuer; for
+// that of an external issuer nobody is left to revoke it, which the event
+// and the Failed condition say.
+func TestCertificate_LostNamesIssuerGone(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+
+	// A certificate of the built-in issuer.
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "internal-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"internal.example.com"}, "secret_path": "certs/internal"})
+	must.NoError(t, err)
+	builtin := c.waitFor("default", "internal-tls", "issued", certReady)
+
+	// A certificate of an external issuer.
+	root := newTestCA(t, "acme root", nil)
+	intermediate := newTestCA(t, "acme issuing", root)
+	_, err = c.apply("", structs.CertificateIssuerKind, "acme", map[string]any{"external": map[string]any{"controller": "test"}})
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateIssuerKind, "acme", map[string]any{
+		"heartbeat": time.Now().UTC().Format(time.RFC3339), "roots": root.pem}))
+	_, err = c.apply("default", structs.CertificateKind, "acme-tls", map[string]any{
+		"issuer": "acme", "dns_names": []any{"acme.example.com"}, "secret_path": "certs/acme"})
+	must.NoError(t, err)
+	ordered := c.waitFor("default", "acme-tls", "an order", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool { return st.Order != "" })
+	order := c.get("", structs.CertificateOrderKind, ordered.Order)
+	must.NotNil(t, order)
+	orderSpec := &structs.CertificateOrderSpec{}
+	must.NoError(t, structs.DecodeObjectPart(order.Spec, orderSpec))
+	csr, err := parseWorkloadCSR(orderSpec.CSR)
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateOrderKind, ordered.Order, map[string]any{
+		"state": "valid", "chain": intermediate.sign(t, csr.PublicKey, csr.DNSNames, nil) + intermediate.pem}))
+	external := c.waitFor("default", "acme-tls", "issued", certReady)
+
+	// Both issuers go, then the names.
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "internal"))
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "acme"))
+	c.waitFor("default", "internal-tls", "IssuerNotFound", func(obj *structs.CustomObject, _ *structs.CertificateStatus) bool {
+		reason, _ := certificateFailure(obj.Status)
+		return reason == "IssuerNotFound"
+	})
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+
+	st := c.waitFor("default", "internal-tls", "withdrawn", withdrawn)
+	must.Eq(t, builtin.Serial, st.Revoke)
+	must.SliceContains(t, c.crlSerials(), builtin.Serial)
+	must.Nil(t, c.get("", structs.CertificateIssuerKind, "internal"))
+
+	st = c.waitFor("default", "acme-tls", "withdrawn", withdrawn)
+	must.Eq(t, "", st.Revoke, must.Sprint("nothing was revoked"))
+	messages := c.eventMessages("default", structs.CertificateKind, "acme-tls", "Withdrawn")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], `the issuer "acme" is gone`)
+	must.StrContains(t, messages[0], external.Serial)
+	must.Eq(t, 0, certificateOrderCount(t, c.s))
+	for _, path := range []string{"certs/internal", "certs/acme"} {
+		secret, err := c.s.State().SecretByPath(nil, "default", path)
+		must.NoError(t, err)
+		for _, v := range secret.Versions {
+			must.True(t, v.Destroyed, must.Sprintf("%s: version %d is destroyed", path, v.Version))
+		}
+	}
 }
 
 // An imported CA is never rotated by the leader. When it is about to expire

@@ -426,18 +426,22 @@ func (o *certificateOperator) refusal(p *certificatePass, obj *structs.CustomObj
 	if err := spec.Validate(); err != nil {
 		return &certificateRefusal{reason: "InvalidSpec", message: err.Error()}
 	}
-	if issuerObj == nil || issuerObj.Deleting() {
-		return &certificateRefusal{reason: "IssuerNotFound", message: fmt.Sprintf("the issuer %q does not exist", spec.Issuer)}
-	}
 	ns, err := p.store.NamespaceByName(nil, obj.Namespace)
 	if err != nil {
 		return &certificateRefusal{reason: "NamespaceLookupFailed", message: err.Error()}
 	}
+	// What the namespace may ask for is checked whatever kind of issuer
+	// signs: a right it lost is found also when the issuer is gone.
+	if err := structs.CheckCertificateNames(spec, ns, true); err != nil {
+		return &certificateRefusal{reason: "NamesNotAllowed", message: err.Error(), lostNames: true}
+	}
+	if issuerObj == nil || issuerObj.Deleting() {
+		return &certificateRefusal{reason: "IssuerNotFound", message: fmt.Sprintf("the issuer %q does not exist", spec.Issuer)}
+	}
 	if err := structs.CheckCertificateNames(spec, ns, issuerSpec.Builtin != nil); err != nil {
 		// IP addresses that an issuer recreated as an external one can't
-		// sign are no right the namespace lost.
-		lost := structs.CheckCertificateNames(spec, ns, true) != nil
-		return &certificateRefusal{reason: "NamesNotAllowed", message: err.Error(), lostNames: lost}
+		// sign: no right the namespace lost.
+		return &certificateRefusal{reason: "NamesNotAllowed", message: err.Error()}
 	}
 	if secret != nil && !ours {
 		return &certificateRefusal{reason: "SecretConflict", message: fmt.Sprintf(
@@ -454,22 +458,29 @@ func (o *certificateOperator) refusal(p *certificatePass, obj *structs.CustomObj
 // secret holds for the certificate is destroyed (removeSecret), and then the
 // status no longer says that a certificate is held. A failed revocation
 // keeps the serial in the status for the next pass to try again; the secret
-// is emptied all the same.
+// is emptied all the same. A certificate no issuer is left to revoke (the
+// external issuer is gone) is withdrawn without, which the event says.
 func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
 	st *structs.CertificateStatus, secret *structs.Secret, ours bool, why string, out *certificateOutcome) {
 
 	serial := st.Serial
 	notAfter, _ := time.Parse(time.RFC3339, st.NotAfter)
-	revoked := true
+	revoked, unrevocable := true, ""
 	if serial != "" && st.Revoke != serial && p.now.Before(notAfter) {
 		err := o.srv.revokeWithIssuer(p.store, obj, st, structs.CertificateRevokeReasonCessationOfOperation)
-		if err != nil {
+		switch {
+		case errors.Is(err, errCertificateNotRevocable):
+			// Nothing to wait for: the certificate stays valid until it
+			// expires, without its key in the secret.
+			unrevocable = fmt.Sprintf("%v; it stays valid until %s", err, st.NotAfter)
+			out.failedMessage += "; " + unrevocable
+		case err != nil:
 			revoked = false
 			o.logger.Warn("failed to revoke the certificate of a namespace that may no longer ask for it",
 				"namespace", obj.Namespace, "certificate", obj.Name, "serial", serial, "error", err)
 			out.failedMessage += fmt.Sprintf("; revoking the certificate with the serial %s failed: %v", serial, err)
 			p.want(p.now.Add(operatorsRetry))
-		} else {
+		default:
 			st.Revoke = serial
 		}
 	}
@@ -494,7 +505,10 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 
 	*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke}
 	message := fmt.Sprintf("the namespace may no longer ask for this certificate (%s)", why)
-	if serial != "" && st.Revoke == serial {
+	switch {
+	case unrevocable != "":
+		message += fmt.Sprintf(": the certificate with the serial %s is not revoked, %s", serial, unrevocable)
+	case serial != "" && st.Revoke == serial:
 		message += fmt.Sprintf(": the certificate with the serial %s is revoked", serial)
 	}
 	if removed {
