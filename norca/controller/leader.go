@@ -219,10 +219,25 @@ func (le *LeaderElector) Run(ctx context.Context, onStarted func(ctx context.Con
 
 // acquire tries to acquire the lease every RetryPeriod until it succeeds
 // (true) or ctx is canceled (false).
+//
+// A write of the lease that is answered RenewDeadline or later after its
+// attempt started does not count (review finding CON-6): the other
+// candidates count LeaseDuration from a moment after that start, so the
+// lease may be about to pass to one of them, and renew would end the term at
+// once anyway. The lease Variable names this candidate then; the next
+// attempt renews it if nobody wrote it since, and otherwise another candidate
+// takes it over LeaseDuration after it saw that write, as after any holder
+// that stopped renewing.
 func (le *LeaderElector) acquire(ctx context.Context) bool {
 	logged := false
 	for {
 		ok, err := le.tryAcquireOrRenew(ctx)
+		if ok {
+			if took := le.now().Sub(le.renewedAt()); took >= le.cfg.RenewDeadline {
+				le.logger.Warn("the lease was written too slowly to lead on it, trying again", "took", took.String())
+				ok = false
+			}
+		}
 		switch {
 		case err != nil && ctx.Err() == nil:
 			le.logger.Warn("acquiring the lease failed", "error", err)

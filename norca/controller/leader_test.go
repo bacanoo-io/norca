@@ -263,6 +263,74 @@ func TestLeaderElection_HangingRenewalNoTwoLeaders(t *testing.T) {
 	}
 }
 
+// lateWrites wraps a backend whose lease writes are committed at once but
+// answered only after delay, like a write that waits in the raft log, for
+// the writes slow selects (numbered from 1).
+type lateWrites struct {
+	controller.VariablesAPI
+	delay  time.Duration
+	slow   func(n int32) bool
+	writes atomic.Int32
+}
+
+func (l *lateWrites) WriteVariable(ctx context.Context, v *api.Variable) (*api.Variable, error) {
+	n := l.writes.Add(1)
+	out, err := l.VariablesAPI.WriteVariable(ctx, v)
+	if l.slow(n) {
+		time.Sleep(l.delay)
+	}
+	return out, err
+}
+
+// A lease write answered after the renew deadline does not make the
+// candidate the leader: the other candidates count the lease duration from
+// a moment before the answer came (review finding CON-6: the acquiring
+// attempt had no deadline, and onStarted ran until renew noticed).
+func TestLeaderElection_LateAcquireDoesNotLead(t *testing.T) {
+	// The renew deadline is 400ms, the lease duration 600ms.
+	run := func(t *testing.T, lw *lateWrites) (firstTerm *atomic.Int32, stop func()) {
+		t.Helper()
+		le, err := controller.NewLeaderElector(lw, leaseConfig("a"), testLogger(t))
+		must.NoError(t, err)
+		firstTerm = &atomic.Int32{}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			le.Run(ctx, func(ctx context.Context) {
+				// The number of lease writes when the first term began.
+				firstTerm.CompareAndSwap(0, lw.writes.Load())
+				<-ctx.Done()
+			}, nil)
+		}()
+		var once sync.Once
+		stop = func() {
+			once.Do(func() {
+				cancel()
+				<-done
+			})
+		}
+		t.Cleanup(stop)
+		return firstTerm, stop
+	}
+
+	t.Run("the first write is late", func(t *testing.T) {
+		lw := &lateWrites{VariablesAPI: fake.New(), delay: 500 * time.Millisecond, slow: func(n int32) bool { return n == 1 }}
+		firstTerm, _ := run(t, lw)
+		waitFor(t, "a leads", func() bool { return firstTerm.Load() != 0 })
+		must.Greater(t, 1, firstTerm.Load(), must.Sprint("led on the write answered after the renew deadline"))
+	})
+
+	t.Run("every write is late", func(t *testing.T) {
+		lw := &lateWrites{VariablesAPI: fake.New(), delay: 500 * time.Millisecond, slow: func(int32) bool { return true }}
+		firstTerm, stop := run(t, lw)
+		time.Sleep(1500 * time.Millisecond)
+		stop()
+		must.Eq(t, int32(0), firstTerm.Load(), must.Sprint("led on a write answered after the renew deadline"))
+		must.Greater(t, 1, lw.writes.Load())
+	})
+}
+
 // A lease duration with a fraction of a second reaches the candidates
 // whole (review finding CTL-2: 1.5s was stored as "1").
 func TestLeaderElection_FractionalLeaseDuration(t *testing.T) {
