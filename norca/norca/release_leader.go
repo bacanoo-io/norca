@@ -40,6 +40,11 @@ var (
 	// errReleaseInterrupted is the error of a write of an operation that a
 	// leader change interrupted.
 	errReleaseInterrupted = errors.New("the operation was interrupted by a leader change; the new leader marks the release failed")
+
+	// errReleaseTestInterrupted is the cause in the answer of a test run
+	// that a leader change interrupted: no leader marks a release failed
+	// for a test, its phase stays as it was.
+	errReleaseTestInterrupted = errors.New("the test was interrupted by a leader change; no result was recorded")
 )
 
 // releaseTerm is a leadership term of the release manager.
@@ -195,6 +200,12 @@ func (op *releaseOp) interrupted() bool {
 func (op *releaseOp) interruptedError() error {
 	op.m.logger.Warn("release operation interrupted by a leader change", "namespace", op.namespace, "release", op.name)
 	return structs.NewErrRPCCodedf(http.StatusServiceUnavailable, "release %q: %v", op.name, errReleaseInterrupted)
+}
+
+// testInterruptedError is the answer of an interrupted test run.
+func (op *releaseOp) testInterruptedError() error {
+	op.m.logger.Warn("release test interrupted by a leader change", "namespace", op.namespace, "release", op.name)
+	return structs.NewErrRPCCodedf(http.StatusServiceUnavailable, "release %q: %v", op.name, errReleaseTestInterrupted)
 }
 
 // answer returns the answer of an operation that failed with err: of an

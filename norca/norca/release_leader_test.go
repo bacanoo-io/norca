@@ -14,6 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -392,4 +393,54 @@ func TestRelease_InterruptedOperationPrunesNothing(t *testing.T) {
 	}
 	must.True(t, fired.Load(), must.Sprint("the operation pruned no revision"))
 	must.Len(t, 2, c.history("default", "pruned"), must.Sprint("the interrupted operation pruned a revision"))
+}
+
+// A test run that a leader change interrupted answers that no result was
+// recorded: the new leader does not mark a release failed for a test, its
+// phase stays as it was. It answered that the new leader marks the release
+// failed.
+func TestRelease_InterruptedTestRecordsNoResult(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	hook := mock.BatchJob()
+	hook.ID, hook.Name, hook.Namespace = "tested-hook", "tested-hook", ""
+	hook.Meta = map[string]string{
+		structs.ReleaseMetaHook:        structs.ReleaseHookTest,
+		structs.ReleaseMetaHookTimeout: "20s",
+	}
+	_, err := c.apply("default", "tested", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "tested"},
+		Resources: []*structs.ReleaseResource{
+			releaseNamespace("tested-a", "v1"), {Type: structs.ReleaseResourceJob, Job: hook},
+		},
+	})
+	must.NoError(t, err)
+
+	done := make(chan error, 1)
+	codec := rpcClient(t, c.srv)
+	go func() {
+		req := &structs.ReleaseTestRequest{Name: "tested",
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: c.token}}
+		var resp structs.ReleaseTestResponse
+		done <- msgpackrpc.CallWithCodec(codec, "Release.Test", req, &resp)
+	}()
+
+	// The hook runs (it can't finish without nodes) when the leadership is
+	// established again.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		job, err := c.srv.State().JobByID(nil, "default", "tested-hook")
+		return err == nil && jobOfRelease(job, "default", "tested")
+	}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)))
+	errCh := make(chan error, 1)
+	c.srv.reassertLeaderCh <- errCh
+	must.NoError(t, <-errCh)
+
+	err = <-done
+	must.ErrorContains(t, err, "the test was interrupted by a leader change; no result was recorded")
+	testutil.WaitForLeader(t, c.srv.RPC)
+	rel := c.get("default", "tested")
+	must.Eq(t, structs.ReleasePhaseDeployed, rel.Status.Phase)
+	must.Nil(t, rel.Status.LastTest)
 }

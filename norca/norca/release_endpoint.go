@@ -641,7 +641,7 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 	result := &structs.ReleaseTestResult{Revision: rev.Revision, StartTime: nowRFC3339()}
 	testErr := op.runHooks(rev.Resources, structs.ReleaseHookTest)
 	if op.interrupted() {
-		return op.interruptedError()
+		return op.testInterruptedError()
 	}
 	result.EndTime = nowRFC3339()
 	result.Hooks = op.hooks
@@ -653,10 +653,12 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 	if testErr != nil {
 		evType, reason, msg = structs.ObjectEventTypeWarning, "TestFailed", testErr.Error()
 	}
-	m.recordEvent(namespace, args.Name, evType, reason, msg, nil)
-	if _, err := op.writeLatestRelease(rel); err != nil {
-		return op.answer(err)
+	if _, err := op.writeLatestRelease(rel); errors.Is(err, errReleaseInterrupted) {
+		return op.testInterruptedError()
+	} else if err != nil {
+		return err
 	}
+	m.recordEvent(namespace, args.Name, evType, reason, msg, nil)
 	reply.Result = result
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
 	return nil
