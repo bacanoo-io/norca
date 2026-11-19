@@ -487,10 +487,8 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 		}
 	}
 
-	// Delete the revisions, then the release.
-	if err := op.interruption(); err != nil {
-		return fail(err)
-	}
+	// Delete the revisions, then the release, each while the operation is
+	// not interrupted and with check-and-set on what it read (ATM-16).
 	snap, err = r.srv.State().Snapshot()
 	if err != nil {
 		return err
@@ -500,7 +498,7 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 		return err
 	}
 	for _, rev := range revs {
-		if err := m.deleteObject(structs.ReleaseRevisionKind, namespace, structs.ReleaseRevisionObjectName(args.Name, rev.Revision)); err != nil {
+		if err := op.deleteRevision(rev); err != nil {
 			return fail(err)
 		}
 	}

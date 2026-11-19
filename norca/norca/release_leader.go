@@ -259,3 +259,26 @@ func (op *releaseOp) deleteRelease() error {
 	}
 	return op.m.deleteObjectAt(structs.ReleaseKind, op.namespace, op.name, obj.ModifyIndex)
 }
+
+// writeRevision writes a revision of the release of the operation, with
+// check-and-set on expected (0: it must not exist), while the operation is
+// not interrupted (review finding ATM-16).
+func (op *releaseOp) writeRevision(rev *structs.ReleaseRevision, owner *structs.Release, expected uint64) (*structs.ReleaseRevision, error) {
+	op.beforeRevision(rev, false)
+	if err := op.interruption(); err != nil {
+		return nil, err
+	}
+	return op.m.writeRevision(rev, owner, expected)
+}
+
+// deleteRevision deletes a revision of the release of the operation, while
+// it has the modify index it was read with and the operation is not
+// interrupted (ATM-16).
+func (op *releaseOp) deleteRevision(rev *structs.ReleaseRevision) error {
+	op.beforeRevision(rev, true)
+	if err := op.interruption(); err != nil {
+		return err
+	}
+	return op.m.deleteObjectAt(structs.ReleaseRevisionKind, op.namespace,
+		structs.ReleaseRevisionObjectName(op.name, rev.Revision), rev.ModifyIndex)
+}

@@ -5,6 +5,7 @@ package norca
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -221,4 +222,174 @@ func TestRelease_OperationNeedsLeadership(t *testing.T) {
 	must.ErrorIs(t, op.interruption(), errReleaseInterrupted)
 	cancel()
 	m.setLeader(true)
+}
+
+// startOperationElsewhere records on a release the start of an operation on
+// another leader, by the user and in the second of the last operation
+// recorded: the phase and the last operation that operation writes.
+func (c *releaseTestClient) startOperationElsewhere(ns, name, phase, action string) {
+	c.t.Helper()
+	snap, err := c.srv.State().Snapshot()
+	must.NoError(c.t, err)
+	obj, rel, err := releaseObject(snap, ns, name)
+	must.NoError(c.t, err)
+	must.NotNil(c.t, rel)
+	last := rel.Status.LastOperation
+	rel.Status.Phase = phase
+	rel.Status.LastOperation = &structs.ReleaseOperation{
+		Action: action, Revision: last.Revision, User: last.User, StartTime: last.StartTime,
+	}
+	_, err = c.srv.releases.writeRelease(rel, obj.ModifyIndex)
+	must.NoError(c.t, err)
+}
+
+// newReleaseRevisionRace returns a release test client whose release
+// operations run during, once, right before they write a revision (or with
+// deleting delete one) for which match reports true; fired reports whether
+// it ran.
+func newReleaseRevisionRace(t *testing.T, match func(rev *structs.ReleaseRevision, deleting bool) bool,
+	during func(c *releaseTestClient)) (c *releaseTestClient, fired *atomic.Bool) {
+
+	t.Helper()
+	fired = &atomic.Bool{}
+	c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+		cfg.releaseBeforeRevision = func(_ string, rev *structs.ReleaseRevision, deleting bool) {
+			if match(rev, deleting) && fired.CompareAndSwap(false, true) {
+				during(c)
+			}
+		}
+	})
+	t.Cleanup(cleanup)
+	return c, fired
+}
+
+// An operation that a leader change interrupted right before it records
+// the result in its revision writes no revision: the new revision stays
+// pending and the previous one is not superseded (review finding ATM-16).
+// The revision writes were checked for an interruption once, before the
+// result was put together, and then the revisions were written anyway.
+func TestRelease_InterruptedOperationWritesNoRevision(t *testing.T) {
+	ci.Parallel(t)
+	cases := []struct {
+		name string
+		// upgrade fails with the bad job; result is the phase of the revision
+		// the operation records.
+		bad    bool
+		result string
+	}{
+		{name: "deployed", result: structs.ReleasePhaseDeployed},
+		{name: "failed", bad: true, result: structs.ReleasePhaseFailed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, fired := newReleaseRevisionRace(t, func(rev *structs.ReleaseRevision, deleting bool) bool {
+				return !deleting && rev.Revision == 2 && rev.Status.Phase == tc.result
+			}, func(c *releaseTestClient) { c.markInterrupted("default", "revs") })
+
+			pack := func(desc string) []*structs.ReleaseResource {
+				job := testReleaseJob("revs-job")
+				if tc.bad && desc == "v2" {
+					job.TaskGroups[0].Tasks[0].Resources.CPU = -5
+				}
+				return []*structs.ReleaseResource{releaseNamespace("revs-a", desc), {Type: structs.ReleaseResourceJob, Job: job}}
+			}
+			_, err := c.apply("default", "revs", &structs.ReleaseApplyRequest{
+				Pack: &structs.ReleasePack{Name: "revs"}, Atomic: pointer.Of(false), Resources: pack("v1"),
+			})
+			must.NoError(t, err)
+
+			_, err = c.apply("default", "revs", &structs.ReleaseApplyRequest{
+				Pack: &structs.ReleasePack{Name: "revs"}, Atomic: pointer.Of(false), Resources: pack("v2"),
+			})
+			must.True(t, fired.Load(), must.Sprint("the operation wrote no revision result"))
+			must.ErrorContains(t, err, interruptedByLeaderChange)
+			must.Eq(t, structs.ReleasePhasePending, c.revision("default", "revs", 2).Status.Phase,
+				must.Sprint("the interrupted operation recorded its result in the revision"))
+			must.Eq(t, structs.ReleasePhaseDeployed, c.revision("default", "revs", 1).Status.Phase,
+				must.Sprint("the interrupted operation superseded the previous revision"))
+			must.Eq(t, interruptedByLeaderChange, c.get("default", "revs").Status.LastOperation.Error)
+		})
+	}
+}
+
+// An uninstall that a leader change interrupted while it deletes the
+// revisions deletes no further revision, and not the release (ATM-16). The
+// revisions were all deleted after a single check.
+func TestRelease_InterruptedUninstallKeepsRevisions(t *testing.T) {
+	ci.Parallel(t)
+	c, fired := newReleaseRevisionRace(t, func(_ *structs.ReleaseRevision, deleting bool) bool { return deleting },
+		func(c *releaseTestClient) { c.markInterrupted("default", "kept") })
+
+	for _, desc := range []string{"v1", "v2"} {
+		_, err := c.apply("default", "kept", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "kept"}, Resources: []*structs.ReleaseResource{releaseNamespace("kept-a", desc)},
+		})
+		must.NoError(t, err)
+	}
+
+	_, err := c.uninstall("default", "kept", "")
+	must.True(t, fired.Load(), must.Sprint("the uninstall deleted no revision"))
+	must.ErrorContains(t, err, interruptedByLeaderChange)
+	must.Len(t, 2, c.history("default", "kept"), must.Sprint("the interrupted uninstall deleted revisions"))
+	rel := c.get("default", "kept")
+	must.NotNil(t, rel)
+	must.Eq(t, interruptedByLeaderChange, rel.Status.LastOperation.Error)
+}
+
+// An uninstall deletes a revision only as it read it: one written since is
+// left, and the uninstall fails (ATM-16). The revisions were deleted
+// without check-and-set.
+func TestRelease_UninstallDeletesRevisionsAsRead(t *testing.T) {
+	ci.Parallel(t)
+	c, fired := newReleaseRevisionRace(t, func(rev *structs.ReleaseRevision, deleting bool) bool {
+		return deleting && rev.Revision == 1
+	}, func(c *releaseTestClient) {
+		// A stale writer changes revision 2.
+		snap, err := c.srv.State().Snapshot()
+		must.NoError(c.t, err)
+		rev, _, err := releaseRevision(snap, "default", "asread", 2)
+		must.NoError(c.t, err)
+		_, rel, err := releaseObject(snap, "default", "asread")
+		must.NoError(c.t, err)
+		rev.Status.Message = "written meanwhile"
+		_, err = c.srv.releases.writeRevision(rev, rel, rev.ModifyIndex)
+		must.NoError(c.t, err)
+	})
+
+	for _, desc := range []string{"v1", "v2"} {
+		_, err := c.apply("default", "asread", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "asread"}, Resources: []*structs.ReleaseResource{releaseNamespace("asread-a", desc)},
+		})
+		must.NoError(t, err)
+	}
+
+	_, err := c.uninstall("default", "asread", "")
+	must.True(t, fired.Load(), must.Sprint("the uninstall deleted no revision"))
+	must.ErrorContains(t, err, "modify index")
+	hist := c.history("default", "asread")
+	must.Len(t, 1, hist, must.Sprint("the uninstall deleted a revision written since it read it"))
+	must.Eq(t, "written meanwhile", hist[0].Status.Message)
+	must.Eq(t, structs.ReleasePhaseFailed, c.get("default", "asread").Status.Phase)
+}
+
+// An operation that a leader change interrupted after it recorded its
+// result prunes no revision (ATM-16): an operation started on the new
+// leader works with them. The revisions were pruned without a check.
+func TestRelease_InterruptedOperationPrunesNothing(t *testing.T) {
+	ci.Parallel(t)
+	c, fired := newReleaseRevisionRace(t, func(rev *structs.ReleaseRevision, deleting bool) bool {
+		return deleting && rev.Revision == 1
+	}, func(c *releaseTestClient) {
+		c.startOperationElsewhere("default", "pruned", structs.ReleasePhaseApplying, structs.ReleaseActionUpgrade)
+	})
+
+	for _, desc := range []string{"v1", "v2"} {
+		_, err := c.apply("default", "pruned", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "pruned"}, MaxHistory: 1,
+			Resources: []*structs.ReleaseResource{releaseNamespace("pruned-a", desc)},
+		})
+		must.NoError(t, err)
+	}
+	must.True(t, fired.Load(), must.Sprint("the operation pruned no revision"))
+	must.Len(t, 2, c.history("default", "pruned"), must.Sprint("the interrupted operation pruned a revision"))
 }

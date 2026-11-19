@@ -713,7 +713,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		op.namespace, structs.ReleaseRevisionObjectName(op.name, revNum)); err == nil && existing != nil {
 		revObjIndex = existing.ModifyIndex
 	}
-	if rev, err = m.writeRevision(rev, rel, revObjIndex); err != nil {
+	if rev, err = op.writeRevision(rev, rel, revObjIndex); err != nil {
 		return m.finishFailed(op, rel, nil, prevRevision, previous, err)
 	}
 
@@ -782,10 +782,14 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 
 	rev.Status.Phase = structs.ReleasePhaseDeployed
 	rev.Status.Hooks = op.hooks
-	if _, err := m.writeRevision(rev, rel, rev.ModifyIndex); err != nil {
+	if _, err := op.writeRevision(rev, rel, rev.ModifyIndex); errors.Is(err, errReleaseInterrupted) {
+		return op.interruptedError()
+	} else if err != nil {
 		op.warn("failed to update revision %d: %v", revNum, err)
 	}
-	m.supersede(op, prevRevision, revNum)
+	if err := m.supersede(op, prevRevision, revNum); err != nil {
+		return op.interruptedError()
+	}
 
 	if rel, err = op.writeLatestRelease(rel); err != nil {
 		return op.answer(err)
@@ -873,11 +877,15 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 		rev.Status.Phase = structs.ReleasePhaseFailed
 		rev.Status.Message = msg
 		rev.Status.Hooks = op.hooks
-		if _, err := m.writeRevision(rev, rel, rev.ModifyIndex); err != nil {
+		if _, err := op.writeRevision(rev, rel, rev.ModifyIndex); errors.Is(err, errReleaseInterrupted) {
+			return op.interruptedError()
+		} else if err != nil {
 			m.logger.Warn("failed to update revision", "release", rel.Name, "error", err)
 		}
 		if !op.atomic {
-			m.supersede(op, prevRevision, rev.Revision)
+			if err := m.supersede(op, prevRevision, rev.Revision); err != nil {
+				return op.interruptedError()
+			}
 		}
 	}
 	if _, err := op.writeLatestRelease(rel); errors.Is(err, errReleaseInterrupted) {
@@ -971,32 +979,37 @@ func (m *releaseManager) afterRestore(op *releaseOp, previous []*structs.Release
 	return out
 }
 
-// supersede marks the previously deployed revision as superseded.
-func (m *releaseManager) supersede(op *releaseOp, prev, current uint64) {
+// supersede marks the previously deployed revision as superseded. It fails
+// only with errReleaseInterrupted, when a leader change interrupted the
+// operation (release_leader.go); other failures are logged.
+func (m *releaseManager) supersede(op *releaseOp, prev, current uint64) error {
 	if prev == 0 || prev == current {
-		return
+		return nil
 	}
 	snap, err := m.srv.State().Snapshot()
 	if err != nil {
-		return
+		return nil
 	}
 	obj, err := snap.CustomObjectByName(nil, structs.ReleaseObjectGroup, structs.ReleaseRevisionKind,
 		op.namespace, structs.ReleaseRevisionObjectName(op.name, prev))
 	if err != nil || obj == nil {
-		return
+		return nil
 	}
 	rev, err := structs.ReleaseRevisionFromObject(obj)
 	if err != nil || rev.Status.Phase == structs.ReleasePhaseSuperseded {
-		return
+		return nil
 	}
 	rev.Status.Phase = structs.ReleasePhaseSuperseded
 	_, rel, err := releaseObject(snap, op.namespace, op.name)
 	if err != nil || rel == nil {
-		return
+		return nil
 	}
-	if _, err := m.writeRevision(rev, rel, obj.ModifyIndex); err != nil {
+	if _, err := op.writeRevision(rev, rel, obj.ModifyIndex); errors.Is(err, errReleaseInterrupted) {
+		return err
+	} else if err != nil {
 		m.logger.Warn("failed to supersede revision", "release", op.name, "revision", prev, "error", err)
 	}
+	return nil
 }
 
 // pruneRevisions deletes the oldest revisions beyond the history limit. The
@@ -1018,8 +1031,7 @@ func (m *releaseManager) pruneRevisions(op *releaseOp, rel *structs.Release) {
 		if rev.Revision == rel.Status.Revision || rev.Revision == rel.Spec.Revision {
 			continue
 		}
-		if err := m.deleteObject(structs.ReleaseRevisionKind, op.namespace,
-			structs.ReleaseRevisionObjectName(op.name, rev.Revision)); err != nil {
+		if err := op.deleteRevision(rev); err != nil {
 			m.logger.Warn("failed to prune revision", "release", op.name, "revision", rev.Revision, "error", err)
 			return
 		}
@@ -1699,6 +1711,13 @@ func (op *releaseOp) beforeApply(ref *structs.ReleaseResourceRef) {
 func (op *releaseOp) beforeDelete(ref *structs.ReleaseResourceRef) {
 	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeDelete != nil {
 		cfg.releaseBeforeDelete(op.namespace+"/"+op.name, ref)
+	}
+}
+
+// beforeRevision runs the test hook releaseBeforeRevision, if set.
+func (op *releaseOp) beforeRevision(rev *structs.ReleaseRevision, deleting bool) {
+	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeRevision != nil {
+		cfg.releaseBeforeRevision(op.namespace+"/"+op.name, rev, deleting)
 	}
 }
 
