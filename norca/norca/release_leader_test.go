@@ -5,6 +5,7 @@ package norca
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -394,6 +395,43 @@ func TestRelease_InterruptedOperationPrunesNothing(t *testing.T) {
 	}
 	must.True(t, fired.Load(), must.Sprint("the operation pruned no revision"))
 	must.Len(t, 2, c.history("default", "pruned"), must.Sprint("the interrupted operation pruned a revision"))
+}
+
+// An operation that a leader change interrupted after it recorded its
+// result takes no resources off the releases that owned them (review
+// finding ATM-18): it answers with a warning, and an operation started on
+// the new leader decides. The other releases were written without a check.
+func TestRelease_InterruptedOperationTakesNothingOver(t *testing.T) {
+	ci.Parallel(t)
+	var c *releaseTestClient
+	fired := &atomic.Bool{}
+	c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+		cfg.releaseBeforeTakeOver = func(rel, _ string) {
+			if rel == "default/taker" && fired.CompareAndSwap(false, true) {
+				c.startOperationElsewhere("default", "taker", structs.ReleasePhaseApplying, structs.ReleaseActionUpgrade)
+			}
+		}
+	})
+	defer cleanup()
+
+	res := func() []*structs.ReleaseResource {
+		return []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("taken")}}
+	}
+	_, err := c.apply("default", "owner", &structs.ReleaseApplyRequest{Pack: &structs.ReleasePack{Name: "owner"}, Resources: res()})
+	must.NoError(t, err)
+
+	resp, err := c.apply("default", "taker", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "taker"}, Resources: res(), TakeOwnership: true,
+	})
+	must.NoError(t, err)
+	must.True(t, fired.Load(), must.Sprint("the operation took nothing over"))
+	must.Len(t, 1, c.get("default", "owner").Status.Resources,
+		must.Sprint("the interrupted operation took resources off the release that owned them"))
+	warned := false
+	for _, w := range resp.Warnings {
+		warned = warned || strings.Contains(w, `resources of release "default/owner" not taken over`)
+	}
+	must.True(t, warned, must.Sprintf("warnings: %q", resp.Warnings))
 }
 
 // An operation started on a new leader by the same user in the same second

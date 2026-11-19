@@ -1267,7 +1267,9 @@ func allowReleaseResourcesRead(aclObj *acl.ACL, resources []*structs.ReleaseReso
 }
 
 // releaseTakenResources removes resources taken over by this release from
-// the releases that owned them.
+// the releases that owned them, each while the operation is not interrupted
+// (release_leader.go, review finding ATM-18): an interrupted one leaves them
+// to the operation that runs on the new leader and warns.
 func (m *releaseManager) releaseTakenResources(op *releaseOp, taken map[string]string) {
 	byOwner := map[string][]string{}
 	for key, owner := range taken {
@@ -1287,6 +1289,11 @@ func (m *releaseManager) releaseTakenResources(op *releaseOp, taken map[string]s
 			rel.Status.Resources = slices.DeleteFunc(rel.Status.Resources, func(r *structs.ReleaseResourceRef) bool {
 				return r != nil && slices.Contains(keys, r.Key())
 			})
+			op.beforeTakeOver(owner)
+			if err := op.interruption(); err != nil {
+				op.warn("resources of release %q not taken over: %v", owner, err)
+				return
+			}
 			if _, err := m.writeRelease(rel, obj.ModifyIndex); err == nil {
 				op.warn("took over %d resources of release %q", len(keys), owner)
 				break
@@ -1723,6 +1730,13 @@ func (op *releaseOp) beforeDelete(ref *structs.ReleaseResourceRef) {
 func (op *releaseOp) beforeRevision(rev *structs.ReleaseRevision, deleting bool) {
 	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeRevision != nil {
 		cfg.releaseBeforeRevision(op.namespace+"/"+op.name, rev, deleting)
+	}
+}
+
+// beforeTakeOver runs the test hook releaseBeforeTakeOver, if set.
+func (op *releaseOp) beforeTakeOver(owner string) {
+	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeTakeOver != nil {
+		cfg.releaseBeforeTakeOver(op.namespace+"/"+op.name, owner)
 	}
 }
 

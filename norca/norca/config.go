@@ -458,6 +458,11 @@ type Config struct {
 	// tests: what happens while the operation runs.
 	releaseBeforeRevision func(release string, rev *structs.ReleaseRevision, deleting bool)
 
+	// releaseBeforeTakeOver, when set, runs right before a release operation
+	// removes the resources it took over from the release that owned them.
+	// For tests: what happens while the operation runs.
+	releaseBeforeTakeOver func(release, owner string)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.
