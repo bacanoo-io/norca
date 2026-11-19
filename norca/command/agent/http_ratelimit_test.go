@@ -78,8 +78,8 @@ func TestTokenRateLimiter(t *testing.T) {
 	now = now.Add(tokenRateLimitIdle + 2*time.Minute)
 	l.allow("secret-b", "192.0.2.1:1000", true)
 	l.mu.Lock()
-	_, kept := l.buckets["accessor-a"]
-	_, keptClient := l.clients["192.0.2.1"]
+	_, kept := l.buckets.m["accessor-a"]
+	_, keptClient := l.clients.m["192.0.2.1"]
 	l.mu.Unlock()
 	must.False(t, kept)
 	must.False(t, keptClient)
@@ -145,8 +145,8 @@ func TestTokenRateLimiter_ClientAddress(t *testing.T) {
 	must.False(t, take("", "/run/norca.sock"))
 
 	l.mu.Lock()
-	must.MapLen(t, 4, l.clients)
-	must.MapLen(t, 0, l.buckets)
+	must.MapLen(t, 4, l.clients.m)
+	must.MapLen(t, 0, l.buckets.m)
 	l.mu.Unlock()
 }
 
@@ -171,7 +171,7 @@ func TestTokenRateLimiter_Cap(t *testing.T) {
 	sizes := func() (int, int) {
 		l.mu.Lock()
 		defer l.mu.Unlock()
-		return len(l.clients), len(l.buckets)
+		return len(l.clients.m), len(l.buckets.m)
 	}
 
 	// two addresses fill the map
@@ -214,9 +214,9 @@ func TestTokenRateLimiter_Cap(t *testing.T) {
 	must.True(t, token("c"))
 	must.True(t, token("d"))
 	l.mu.Lock()
-	must.MapContainsKey(t, l.clients, "192.0.2.4")
-	must.MapNotContainsKey(t, l.clients, "192.0.2.1")
-	must.MapContainsKey(t, l.buckets, "d")
+	must.MapContainsKey(t, l.clients.m, "192.0.2.4")
+	must.MapNotContainsKey(t, l.clients.m, "192.0.2.1")
+	must.MapContainsKey(t, l.buckets.m, "d")
 	l.mu.Unlock()
 }
 
@@ -258,8 +258,8 @@ func TestTokenRateLimiter_IdleDropKeepsEmptyBucket(t *testing.T) {
 	now = now.Add(21 * time.Minute)
 	l.allow("", "192.0.2.2:1", true)
 	l.mu.Lock()
-	must.MapNotContainsKey(t, l.clients, "192.0.2.1")
-	must.MapNotContainsKey(t, l.buckets, "a")
+	must.MapNotContainsKey(t, l.clients.m, "192.0.2.1")
+	must.MapNotContainsKey(t, l.buckets.m, "a")
 	l.mu.Unlock()
 }
 
@@ -401,4 +401,146 @@ func TestHTTP_TokenRateLimit_ProbesExempt(t *testing.T) {
 		must.False(t, rateLimitExempt("/v1/agent/self"))
 		must.False(t, rateLimitExempt("/v1/jobs"))
 	})
+}
+
+// A full map of client addresses does not put new clients into the shared
+// bucket while it holds entries whose buckets are full: the owner of many
+// /64s who keeps them seen can't empty one bucket that every new client
+// shares (review finding SEC-11).
+func TestTokenRateLimiter_FullMapEvicts(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	l, err := newTokenRateLimiter(config.Limits{TokenReadRequestsPerSecond: pointer.Of(10)},
+		func(string) string { return anonymousBucket })
+	must.NoError(t, err)
+	l.now = func() time.Time { return now }
+
+	take := func(addr string) bool {
+		ok, _ := l.allow("", addr, true)
+		return ok
+	}
+
+	// one request from each of tokenRateLimitMaxBuckets /64s, each in a
+	// /48 of its own, fills the map of the client addresses
+	for i := 0; i < tokenRateLimitMaxBuckets; i++ {
+		must.True(t, take(fmt.Sprintf("[2001:db8:%x::1]:1", i)))
+	}
+	// a minute later they are seen, not idle, and their buckets are full
+	now = now.Add(time.Minute)
+
+	// a new client empties the bucket it gets ...
+	for i := 0; i < 10; i++ {
+		must.True(t, take("[2001:db9::1]:1"), must.Sprint(i))
+	}
+	must.False(t, take("[2001:db9::1]:1"))
+	// ... and the next new clients have buckets of their own
+	must.True(t, take("[2001:db9:1::1]:1"))
+	must.True(t, take("198.51.100.1:1"))
+	must.True(t, take("198.51.100.2:1"))
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	must.MapLen(t, tokenRateLimitMaxBuckets, l.clients.m)
+	must.MapContainsKey(t, l.clients.m, "198.51.100.2")
+	checkBucketList(t, l.clients)
+}
+
+// checkBucketList checks that the list of s holds the entries of its map,
+// each once and linked both ways.
+func checkBucketList(t *testing.T, s *bucketSet) {
+	t.Helper()
+	n := 0
+	var newer *tokenBuckets
+	for b := s.newest; b != nil; b = b.older {
+		must.Eq(t, newer, b.newer)
+		must.Eq(t, b, s.m[b.key])
+		newer = b
+		n++
+		must.LessEq(t, len(s.m), n)
+	}
+	must.Eq(t, newer, s.oldest)
+	must.Eq(t, len(s.m), n)
+}
+
+// Emptied entries at the least recently used end of a full map do not hide
+// the full entries behind them: the scan moves the entries it finds not full
+// to the other end, and the next new key finds a full one. Tokens are
+// evicted like client addresses.
+func TestTokenRateLimiter_EvictScanRotates(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	// 100 requests at one per second: an emptied bucket takes 100 seconds
+	// to refill
+	l, err := newTokenRateLimiter(config.Limits{
+		TokenReadRequestsPerSecond: pointer.Of(1),
+		TokenReadBurst:             pointer.Of(100),
+	}, func(secret string) string { return strings.TrimPrefix(secret, "secret-") })
+	must.NoError(t, err)
+	l.now = func() time.Time { return now }
+	l.maxBuckets = tokenRateLimitEvictScan + 8
+
+	takeAll := func(secret, addr string) int {
+		n := 0
+		for n < 1000 {
+			ok, _ := l.allow(secret, addr, true)
+			if !ok {
+				break
+			}
+			n++
+		}
+		return n
+	}
+	take := func(secret, addr string) bool {
+		ok, _ := l.allow(secret, addr, true)
+		return ok
+	}
+
+	// the oldest tokenRateLimitEvictScan entries are emptied, the others
+	// take one request
+	for i := 0; i < l.maxBuckets; i++ {
+		addr := fmt.Sprintf("192.0.2.%d:1", i)
+		if i < tokenRateLimitEvictScan {
+			must.Eq(t, 100, takeAll("", addr))
+		} else {
+			must.True(t, take("", addr))
+		}
+	}
+	now = now.Add(10 * time.Second)
+
+	// the first request of a new client finds only emptied entries, and
+	// takes from the shared bucket
+	must.True(t, take("", "198.51.100.1:1"))
+	l.mu.Lock()
+	must.MapNotContainsKey(t, l.clients.m, "198.51.100.1")
+	must.Eq(t, 99, l.clients.shared.read.TokensAt(now))
+	l.mu.Unlock()
+	// its next request, and the next new client, find the full entries
+	// behind them
+	must.Eq(t, 100, takeAll("", "198.51.100.1:1"))
+	must.Eq(t, 100, takeAll("", "198.51.100.2:1"))
+
+	l.mu.Lock()
+	must.MapLen(t, l.maxBuckets, l.clients.m)
+	for i := 0; i < tokenRateLimitEvictScan; i++ {
+		must.MapContainsKey(t, l.clients.m, fmt.Sprintf("192.0.2.%d", i))
+	}
+	must.MapContainsKey(t, l.clients.m, "198.51.100.1")
+	must.MapContainsKey(t, l.clients.m, "198.51.100.2")
+	checkBucketList(t, l.clients)
+	l.mu.Unlock()
+
+	// a full map of tokens evicts a full entry for a new token
+	for i := 0; i < l.maxBuckets; i++ {
+		must.True(t, take(fmt.Sprintf("secret-%d", i), "192.0.2.1:1"))
+	}
+	now = now.Add(2 * time.Second)
+	must.Eq(t, 100, takeAll("secret-new", "192.0.2.1:1"))
+	l.mu.Lock()
+	must.MapLen(t, l.maxBuckets, l.buckets.m)
+	must.MapContainsKey(t, l.buckets.m, "new")
+	must.MapNotContainsKey(t, l.buckets.m, "0")
+	checkBucketList(t, l.buckets)
+	l.mu.Unlock()
 }

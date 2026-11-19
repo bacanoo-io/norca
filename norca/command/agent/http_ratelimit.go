@@ -29,46 +29,169 @@ import (
 const anonymousBucket = ""
 
 // tokenRateLimitIdle is how long the buckets of a token or of a client
-// address that sends no request are kept at least; they are dropped only once
-// they are full again.
+// address that sends no request are kept before the periodic sweep drops
+// them, and it drops them only once they are full again. A full map drops a
+// full entry earlier for a new key, see bucketSet.evictLocked.
 const tokenRateLimitIdle = 10 * time.Minute
 
 // tokenRateLimitMaxBuckets is the most tokens, and the most client addresses,
 // that have buckets of their own at a time. A new token or address beyond it
-// is limited by the shared bucket until idle ones are dropped: the memory of
-// the limiter is bounded, and no request goes unlimited.
+// takes the place of an entry whose buckets are full, and only when it finds
+// none it is limited by the shared bucket: the memory of the limiter is
+// bounded, and no request goes unlimited.
 const tokenRateLimitMaxBuckets = 16384
+
+// tokenRateLimitEvictScan is the most entries of a full map that a new key
+// looks at for one whose buckets are full, so that the work of a request is
+// bounded however the map is filled. See bucketSet.evictLocked.
+const tokenRateLimitEvictScan = 32
 
 // tokenRateLimiter keeps a read and a write token bucket per ACL token, and
 // per client address for the requests without a known token.
 type tokenRateLimiter struct {
-	readRate, writeRate   rate.Limit
-	readBurst, writeBurst int
-
 	// resolve returns the accessor ID of the ACL token with the secret, or
 	// anonymousBucket.
 	resolve func(secret string) string
 
 	now func() time.Time
 
-	// maxBuckets is the cap of each of the two maps.
+	// maxBuckets is the cap of each of the maps.
 	maxBuckets int
 
 	mu sync.Mutex
 	// buckets are those of the ACL tokens, by accessor ID.
-	buckets map[string]*tokenBuckets
-	// clients are those of the client addresses, by clientBucketKey.
-	clients map[string]*tokenBuckets
-	// shared limits the requests that have no bucket of their own: those
-	// without a usable client address, and those of new tokens and
-	// addresses while their map is full.
-	shared    *tokenBuckets
+	buckets *bucketSet
+	// clients are those of the client addresses, by clientBucketKey. Its
+	// shared bucket is the one of buckets: it limits the requests that have
+	// no bucket of their own, those without a usable client address, and
+	// those of new tokens and addresses while their map is full and has no
+	// entry to evict.
+	clients   *bucketSet
 	lastSweep time.Time
 }
 
 type tokenBuckets struct {
 	read, write *rate.Limiter
 	seen        time.Time
+
+	// key, newer and older place an entry of a bucketSet in the map and in
+	// the list; the shared buckets have none.
+	key          string
+	newer, older *tokenBuckets
+}
+
+// bucketSet is a bounded map of buckets, with the list of its entries from
+// the most to the least recently used.
+type bucketSet struct {
+	readRate, writeRate   rate.Limit
+	readBurst, writeBurst int
+
+	m              map[string]*tokenBuckets
+	newest, oldest *tokenBuckets
+
+	// shared limits the requests whose key finds no room in m.
+	shared *tokenBuckets
+}
+
+// newBucketSet returns an empty set with buckets of the rates and bursts.
+// shared is the shared bucket of the set, nil for one of its own.
+func newBucketSet(readRate, writeRate rate.Limit, readBurst, writeBurst int, shared *tokenBuckets) *bucketSet {
+	s := &bucketSet{
+		readRate: readRate, writeRate: writeRate,
+		readBurst: readBurst, writeBurst: writeBurst,
+		m: make(map[string]*tokenBuckets),
+	}
+	if shared == nil {
+		shared = s.newBuckets()
+	}
+	s.shared = shared
+	return s
+}
+
+// newBuckets returns a full pair of buckets of the rates of the set.
+func (s *bucketSet) newBuckets() *tokenBuckets {
+	return &tokenBuckets{
+		read:  rate.NewLimiter(s.readRate, s.readBurst),
+		write: rate.NewLimiter(s.writeRate, s.writeBurst),
+	}
+}
+
+// pushNewestLocked puts b, which is in no list, at the newest end.
+func (s *bucketSet) pushNewestLocked(b *tokenBuckets) {
+	b.older, b.newer = s.newest, nil
+	if s.newest != nil {
+		s.newest.newer = b
+	} else {
+		s.oldest = b
+	}
+	s.newest = b
+}
+
+// unlinkLocked takes b out of the list.
+func (s *bucketSet) unlinkLocked(b *tokenBuckets) {
+	if b.newer != nil {
+		b.newer.older = b.older
+	} else {
+		s.newest = b.older
+	}
+	if b.older != nil {
+		b.older.newer = b.newer
+	} else {
+		s.oldest = b.newer
+	}
+	b.newer, b.older = nil, nil
+}
+
+// removeLocked drops the entry b.
+func (s *bucketSet) removeLocked(b *tokenBuckets) {
+	s.unlinkLocked(b)
+	delete(s.m, b.key)
+}
+
+// getLocked returns the buckets of key: the ones it has, else new ones while
+// the map has fewer than capacity entries or an entry to evict, else the
+// shared ones. An empty key gets the shared ones.
+func (s *bucketSet) getLocked(key string, now time.Time, capacity int) *tokenBuckets {
+	if key == "" {
+		return s.shared
+	}
+	if b := s.m[key]; b != nil {
+		s.unlinkLocked(b)
+		s.pushNewestLocked(b)
+		return b
+	}
+	if len(s.m) >= capacity && !s.evictLocked(now) {
+		return s.shared
+	}
+	b := s.newBuckets()
+	b.key = key
+	s.m[key] = b
+	s.pushNewestLocked(b)
+	return b
+}
+
+// evictLocked drops the least recently used entry whose buckets are full at
+// now, of the oldest tokenRateLimitEvictScan entries, and reports whether it
+// found one. Dropping full buckets gives the client nothing back: it would
+// find them full if they were kept.
+//
+// The entries it finds not full it moves to the newest end, so that the
+// next scan looks at others: a few emptied entries at the oldest end do not
+// hide the full ones behind them. A client can keep new keys out of buckets
+// of their own only by keeping nearly every entry of the map from refilling,
+// which takes requests at the limited rate for each of them, and a scan that
+// finds no full entry costs at most tokenRateLimitEvictScan checks.
+func (s *bucketSet) evictLocked(now time.Time) bool {
+	for i := min(tokenRateLimitEvictScan, len(s.m)); i > 0; i-- {
+		b := s.oldest
+		if b.fullAt(now) {
+			s.removeLocked(b)
+			return true
+		}
+		s.unlinkLocked(b)
+		s.pushNewestLocked(b)
+	}
+	return false
 }
 
 // fullAt reports whether both buckets are full at now, so that dropping them
@@ -126,14 +249,13 @@ func newTokenRateLimiter(l config.Limits, resolve func(string) string) (*tokenRa
 	if writeBurst == 0 {
 		writeBurst = max(writeRate, 1)
 	}
+	buckets := newBucketSet(limit(readRate), limit(writeRate), readBurst, writeBurst, nil)
 	return &tokenRateLimiter{
-		readRate: limit(readRate), writeRate: limit(writeRate),
-		readBurst: readBurst, writeBurst: writeBurst,
 		resolve:    resolve,
 		now:        time.Now,
 		maxBuckets: tokenRateLimitMaxBuckets,
-		buckets:    make(map[string]*tokenBuckets),
-		clients:    make(map[string]*tokenBuckets),
+		buckets:    buckets,
+		clients:    newBucketSet(limit(readRate), limit(writeRate), readBurst, writeBurst, buckets.shared),
 	}, nil
 }
 
@@ -155,33 +277,6 @@ func clientBucketKey(remoteAddr string) string {
 		return ""
 	}
 	return prefix.String()
-}
-
-// newBuckets returns a full pair of buckets.
-func (l *tokenRateLimiter) newBuckets() *tokenBuckets {
-	return &tokenBuckets{
-		read:  rate.NewLimiter(l.readRate, l.readBurst),
-		write: rate.NewLimiter(l.writeRate, l.writeBurst),
-	}
-}
-
-// bucketsLocked returns the buckets of key in m, new ones while m has room,
-// else the shared ones.
-func (l *tokenRateLimiter) bucketsLocked(m map[string]*tokenBuckets, key string) *tokenBuckets {
-	if key != "" {
-		if b := m[key]; b != nil {
-			return b
-		}
-		if len(m) < l.maxBuckets {
-			b := l.newBuckets()
-			m[key] = b
-			return b
-		}
-	}
-	if l.shared == nil {
-		l.shared = l.newBuckets()
-	}
-	return l.shared
 }
 
 // isReadRequest reports whether a request counts against the read limit.
@@ -206,10 +301,10 @@ func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, ti
 
 	l.mu.Lock()
 	if now.Sub(l.lastSweep) > time.Minute {
-		for _, m := range []map[string]*tokenBuckets{l.buckets, l.clients} {
-			for k, b := range m {
+		for _, s := range []*bucketSet{l.buckets, l.clients} {
+			for _, b := range s.m {
 				if now.Sub(b.seen) > tokenRateLimitIdle && b.fullAt(now) {
-					delete(m, k)
+					s.removeLocked(b)
 				}
 			}
 		}
@@ -217,9 +312,9 @@ func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, ti
 	}
 	var b *tokenBuckets
 	if accessor != anonymousBucket {
-		b = l.bucketsLocked(l.buckets, accessor)
+		b = l.buckets.getLocked(accessor, now, l.maxBuckets)
 	} else {
-		b = l.bucketsLocked(l.clients, clientBucketKey(remoteAddr))
+		b = l.clients.getLocked(clientBucketKey(remoteAddr), now, l.maxBuckets)
 	}
 	b.seen = now
 	l.mu.Unlock()
