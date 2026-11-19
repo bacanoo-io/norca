@@ -55,6 +55,10 @@ type releaseOp struct {
 	// args is the authenticated request of the operation.
 	args structs.RequestWithIdentity
 
+	// id identifies the operation in the last operation of its release
+	// (ReleaseOperation.ID), and so in its fence (ATM-17).
+	id string
+
 	ctx    context.Context
 	wait   bool
 	atomic bool
@@ -175,6 +179,7 @@ func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespac
 		namespace: namespace,
 		name:      name,
 		args:      args,
+		id:        uuid.Generate(),
 		ctx:       ctx,
 		disowned:  map[string]bool{},
 		restored:  map[string]bool{},
@@ -666,7 +671,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	rel.Spec.Multiregion = in.multiregion
 	rel.Status.Phase = structs.ReleasePhaseApplying
 	rel.Status.LastOperation = &structs.ReleaseOperation{
-		Action: in.action, Revision: revNum, User: op.user, StartTime: start,
+		ID: op.id, Action: in.action, Revision: revNum, User: op.user, StartTime: start,
 	}
 	var expected uint64
 	if relObj != nil {

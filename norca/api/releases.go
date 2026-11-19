@@ -185,6 +185,9 @@ type ReleaseOperation struct {
 	Error      string   `json:"error,omitempty"`
 	Warnings   []string `json:"warnings,omitempty"`
 	RolledBack bool     `json:"rolledBack,omitempty"`
+
+	// ID identifies the operation: a UUID set when it records its start.
+	ID string `json:"id,omitempty"`
 }
 
 // ReleaseTestResult is the result of the test hooks of a release.

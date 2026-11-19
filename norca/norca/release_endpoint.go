@@ -414,7 +414,7 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 	defer m.claims.release(op.claim)
 	rel.Status.Phase = structs.ReleasePhaseUninstalling
 	rel.Status.LastOperation = &structs.ReleaseOperation{
-		Action: structs.ReleaseActionUninstall, Revision: rel.Status.Revision, User: op.user, StartTime: nowRFC3339(),
+		ID: op.id, Action: structs.ReleaseActionUninstall, Revision: rel.Status.Revision, User: op.user, StartTime: nowRFC3339(),
 	}
 	if op.leadershipEnded() {
 		return op.interruptedError()

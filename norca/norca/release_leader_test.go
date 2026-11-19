@@ -11,6 +11,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -238,7 +239,7 @@ func (c *releaseTestClient) startOperationElsewhere(ns, name, phase, action stri
 	last := rel.Status.LastOperation
 	rel.Status.Phase = phase
 	rel.Status.LastOperation = &structs.ReleaseOperation{
-		Action: action, Revision: last.Revision, User: last.User, StartTime: last.StartTime,
+		ID: uuid.Generate(), Action: action, Revision: last.Revision, User: last.User, StartTime: last.StartTime,
 	}
 	_, err = c.srv.releases.writeRelease(rel, obj.ModifyIndex)
 	must.NoError(c.t, err)
@@ -393,6 +394,75 @@ func TestRelease_InterruptedOperationPrunesNothing(t *testing.T) {
 	}
 	must.True(t, fired.Load(), must.Sprint("the operation pruned no revision"))
 	must.Len(t, 2, c.history("default", "pruned"), must.Sprint("the interrupted operation pruned a revision"))
+}
+
+// An operation started on a new leader by the same user in the same second
+// as an interrupted one is another operation: the interrupted one stops at
+// its next write (review finding ATM-17). The fence compared the action,
+// revision, user and times of the last operation, which were the same, so
+// the interrupted uninstall went on deleting.
+func TestRelease_OperationOfSameUserAndSecondIsAnother(t *testing.T) {
+	ci.Parallel(t)
+	var c *releaseTestClient
+	fired := &atomic.Bool{}
+	c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+		cfg.releaseBeforeDelete = func(rel string, _ *structs.ReleaseResourceRef) {
+			if rel == "default/twice" && fired.CompareAndSwap(false, true) {
+				// The new leader marks the uninstall failed, and the user
+				// uninstalls again there, in the same second.
+				c.markInterrupted("default", "twice")
+				c.startOperationElsewhere("default", "twice", structs.ReleasePhaseUninstalling, structs.ReleaseActionUninstall)
+			}
+		}
+	})
+	defer cleanup()
+
+	_, err := c.apply("default", "twice", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "twice"}, Atomic: pointer.Of(false),
+		Resources: []*structs.ReleaseResource{releaseNamespace("twice-a", "v1"), releaseNamespace("twice-b", "v1")},
+	})
+	must.NoError(t, err)
+	must.NotEq(t, "", c.get("default", "twice").Status.LastOperation.ID, must.Sprint("the install recorded no operation ID"))
+
+	_, err = c.uninstall("default", "twice", "")
+	must.True(t, fired.Load(), must.Sprint("the uninstall deleted nothing"))
+	must.ErrorContains(t, err, interruptedByLeaderChange)
+	must.Eq(t, "v1", c.namespaceDescription("twice-a"), must.Sprint("the interrupted uninstall deleted"))
+	must.Eq(t, "v1", c.namespaceDescription("twice-b"), must.Sprint("the interrupted uninstall deleted"))
+	rel := c.get("default", "twice")
+	must.NotNil(t, rel, must.Sprint("the interrupted uninstall deleted the release"))
+	must.Eq(t, structs.ReleasePhaseUninstalling, rel.Status.Phase,
+		must.Sprint("the interrupted uninstall wrote over the operation of the new leader"))
+}
+
+// The fence holds only for the operation of its ID; a release recorded
+// without an ID holds only a fence taken without one, as a test run takes
+// it from such a release (ATM-17).
+func TestReleaseFence_OperationID(t *testing.T) {
+	ci.Parallel(t)
+	release := func(id string) *structs.Release {
+		return &structs.Release{ID: "rel", Status: &structs.ReleaseStatus{
+			Phase: structs.ReleasePhaseUninstalling,
+			LastOperation: &structs.ReleaseOperation{ID: id, Action: structs.ReleaseActionUninstall,
+				Revision: 1, User: "alice", StartTime: "2026-11-19T10:00:00Z"},
+		}}
+	}
+	cases := []struct {
+		name          string
+		fence, stored string
+		holds         bool
+	}{
+		{name: "same operation", fence: "op-1", stored: "op-1", holds: true},
+		{name: "another operation in the same second", fence: "op-1", stored: "op-2"},
+		{name: "recorded without an ID", fence: "op-1", stored: ""},
+		{name: "taken without an ID", fence: "", stored: "op-2"},
+		{name: "both without an ID", fence: "", stored: "", holds: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			must.Eq(t, tc.holds, newReleaseFence(release(tc.fence)).holds(release(tc.stored)))
+		})
+	}
 }
 
 // A test run that a leader change interrupted answers that no result was

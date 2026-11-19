@@ -131,7 +131,12 @@ func (m *releaseManager) waitEndedTerms(stopCh <-chan struct{}) bool {
 }
 
 // releaseFence is the state an operation put its release in (or found it
-// in, for a test run): the release, its phase and its last operation.
+// in, for a test run): the release, its phase and its last operation. The
+// ID of the last operation tells two operations apart that one user started
+// in the same second on two leaders (review finding ATM-17); the other
+// fields tell apart those recorded without an ID. An operation sets its ID
+// when it records its start, so a release recorded without one is never
+// in the state such an operation put it in.
 type releaseFence struct {
 	id    string
 	phase string
@@ -159,7 +164,7 @@ func (f *releaseFence) holds(rel *structs.Release) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Action == b.Action && a.Revision == b.Revision && a.User == b.User &&
+	return a.ID == b.ID && a.Action == b.Action && a.Revision == b.Revision && a.User == b.User &&
 		a.StartTime == b.StartTime && a.EndTime == b.EndTime
 }
 

@@ -511,6 +511,10 @@ type ReleaseOperation struct {
 	// RolledBack reports that an atomic operation failed and the resources
 	// of the previous revision were restored.
 	RolledBack bool `json:"rolledBack,omitempty"`
+
+	// ID identifies the operation: a UUID set when it records its start (an
+	// install, upgrade, rollback or uninstall).
+	ID string `json:"id,omitempty"`
 }
 
 // ReleaseTestResult is the result of running the test hooks of a release.
