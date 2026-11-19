@@ -168,6 +168,9 @@ type tenantWork struct {
 	// the status says the tenant is creating: the status is written before
 	// any resource is.
 	claimsChanged bool
+
+	// claimant is the pass over the tenant in the claims registry.
+	claimant resourceClaimant
 }
 
 // owns reports whether the tenant created the resource.
@@ -196,6 +199,12 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // that list one resource (which this and the write checks should never let
 // happen) the one the pass does not know as its owner gives it up.
 //
+// A resource has one owner: a release operation or another pass that
+// claims the resource now is writing it, so the tenant does not take it in
+// this pass and keeps it if it lists it; one that a release owns is not
+// the tenant's even if the tenant lists it (which the claims should never
+// let happen), and the tenant gives it up without deleting it (ATM-4).
+//
 // A resource the list says is pending and that exists now is the tenant's
 // when it holds what the list says the tenant was creating: the tenant
 // wrote that down before it created the resource, and the status write that
@@ -208,6 +217,15 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
 		delete(w.owned, ref.key())
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the tenant %s", ref, owner))
+		return false
+	}
+	if holder, ok := w.o.srv.releases.claims.holder(ref.key()); ok && holder.id != w.claimant.id {
+		w.conflicts = append(w.conflicts, fmt.Sprintf("%s is being written by %s", ref, holder))
+		return false
+	}
+	if owner, ok := w.p.releases[ref.key()]; ok {
+		delete(w.owned, ref.key())
+		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the release %s", ref, owner))
 		return false
 	}
 	if mine, ok := w.owned[ref.key()]; ok {
@@ -234,10 +252,6 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 			w.p.tenants[ref.key()] = w.obj.Name
 			return true
 		}
-	}
-	if owner, ok := w.p.releases[ref.key()]; ok {
-		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the release %s", ref, owner))
-		return false
 	}
 	if exists && !slices.Contains(w.spec.Adopt, ref.Type) {
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s exists and was not created by the tenant (adopt it with adopt = [%q])", ref, ref.Type))
@@ -268,6 +282,71 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 	ref.Pending, ref.Adopted = !exists, exists
 	w.owned[ref.key()] = ref
 	w.p.tenants[ref.key()] = w.obj.Name
+	return true
+}
+
+// claim claims the resources the tenant wants for the pass, except those the
+// pass knows as a release's (take reports them), and those others claim
+// (take reports them too). When the tenant does not list all of them yet, it
+// reads the owners releases recorded again: a release that recorded one
+// since the pass read them held its claim until it had. The resources the
+// tenant lists are no release's: a release reads the owners after its claim
+// too, and finds the tenant.
+func (w *tenantWork) claim(refs []tenantResourceRef) error {
+	claims := w.o.srv.releases.claims
+	w.claimant = claims.claimant(claimTenant, w.obj.Name)
+	keys := make([]string, 0, len(refs))
+	again := false
+	for _, ref := range refs {
+		key := ref.key()
+		if _, ok := w.p.releases[key]; ok {
+			continue
+		}
+		keys = append(keys, key)
+		if _, ok := w.owned[key]; !ok {
+			again = true
+		}
+	}
+	claims.claim(w.claimant, keys)
+	if !again {
+		return nil
+	}
+	snap, err := w.p.store.Snapshot()
+	if err != nil {
+		return err
+	}
+	releases, err := releaseOwners(snap)
+	if err != nil {
+		return err
+	}
+	w.p.releases = releases
+	return nil
+}
+
+// mayWrite checks, right before the pass writes a resource, that the
+// resource is still the tenant's to write (ATM-4): the pass claims it, and
+// in the state as it is now no release owns it. It records a conflict
+// otherwise. The claim makes the state check redundant on one leader; it
+// counts after a change of leader, whose claims do not include this pass's.
+func (w *tenantWork) mayWrite(ref tenantResourceRef) bool {
+	if !w.o.srv.releases.claims.holds(w.claimant, ref.key()) {
+		w.conflicts = append(w.conflicts, fmt.Sprintf("%s is not claimed by the pass", ref))
+		return false
+	}
+	snap, err := w.o.srv.State().Snapshot()
+	if err != nil {
+		w.failures = append(w.failures, err.Error())
+		return false
+	}
+	releases, err := releaseOwners(snap)
+	if err != nil {
+		w.failures = append(w.failures, err.Error())
+		return false
+	}
+	if owner, ok := releases[ref.key()]; ok {
+		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the release %s", ref, owner))
+		return false
+	}
 	return true
 }
 
@@ -338,9 +417,37 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 	// false ends the pass.
 	var writes []func() bool
 
+	// The pass claims what the tenant wants before it reads who owns it
+	// (resource_claims.go, review finding ATM-4), and gives the claims up
+	// when it ends: by then the status lists what the tenant took.
+	acls := o.srv.config.ACLEnabled
+	nsRef := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: ns}
+	quotaRef := tenantResourceRef{Type: structs.TenantResourceQuota, Name: tenantResourceName(obj.Name, "")}
+	netRef := tenantResourceRef{Type: structs.TenantResourceNetworkPolicy, Namespace: ns, Name: structs.TenantNetworkPolicyName}
+	wants := []tenantResourceRef{nsRef}
+	if desired.quota != nil {
+		wants = append(wants, quotaRef)
+	}
+	if acls {
+		for i := range desired.policies {
+			wants = append(wants,
+				tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: desired.policies[i].Name},
+				tenantResourceRef{Type: structs.TenantResourceACLRole, Name: desired.roles[i].Name})
+		}
+	}
+	if desired.network != nil {
+		wants = append(wants, netRef)
+	}
+	err = w.claim(wants)
+	defer o.srv.releases.claims.release(w.claimant)
+	if err != nil {
+		w.failures = append(w.failures, err.Error())
+		stop()
+		return
+	}
+
 	// The namespace first: without it nothing else of the tenant is
 	// written.
-	nsRef := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: ns}
 	liveNS, err := p.store.NamespaceByName(p.ws, ns)
 	if err != nil {
 		w.failures = append(w.failures, err.Error())
@@ -356,7 +463,6 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 	// quota its tenant asks for would let its people run without a limit,
 	// so a quota that can't be the tenant's or can't be created stops the
 	// pass, as a namespace that is not the tenant's does.
-	quotaRef := tenantResourceRef{Type: structs.TenantResourceQuota, Name: tenantResourceName(obj.Name, "")}
 	if desired.quota != nil {
 		live, err := p.store.QuotaSpecByName(p.ws, quotaRef.Name)
 		if err != nil {
@@ -373,6 +479,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				return true
 			}
 			o.beforeWrite(quotaRef)
+			if !w.mayWrite(quotaRef) {
+				return false
+			}
 			err := o.upsertQuota(live, desired.quota)
 			w.wrote(quotaRef, live != nil, err)
 			// A quota changed or created by somebody else since the
@@ -403,6 +512,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			return true
 		}
 		o.beforeWrite(nsRef)
+		if !w.mayWrite(nsRef) {
+			return false
+		}
 		err := o.upsertNamespace(liveNS, desired.namespace, manageQuota)
 		w.wrote(nsRef, liveNS != nil, err)
 		// A namespace changed or created by somebody else since the
@@ -410,7 +522,6 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		return err == nil || liveNS != nil && !structs.IsIndexConflictError(err)
 	})
 
-	acls := o.srv.config.ACLEnabled
 	if acls {
 		for i, policy := range desired.policies {
 			ref := tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: policy.Name}
@@ -425,6 +536,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			writes = append(writes, func() bool {
 				if live == nil || live.Rules != policy.Rules || live.Description != policy.Description {
 					o.beforeWrite(ref)
+					if !w.mayWrite(ref) {
+						return false
+					}
 					w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
 				}
 				return true
@@ -445,6 +559,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			}
 			writes = append(writes, func() bool {
 				if liveRole == nil || !roleMatches(liveRole, role) {
+					if !w.mayWrite(roleRef) {
+						return false
+					}
 					id, err := o.upsertRole(liveRole, role)
 					if err == nil {
 						w.setRoleID(roleRef, id)
@@ -456,7 +573,6 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		}
 	}
 
-	netRef := tenantResourceRef{Type: structs.TenantResourceNetworkPolicy, Namespace: ns, Name: structs.TenantNetworkPolicyName}
 	if desired.network != nil {
 		live, err := p.store.NetworkPolicyByName(p.ws, ns, desired.network.Name)
 		switch {
@@ -466,6 +582,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			writes = append(writes, func() bool {
 				if live == nil || !networkPolicyMatches(live, desired.network) {
 					o.beforeWrite(netRef)
+					if !w.mayWrite(netRef) {
+						return false
+					}
 					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(live, desired.network))
 				}
 				return true
@@ -489,18 +608,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 
 	// What the tenant created and no longer wants goes; what it took over
 	// and no longer wants is given back.
-	wanted := map[string]bool{nsRef.key(): true}
-	if desired.quota != nil {
-		wanted[quotaRef.key()] = true
-	}
-	if acls {
-		for i := range desired.policies {
-			wanted[tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: desired.policies[i].Name}.key()] = true
-			wanted[tenantResourceRef{Type: structs.TenantResourceACLRole, Name: desired.roles[i].Name}.key()] = true
-		}
-	}
-	if desired.network != nil {
-		wanted[netRef.key()] = true
+	wanted := map[string]bool{}
+	for _, ref := range wants {
+		wanted[ref.key()] = true
 	}
 	for _, ref := range sortedForDeletion(w.owned) {
 		if wanted[ref.key()] {

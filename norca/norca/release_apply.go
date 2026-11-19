@@ -75,6 +75,12 @@ type releaseOp struct {
 
 	// waited reports whether the operation waited for the deployments.
 	waited bool
+
+	// claim is the claimant of the operation in the claims registry: it
+	// claims the resources of the pack while it runs (ATM-4). taken are
+	// the resources it takes over from other releases, by key.
+	claim resourceClaimant
+	taken map[string]string
 }
 
 // appliedChange is a change made by an operation, with the state of the
@@ -317,6 +323,41 @@ func releaseOwners(snap *state.StateSnapshot) (map[string]string, error) {
 	return owners, nil
 }
 
+// releaseClaimKeys returns the keys of the resources an operation claims:
+// those of the pack it writes and records, hooks aside.
+func releaseClaimKeys(resources []*structs.ReleaseResource) []string {
+	keys := make([]string, 0, len(resources))
+	for _, res := range resources {
+		if !res.IsHook() {
+			keys = append(keys, res.Ref().Key())
+		}
+	}
+	return keys
+}
+
+// claimConflicts returns the conflict of the resources others claim, nil
+// if there is none. Who claims a resource is said to a caller who may write
+// it only; a dry run leaves the others out, as its plan reports them as
+// denied.
+func claimConflicts(aclObj *acl.ACL, resources []*structs.ReleaseResource, others map[string]resourceClaimant, dryRun bool) error {
+	var conflicts []string
+	for _, res := range resources {
+		holder, ok := others[res.Ref().Key()]
+		switch {
+		case !ok || res.IsHook():
+		case allowReleaseResourceApply(aclObj, res):
+			conflicts = append(conflicts, fmt.Sprintf("%s is being written by %s", res.Ref(), holder))
+		case !dryRun:
+			conflicts = append(conflicts, fmt.Sprintf("%s is being written by another operation", res.Ref()))
+		}
+	}
+	if len(conflicts) == 0 {
+		return nil
+	}
+	return structs.NewReleaseConflictError("resources of the pack are being written by other operations: %s",
+		strings.Join(conflicts, "; "))
+}
+
 // runApply installs, upgrades or rolls back a release, or plans it.
 func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.ReleaseApplyResponse) error {
 	if !in.dryRun {
@@ -437,12 +478,38 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	op.warnings = append(op.warnings, warnings...)
 
 	// Ownership: resources of other releases can only be taken over
-	// explicitly.
-	owners, err := releaseOwners(snap)
+	// explicitly, resources of tenants never, and resources another
+	// release operation or a pass over a tenant is writing now not at all.
+	// The operation claims the resources it writes first and reads their
+	// owners from the state as it is after that, not from the snapshot of
+	// its start: an owner that recorded its resources since then held their
+	// claims until it had (resource_claims.go, review finding ATM-4). A dry
+	// run claims nothing; the claims of others are conflicts for it too.
+	self := op.namespace + "/" + op.name
+	ownerSnap := snap
+	if in.dryRun {
+		others := m.claims.holders(releaseClaimKeys(resources))
+		maps.DeleteFunc(others, func(_ string, holder resourceClaimant) bool {
+			return holder.kind == claimRelease && holder.name == self
+		})
+		if err := claimConflicts(aclObj, resources, others, true); err != nil {
+			return err
+		}
+	} else {
+		op.claim = m.claims.claimant(claimRelease, self)
+		if others := m.claims.claim(op.claim, releaseClaimKeys(resources)); len(others) > 0 {
+			m.claims.release(op.claim)
+			return claimConflicts(aclObj, resources, others, false)
+		}
+		defer m.claims.release(op.claim)
+		if ownerSnap, err = m.srv.State().Snapshot(); err != nil {
+			return err
+		}
+	}
+	owners, err := releaseOwners(ownerSnap)
 	if err != nil {
 		return err
 	}
-	self := op.namespace + "/" + op.name
 	desired := map[string]*structs.ReleaseResource{}
 	var conflicts []string
 	taken := map[string]string{}
@@ -459,7 +526,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	// Resources a tenant created are the tenant's: a release never takes
 	// them.
-	tenants, err := tenantOwners(snap)
+	tenants, err := tenantOwners(ownerSnap)
 	if err != nil {
 		return err
 	}
@@ -479,6 +546,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if err := m.authorizeAdoption(op, in, resources, taken); err != nil {
 		return err
 	}
+	op.taken = taken
 
 	// Resources of the deployed revision that are no longer in the pack are
 	// deleted.
@@ -1348,6 +1416,10 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 	var deferred []*structs.ReleaseResource
 	flushDeferred := func() error {
 		for _, res := range deferred {
+			op.beforeApply(res.Ref())
+			if err := op.checkOwner(aclObj, res); err != nil {
+				return fmt.Errorf("%s: %w", res.Ref(), err)
+			}
 			if _, err := op.applyResource(res); err != nil {
 				return fmt.Errorf("%s: %w", res.Ref(), err)
 			}
@@ -1440,6 +1512,10 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 			read := before.modifyIndex // 0: it did not exist
 			index = &read
 		}
+		op.beforeApply(ref)
+		if err := op.checkOwner(aclObj, res); err != nil {
+			return fmt.Errorf("%s: %w", ref, err)
+		}
 		result, err := op.applyResourceAt(toApply, index)
 		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: action}
 		op.changes = append(op.changes, change)
@@ -1478,6 +1554,56 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 	}
 
 	return op.runHooks(resources, post)
+}
+
+// checkOwner checks, right before the operation writes a resource of its
+// pack, that the resource is still the operation's to write (ATM-4): it
+// claims the resource, and in the state as it is now no tenant owns it and
+// no other release does, unless the operation takes it over from that
+// release. The claim makes the state check redundant on one leader; it
+// counts after a change of leader, whose claims do not include this
+// operation's.
+func (op *releaseOp) checkOwner(aclObj *acl.ACL, res *structs.ReleaseResource) error {
+	ref := res.Ref()
+	key := ref.Key()
+	if !op.m.claims.holds(op.claim, key) {
+		return structs.NewReleaseConflictError("the operation does not claim %s", ref)
+	}
+	snap, err := op.m.srv.State().Snapshot()
+	if err != nil {
+		return err
+	}
+	tenants, err := tenantOwners(snap)
+	if err != nil {
+		return err
+	}
+	owner, ok := "", false
+	if tenant, isTenant := tenants[key]; isTenant {
+		owner, ok = fmt.Sprintf("the tenant %q", tenant), true
+	} else {
+		releases, err := releaseOwners(snap)
+		if err != nil {
+			return err
+		}
+		if rel, isRelease := releases[key]; isRelease && rel != op.namespace+"/"+op.name && op.taken[key] == "" {
+			owner, ok = fmt.Sprintf("release %q", rel), true
+		}
+	}
+	switch {
+	case !ok:
+		return nil
+	case allowReleaseResourceApply(aclObj, res):
+		return structs.NewReleaseConflictError("%s belongs to %s now", ref, owner)
+	default:
+		return structs.NewReleaseConflictError("%s has another owner now", ref)
+	}
+}
+
+// beforeApply runs the test hook releaseBeforeApply, if set.
+func (op *releaseOp) beforeApply(ref *structs.ReleaseResourceRef) {
+	if cfg := op.m.srv.config; cfg != nil && cfg.releaseBeforeApply != nil {
+		cfg.releaseBeforeApply(op.namespace+"/"+op.name, ref)
+	}
 }
 
 // deleteResources deletes resources in the given (deletion) order. Quotas

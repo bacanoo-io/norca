@@ -437,6 +437,11 @@ type Config struct {
 	// read. For tests: what is committed between the read and the write.
 	tenantBeforeWrite func(ref tenantResourceRef)
 
+	// releaseBeforeApply, when set, runs right before a release operation
+	// writes a resource of its pack; release is "namespace/name". For
+	// tests: what is committed while the operation runs.
+	releaseBeforeApply func(release string, ref *structs.ReleaseResourceRef)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

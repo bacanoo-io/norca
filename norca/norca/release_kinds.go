@@ -234,6 +234,10 @@ type releaseManager struct {
 	// syncLock serializes the syncs of pack registries, which replace
 	// directories of the pack cache.
 	syncLock sync.Mutex
+
+	// claims are the resources release operations and passes of the tenant
+	// operator are writing now (resource_claims.go).
+	claims *resourceClaims
 }
 
 func newReleaseManager(srv *Server, logger hclog.Logger) *releaseManager {
@@ -241,6 +245,7 @@ func newReleaseManager(srv *Server, logger hclog.Logger) *releaseManager {
 		srv:    srv,
 		logger: logger.Named("release"),
 		busy:   make(map[string]struct{}),
+		claims: newResourceClaims(),
 	}
 }
 
