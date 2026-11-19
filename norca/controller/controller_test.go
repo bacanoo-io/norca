@@ -6,7 +6,9 @@ package controller_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -301,6 +303,83 @@ func TestController_LeaderElection(t *testing.T) {
 	must.Eq(t, 0, r2.count("a"))
 	must.Greater(t, 0, r1.count("a"))
 	must.NotNil(t, b.GetVariable("default", "controller-lease/widgets"))
+}
+
+// Leading fences the side effects of a reconcile: it passes only on the
+// leader and in the context of its term, and a reconcile it refused is
+// tried again (review finding CON-6b).
+func TestController_Leading(t *testing.T) {
+	b := fake.New()
+	putWidget(b, "default", "a", `{"size":1}`)
+	nop := controller.ReconcilerFunc(func(context.Context, controller.ObjectKey) (time.Duration, error) { return 0, nil })
+
+	// Without leader election there is nothing to fence.
+	plain, err := controller.New(b, nop, controller.Options{Name: "plain", Kind: widgetKind, Logger: testLogger(t)})
+	must.NoError(t, err)
+	must.NoError(t, plain.Leading(context.Background()))
+
+	type call struct {
+		ctx   context.Context
+		fence error
+	}
+	start := func(id string) (*controller.Controller, chan call, func()) {
+		le := leaseConfig(id)
+		le.Path = ""
+		calls := make(chan call, 64)
+		var n atomic.Int32
+		var c *controller.Controller
+		r := controller.ReconcilerFunc(func(ctx context.Context, _ controller.ObjectKey) (time.Duration, error) {
+			fence := c.Leading(ctx)
+			calls <- call{ctx, fence}
+			if n.Add(1) == 1 {
+				// The first reconcile is refused as by the fence.
+				return 0, fmt.Errorf("writing the zone: %w", controller.ErrNotLeader)
+			}
+			return 0, fence
+		})
+		c, err := controller.New(b, r, controller.Options{Name: "widgets", Kind: widgetKind, LeaderElection: &le,
+			Logger:      testLogger(t),
+			RateLimiter: controller.NewExponentialBackoff[controller.ObjectKey](10*time.Millisecond, 100*time.Millisecond)})
+		must.NoError(t, err)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_ = c.Run(ctx)
+		}()
+		var once sync.Once
+		stop := func() {
+			once.Do(func() {
+				cancel()
+				<-done
+			})
+		}
+		t.Cleanup(stop)
+		return c, calls, stop
+	}
+
+	c1, calls1, stop1 := start("first")
+	waitFor(t, "c1 leads", c1.IsLeader)
+	c2, calls2, _ := start("second")
+	waitFor(t, "c2 synced", func() bool { _, ok := c2.Get(controller.ObjectKey{Namespace: "default", Name: "a"}); return ok })
+
+	// The leader passes the fence in its reconciles; the refused one is
+	// tried again.
+	first := <-calls1
+	must.NoError(t, first.fence)
+	must.NoError(t, (<-calls1).fence)
+	must.NoError(t, c1.Leading(first.ctx))
+
+	// The other candidate does not pass it.
+	must.ErrorIs(t, c2.Leading(context.Background()), controller.ErrNotLeader)
+	must.Eq(t, 0, len(calls2))
+
+	// After the term the fence is closed, also in the context of a reconcile
+	// of the term.
+	stop1()
+	must.ErrorIs(t, c1.Leading(first.ctx), controller.ErrNotLeader)
+	must.ErrorIs(t, c1.Leading(first.ctx), context.Canceled)
+	must.ErrorIs(t, c1.Leading(context.Background()), controller.ErrNotLeader)
 }
 
 func TestController_EventSource(t *testing.T) {

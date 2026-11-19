@@ -189,6 +189,39 @@ func (le *LeaderElector) Leader() string {
 	return le.observed.Holder
 }
 
+// ErrNotLeader is the error of Leading: the candidate may no longer lead.
+var ErrNotLeader = errors.New("not the leader")
+
+// Leading is the fence of a side effect that no check-and-set protects, such
+// as a call to a cloud or DNS API: called right before it, it returns nil
+// only if this candidate leads, ctx (the context onStarted got, or one
+// derived from it) is not done, and the lease cannot have passed to another
+// candidate yet. Otherwise it returns an error wrapping ErrNotLeader, and the
+// side effect must not be made.
+//
+// IsLeader turns false only when renew ends the term, which a paused process
+// or a starved goroutine can do late; Leading compares the clock with the
+// start of the last successful renewal itself. It refuses once RenewDeadline
+// less a tenth of it has passed since then. The margin is for the time
+// between the check and the moment the side effect leaves the process
+// (connection setup, scheduling under load), so that a side effect allowed
+// at the last moment still has LeaseDuration - RenewDeadline (5s with the
+// defaults) to arrive before another candidate can lead; nothing bounds a
+// side effect that takes longer than that, or a pause after the check.
+func (le *LeaderElector) Leading(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("%w: the context is done (%w)", ErrNotLeader, context.Cause(ctx))
+	}
+	if !le.leader.Load() {
+		return ErrNotLeader
+	}
+	renewed := le.renewedAt()
+	if age := le.now().Sub(renewed); age >= le.cfg.RenewDeadline-le.cfg.RenewDeadline/10 {
+		return fmt.Errorf("%w: the lease was last renewed %s ago", ErrNotLeader, age.Round(time.Millisecond))
+	}
+	return nil
+}
+
 // Run campaigns until ctx is canceled. Whenever this candidate becomes the
 // leader, onStarted is called with a context that is canceled when the
 // leadership is lost; Run waits for onStarted to return, calls onStopped,
@@ -219,10 +252,25 @@ func (le *LeaderElector) Run(ctx context.Context, onStarted func(ctx context.Con
 
 // acquire tries to acquire the lease every RetryPeriod until it succeeds
 // (true) or ctx is canceled (false).
+//
+// A write of the lease that is answered RenewDeadline or later after its
+// attempt started does not count (review finding CON-6): the other
+// candidates count LeaseDuration from a moment after that start, so the
+// lease may be about to pass to one of them, and renew would end the term at
+// once anyway. The lease Variable names this candidate then; the next
+// attempt renews it if nobody wrote it since, and otherwise another candidate
+// takes it over LeaseDuration after it saw that write, as after any holder
+// that stopped renewing.
 func (le *LeaderElector) acquire(ctx context.Context) bool {
 	logged := false
 	for {
 		ok, err := le.tryAcquireOrRenew(ctx)
+		if ok {
+			if took := le.now().Sub(le.renewedAt()); took >= le.cfg.RenewDeadline {
+				le.logger.Warn("the lease was written too slowly to lead on it, trying again", "took", took.String())
+				ok = false
+			}
+		}
 		switch {
 		case err != nil && ctx.Err() == nil:
 			le.logger.Warn("acquiring the lease failed", "error", err)

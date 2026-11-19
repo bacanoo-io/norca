@@ -108,3 +108,48 @@ func TestLeaderElector_ObservesAfterTheRead(t *testing.T) {
 	must.NoError(t, err)
 	must.True(t, ok)
 }
+
+// Leading closes the fence by the clock, a tenth of the renew deadline
+// before it ends, also while the term has not ended yet: renew may notice
+// the deadline late (a paused process), and a side effect allowed at the
+// last moment must still arrive before another candidate can lead (review
+// finding CON-6b).
+func TestLeaderElector_LeadingByTheClock(t *testing.T) {
+	ctx := context.Background()
+	clock := time.Unix(1000, 0)
+	le, err := NewLeaderElector(&oneVar{}, LeaderElectionConfig{
+		Path: "lease", Identity: "a",
+		LeaseDuration: 10 * time.Second, RenewDeadline: 8 * time.Second, RetryPeriod: time.Second,
+	}, nil)
+	must.NoError(t, err)
+	le.now = func() time.Time { return clock }
+
+	must.ErrorIs(t, le.Leading(ctx), ErrNotLeader, must.Sprint("before the lease is acquired"))
+	ok, err := le.tryAcquireOrRenew(ctx)
+	must.NoError(t, err)
+	must.True(t, ok)
+	le.leader.Store(true)
+	must.NoError(t, le.Leading(ctx))
+
+	// 7.2s (8s less a tenth) after the last renewal started.
+	clock = clock.Add(7199 * time.Millisecond)
+	must.NoError(t, le.Leading(ctx))
+	clock = clock.Add(time.Millisecond)
+	must.ErrorIs(t, le.Leading(ctx), ErrNotLeader)
+	must.True(t, le.IsLeader())
+
+	// A renewal opens it again.
+	ok, err = le.tryAcquireOrRenew(ctx)
+	must.NoError(t, err)
+	must.True(t, ok)
+	must.NoError(t, le.Leading(ctx))
+
+	// The context of a term that ended.
+	ended, cancel := context.WithCancel(ctx)
+	cancel()
+	must.ErrorIs(t, le.Leading(ended), ErrNotLeader)
+	must.ErrorIs(t, le.Leading(ended), context.Canceled)
+
+	le.leader.Store(false)
+	must.ErrorIs(t, le.Leading(ctx), ErrNotLeader)
+}
