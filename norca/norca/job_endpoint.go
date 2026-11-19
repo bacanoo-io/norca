@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/helper"
@@ -37,6 +39,15 @@ const (
 	// DispatchPayloadSizeLimit is the maximum size of the uncompressed input
 	// data payload.
 	DispatchPayloadSizeLimit = 16 * 1024
+
+	// DispatchIDPrefixTemplateLimit is the maximum length in bytes of the
+	// IdPrefixTemplate of a dispatch, which becomes part of the ID of the
+	// dispatched job (Norca).
+	DispatchIDPrefixTemplateLimit = 128
+
+	// DispatchMetaSizeLimit is the maximum combined size in bytes of the keys
+	// and values of the meta of a dispatch, apart from the payload (Norca).
+	DispatchMetaSizeLimit = 16 * 1024
 )
 
 // ErrMultipleNamespaces is returned when a job uses Vault namespaces while the
@@ -2251,6 +2262,28 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 	return nil
 }
 
+// validateDispatchIDPrefixTemplate checks the IdPrefixTemplate of a dispatch
+// (review finding SEC-31). It becomes part of the ID of the dispatched job,
+// which is registered without Job.Validate, so the rules of a job ID apply
+// here: no space and no null character, and no other whitespace or control
+// character either; valid UTF-8, at most DispatchIDPrefixTemplateLimit bytes.
+func validateDispatchIDPrefixTemplate(prefix string) error {
+	if l := len(prefix); l > DispatchIDPrefixTemplateLimit {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"ID prefix template exceeds maximum length; %d > %d", l, DispatchIDPrefixTemplateLimit)
+	}
+	if !utf8.ValidString(prefix) {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "ID prefix template is not valid UTF-8")
+	}
+	for _, r := range prefix {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest,
+				"ID prefix template contains a space or a control character: %q", prefix)
+		}
+	}
+	return nil
+}
+
 // validateDispatchRequest returns whether the request is valid given the
 // parameterized job.
 func validateDispatchRequest(req *structs.JobDispatchRequest, job *structs.Job) error {
@@ -2265,6 +2298,21 @@ func validateDispatchRequest(req *structs.JobDispatchRequest, job *structs.Job) 
 	// Check the payload doesn't exceed the size limit
 	if l := len(req.Payload); l > DispatchPayloadSizeLimit {
 		return fmt.Errorf("Payload exceeds maximum size; %d > %d", l, DispatchPayloadSizeLimit)
+	}
+
+	if err := validateDispatchIDPrefixTemplate(req.IdPrefixTemplate); err != nil {
+		return err
+	}
+
+	// The meta is stored with the dispatched job as the payload is, so it is
+	// limited as well (review finding SEC-31).
+	metaSize := 0
+	for k, v := range req.Meta {
+		metaSize += len(k) + len(v)
+	}
+	if metaSize > DispatchMetaSizeLimit {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"Meta exceeds maximum size; %d > %d", metaSize, DispatchMetaSizeLimit)
 	}
 
 	// Check if the metadata is a set
