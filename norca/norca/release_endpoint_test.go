@@ -35,7 +35,13 @@ type releaseTestClient struct {
 }
 
 func newReleaseTestClient(t *testing.T) (*releaseTestClient, func()) {
-	s, root, cleanup := TestACLServer(t, nil)
+	return newReleaseTestClientConfig(t, nil)
+}
+
+// newReleaseTestClientConfig is newReleaseTestClient with a change of the
+// configuration of the server.
+func newReleaseTestClientConfig(t *testing.T, cb func(*Config)) (*releaseTestClient, func()) {
+	s, root, cleanup := TestACLServer(t, cb)
 	testutil.WaitForLeader(t, s.RPC)
 	c := &releaseTestClient{t: t, srv: s, codec: rpcClient(t, s), token: root.SecretID}
 	// The built-in kinds are registered by the leader.

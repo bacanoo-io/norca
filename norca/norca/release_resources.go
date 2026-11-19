@@ -293,9 +293,24 @@ type applyResult struct {
 	warnings string
 }
 
+// errReleaseResourceChanged is the error of a check-and-set write of a
+// resource that changed since the release read it: nothing was written.
+var errReleaseResourceChanged = errors.New("changed since the release read it")
+
 // applyResource creates or updates a resource through the endpoint of its
 // type.
 func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, error) {
+	return op.applyResourceAt(res, nil)
+}
+
+// applyResourceAt is applyResource, and with index set a check-and-set write
+// of a Variable: it is written only if its ModifyIndex is still *index, 0
+// meaning that it must not exist. A changed Variable fails with an error
+// wrapping errReleaseResourceChanged. Other types can't be written so.
+func (op *releaseOp) applyResourceAt(res *structs.ReleaseResource, index *uint64) (*applyResult, error) {
+	if index != nil && res.Type != structs.ReleaseResourceVariable {
+		return nil, fmt.Errorf("a %s can't be written with check-and-set", res.Type)
+	}
 	srv := op.m.srv
 	out := &applyResult{}
 	var generic structs.GenericResponse
@@ -321,12 +336,20 @@ func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, 
 	case structs.ReleaseResourceVariable:
 		v := res.Variable.Copy()
 		v.CreateIndex, v.ModifyIndex, v.CreateTime, v.ModifyTime = 0, 0, 0, 0
+		varOp := structs.VarOpSet
+		if index != nil {
+			varOp, v.ModifyIndex = structs.VarOpCAS, *index
+		}
 		var reply structs.VariablesApplyResponse
 		err := srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
-			Op: structs.VarOpSet, Var: &v, WriteRequest: op.writeRequest(v.Namespace),
+			Op: varOp, Var: &v, WriteRequest: op.writeRequest(v.Namespace),
 		}, &reply)
-		if err == nil && reply.Error != nil {
+		switch {
+		case err != nil:
+		case reply.Error != nil:
 			err = reply.Error
+		case reply.IsConflict():
+			err = fmt.Errorf("the variable %q (namespace %q) %w", v.Path, v.Namespace, errReleaseResourceChanged)
 		}
 		return out, err
 	case structs.ReleaseResourceObjectKind:

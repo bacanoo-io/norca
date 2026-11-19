@@ -4,11 +4,16 @@
 package norca
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
+	"github.com/bacanoo-io/norca/norca/norca/admission"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/norca/structs/config"
+	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/shoenig/test/must"
 )
 
@@ -121,4 +126,90 @@ func TestRelease_PlanObjectErrorNamingNotFound(t *testing.T) {
 	must.NotNil(t, ch)
 	must.Eq(t, structs.ReleaseChangeCreate, ch.Action)
 	must.Eq(t, "", ch.Error)
+}
+
+// A Variable of a release is written only in the state the release read
+// (review finding ATM-11): a secret item the release takes from the stored
+// Variable is not written back over a value somebody set meanwhile.
+func TestRelease_VariableWriteIsCheckedAndSet(t *testing.T) {
+	ci.Parallel(t)
+
+	// The admission webhook of Variables runs between the read of the
+	// release and its write: armed, it rotates the password there.
+	var armed atomic.Bool
+	var srv *Server
+	var token string
+	rotated := make(chan error, 1)
+	hook := newTestWebhook(t, func(req *admission.ReviewRequest) *admission.ReviewResponse {
+		if req.Variable != nil && req.Variable.Path == "config/app" && armed.CompareAndSwap(true, false) {
+			var resp structs.VariablesApplyResponse
+			rotated <- srv.RPC(structs.VariablesApplyRPCMethod, &structs.VariablesApplyRequest{
+				Op: structs.VarOpSet,
+				Var: &structs.VariableDecrypted{
+					VariableMetadata: structs.VariableMetadata{Namespace: "default", Path: "config/app"},
+					Items:            map[string]string{"user": "admin", "password": "rotated"},
+				},
+				WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: token},
+			}, &resp)
+		}
+		return &admission.ReviewResponse{Allowed: true}
+	})
+	c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+		cfg.AdmissionConfig = &config.AdmissionConfig{Webhooks: []*config.AdmissionWebhookConfig{
+			{Name: "rotate", URL: hook.URL, Resources: []string{structs.AdmissionResourceVariable}},
+		}}
+	})
+	defer cleanup()
+	srv, token = c.srv, c.token
+
+	variable := func(user string) *structs.ReleaseResource {
+		return &structs.ReleaseResource{Type: structs.ReleaseResourceVariable, SecretKeys: []string{"password"},
+			Variable: &structs.VariableDecrypted{
+				VariableMetadata: structs.VariableMetadata{Path: "config/app"},
+				Items:            map[string]string{"user": user},
+			}}
+	}
+	items := func() map[string]string {
+		t.Helper()
+		var out structs.VariablesReadResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(c.codec, structs.VariablesReadRPCMethod, &structs.VariablesReadRequest{
+			Path:         "config/app",
+			QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: c.token},
+		}, &out))
+		must.NotNil(t, out.Data)
+		return out.Data.Items
+	}
+
+	_, err := c.apply("default", "app", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "app"},
+		Resources: []*structs.ReleaseResource{variable("admin")},
+		Secrets:   []*structs.ReleaseVariableSecret{{Path: "config/app", Items: map[string]string{"password": "s3cret"}}},
+	})
+	must.NoError(t, err)
+	must.Eq(t, "s3cret", items()["password"])
+
+	// The upgrade keeps the stored password; the password is rotated while
+	// it writes the Variable. The upgrade fails and the rotated password
+	// stays.
+	armed.Store(true)
+	_, err = c.apply("default", "app", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "app"},
+		Resources: []*structs.ReleaseResource{variable("admin2")},
+	})
+	select {
+	case err := <-rotated:
+		must.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the webhook was not asked about the write of the upgrade")
+	}
+	must.ErrorContains(t, err, "changed")
+	must.Eq(t, map[string]string{"user": "admin", "password": "rotated"}, items())
+
+	// Applied again, the upgrade reads the rotated password and keeps it.
+	_, err = c.apply("default", "app", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "app"},
+		Resources: []*structs.ReleaseResource{variable("admin2")},
+	})
+	must.NoError(t, err)
+	must.Eq(t, map[string]string{"user": "admin2", "password": "rotated"}, items())
 }

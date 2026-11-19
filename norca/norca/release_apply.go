@@ -1433,12 +1433,23 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 			}
 		}
 
-		result, err := op.applyResource(toApply)
+		// A Variable is written only in the state it was read in: its secret
+		// items may come from it (withSecrets).
+		var index *uint64
+		if res.Type == structs.ReleaseResourceVariable {
+			read := before.modifyIndex // 0: it did not exist
+			index = &read
+		}
+		result, err := op.applyResourceAt(toApply, index)
 		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: action}
 		op.changes = append(op.changes, change)
 		if err != nil {
 			change.Error = err.Error()
-			op.attempted = &appliedChange{ref: ref, before: before}
+			// A resource that changed meanwhile was not written: restoring
+			// it would overwrite the change.
+			if !errors.Is(err, errReleaseResourceChanged) {
+				op.attempted = &appliedChange{ref: ref, before: before}
+			}
 			return fmt.Errorf("%s: %w", ref, err)
 		}
 		// Applied: only now is the resource one the release may keep as its
