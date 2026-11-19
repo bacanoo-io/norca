@@ -189,6 +189,39 @@ func (le *LeaderElector) Leader() string {
 	return le.observed.Holder
 }
 
+// ErrNotLeader is the error of Leading: the candidate may no longer lead.
+var ErrNotLeader = errors.New("not the leader")
+
+// Leading is the fence of a side effect that no check-and-set protects, such
+// as a call to a cloud or DNS API: called right before it, it returns nil
+// only if this candidate leads, ctx (the context onStarted got, or one
+// derived from it) is not done, and the lease cannot have passed to another
+// candidate yet. Otherwise it returns an error wrapping ErrNotLeader, and the
+// side effect must not be made.
+//
+// IsLeader turns false only when renew ends the term, which a paused process
+// or a starved goroutine can do late; Leading compares the clock with the
+// start of the last successful renewal itself. It refuses once RenewDeadline
+// less a tenth of it has passed since then. The margin is for the time
+// between the check and the moment the side effect leaves the process
+// (connection setup, scheduling under load), so that a side effect allowed
+// at the last moment still has LeaseDuration - RenewDeadline (5s with the
+// defaults) to arrive before another candidate can lead; nothing bounds a
+// side effect that takes longer than that, or a pause after the check.
+func (le *LeaderElector) Leading(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("%w: the context is done (%w)", ErrNotLeader, context.Cause(ctx))
+	}
+	if !le.leader.Load() {
+		return ErrNotLeader
+	}
+	renewed := le.renewedAt()
+	if age := le.now().Sub(renewed); age >= le.cfg.RenewDeadline-le.cfg.RenewDeadline/10 {
+		return fmt.Errorf("%w: the lease was last renewed %s ago", ErrNotLeader, age.Round(time.Millisecond))
+	}
+	return nil
+}
+
 // Run campaigns until ctx is canceled. Whenever this candidate becomes the
 // leader, onStarted is called with a context that is canceled when the
 // leadership is lost; Run waits for onStarted to return, calls onStopped,

@@ -40,7 +40,9 @@
 //     periodic resynchronization and optional leader election.
 //   - LeaderElector: leader election over a lease Variable written with
 //     check-and-set (Variables locks do not exist in this Nomad version), with
-//     both storages.
+//     both storages. Its Leading (Controller.Leading) fences a side effect
+//     that no check-and-set protects: it is made only while the lease cannot
+//     have passed to another candidate.
 //   - Objects: reads and writes objects, including status updates with
 //     check-and-set retries.
 //   - Owner references: jobs created by a controller carry the owner object in

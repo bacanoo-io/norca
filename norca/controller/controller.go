@@ -234,6 +234,21 @@ func (c *Controller) IsLeader() bool {
 	return c.queue != nil
 }
 
+// Leading is the fence of a side effect of a reconcile that no check-and-set
+// protects, such as a call to a cloud or DNS API: a reconciler calls it with
+// its context right before the side effect, and makes it only if it returns
+// nil. With leader election it returns an error wrapping ErrNotLeader when
+// the context is done, the controller no longer leads, or its lease may pass
+// to another candidate before the side effect arrives (see
+// LeaderElector.Leading); a reconcile that returns such an error is logged
+// as no failure and tried again. Without leader election it returns nil.
+func (c *Controller) Leading(ctx context.Context) error {
+	if c.elector == nil {
+		return nil
+	}
+	return c.elector.Leading(ctx)
+}
+
 // Enqueue requests reconciling the object. It is a no-op while the
 // controller is not the leader.
 func (c *Controller) Enqueue(key ObjectKey) {
@@ -382,6 +397,14 @@ func (c *Controller) process(ctx context.Context, q *Queue[ObjectKey], key Objec
 		result = ResultThrottled
 		if ctx.Err() == nil {
 			c.logger.Debug("reconcile throttled by the servers", "object", key.String(), "retries", q.NumRequeues(key))
+			q.AddRateLimited(key)
+		}
+	case errors.Is(err, ErrNotLeader):
+		// The fence of a side effect refused (Leading): the leadership is
+		// lost or about to be. The object is tried again if it is kept.
+		result = ResultRequeue
+		if ctx.Err() == nil {
+			c.logger.Info("reconcile stopped: the controller may no longer lead", "object", key.String(), "error", err)
 			q.AddRateLimited(key)
 		}
 	case err != nil:
