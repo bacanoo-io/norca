@@ -302,7 +302,7 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	}
 
 	if obj.Deleting() {
-		o.finishDeletion(obj, spec, status)
+		o.finishDeletion(p, obj, spec, status)
 		return ""
 	}
 
@@ -518,15 +518,20 @@ func (o *certificateOperator) issued(p *certificatePass, obj *structs.CustomObje
 }
 
 // writeSecret writes a new version of the secret of a certificate. The
-// metadata of an existing secret is kept, apart from the expiry.
+// metadata of an existing secret is kept, apart from the expiry. existing is
+// the secret as the pass read it, nil if there was none: the write is a
+// check-and-set on it, and fails with structs.ErrSecretConflict if somebody
+// else created or changed the secret since (secretChanged).
 func (o *certificateOperator) writeSecret(obj *structs.CustomObject, spec *structs.CertificateSpec, existing *structs.Secret,
 	items structs.SecretItems, expires *time.Time) (uint64, error) {
 
 	meta := &structs.SecretMeta{
 		Description: fmt.Sprintf("Certificate %s (%s/%s)", obj.Name, structs.OperatorsGroup, structs.CertificateKind),
 	}
+	var checkIndex uint64
 	if existing != nil {
 		meta = existing.SecretMeta.Copy()
+		checkIndex = existing.ModifyIndex
 	}
 	if meta.Labels == nil {
 		meta.Labels = map[string]string{}
@@ -536,15 +541,26 @@ func (o *certificateOperator) writeSecret(obj *structs.CustomObject, spec *struc
 		meta.ExpiresAt = expires
 	}
 	written, _, err := o.srv.secretWrite(&secretWrite{
-		namespace: obj.Namespace,
-		path:      spec.SecretPath,
-		items:     items,
-		meta:      meta,
+		namespace:  obj.Namespace,
+		path:       spec.SecretPath,
+		items:      items,
+		meta:       meta,
+		checkIndex: &checkIndex,
 	})
 	if err != nil {
 		return 0, err
 	}
 	return written.CurrentVersion, nil
+}
+
+// secretChanged handles a write of the secret of a certificate that found
+// the secret changed since the pass read it: nothing is overwritten, and the
+// next pass reads the secret again and decides whether it is still the
+// certificate's (refusal).
+func (o *certificateOperator) secretChanged(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec) {
+	o.logger.Debug("the secret of a certificate changed while it was written; reading it again",
+		"namespace", obj.Namespace, "certificate", obj.Name, "path", spec.SecretPath)
+	p.want(p.now.Add(operatorsSettle))
 }
 
 // issueBuiltin issues a certificate with the issuing CA of the region.
@@ -599,6 +615,10 @@ func (o *certificateOperator) issueBuiltin(p *certificatePass, obj *structs.Cust
 		structs.CertificateSecretItemCA:   certificateTrustBundle(o.srv.Region(), p.all),
 	}
 	version, err := o.writeSecret(obj, spec, secret, items, &cert.NotAfter)
+	if errors.Is(err, structs.ErrSecretConflict) {
+		o.secretChanged(p, obj, spec)
+		return
+	}
 	if err != nil {
 		o.fail(p, obj, st, out, "SecretWriteFailed", err.Error())
 		return
@@ -703,6 +723,10 @@ func (o *certificateOperator) issueExternal(p *certificatePass, obj *structs.Cus
 	}
 	items[structs.CertificateSecretItemNextKey] = keyPEM
 	if _, err := o.writeSecret(obj, spec, secret, items, nil); err != nil {
+		if errors.Is(err, structs.ErrSecretConflict) {
+			o.secretChanged(p, obj, spec)
+			return
+		}
 		o.fail(p, obj, st, out, "SecretWriteFailed", err.Error())
 		return
 	}
@@ -778,6 +802,12 @@ func (o *certificateOperator) takeChain(p *certificatePass, obj *structs.CustomO
 		structs.CertificateSecretItemKey:  keyPEM,
 	}
 	version, err := o.writeSecret(obj, spec, secret, items, &leaf.NotAfter)
+	if errors.Is(err, structs.ErrSecretConflict) {
+		// The order stays: the next pass takes its chain if the secret
+		// still holds the key of the order.
+		o.secretChanged(p, obj, spec)
+		return
+	}
 	if err != nil {
 		out.failedReason, out.failedMessage = "SecretWriteFailed", err.Error()
 		p.want(p.now.Add(operatorsRetry))
@@ -852,7 +882,7 @@ func checkOrderChain(chainPEM string, pub crypto.PublicKey, spec *structs.Certif
 // finishDeletion does what the deletion of a certificate asks of the
 // operator: it drops the open order, deletes the secret if the spec says so,
 // and lets the object go.
-func (o *certificateOperator) finishDeletion(obj *structs.CustomObject, spec *structs.CertificateSpec, status *structs.CertificateStatus) {
+func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec, status *structs.CertificateStatus) {
 	if !slices.Contains(obj.Finalizers, structs.OperatorsFinalizer) {
 		return
 	}
@@ -862,10 +892,18 @@ func (o *certificateOperator) finishDeletion(obj *structs.CustomObject, spec *st
 			return
 		}
 		if secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name {
-			args := &structs.SecretVersionsRequest{Path: spec.SecretPath}
+			// Only the secret as read is destroyed: one changed since is
+			// read again by the next pass.
+			read := secret.ModifyIndex
+			args := &structs.SecretVersionsRequest{Path: spec.SecretPath, CheckIndex: &read}
 			args.Namespace = obj.Namespace
 			args.Region = o.srv.Region()
-			if _, _, err := o.srv.secretVersionsOp(structs.SecretOpDestroy, args); err != nil && !errors.Is(err, structs.ErrSecretNotFound) {
+			_, _, err := o.srv.secretVersionsOp(structs.SecretOpDestroy, args)
+			if errors.Is(err, structs.ErrSecretConflict) {
+				o.secretChanged(p, obj, spec)
+				return
+			}
+			if err != nil && !errors.Is(err, structs.ErrSecretNotFound) {
 				o.logger.Warn("failed to delete the secret of a deleted certificate", "namespace", obj.Namespace,
 					"path", spec.SecretPath, "error", err)
 				return

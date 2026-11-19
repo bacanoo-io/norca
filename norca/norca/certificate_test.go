@@ -294,6 +294,50 @@ func TestCertificate_DeleteSecret(t *testing.T) {
 	})
 }
 
+// The operator writes the secret of a certificate only in the state it read
+// (review finding ATM-3): a secret somebody else created or changed while
+// the key was generated and signed is not overwritten.
+func TestCertificate_SecretWriteIsCheckedAndSet(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	o := newCertificateOperator(c.s, c.s.logger)
+	obj := &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateKind, Namespace: "default", Name: "web-tls"}
+	items := structs.SecretItems{structs.CertificateSecretItemCert: "issued", structs.CertificateSecretItemKey: "key"}
+	read := func(path string) *structs.Secret {
+		t.Helper()
+		secret, err := c.s.State().SecretByPath(nil, "default", path)
+		must.NoError(t, err)
+		return secret
+	}
+	var w structs.SecretWriteResponse
+
+	// Absent when the pass read it, created by somebody else since.
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("certs/new", "", structs.SecretItems{"cert": "theirs"}), &w))
+	_, err := o.writeSecret(obj, &structs.CertificateSpec{SecretPath: "certs/new"}, nil, items, nil)
+	must.ErrorIs(t, err, structs.ErrSecretConflict)
+	must.Eq(t, "theirs", c.secretItems("default", "certs/new")["cert"])
+	must.Eq(t, "", read("certs/new").Labels[structs.SecretLabelCertificate])
+
+	// The certificate's own secret, changed by somebody else after the pass
+	// read it.
+	spec := &structs.CertificateSpec{SecretPath: "certs/web"}
+	_, err = o.writeSecret(obj, spec, nil, items, nil)
+	must.NoError(t, err)
+	stale := read("certs/web")
+	must.Eq(t, "web-tls", stale.Labels[structs.SecretLabelCertificate])
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("certs/web", "", structs.SecretItems{"cert": "rotated"}), &w))
+	_, err = o.writeSecret(obj, spec, stale, items, nil)
+	must.ErrorIs(t, err, structs.ErrSecretConflict)
+	must.Eq(t, "rotated", c.secretItems("default", "certs/web")["cert"])
+
+	// Read again, it is written.
+	_, err = o.writeSecret(obj, spec, read("certs/web"), items, nil)
+	must.NoError(t, err)
+	must.Eq(t, "issued", c.secretItems("default", "certs/web")[structs.CertificateSecretItemCert])
+}
+
 func TestCertificate_WriteChecks(t *testing.T) {
 	ci.Parallel(t)
 
