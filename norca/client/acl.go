@@ -263,6 +263,10 @@ func (c *Client) resolveTokenACLRoles(secretID string, roleLinks []*structs.ACLT
 		// cache, but are expired. These must be looked up from the server via
 		// and RPC, so we can correctly identify the policy links.
 		expiredRoleIDs []string
+
+		// expiredRoles are the expired cache entries of expiredRoleIDs, used
+		// when the RPC fails (Norca, MUK-27).
+		expiredRoles []*structs.ACLRole
 	)
 
 	// policyNames tracks the resolved ACL policies which are linked to the
@@ -290,6 +294,7 @@ func (c *Client) resolveTokenACLRoles(secretID string, roleLinks []*structs.ACLT
 			}
 		} else {
 			expiredRoleIDs = append(expiredRoleIDs, entry.Get().ID)
+			expiredRoles = append(expiredRoles, entry.Get())
 		}
 	}
 
@@ -325,7 +330,9 @@ func (c *Client) resolveTokenACLRoles(secretID string, roleLinks []*structs.ACLT
 	if err != nil {
 		if len(missingRoleIDs) == 0 {
 			c.logger.Warn("failed to resolve ACL roles, using expired cached value", "error", err)
-			for _, aclRole := range roleByIDResp.ACLRoles {
+			// The response of a failed RPC is empty: use the expired cache
+			// entries, as the token and policy caches do (MUK-27).
+			for _, aclRole := range expiredRoles {
 				for _, rolePolicyLink := range aclRole.Policies {
 					policyNames.Insert(rolePolicyLink.Name)
 				}
