@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper"
+	"github.com/bacanoo-io/norca/norca/helper/connprefix"
 	"github.com/bacanoo-io/norca/norca/helper/pool"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -49,7 +50,8 @@ type rpcHandler struct {
 	srv *Server
 
 	// connLimiter is used to limit the number of RPC connections per
-	// remote address. It is distinct from the HTTP connection limit.
+	// remote address (Norca: an IPv6 one by its /64, see connprefix). It is
+	// distinct from the HTTP connection limit.
 	//
 	// nil if limiting is disabled
 	connLimiter *connlimit.Limiter
@@ -202,7 +204,7 @@ func (r *rpcHandler) listen(ctx context.Context) {
 		// Apply per-connection limits (if enabled) *prior* to launching
 		// goroutine to block further Accept()s until limits are checked.
 		if r.connLimiter != nil {
-			free, err := r.connLimiter.Accept(conn)
+			free, err := r.connLimiter.Accept(connprefix.ForLimit(conn))
 			if err != nil {
 				r.logger.Error("rejecting client for exceeding maximum RPC connections",
 					"remote_addr", conn.RemoteAddr(), "limit", r.connLimit)
@@ -376,7 +378,7 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 		//
 		// TODO Remove once MultiplexV2 is used.
 		if r.streamLimiter != nil {
-			free, err := r.streamLimiter.Accept(conn)
+			free, err := r.streamLimiter.Accept(connprefix.ForLimit(conn))
 			if err != nil {
 				r.logger.Error("rejecting client for exceeding maximum streaming RPC connections",
 					"remote_addr", conn.RemoteAddr(), "stream_limit", r.streamLimit)

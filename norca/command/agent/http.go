@@ -34,6 +34,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/client"
 	"github.com/bacanoo-io/norca/norca/command/agent/event"
+	"github.com/bacanoo-io/norca/norca/helper/connprefix"
 	"github.com/bacanoo-io/norca/norca/helper/noxssrw"
 	"github.com/bacanoo-io/norca/norca/helper/tlsutil"
 	"github.com/bacanoo-io/norca/norca/norca"
@@ -358,9 +359,11 @@ func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state htt
 		"Content-Type: text/plain\r\n"+
 		"Content-Length: %d\r\n"+
 		"Connection: close\r\n\r\n%s", len(tooManyConnsMsg), tooManyConnsMsg))
-	return connlimit.NewLimiter(connlimit.Config{
+	// Norca: an IPv6 client is counted by its /64.
+	return connprefix.HTTPConnState(connlimit.NewLimiter(connlimit.Config{
 		MaxConnsPerClientIP: connLimit,
 	}).HTTPConnStateFuncWithErrorHandler(func(err error, conn net.Conn) {
+		conn = connprefix.Unwrap(conn)
 		if err == connlimit.ErrPerClientIPLimitReached {
 			metrics.IncrCounter([]string{"nomad", "agent", "http", "exceeded"}, 1)
 			if n := limiter.Reserve(); n.Delay() == 0 {
@@ -372,7 +375,7 @@ func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state htt
 			}
 		}
 		conn.Close()
-	})
+	}))
 }
 
 // tcpKeepAliveListener sets TCP keep-alive timeouts on accepted
