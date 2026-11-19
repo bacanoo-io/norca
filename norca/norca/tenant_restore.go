@@ -200,26 +200,26 @@ const (
 // leaves the resource as it is. It returns how the resource was given back.
 // An error means the resource can't be given back as it was found; the
 // tenant then keeps it, and the error says what is missing.
-func (o *tenantOperator) giveBack(obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
-	how, err := o.restore(obj, ref, asIs)
+func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
+	how, err := o.restore(p, obj, ref, asIs)
 	if err != nil {
 		return "", err
 	}
 	switch how {
 	case tenantGivenBackRestored:
-		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Restored",
+		o.event(p, obj, structs.ObjectEventTypeNormal, "Restored",
 			"gave "+ref.String()+" back as the tenant found it")
 	case tenantGivenBackAsIs:
-		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released",
+		o.event(p, obj, structs.ObjectEventTypeNormal, "Released",
 			"released "+ref.String()+" as it is, without restoring what the tenant found")
 	default:
-		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released",
+		o.event(p, obj, structs.ObjectEventTypeNormal, "Released",
 			"released "+ref.String()+": it no longer exists")
 	}
 	return how, nil
 }
 
-func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
+func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
 	store := o.srv.State()
 	orig := ref.Original
 	// Without a saved original there is nothing to write back.
@@ -255,7 +255,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if namespaceMatches(live, want, true) {
 			return tenantGivenBackRestored, nil
 		}
-		if err := o.upsertNamespace(live, want, true); err != nil {
+		if err := o.upsertNamespace(p, live, want, true); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 
@@ -274,7 +274,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if quotaSpecMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
-		if err := o.upsertQuota(live, want); err != nil {
+		if err := o.upsertQuota(p, live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 
@@ -293,7 +293,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 			return tenantGivenBackRestored, nil
 		}
 		want := &structs.ACLPolicy{Name: ref.Name, Description: orig.Description, Rules: orig.Rules}
-		if err := o.upsertPolicy(live, want); err != nil {
+		if err := o.upsertPolicy(p, live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 
@@ -322,7 +322,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if roleMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
-		if _, err := o.upsertRole(live, want); err != nil {
+		if _, err := o.upsertRole(p, live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 
@@ -350,7 +350,7 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if networkPolicyMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
-		if err := o.upsertNetworkPolicy(live, want); err != nil {
+		if err := o.upsertNetworkPolicy(p, live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}
 

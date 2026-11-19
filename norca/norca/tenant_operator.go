@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -53,6 +54,15 @@ import (
 // objects; condition NamespaceNotEmpty), then deletes what the tenant
 // created: the namespace first, then its network policy, the roles and the
 // policies when the namespace is gone, its quota last (tenantDeleteOrder).
+//
+// A pass runs in the leadership term of the server (leadershipTerm, review
+// finding CON-6c). Its writes go through the endpoints, which forward them
+// to the leader: a pass on a deposed leader would go on writing beside the
+// pass of the new leader, and the claims of the two are not shared. So right
+// before every write, deletion, status write and event the pass checks that
+// its term has not ended and the server is still the Raft leader; once that
+// fails it writes nothing more and ends, and the pass of the next term
+// decides.
 
 var (
 	// tenantDriftInterval is how often the operator compares the resources
@@ -64,6 +74,10 @@ var (
 	// to empty waits at most before it looks again.
 	tenantDeleteRetry = 30 * time.Second
 )
+
+// errTenantTermEnded is the error of a write of a pass whose leadership term
+// ended (CON-6c).
+var errTenantTermEnded = errors.New("the leadership term of the pass ended; the next leader's pass decides")
 
 // tenantOperator is the built-in operator of tenants.
 type tenantOperator struct {
@@ -83,6 +97,9 @@ type tenantPass struct {
 	store *state.StateStore
 	ws    memdb.WatchSet
 
+	// term is the context of the leadership term the pass runs in.
+	term context.Context
+
 	// releases and tenants map the keys of the resources of releases and
 	// tenants to their owner.
 	releases map[string]string
@@ -95,6 +112,29 @@ func (p *tenantPass) want(t time.Time) {
 	if !t.IsZero() && (p.wish.IsZero() || t.Before(p.wish)) {
 		p.wish = t
 	}
+}
+
+// termEnded reports whether the pass may write no more (CON-6c): its
+// leadership term ended, or this server is no longer the Raft leader, which
+// it notices before the term is ended.
+func (o *tenantOperator) termEnded(p *tenantPass) bool {
+	return p.term == nil || p.term.Err() != nil || !o.srv.IsLeader()
+}
+
+// write sends a write of the pass to an endpoint, while its term lasts.
+func (o *tenantOperator) write(p *tenantPass, method string, args, reply any) error {
+	if o.termEnded(p) {
+		return errTenantTermEnded
+	}
+	return o.srv.RPC(method, args, reply)
+}
+
+// event records an event of a tenant from a pass, while its term lasts.
+func (o *tenantOperator) event(p *tenantPass, obj *structs.CustomObject, eventType, reason, message string) {
+	if o.termEnded(p) {
+		return
+	}
+	o.srv.operatorEvent(obj, eventType, reason, message)
 }
 
 func (o *tenantOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
@@ -114,11 +154,16 @@ func (o *tenantOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 	if o.srv.getLeaderAcl() == "" {
 		return time.Now().Add(operatorsSettle), nil
 	}
+	// Nor is there a term then: the pass waits for the term too.
+	term := o.srv.releases.leadershipTerm()
+	if term == nil {
+		return time.Now().Add(operatorsSettle), nil
+	}
 	snap, err := store.Snapshot()
 	if err != nil {
 		return time.Time{}, err
 	}
-	p := &tenantPass{now: time.Now().UTC(), store: store, ws: ws}
+	p := &tenantPass{now: time.Now().UTC(), store: store, ws: ws, term: term}
 	if p.releases, err = releaseOwners(snap); err != nil {
 		return time.Time{}, err
 	}
@@ -126,11 +171,10 @@ func (o *tenantOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 		return time.Time{}, err
 	}
 	for _, t := range tenants {
-		// A server that is no longer the leader writes nothing more: its
-		// writes would go to the new leader with a token of the old one.
-		// Nor does one without its token (see above): the tenants it has
-		// not come to wait for the next pass.
-		if !o.srv.IsLeader() {
+		// A pass whose term ended writes nothing more: its writes would go
+		// to the new leader (CON-6c). Nor does one without its token (see
+		// above): the tenants it has not come to wait for the next pass.
+		if o.termEnded(p) {
 			break
 		}
 		if o.srv.getLeaderAcl() == "" {
@@ -328,7 +372,11 @@ func (w *tenantWork) claim(refs []tenantResourceRef) error {
 // in the state as it is now no release owns it. It records a conflict
 // otherwise. The claim makes the state check redundant on one leader; it
 // counts after a change of leader, whose claims do not include this pass's.
+// A pass whose term ended may write nothing (CON-6c).
 func (w *tenantWork) mayWrite(ref tenantResourceRef) bool {
+	if w.o.termEnded(w.p) {
+		return false
+	}
 	if !w.o.srv.releases.claims.holds(w.claimant, ref.key()) {
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s is not claimed by the pass", ref))
 		return false
@@ -354,7 +402,7 @@ func (w *tenantWork) mayWrite(ref tenantResourceRef) bool {
 func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 	if err != nil {
 		w.failures = append(w.failures, fmt.Sprintf("%s: %v", ref, err))
-		w.o.srv.operatorEvent(w.obj, structs.ObjectEventTypeWarning, "WriteFailed", fmt.Sprintf("writing %s failed: %v", ref, err))
+		w.o.event(w.p, w.obj, structs.ObjectEventTypeWarning, "WriteFailed", fmt.Sprintf("writing %s failed: %v", ref, err))
 		return
 	}
 	reason, what := "Created", "created "
@@ -366,7 +414,7 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 		w.owned[ref.key()] = mine
 	}
 	w.changed = append(w.changed, ref.String())
-	w.o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, reason, what+ref.String())
+	w.o.event(w.p, w.obj, structs.ObjectEventTypeNormal, reason, what+ref.String())
 	operatorCount(structs.TenantKind, "writes")
 }
 
@@ -482,7 +530,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			if !w.mayWrite(quotaRef) {
 				return false
 			}
-			err := o.upsertQuota(live, desired.quota)
+			err := o.upsertQuota(p, live, desired.quota)
 			w.wrote(quotaRef, live != nil, err)
 			// A quota changed or created by somebody else since the
 			// read stops the pass: the next one decides whose it is.
@@ -515,7 +563,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		if !w.mayWrite(nsRef) {
 			return false
 		}
-		err := o.upsertNamespace(liveNS, desired.namespace, manageQuota)
+		err := o.upsertNamespace(p, liveNS, desired.namespace, manageQuota)
 		w.wrote(nsRef, liveNS != nil, err)
 		// A namespace changed or created by somebody else since the
 		// read stops the pass: the next one decides whose it is.
@@ -539,7 +587,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 					if !w.mayWrite(ref) {
 						return false
 					}
-					w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
+					w.wrote(ref, live != nil, o.upsertPolicy(p, live, policy))
 				}
 				return true
 			})
@@ -569,7 +617,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 					if !w.mayWrite(roleRef) {
 						return false
 					}
-					id, err := o.upsertRole(liveRole, role)
+					id, err := o.upsertRole(p, liveRole, role)
 					if err == nil {
 						w.setRoleID(roleRef, id)
 					}
@@ -592,7 +640,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 					if !w.mayWrite(netRef) {
 						return false
 					}
-					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(live, desired.network))
+					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(p, live, desired.network))
 				}
 				return true
 			})
@@ -604,9 +652,14 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		return
 	}
 	for _, ref := range w.adopted {
-		o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, "Adopted", fmt.Sprintf("took over the existing %s", ref))
+		o.event(p, w.obj, structs.ObjectEventTypeNormal, "Adopted", fmt.Sprintf("took over the existing %s", ref))
 	}
 	for _, write := range writes {
+		// A pass whose term ended stops at once, writing nothing more,
+		// its status neither (CON-6c).
+		if o.termEnded(p) {
+			return
+		}
 		if !write() {
 			o.writeTenantStatus(w, ns)
 			return
@@ -620,6 +673,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		wanted[ref.key()] = true
 	}
 	for _, ref := range sortedForDeletion(w.owned) {
+		if o.termEnded(p) {
+			return
+		}
 		if wanted[ref.key()] {
 			continue
 		}
@@ -633,9 +689,9 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		}
 		if ref.Adopted {
 			// On loan: given back as it was found, not deleted.
-			if _, err := o.giveBack(obj, ref, spec.ReleaseWithoutRestore); err != nil {
+			if _, err := o.giveBack(p, obj, ref, spec.ReleaseWithoutRestore); err != nil {
 				w.restoreFailures = append(w.restoreFailures, err.Error())
-				o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RestoreFailed",
+				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
 				continue
 			}
@@ -653,16 +709,16 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			continue
 		case owner != "":
 			delete(w.owned, ref.key())
-			o.releaseOwnsEvent(obj, ref, owner)
+			o.releaseOwnsEvent(p, obj, ref, owner)
 			continue
 		}
-		if err := o.deleteResource(ref); err != nil {
+		if err := o.deleteResource(p, ref); err != nil {
 			w.failures = append(w.failures, fmt.Sprintf("deleting %s: %v", ref, err))
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
+			o.event(p, obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
 			continue
 		}
 		delete(w.owned, ref.key())
-		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Deleted", "deleted "+ref.String()+": the tenant no longer has it")
+		o.event(p, obj, structs.ObjectEventTypeNormal, "Deleted", "deleted "+ref.String()+": the tenant no longer has it")
 	}
 
 	if !acls && len(desired.policies) > 0 {
@@ -684,8 +740,12 @@ func (w *tenantWork) setRoleID(ref tenantResourceRef, id string) {
 // list yet into the status, before any of them is written. It reports
 // whether the pass may write: when the status can't be written (the object
 // changed since the pass read it, or the write failed) the pass ends
-// without creating anything, and the next one starts over.
+// without creating anything, and the next one starts over. A pass whose
+// term ended writes nothing (CON-6c).
 func (o *tenantOperator) recordClaims(w *tenantWork, listed map[string]bool, namespace string) bool {
+	if o.termEnded(w.p) {
+		return false
+	}
 	fresh := w.claimsChanged
 	for key := range w.owned {
 		if !listed[key] {
@@ -791,12 +851,17 @@ func (o *tenantOperator) writeTenantStatusNote(w *tenantWork, namespace, note st
 	if !ready {
 		w.p.want(w.p.now.Add(operatorsRetry))
 	}
-	o.writeStatus(w.obj, status, nil)
+	o.writeStatus(w.p, w.obj, status, nil)
 }
 
 // writeStatus writes a changed status (and, if finalizers is not nil, the
-// finalizers) of a tenant. A failed write is retried by the next pass.
-func (o *tenantOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) *structs.CustomObject {
+// finalizers) of a tenant. A failed write is retried by the next pass. A
+// pass whose term ended writes no status: the next term's pass writes it
+// (CON-6c).
+func (o *tenantOperator) writeStatus(p *tenantPass, obj *structs.CustomObject, status map[string]any, finalizers *[]string) *structs.CustomObject {
+	if o.termEnded(p) {
+		return obj
+	}
 	normalized, err := structs.NormalizeObjectMap(status)
 	if err != nil {
 		o.logger.Warn("status of a tenant can't be encoded", "tenant", obj.Name, "error", err)
@@ -858,7 +923,7 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 		}
 	}
 	if len(back) > 0 {
-		o.reportGivenBack(obj, back, asIs)
+		o.reportGivenBack(p, obj, back, asIs)
 	}
 
 	// The tenant waits for the namespace it is going to delete, not for
@@ -880,10 +945,10 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 			}
 			next[structs.ObjectStatusConditions] = conditions.list()
 			if !objectConditionTrue(obj.Status, structs.TenantConditionNamespaceNotEmpty) {
-				o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "NamespaceNotEmpty",
+				o.event(p, obj, structs.ObjectEventTypeWarning, "NamespaceNotEmpty",
 					fmt.Sprintf("waiting for the namespace %q to be empty: it has %s", status.Namespace, what))
 			}
-			o.writeStatus(obj, next, nil)
+			o.writeStatus(p, obj, next, nil)
 			p.want(p.now.Add(tenantDeleteRetry))
 			return
 		}
@@ -896,16 +961,21 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 	claimant := claims.claimant(claimTenant, obj.Name)
 	defer claims.release(claimant)
 	for _, ref := range sortedForDeletion(owned) {
+		// A deletion whose term ended stops at once: the next term's pass
+		// finishes it (CON-6c).
+		if o.termEnded(p) {
+			return
+		}
 		if (ref.Type == structs.TenantResourceACLPolicy || ref.Type == structs.TenantResourceACLRole) && !o.srv.config.ACLEnabled {
 			delete(owned, ref.key())
 			continue
 		}
 		if ref.Adopted {
-			if _, err := o.giveBack(obj, ref, asIs); err != nil {
-				o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RestoreFailed",
+			if _, err := o.giveBack(p, obj, ref, asIs); err != nil {
+				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
 				p.want(p.now.Add(operatorsRetry))
-				o.writeRemaining(obj, owned, err.Error())
+				o.writeRemaining(p, obj, owned, err.Error())
 				return
 			}
 			delete(owned, ref.key())
@@ -916,7 +986,7 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 		// off would not be "as it is": it stays with its namespace.
 		if ref.Type == structs.TenantResourceQuota && adoptedNS && asIs {
 			if ns, err := o.srv.State().NamespaceByName(nil, status.Namespace); err == nil && ns != nil && ns.Quota == ref.Name {
-				o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released", fmt.Sprintf(
+				o.event(p, obj, structs.ObjectEventTypeNormal, "Released", fmt.Sprintf(
 					"left %s in place: the namespace %s, released as it is, names it", ref, ns.Name))
 				o.logger.Info("a deleted tenant leaves its quota in place: the namespace released as it is names it",
 					"tenant", obj.Name, "quota", ref.Name, "namespace", ns.Name)
@@ -932,22 +1002,25 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 				o.logger.Warn("failed to read the owners of a resource of a deleted tenant", "tenant", obj.Name, "resource", ref.String(), "error", err)
 			}
 			p.want(p.now.Add(operatorsRetry))
-			o.writeRemaining(obj, owned, "")
+			o.writeRemaining(p, obj, owned, "")
 			return
 		case owner != "":
 			delete(owned, ref.key())
-			o.releaseOwnsEvent(obj, ref, owner)
+			o.releaseOwnsEvent(p, obj, ref, owner)
 			continue
 		}
-		if err := o.deleteResource(ref); err != nil {
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
+		if err := o.deleteResource(p, ref); err != nil {
+			o.event(p, obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
 			p.want(p.now.Add(operatorsRetry))
-			o.writeRemaining(obj, owned, "")
+			o.writeRemaining(p, obj, owned, "")
 			return
 		}
 		delete(owned, ref.key())
 	}
 
+	if o.termEnded(p) {
+		return
+	}
 	changed := obj.Copy()
 	changed.Finalizers = slices.DeleteFunc(changed.Finalizers, func(f string) bool { return f == structs.OperatorsFinalizer })
 	written, err := o.srv.writeOperatorObject(changed)
@@ -986,15 +1059,15 @@ func (o *tenantOperator) releaseHas(claimant resourceClaimant, ref tenantResourc
 
 // releaseOwnsEvent reports a resource a tenant listed and did not delete
 // because a release owns it: the tenant no longer lists it.
-func (o *tenantOperator) releaseOwnsEvent(obj *structs.CustomObject, ref tenantResourceRef, owner string) {
-	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "NotDeleted",
+func (o *tenantOperator) releaseOwnsEvent(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, owner string) {
+	o.event(p, obj, structs.ObjectEventTypeWarning, "NotDeleted",
 		fmt.Sprintf("did not delete %s: it belongs to the release %s; the tenant no longer lists it", ref, owner))
 }
 
 // reportGivenBack says, once, what a deleted tenant gives back and leaves in
 // place: as an event of the tenant, and in the log of the servers, because
 // the events of an object go with it.
-func (o *tenantOperator) reportGivenBack(obj *structs.CustomObject, back []string, asIs bool) {
+func (o *tenantOperator) reportGivenBack(p *tenantPass, obj *structs.CustomObject, back []string, asIs bool) {
 	how := "restored to what the tenant found"
 	if asIs {
 		how = "released as they are (release_without_restore)"
@@ -1013,12 +1086,12 @@ func (o *tenantOperator) reportGivenBack(obj *structs.CustomObject, back []strin
 		}
 	}
 	o.logger.Info("a deleted tenant gives back what it took over", "tenant", obj.Name, "how", how, "resources", strings.Join(back, "; "))
-	o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Released", message)
+	o.event(p, obj, structs.ObjectEventTypeNormal, "Released", message)
 }
 
 // writeRemaining records the resources a deletion has not deleted yet, and
 // with restoreFailure what keeps it from giving a resource back.
-func (o *tenantOperator) writeRemaining(obj *structs.CustomObject, owned map[string]tenantResourceRef, restoreFailure string) {
+func (o *tenantOperator) writeRemaining(p *tenantPass, obj *structs.CustomObject, owned map[string]tenantResourceRef, restoreFailure string) {
 	next := structs.CopyObjectMap(obj.Status)
 	if next == nil {
 		next = map[string]any{}
@@ -1036,7 +1109,7 @@ func (o *tenantOperator) writeRemaining(obj *structs.CustomObject, owned map[str
 	} else if objectConditionTrue(obj.Status, structs.TenantConditionRestoreFailed) {
 		next[structs.ObjectStatusConditions] = conditionsWith(next, now, structs.TenantConditionRestoreFailed, false, "", "")
 	}
-	o.writeStatus(obj, next, nil)
+	o.writeStatus(p, obj, next, nil)
 }
 
 // namespaceContents says what keeps a namespace from being deleted, as far
@@ -1123,7 +1196,7 @@ func (o *tenantOperator) writeRequest(namespace string) structs.WriteRequest {
 
 // upsertNamespace writes the namespace of a tenant. The quota it names is
 // written only with quota set (see reconcileTenant).
-func (o *tenantOperator) upsertNamespace(live, desired *structs.Namespace, quota bool) error {
+func (o *tenantOperator) upsertNamespace(p *tenantPass, live, desired *structs.Namespace, quota bool) error {
 	ns := desired.Copy()
 	if live != nil {
 		ns = live.Copy()
@@ -1138,7 +1211,7 @@ func (o *tenantOperator) upsertNamespace(live, desired *structs.Namespace, quota
 	}
 	ns.CreateIndex, ns.ModifyIndex, ns.Hash = 0, 0, nil
 	var resp structs.GenericResponse
-	return o.srv.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
+	return o.write(p, "Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
 		Namespaces:          []*structs.Namespace{ns},
 		ExpectedModifyIndex: map[string]uint64{ns.Name: expected},
 		WriteRequest:        o.writeRequest(""),
@@ -1148,7 +1221,7 @@ func (o *tenantOperator) upsertNamespace(live, desired *structs.Namespace, quota
 // upsertQuota writes the quota of a tenant. What a tenant has no field for
 // (the task defaults and the task maximum) stays as the stored quota has
 // it, as upsertNamespace keeps the rest of a namespace.
-func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
+func (o *tenantOperator) upsertQuota(p *tenantPass, live, desired *structs.QuotaSpec) error {
 	q := desired.Copy()
 	if live != nil {
 		q = live.Copy()
@@ -1161,7 +1234,7 @@ func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
 	}
 	q.CreateIndex, q.ModifyIndex, q.Hash = 0, 0, nil
 	var resp structs.GenericResponse
-	return o.srv.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
+	return o.write(p, "Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
 		Quotas:              []*structs.QuotaSpec{q},
 		ExpectedModifyIndex: map[string]uint64{q.Name: expected},
 		WriteRequest:        o.writeRequest(""),
@@ -1170,7 +1243,7 @@ func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
 
 // upsertPolicy writes an ACL policy of a tenant. The job a stored policy
 // is attached to, which a tenant has no field for, stays.
-func (o *tenantOperator) upsertPolicy(live, p *structs.ACLPolicy) error {
+func (o *tenantOperator) upsertPolicy(pass *tenantPass, live, p *structs.ACLPolicy) error {
 	policy := *p
 	var expected uint64
 	if live != nil {
@@ -1181,20 +1254,20 @@ func (o *tenantOperator) upsertPolicy(live, p *structs.ACLPolicy) error {
 		policy.JobACL = &jobACL
 	}
 	var resp structs.GenericResponse
-	return o.srv.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
+	return o.write(pass, "ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
 		Policies:            []*structs.ACLPolicy{&policy},
 		ExpectedModifyIndex: map[string]uint64{policy.Name: expected},
 		WriteRequest:        o.writeRequest(""),
 	}, &resp)
 }
 
-func (o *tenantOperator) upsertRole(live, desired *structs.ACLRole) (string, error) {
+func (o *tenantOperator) upsertRole(p *tenantPass, live, desired *structs.ACLRole) (string, error) {
 	role := &structs.ACLRole{Name: desired.Name, Description: desired.Description, Policies: desired.Policies}
 	if live != nil {
 		role.ID = live.ID
 	}
 	var resp structs.ACLRolesUpsertResponse
-	err := o.srv.RPC(structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
+	err := o.write(p, structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
 		ACLRoles: []*structs.ACLRole{role}, WriteRequest: o.writeRequest(""),
 	}, &resp)
 	if err != nil {
@@ -1206,13 +1279,13 @@ func (o *tenantOperator) upsertRole(live, desired *structs.ACLRole) (string, err
 	return role.ID, nil
 }
 
-func (o *tenantOperator) upsertNetworkPolicy(live, p *structs.NetworkPolicy) error {
+func (o *tenantOperator) upsertNetworkPolicy(pass *tenantPass, live, p *structs.NetworkPolicy) error {
 	var expected uint64
 	if live != nil {
 		expected = live.ModifyIndex
 	}
 	var resp structs.GenericResponse
-	return o.srv.RPC("NetworkPolicy.UpsertNetworkPolicies", &structs.NetworkPolicyUpsertRequest{
+	return o.write(pass, "NetworkPolicy.UpsertNetworkPolicies", &structs.NetworkPolicyUpsertRequest{
 		NetworkPolicies:     []*structs.NetworkPolicy{p.Copy()},
 		ExpectedModifyIndex: map[string]uint64{structs.NetworkPolicyIndexKey(p.Namespace, p.Name): expected},
 		WriteRequest:        o.writeRequest(p.Namespace),
@@ -1223,6 +1296,13 @@ func (o *tenantOperator) upsertNetworkPolicy(live, p *structs.NetworkPolicy) err
 func (o *tenantOperator) beforeWrite(ref tenantResourceRef) {
 	if o.srv.config != nil && o.srv.config.tenantBeforeWrite != nil {
 		o.srv.config.tenantBeforeWrite(ref)
+	}
+}
+
+// beforeDelete runs the test hook tenantBeforeDelete, if set.
+func (o *tenantOperator) beforeDelete(ref tenantResourceRef) {
+	if o.srv.config != nil && o.srv.config.tenantBeforeDelete != nil {
+		o.srv.config.tenantBeforeDelete(ref)
 	}
 }
 
@@ -1288,20 +1368,21 @@ func (o *tenantOperator) tenantRoleID(ref tenantResourceRef) (string, error) {
 // (a job, a volume), so it can't tell "not found" from "refused", and an
 // answer without an error is not trusted either. What still exists was not
 // deleted, whatever the endpoint said.
-func (o *tenantOperator) deleteResource(ref tenantResourceRef) error {
+func (o *tenantOperator) deleteResource(p *tenantPass, ref tenantResourceRef) error {
+	o.beforeDelete(ref)
 	var resp structs.GenericResponse
 	var err error
 	switch ref.Type {
 	case structs.TenantResourceNamespace:
-		err = o.srv.RPC("Namespace.DeleteNamespaces", &structs.NamespaceDeleteRequest{
+		err = o.write(p, "Namespace.DeleteNamespaces", &structs.NamespaceDeleteRequest{
 			Namespaces: []string{ref.Name}, WriteRequest: o.writeRequest(""),
 		}, &resp)
 	case structs.TenantResourceQuota:
-		err = o.srv.RPC("Quota.DeleteQuotaSpecs", &structs.QuotaSpecDeleteRequest{
+		err = o.write(p, "Quota.DeleteQuotaSpecs", &structs.QuotaSpecDeleteRequest{
 			Names: []string{ref.Name}, WriteRequest: o.writeRequest(""),
 		}, &resp)
 	case structs.TenantResourceACLPolicy:
-		err = o.srv.RPC("ACL.DeletePolicies", &structs.ACLPolicyDeleteRequest{
+		err = o.write(p, "ACL.DeletePolicies", &structs.ACLPolicyDeleteRequest{
 			Names: []string{ref.Name}, WriteRequest: o.writeRequest(""),
 		}, &resp)
 	case structs.TenantResourceACLRole:
@@ -1316,11 +1397,11 @@ func (o *tenantOperator) deleteResource(ref tenantResourceRef) error {
 		}
 		ref.ID = id
 		var reply structs.ACLRolesDeleteByIDResponse
-		err = o.srv.RPC(structs.ACLDeleteRolesByIDRPCMethod, &structs.ACLRolesDeleteByIDRequest{
+		err = o.write(p, structs.ACLDeleteRolesByIDRPCMethod, &structs.ACLRolesDeleteByIDRequest{
 			ACLRoleIDs: []string{id}, WriteRequest: o.writeRequest(""),
 		}, &reply)
 	case structs.TenantResourceNetworkPolicy:
-		err = o.srv.RPC("NetworkPolicy.DeleteNetworkPolicies", &structs.NetworkPolicyDeleteRequest{
+		err = o.write(p, "NetworkPolicy.DeleteNetworkPolicies", &structs.NetworkPolicyDeleteRequest{
 			Names: []string{ref.Name}, WriteRequest: o.writeRequest(ref.Namespace),
 		}, &resp)
 	default:

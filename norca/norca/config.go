@@ -437,6 +437,11 @@ type Config struct {
 	// read. For tests: what is committed between the read and the write.
 	tenantBeforeWrite func(ref tenantResourceRef)
 
+	// tenantBeforeDelete, when set, runs right before the tenant operator
+	// deletes a resource of a tenant. For tests: what happens between the
+	// decision to delete and the deletion.
+	tenantBeforeDelete func(ref tenantResourceRef)
+
 	// releaseBeforeApply, when set, runs right before a release operation
 	// writes a resource of its pack; release is "namespace/name". For
 	// tests: what is committed while the operation runs.
