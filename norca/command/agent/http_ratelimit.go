@@ -25,8 +25,24 @@ import (
 // token: anonymous requests, unknown or expired tokens, workload identities,
 // and every request while ACLs are off. Such a request is limited by its
 // client address, so random tokens do not get a limit each, and one client
-// can't use up the requests of the others.
+// can't use up the requests of the others. An IPv6 client is also limited by
+// its /48, see ipv6PrefixShare.
 const anonymousBucket = ""
+
+// ipv6PrefixShare is how many clients' worth of requests without a known
+// token the /64s of one IPv6 /48 get together: the requests of a /64 take
+// from its own buckets and from those of its /48, which have this many times
+// the rates and bursts of a client.
+//
+// A /48 is a common assignment to one site and holds 65536 /64s, each a
+// client of its own: without this level its owner gets 65536 times the limit
+// of a client, and can keep the map of client addresses from refilling. 16
+// leaves room for a site whose hosts send from several /64s, while one /48
+// can keep at most about 16 client entries from refilling (each takes
+// requests at the client rate), so holding the map of client addresses
+// takes about tokenRateLimitMaxBuckets/16 = 1024 /48s. IPv4 clients have no
+// such level: an address is already scarce.
+const ipv6PrefixShare = 16
 
 // tokenRateLimitIdle is how long the buckets of a token or of a client
 // address that sends no request are kept before the periodic sweep drops
@@ -34,11 +50,12 @@ const anonymousBucket = ""
 // full entry earlier for a new key, see bucketSet.evictLocked.
 const tokenRateLimitIdle = 10 * time.Minute
 
-// tokenRateLimitMaxBuckets is the most tokens, and the most client addresses,
-// that have buckets of their own at a time. A new token or address beyond it
-// takes the place of an entry whose buckets are full, and only when it finds
-// none it is limited by the shared bucket: the memory of the limiter is
-// bounded, and no request goes unlimited.
+// tokenRateLimitMaxBuckets is the most tokens, the most client addresses,
+// and the most IPv6 /48s, that have buckets of their own at a time. A new
+// token, address or /48 beyond it takes the place of an entry whose buckets
+// are full, and only when it finds none it is limited by the shared bucket
+// of its map: the memory of the limiter is bounded, and no request goes
+// unlimited.
 const tokenRateLimitMaxBuckets = 16384
 
 // tokenRateLimitEvictScan is the most entries of a full map that a new key
@@ -47,7 +64,7 @@ const tokenRateLimitMaxBuckets = 16384
 const tokenRateLimitEvictScan = 32
 
 // tokenRateLimiter keeps a read and a write token bucket per ACL token, and
-// per client address for the requests without a known token.
+// per client address and IPv6 /48 for the requests without a known token.
 type tokenRateLimiter struct {
 	// resolve returns the accessor ID of the ACL token with the secret, or
 	// anonymousBucket.
@@ -61,12 +78,16 @@ type tokenRateLimiter struct {
 	mu sync.Mutex
 	// buckets are those of the ACL tokens, by accessor ID.
 	buckets *bucketSet
-	// clients are those of the client addresses, by clientBucketKey. Its
-	// shared bucket is the one of buckets: it limits the requests that have
-	// no bucket of their own, those without a usable client address, and
-	// those of new tokens and addresses while their map is full and has no
-	// entry to evict.
-	clients   *bucketSet
+	// clients are those of the client addresses, by the client key of
+	// clientBucketKeys. Its shared bucket is the one of buckets: it limits
+	// the requests that have no bucket of their own, those without a usable
+	// client address, and those of new tokens and addresses while their map
+	// is full and has no entry to evict.
+	clients *bucketSet
+	// prefixes are those of the IPv6 /48s, by the prefix key of
+	// clientBucketKeys, with ipv6PrefixShare times the rates and bursts, and
+	// a shared bucket of their own.
+	prefixes  *bucketSet
 	lastSweep time.Time
 }
 
@@ -256,27 +277,50 @@ func newTokenRateLimiter(l config.Limits, resolve func(string) string) (*tokenRa
 		maxBuckets: tokenRateLimitMaxBuckets,
 		buckets:    buckets,
 		clients:    newBucketSet(limit(readRate), limit(writeRate), readBurst, writeBurst, buckets.shared),
+		prefixes: newBucketSet(prefixRate(limit(readRate)), prefixRate(limit(writeRate)),
+			prefixBurst(readBurst), prefixBurst(writeBurst), nil),
 	}, nil
 }
 
-// clientBucketKey returns the key of the bucket of the client at a remote
-// address ("ip:port" of the connection, never a header a client can set): an
-// IPv4 address, or the /64 of an IPv6 address, as a host has a whole /64 to
-// send from. It returns "" for an address it can't read.
-func clientBucketKey(remoteAddr string) string {
+// prefixRate returns the rate of the buckets of an IPv6 /48.
+func prefixRate(r rate.Limit) rate.Limit {
+	if r == rate.Inf {
+		return rate.Inf
+	}
+	return r * ipv6PrefixShare
+}
+
+// prefixBurst returns the burst of the buckets of an IPv6 /48.
+func prefixBurst(b int) int {
+	if b > math.MaxInt/ipv6PrefixShare {
+		return math.MaxInt
+	}
+	return b * ipv6PrefixShare
+}
+
+// clientBucketKeys returns the keys of the buckets of the client at a remote
+// address ("ip:port" of the connection, never a header a client can set).
+// The client key is an IPv4 address, or the /64 of an IPv6 address, as a
+// host has a whole /64 to send from; the prefix key is the /48 of an IPv6
+// address, and "" for IPv4. Both are "" for an address it can't read.
+func clientBucketKeys(remoteAddr string) (client, prefix string) {
 	ap, err := netip.ParseAddrPort(remoteAddr)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	addr := ap.Addr().Unmap().WithZone("")
 	if addr.Is4() {
-		return addr.String()
+		return addr.String(), ""
 	}
-	prefix, err := addr.Prefix(64)
+	p64, err := addr.Prefix(64)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return prefix.String()
+	p48, err := addr.Prefix(48)
+	if err != nil {
+		return "", ""
+	}
+	return p64.String(), p48.String()
 }
 
 // isReadRequest reports whether a request counts against the read limit.
@@ -290,8 +334,9 @@ func isReadRequest(req *http.Request) bool {
 
 // allow takes a request from the bucket of its token, or without a known
 // token from the bucket of its client address (the remote address of the
-// connection). It returns false and the time to wait when the bucket is
-// empty.
+// connection) and, for IPv6, also from the bucket of its /48. It returns
+// false and the time to wait when a bucket is empty; a request the /48
+// refuses is given back to the bucket of the client.
 func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, time.Duration) {
 	accessor := anonymousBucket
 	if secret != "" && l.resolve != nil {
@@ -301,7 +346,7 @@ func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, ti
 
 	l.mu.Lock()
 	if now.Sub(l.lastSweep) > time.Minute {
-		for _, s := range []*bucketSet{l.buckets, l.clients} {
+		for _, s := range []*bucketSet{l.buckets, l.clients, l.prefixes} {
 			for _, b := range s.m {
 				if now.Sub(b.seen) > tokenRateLimitIdle && b.fullAt(now) {
 					s.removeLocked(b)
@@ -310,28 +355,51 @@ func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, ti
 		}
 		l.lastSweep = now
 	}
-	var b *tokenBuckets
+	// b is the bucket of the token or of the client, p the one of the /48
+	var b, p *tokenBuckets
 	if accessor != anonymousBucket {
 		b = l.buckets.getLocked(accessor, now, l.maxBuckets)
 	} else {
-		b = l.clients.getLocked(clientBucketKey(remoteAddr), now, l.maxBuckets)
+		client, prefix := clientBucketKeys(remoteAddr)
+		b = l.clients.getLocked(client, now, l.maxBuckets)
+		if prefix != "" {
+			p = l.prefixes.getLocked(prefix, now, l.maxBuckets)
+			p.seen = now
+		}
 	}
 	b.seen = now
 	l.mu.Unlock()
 
+	r, wait := b.take(now, read)
+	if r == nil {
+		return false, wait
+	}
+	if p != nil {
+		if pr, wait := p.take(now, read); pr == nil {
+			// give the request back to the bucket of the client
+			r.CancelAt(now)
+			return false, wait
+		}
+	}
+	return true, 0
+}
+
+// take takes a request from the read or the write bucket at now. It returns
+// the reservation, or nil and the time to wait when the bucket is empty.
+func (b *tokenBuckets) take(now time.Time, read bool) (*rate.Reservation, time.Duration) {
 	lim := b.write
 	if read {
 		lim = b.read
 	}
 	r := lim.ReserveN(now, 1)
 	if !r.OK() {
-		return false, time.Second
+		return nil, time.Second
 	}
 	if d := r.DelayFrom(now); d > 0 {
 		r.CancelAt(now)
-		return false, d
+		return nil, d
 	}
-	return true, 0
+	return r, 0
 }
 
 // rateLimitExempt reports whether the requests of a path are never limited:

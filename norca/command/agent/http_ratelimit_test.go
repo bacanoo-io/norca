@@ -5,6 +5,7 @@ package agent
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/shoenig/test/must"
+	"golang.org/x/time/rate"
 )
 
 func TestTokenRateLimiter(t *testing.T) {
@@ -85,27 +87,35 @@ func TestTokenRateLimiter(t *testing.T) {
 	must.False(t, keptClient)
 }
 
-func TestClientBucketKey(t *testing.T) {
+func TestClientBucketKeys(t *testing.T) {
 	ci.Parallel(t)
 
-	cases := map[string]string{
-		"192.0.2.1:1000":              "192.0.2.1",
-		"192.0.2.1:2000":              "192.0.2.1",
-		"[::ffff:192.0.2.1]:1000":     "192.0.2.1",
-		"[2001:db8:1:2::1]:1000":      "2001:db8:1:2::/64",
-		"[2001:db8:1:2:ffff:1:2:3]:9": "2001:db8:1:2::/64",
-		"[2001:db8:1:3::1]:1000":      "2001:db8:1:3::/64",
-		"[fe80::1%eth0]:1000":         "fe80::/64",
-		"[::1]:1000":                  "::/64",
-		"":                            "",
-		"@":                           "",
-		"192.0.2.1":                   "",
-		"/run/norca.sock":             "",
-		"203.0.113.9, 192.0.2.1:1000": "",
-		"example.com:80":              "",
+	cases := map[string][2]string{
+		"192.0.2.1:1000":                {"192.0.2.1", ""},
+		"192.0.2.1:2000":                {"192.0.2.1", ""},
+		"[::ffff:192.0.2.1]:1000":       {"192.0.2.1", ""},
+		"[2001:db8:1:2::1]:1000":        {"2001:db8:1:2::/64", "2001:db8:1::/48"},
+		"[2001:db8:1:2:ffff:1:2:3]:9":   {"2001:db8:1:2::/64", "2001:db8:1::/48"},
+		"[2001:db8:1:3::1]:1000":        {"2001:db8:1:3::/64", "2001:db8:1::/48"},
+		"[2001:db8:2:ffff:1::1]:1000":   {"2001:db8:2:ffff::/64", "2001:db8:2::/48"},
+		"[fe80::1%eth0]:1000":           {"fe80::/64", "fe80::/48"},
+		"[::1]:1000":                    {"::/64", "::/48"},
+		"":                              {"", ""},
+		"@":                             {"", ""},
+		"192.0.2.1":                     {"", ""},
+		"/run/norca.sock":               {"", ""},
+		"203.0.113.9, 192.0.2.1:1000":   {"", ""},
+		"example.com:80":                {"", ""},
+		"[2001:db8:1:2::1%eth0]:1000":   {"2001:db8:1:2::/64", "2001:db8:1::/48"},
+		"[::ffff:192.0.2.1%eth0]:1000":  {"192.0.2.1", ""},
+		"[2001:db8:1:2::1]:65536":       {"", ""},
+		"[2001:db8:1:2::1]:1000:1000":   {"", ""},
+		"[2001:db8:1:2::1::1]:1000":     {"", ""},
+		"[2001:db8:1:2:3:4:5:6:7]:1000": {"", ""},
 	}
 	for in, want := range cases {
-		must.Eq(t, want, clientBucketKey(in), must.Sprint(in))
+		client, prefix := clientBucketKeys(in)
+		must.Eq(t, want, [2]string{client, prefix}, must.Sprint(in))
 	}
 }
 
@@ -444,6 +454,10 @@ func TestTokenRateLimiter_FullMapEvicts(t *testing.T) {
 	must.MapLen(t, tokenRateLimitMaxBuckets, l.clients.m)
 	must.MapContainsKey(t, l.clients.m, "198.51.100.2")
 	checkBucketList(t, l.clients)
+	// the map of the /48s is evicted the same way
+	must.MapLen(t, tokenRateLimitMaxBuckets, l.prefixes.m)
+	must.MapContainsKey(t, l.prefixes.m, "2001:db9:1::/48")
+	checkBucketList(t, l.prefixes)
 }
 
 // checkBucketList checks that the list of s holds the entries of its map,
@@ -543,4 +557,86 @@ func TestTokenRateLimiter_EvictScanRotates(t *testing.T) {
 	must.MapNotContainsKey(t, l.buckets.m, "0")
 	checkBucketList(t, l.buckets)
 	l.mu.Unlock()
+}
+
+// Requests without a known token from the /64s of one IPv6 /48 share a
+// bucket that allows ipv6PrefixShare times the requests of one client: the
+// owner of a /48 does not get 65536 client buckets (review finding SEC-11).
+func TestTokenRateLimiter_IPv6Prefix48(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	l, err := newTokenRateLimiter(config.Limits{
+		TokenReadRequestsPerSecond: pointer.Of(1),
+		TokenReadBurst:             pointer.Of(2),
+	}, func(string) string { return anonymousBucket })
+	must.NoError(t, err)
+	l.now = func() time.Time { return now }
+
+	takeAll := func(addr string) int {
+		n := 0
+		for n < 1000 {
+			ok, _ := l.allow("", addr, true)
+			if !ok {
+				break
+			}
+			n++
+		}
+		return n
+	}
+
+	// 64 /64s of one /48: 16 clients' worth of requests, not 64
+	total := 0
+	for i := 0; i < 64; i++ {
+		total += takeAll(fmt.Sprintf("[2001:db8:1:%x::1]:1", i))
+	}
+	must.Eq(t, 16*2, total)
+
+	// another /48 and IPv4 clients are not affected
+	must.Eq(t, 2, takeAll("[2001:db8:2::1]:1"))
+	must.Eq(t, 2, takeAll("[2001:db8:2:1::1]:1"))
+	must.Eq(t, 2, takeAll("192.0.2.1:1"))
+
+	// a request the /48 refuses takes nothing from the bucket of its /64
+	ok, wait := l.allow("", "[2001:db8:1:ffff::1]:1", true)
+	must.False(t, ok)
+	must.Eq(t, time.Second/16, wait)
+	l.mu.Lock()
+	b := l.clients.m["2001:db8:1:ffff::/64"]
+	must.NotNil(t, b)
+	must.Eq(t, 2, b.read.TokensAt(now))
+	must.MapLen(t, 2, l.prefixes.m)
+	checkBucketList(t, l.prefixes)
+	l.mu.Unlock()
+	// once the /48 has refilled, the /64 has its whole burst
+	now = now.Add(time.Second / 8)
+	must.Eq(t, 2, takeAll("[2001:db8:1:ffff::1]:1"))
+
+	// a known token is not limited by the /48 it comes from
+	l.resolve = func(secret string) string { return secret }
+	for i := 0; i < 2; i++ {
+		ok, _ := l.allow("token", "[2001:db8:1:ffff::1]:1", true)
+		must.True(t, ok)
+	}
+	ok, _ = l.allow("token", "[2001:db8:1:ffff::1]:1", true)
+	must.False(t, ok)
+}
+
+// The buckets of a /48 keep an unlimited rate unlimited, and a huge burst
+// does not overflow.
+func TestTokenRateLimiter_PrefixLimits(t *testing.T) {
+	ci.Parallel(t)
+
+	must.Eq(t, rate.Inf, prefixRate(rate.Inf))
+	must.Eq(t, rate.Limit(16), prefixRate(1))
+	must.Eq(t, 32, prefixBurst(2))
+	must.Eq(t, math.MaxInt, prefixBurst(math.MaxInt/2))
+
+	// only writes limited: reads from one /48 pass
+	l, err := newTokenRateLimiter(config.Limits{TokenWriteRequestsPerSecond: pointer.Of(1)}, nil)
+	must.NoError(t, err)
+	for i := 0; i < 100; i++ {
+		ok, _ := l.allow("", fmt.Sprintf("[2001:db8:1:%x::1]:1", i), true)
+		must.True(t, ok)
+	}
 }
