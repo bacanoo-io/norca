@@ -61,7 +61,9 @@ type Server struct {
 	storeAside bool
 
 	// nsLock guards the embedded server, replaced when the bus becomes
-	// clustered.
+	// clustered. ns, opts, clustered and the TLS of config change only under
+	// routesLock as well, so a holder of routesLock reads them without
+	// nsLock; opts is used under routesLock only.
 	nsLock    sync.RWMutex
 	ns        *natsserver.Server
 	opts      *natsserver.Options
@@ -84,15 +86,29 @@ type Server struct {
 
 	// readerLock guards the reader accounts made on the embedded server
 	// readersOf (account.go); a restarted server starts without them.
-	readerLock sync.Mutex
-	readers    map[string]*reader
-	readersOf  *natsserver.Server
+	// readers are the live ones by name, readerKeys the live one of each
+	// ReaderAccountName; readerSeq is the last generation given to a name.
+	// retiredReaders counts the retired ones, which a reload of the options
+	// drops. reloading is set while the options are reloaded (reload), and
+	// compactedAt is when the retired ones were last dropped.
+	readerLock     sync.Mutex
+	readers        map[string]*reader
+	readerKeys     map[string]string
+	readersOf      *natsserver.Server
+	readerSeq      uint64
+	retiredReaders int
+	reloading      bool
+	compactedAt    time.Time
 
-	// The limits of the fetches of a reader account (leafwatch.go), guarded
-	// by readerLock; fields so that tests can shorten them.
+	// The limits of the fetches of a reader account (leafwatch.go), and
+	// the retirement and compaction of the reader accounts (account.go),
+	// guarded by readerLock; fields so that tests can shorten them.
 	maxPendingResponses int
 	responseThreshold   time.Duration
 	leafBanTime         time.Duration
+	retireGrace         time.Duration
+	compactMin          int
+	compactInterval     time.Duration
 
 	// trust remembers the routes with their TLS state, for ReloadTLS.
 	trust routeTrust
@@ -108,6 +124,9 @@ type client struct {
 
 	// at is when the connection was authenticated.
 	at time.Time
+
+	// acc is the account it was registered in.
+	acc *natsserver.Account
 }
 
 // New starts the embedded NATS server and waits until it accepts
@@ -135,6 +154,9 @@ func New(config *Config, logger hclog.Logger, authz Authorizer) (*Server, error)
 		maxPendingResponses: ReaderMaxPendingResponses,
 		responseThreshold:   ReaderResponseThreshold,
 		leafBanTime:         ReaderBanTime,
+		retireGrace:         readerRetireGrace,
+		compactMin:          readerCompactMin,
+		compactInterval:     readerCompactInterval,
 		stopCh:              make(chan struct{}),
 	}
 	ns, opts, err := s.start(config.Clustered, nil)
@@ -143,6 +165,7 @@ func New(config *Config, logger hclog.Logger, authz Authorizer) (*Server, error)
 	}
 	s.ns, s.opts, s.clustered = ns, opts, config.Clustered
 	go s.leafWatchLoop()
+	go s.readerSweepLoop()
 	return s, nil
 }
 
@@ -288,16 +311,45 @@ func (s *Server) SetRoutes(addrs []string) error {
 		return nil
 	}
 
-	s.nsLock.Lock()
-	defer s.nsLock.Unlock()
 	opts := s.opts.Clone()
 	opts.Routes = s.routeURLs(addrs)
-	if err := s.ns.ReloadOptions(opts); err != nil {
+	if err := s.reload(s.ns, opts); err != nil {
 		return fmt.Errorf("bus: reloading the routes: %w", err)
 	}
 	s.opts = opts
 	s.routes = addrs
 	s.logger.Debug("routes updated", "routes", addrs)
+	return nil
+}
+
+// reload applies opts to the embedded server ns. The caller holds
+// routesLock, and neither nsLock nor readerLock: nats-server authenticates
+// connections again during a reload (clientAuth.Check), and the authorizer
+// may ask for a reader account, which takes both. Such a call is refused
+// while the reload runs: nats-server deletes the accounts made at runtime and
+// resets the exports of the bus account to its configuration, which could
+// leave an account made meanwhile half way.
+//
+// After the reload the retired reader accounts are gone, and so are the
+// connections of the reader accounts: nats-server closes the client
+// connections the custom authentication registered (it does not know their
+// users) and keeps the leaf nodes in their deleted accounts, where they reach
+// none of their imports; closeStaleReaders closes those.
+func (s *Server) reload(ns *natsserver.Server, opts *natsserver.Options) error {
+	s.readerLock.Lock()
+	s.reloading = true
+	s.readerLock.Unlock()
+	err := ns.ReloadOptions(opts)
+	s.readerLock.Lock()
+	s.reloading = false
+	if err == nil && s.readersOf == ns {
+		s.retiredReaders = 0
+	}
+	s.readerLock.Unlock()
+	if err != nil {
+		return err
+	}
+	s.closeStaleReaders(ns)
 	return nil
 }
 
@@ -314,8 +366,6 @@ var ErrTLSNeedsRestart = errors.New("bus: turning TLS on or off needs a restart"
 func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
 	s.routesLock.Lock()
 	defer s.routesLock.Unlock()
-	s.nsLock.Lock()
-	defer s.nsLock.Unlock()
 
 	if (clientTLS == nil) != (s.config.ClientTLS == nil) || (clusterTLS == nil) != (s.config.ClusterTLS == nil) {
 		return ErrTLSNeedsRestart
@@ -331,11 +381,13 @@ func (s *Server) ReloadTLS(clientTLS, clusterTLS *tls.Config) error {
 	if s.config.LeafNodes.Enabled {
 		opts.LeafNode.TLSConfig = clientTLS
 	}
-	if err := s.ns.ReloadOptions(opts); err != nil {
+	if err := s.reload(s.ns, opts); err != nil {
 		return fmt.Errorf("bus: reloading the TLS configuration: %w", err)
 	}
 	s.opts = opts
+	s.nsLock.Lock()
 	s.config.ClientTLS, s.config.ClusterTLS = clientTLS, clusterTLS
+	s.nsLock.Unlock()
 	s.logger.Info("TLS configuration reloaded")
 	if err := s.recheckTrust(clientTLS, clusterTLS); err != nil {
 		return fmt.Errorf("bus: checking the open connections against the reloaded TLS configuration: %w", err)

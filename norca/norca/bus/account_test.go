@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -366,4 +367,442 @@ func TestBus_RouteChangeKeepsReaders(t *testing.T) {
 		}
 		return msg.Subject == "norca.global.default.Job", fmt.Errorf("subject %s", msg.Subject)
 	}, func(err error) { t.Fatal(err) })
+}
+
+// leafReads reports why a client of the leaf's NATS does not receive a Job
+// event live or can't fetch one from the consumer leaf-leafer; nil when it
+// does both.
+func leafReads(ctx context.Context, js jetstream.JetStream, leafURL, stream string) error {
+	app, err := nats.Connect(leafURL)
+	if err != nil {
+		return err
+	}
+	defer app.Close()
+	live, err := app.SubscribeSync("norca.>")
+	if err != nil {
+		return err
+	}
+	if err := app.Flush(); err != nil {
+		return err
+	}
+	// The interest of the leaf reaches the bus after a moment.
+	for deadline := time.Now().Add(3 * time.Second); ; {
+		if _, err := js.Publish(ctx, "norca.global.default.Job", []byte("job")); err != nil {
+			return err
+		}
+		if _, err := live.NextMsg(300 * time.Millisecond); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return errors.New("no Job event live")
+		}
+	}
+	ljs, err := jetstream.NewWithDomain(app, "norca-global")
+	if err != nil {
+		return err
+	}
+	short, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	cons, err := ljs.Consumer(short, stream, "leaf-leafer")
+	if err != nil {
+		return fmt.Errorf("the consumer: %w", err)
+	}
+	batch, err := cons.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
+	if err != nil {
+		return fmt.Errorf("fetch: %w", err)
+	}
+	n := 0
+	for m := range batch.Messages() {
+		if err := m.Ack(); err != nil {
+			return err
+		}
+		n++
+	}
+	if err := batch.Error(); err != nil {
+		return fmt.Errorf("fetch: %w", err)
+	}
+	if n != 1 {
+		return fmt.Errorf("fetched %d messages", n)
+	}
+	return nil
+}
+
+// A route change reloads the options of the embedded server, which deletes
+// the reader accounts. nats-server closes the client connections, but keeps
+// a leaf node in its deleted account, where its consumer can't be reached
+// any more. The bus closes the leaf: it attaches again into a new account and
+// reads its consumer (review finding CON-5: the compaction of the reader
+// accounts reloads the same way).
+func TestBus_RouteChangeKeepsLeafReaders(t *testing.T) {
+	ci.Parallel(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	var servers []*Server
+	var authzs []*leafAuthz
+	var addrs []string
+	var configs []*Config
+	for i := range 2 {
+		c := testConfig(t, fmt.Sprintf("s%d", i+1))
+		c.Clustered = true
+		c.LeafNodes = LeafNodesConfig{Enabled: true, Port: ci.PortAllocator.Grab(1)[0]}
+		addrs = append(addrs, net.JoinHostPort(c.BindAddr, strconv.Itoa(c.ClusterPort)))
+		a := &leafAuthz{}
+		s := startServer(t, c, a.authorize)
+		a.set(s, nil)
+		servers, authzs, configs = append(servers, s), append(authzs, a), append(configs, c)
+	}
+	must.NoError(t, servers[0].SetRoutes(addrs[1:]))
+	must.NoError(t, servers[1].SetRoutes(addrs[:1]))
+	testutil.WaitForResult(func() (bool, error) {
+		for _, s := range servers {
+			st, err := s.Status()
+			if err != nil {
+				return false, err
+			}
+			if st.JetStream == nil || st.JetStream.MetaLeader == "" || st.JetStream.ClusterSize != 2 {
+				return false, fmt.Errorf("%s: JetStream %+v", st.Server, st.JetStream)
+			}
+		}
+		return true, nil
+	}, func(err error) { t.Fatal(err) })
+
+	stream := EventStreamName("global")
+	nc, err := servers[1].Connect()
+	must.NoError(t, err)
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	must.NoError(t, err)
+	createStream(t, js, jetstream.StreamConfig{Name: stream, Subjects: EventStreamSubjects("norca", "global"), Replicas: 2})
+	testutil.WaitForResult(func() (bool, error) {
+		_, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
+			Durable: "leaf-leafer", FilterSubject: "norca.global.*.Job", AckPolicy: jetstream.AckExplicitPolicy, Replicas: 2,
+		})
+		return err == nil, err
+	}, func(err error) { t.Fatal(err) })
+	for _, a := range authzs {
+		a.set(nil, leafSpec(stream))
+	}
+
+	leaf := startLeaf(t, configs[0].LeafNodes.Port, "leafer")
+	waitLeaf(t, leaf, 1)
+	testutil.WaitForResultUntil(30*time.Second, func() (bool, error) {
+		err := leafReads(ctx, js, leaf.ClientURL(), stream)
+		return err == nil, err
+	}, func(err error) { t.Fatal(err) })
+
+	// A route to a server that is not there yet.
+	must.NoError(t, servers[0].SetRoutes(append([]string{"127.0.0.1:1"}, addrs[1:]...)))
+	testutil.WaitForResultUntil(30*time.Second, func() (bool, error) {
+		err := leafReads(ctx, js, leaf.ClientURL(), stream)
+		return err == nil, err
+	}, func(err error) { t.Fatalf("the leaf does not read after the route change: %v", err) })
+}
+
+// busImports counts the imports of an account from the bus account.
+func busImports(t *testing.T, s *Server, account string) int {
+	t.Helper()
+	az, err := s.server().Accountz(&natsserver.AccountzOptions{Account: account})
+	must.NoError(t, err)
+	must.NotNil(t, az.Account)
+	n := 0
+	for _, imp := range az.Account.Imports {
+		if imp.Account == AccountName {
+			n++
+		}
+	}
+	return n
+}
+
+// readerTestSpec is the spec of a reader that connects directly: the Job
+// events live, its consumer of the event stream and the information.
+func readerTestSpec(reader string) *ReaderSpec {
+	return &ReaderSpec{
+		Reader:    reader,
+		Subjects:  []string{"norca.global.*.Job"},
+		Consumers: []ConsumerRef{{Stream: EventStreamName("global"), Name: reader}},
+		Info:      true,
+	}
+}
+
+// A reader account that had no connection for the grace period is retired:
+// it imports nothing and takes no connection. A reader that comes back gets
+// a new account that works, and a reader with a connection keeps its own
+// (review finding CON-5).
+func TestBus_ReaderAccountRetire(t *testing.T) {
+	ci.Parallel(t)
+	authz := newTestAuthz()
+	s := startServer(t, testConfig(t, "s1"), authz.authorize)
+	internal, err := s.Connect()
+	must.NoError(t, err)
+	defer internal.Close()
+
+	// connect logs a reader in with the grant of its account.
+	connect := func(reader, account string, opts ...nats.Option) (*nats.Conn, error) {
+		authz.set(reader, &Grant{Kind: KindToken, Name: reader, All: true, Account: account})
+		return nats.Connect(s.ClientURL(), append(opts, nats.Token(reader))...)
+	}
+	// receives waits until sub gets a Job event.
+	receives := func(what string, sub *nats.Subscription) {
+		t.Helper()
+		testutil.WaitForResult(func() (bool, error) {
+			if err := internal.Publish("norca.global.default.Job", []byte("job")); err != nil {
+				return false, err
+			}
+			if err := internal.Flush(); err != nil {
+				return false, err
+			}
+			_, err := sub.NextMsg(200 * time.Millisecond)
+			return err == nil, err
+		}, func(err error) { t.Fatalf("%s receives nothing: %v", what, err) })
+	}
+
+	live, gone := readerTestSpec("live"), readerTestSpec("gone")
+	liveName, err := s.ReaderAccount(live)
+	must.NoError(t, err)
+	goneName, err := s.ReaderAccount(gone)
+	must.NoError(t, err)
+	lc, err := connect("live", liveName)
+	must.NoError(t, err)
+	defer lc.Close()
+	liveSub, err := lc.SubscribeSync(">")
+	must.NoError(t, err)
+	must.NoError(t, lc.Flush())
+	receives("the live reader", liveSub)
+
+	// The other reader connects and leaves.
+	gc, err := connect("gone", goneName)
+	must.NoError(t, err)
+	gc.Close()
+	goneAcc, err := s.server().LookupAccount(goneName)
+	must.NoError(t, err)
+	imports := busImports(t, s, goneName)
+	must.Positive(t, imports)
+	testutil.WaitForResult(func() (bool, error) {
+		n := goneAcc.NumConnections()
+		return n == 0, fmt.Errorf("%d connections", n)
+	}, func(err error) { t.Fatal(err) })
+
+	s.sweepReaders(time.Now().Add(readerRetireGrace))
+
+	// Retired: it imports nothing from the bus account and takes no
+	// connection.
+	must.Eq(t, 0, busImports(t, s, goneName), must.Sprint("the account of the reader that left still imports"))
+	_, err = connect("gone", goneName, nats.MaxReconnects(0))
+	must.Error(t, err)
+
+	// The live reader keeps its account.
+	again, err := s.ReaderAccount(live)
+	must.NoError(t, err)
+	must.Eq(t, liveName, again)
+	receives("the live reader", liveSub)
+
+	// The reader that comes back gets a new account that works.
+	back, err := s.ReaderAccount(gone)
+	must.NoError(t, err)
+	must.NotEq(t, goneName, back)
+	must.Eq(t, imports, busImports(t, s, back))
+	bc, err := connect("gone", back)
+	must.NoError(t, err)
+	defer bc.Close()
+	backSub, err := bc.SubscribeSync(">")
+	must.NoError(t, err)
+	must.NoError(t, bc.Flush())
+	receives("the reader that came back", backSub)
+}
+
+// Once the retired reader accounts are due, they are dropped by a reload of
+// the options: the accounts are gone, and so are the exports of the bus
+// account to them. The live readers, a client and a leaf node, reconnect into
+// new accounts and read again (review finding CON-5).
+func TestBus_ReaderAccountCompaction(t *testing.T) {
+	ci.Parallel(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	leafs, clients := &leafAuthz{}, newTestAuthz()
+	c := testConfig(t, "s1")
+	c.LeafNodes = LeafNodesConfig{Enabled: true, Port: ci.PortAllocator.Grab(1)[0]}
+	s := startServer(t, c, func(cr Credentials) (*Grant, error) {
+		if cr.Leaf {
+			return leafs.authorize(cr)
+		}
+		return clients.authorize(cr)
+	})
+	s.setReaderRetirement(time.Minute, 3, time.Hour)
+	testutil.WaitForResult(func() (bool, error) {
+		return s.JetStreamReady(), errors.New("no JetStream meta leader")
+	}, func(err error) { t.Fatal(err) })
+
+	stream := EventStreamName("global")
+	nc, err := s.Connect()
+	must.NoError(t, err)
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	must.NoError(t, err)
+	createStream(t, js, jetstream.StreamConfig{Name: stream, Subjects: EventStreamSubjects("norca", "global")})
+	for _, name := range []string{"leaf-leafer", "live"} {
+		_, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
+			Durable: name, FilterSubject: "norca.global.*.Job", AckPolicy: jetstream.AckExplicitPolicy,
+		})
+		must.NoError(t, err)
+	}
+	leafs.set(s, leafSpec(stream))
+	live := readerTestSpec("live")
+	clients.withReader(func() (*Grant, error) {
+		name, err := s.ReaderAccount(live)
+		if err != nil {
+			return nil, err
+		}
+		return &Grant{Kind: KindToken, Name: "live", All: true, Account: name}, nil
+	})
+
+	reader, err := nats.Connect(s.ClientURL(), nats.Token("cdc"), nats.MaxReconnects(-1),
+		nats.ReconnectWait(20*time.Millisecond))
+	must.NoError(t, err)
+	defer reader.Close()
+	liveSub, err := reader.SubscribeSync("norca.>")
+	must.NoError(t, err)
+	must.NoError(t, reader.Flush())
+	// readerReads reports why the client reader does not receive a Job event
+	// live or can't fetch one from its consumer.
+	readerReads := func() error {
+		if _, err := js.Publish(ctx, "norca.global.default.Job", []byte("job")); err != nil {
+			return err
+		}
+		if _, err := liveSub.NextMsg(300 * time.Millisecond); err != nil {
+			return fmt.Errorf("live: %w", err)
+		}
+		rjs, err := jetstream.New(reader)
+		if err != nil {
+			return err
+		}
+		short, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		cons, err := rjs.Consumer(short, stream, "live")
+		if err != nil {
+			return fmt.Errorf("the consumer: %w", err)
+		}
+		batch, err := cons.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
+		if err != nil {
+			return fmt.Errorf("fetch: %w", err)
+		}
+		for m := range batch.Messages() {
+			if err := m.Ack(); err != nil {
+				return err
+			}
+		}
+		return batch.Error()
+	}
+	leaf := startLeaf(t, c.LeafNodes.Port, "leafer")
+	waitLeaf(t, leaf, 1)
+	reads := func(what string) {
+		t.Helper()
+		testutil.WaitForResultUntil(30*time.Second, func() (bool, error) {
+			err := readerReads()
+			return err == nil, err
+		}, func(err error) { t.Fatalf("the client reader %s: %v", what, err) })
+		testutil.WaitForResultUntil(30*time.Second, func() (bool, error) {
+			err := leafReads(ctx, js, leaf.ClientURL(), stream)
+			return err == nil, err
+		}, func(err error) { t.Fatalf("the leaf %s: %v", what, err) })
+	}
+	reads("before the compaction")
+
+	// Four readers come and go.
+	consumer := "$JS.API.CONSUMER.MSG.NEXT." + stream + ".r0"
+	var gone []string
+	for i := range 4 {
+		name, err := s.ReaderAccount(readerTestSpec(fmt.Sprintf("r%d", i)))
+		must.NoError(t, err)
+		gone = append(gone, name)
+	}
+	bus, err := s.server().LookupAccount(AccountName)
+	must.NoError(t, err)
+	must.True(t, bus.IsExportService(consumer))
+
+	// Retired: four, more than the two live ones, and due.
+	now := time.Now().Add(time.Minute)
+	s.sweepReaders(now)
+	for _, name := range gone {
+		_, err := s.server().LookupAccount(name)
+		must.Error(t, err, must.Sprintf("the retired account %s is still there", name))
+	}
+	bus, err = s.server().LookupAccount(AccountName)
+	must.NoError(t, err)
+	must.False(t, bus.IsExportService(consumer), must.Sprint("the bus account still exports to the retired accounts"))
+	reads("after the compaction")
+
+	// Not again within the interval: retired, not dropped.
+	gone = gone[:0]
+	for i := range 4 {
+		name, err := s.ReaderAccount(readerTestSpec(fmt.Sprintf("r%d", i)))
+		must.NoError(t, err)
+		gone = append(gone, name)
+	}
+	s.sweepReaders(now.Add(2 * time.Minute))
+	for _, name := range gone {
+		_, err := s.server().LookupAccount(name)
+		must.NoError(t, err)
+		must.Eq(t, 0, busImports(t, s, name))
+	}
+}
+
+// TestBus_ReaderAccountMemory measures the heap a reader account keeps:
+// made, retired and after the compaction. It makes as many accounts as
+// NORCA_BUS_READER_ACCOUNTS says (skipped when unset), each like the account
+// of a workload identity: the Job events live, a consumer of the event and
+// of the Consul KV change stream, and the information.
+func TestBus_ReaderAccountMemory(t *testing.T) {
+	n, _ := strconv.Atoi(os.Getenv("NORCA_BUS_READER_ACCOUNTS"))
+	if n <= 0 {
+		t.Skip("NORCA_BUS_READER_ACCOUNTS is not set")
+	}
+	s := startServer(t, testConfig(t, "s1"), newTestAuthz().authorize)
+	// The first sweep retires them all, the second drops them.
+	s.setReaderRetirement(time.Minute, n+1, 0)
+	heap := func() int64 {
+		runtime.GC()
+		runtime.GC()
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		return int64(m.HeapAlloc)
+	}
+
+	base := heap()
+	start := time.Now()
+	for i := range n {
+		reader := fmt.Sprintf("w%d", i)
+		_, err := s.ReaderAccount(&ReaderSpec{
+			Reader:   reader,
+			Subjects: []string{"norca.global.*.Job"},
+			Consumers: []ConsumerRef{
+				{Stream: EventStreamName("global"), Name: reader},
+				{Stream: ConsulKVChangesStreamName("global"), Name: reader},
+			},
+			Info: true,
+		})
+		must.NoError(t, err)
+		if (i+1)%(max(n/4, 1)) == 0 {
+			t.Logf("%d accounts made in %s", i+1, time.Since(start))
+		}
+	}
+	made := heap()
+
+	now := time.Now().Add(time.Minute)
+	start = time.Now()
+	s.sweepReaders(now)
+	t.Logf("%d accounts retired in %s", n, time.Since(start))
+	retired := heap()
+
+	s.setReaderRetirement(time.Minute, 1, 0)
+	start = time.Now()
+	s.sweepReaders(now)
+	t.Logf("compacted in %s", time.Since(start))
+	compacted := heap()
+
+	per := func(h int64) int64 { return (h - base) / int64(n) }
+	t.Logf("heap per reader account: made %d B, retired %d B, after the compaction %d B (base %d B, %d accounts)",
+		per(made), per(retired), per(compacted), base, n)
+	must.Less(t, retired, compacted)
 }

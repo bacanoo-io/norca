@@ -201,7 +201,7 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 		return false
 	}
 	s.l.Lock()
-	s.clients[c.GetID()] = &client{creds: creds, grant: grant, at: time.Now()}
+	s.clients[c.GetID()] = &client{creds: creds, grant: grant, at: time.Now(), acc: acc}
 	s.l.Unlock()
 	return true
 }

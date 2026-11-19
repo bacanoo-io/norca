@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,15 +108,48 @@ const (
 	// readerWatchInterval is how often the fetches of the reader accounts
 	// are counted.
 	readerWatchInterval = 2 * time.Second
+
+	// readerRetireGrace is how long a reader account stays without a
+	// connection before it is retired (retireReader). It is well above the
+	// time a client or a leaf node takes to reconnect (seconds), and above
+	// ReaderBanTime and ReaderResponseThreshold, so a reader that lost its
+	// connection or was cut off comes back into its own account; a reader
+	// that comes later gets a new one, which costs nothing it would notice.
+	readerRetireGrace = 5 * time.Minute
+
+	// readerSweepInterval is how often the reader accounts are looked at
+	// for retirement and compaction.
+	readerSweepInterval = time.Minute
+
+	// readerCompactMin and readerCompactInterval decide when the retired
+	// reader accounts are dropped (compactReaders): at least
+	// readerCompactMin of them, more than the live ones, and not within
+	// readerCompactInterval of the last compaction. A compaction reloads the
+	// options of the embedded server, which closes every client connection
+	// of this server (they reconnect), as a route change does, and the live
+	// readers make their accounts again. A retired account keeps about 20 kB
+	// (TestBus_ReaderAccountMemory: 33 kB made, 21 kB retired, nothing after
+	// the compaction, for a reader with two consumers), and every account
+	// slows down the making of the next ones; a thousand of them, 20 MB, are
+	// worth one such reconnection an hour at most, and more than the live
+	// ones keep the retired memory below that of the live accounts.
+	readerCompactMin      = 1000
+	readerCompactInterval = time.Hour
 )
 
 // reader is a reader account made on the embedded server.
 type reader struct {
 	spec *ReaderSpec
 
+	// key is ReaderAccountName of the spec: one live account per key.
+	key string
+
 	// bannedUntil refuses the connections of the account until then: it had
 	// more than the allowed requests waiting.
 	bannedUntil time.Time
+
+	// used is when the account last had a connection or was asked for.
+	used time.Time
 }
 
 // ConsumerRef names a consumer of a stream.
@@ -127,11 +161,12 @@ type ConsumerRef struct {
 // ReaderAccountPrefix starts the name of every reader account.
 const ReaderAccountPrefix = "CDC_"
 
-// ReaderAccountName is the name of the account of a reader spec: the reader
-// and a digest of what it imports, so a changed spec gets a new account
-// (nats-server can't remove an import). A connection of the old spec is
-// closed by Revalidate (its grant names the old account) and reconnects
-// into the new one.
+// ReaderAccountName is the name of the first account of a reader spec: the
+// reader and a digest of what it imports, so a changed spec gets a new
+// account (nats-server can't remove an import). A connection of the old spec
+// is closed by Revalidate (its grant names the old account) and reconnects
+// into the new one. An account made again for the spec while the retired
+// one still exists gets a generation appended (_<n>).
 func ReaderAccountName(spec *ReaderSpec) string {
 	h := sha256.New()
 	for _, s := range spec.Subjects {
@@ -274,63 +309,105 @@ func (s *Server) validReaderSpec(spec *ReaderSpec) error {
 // inbox of another connection, no Consul KV value, no telemetry, no
 // JetStream API but its own consumers.
 //
-// The account lives until the embedded server restarts, or reloads its
-// options (SetRoutes, ReloadTLS: nats-server deletes the accounts made at
-// runtime and resets the exports of the bus account): then the next
-// connection of the reader makes it again. Calls are serialized, so a
-// connection never lands in an account whose imports are still being made;
-// a leaf account whose making failed half way is made again by the next
-// call.
+// An account without a connection for readerRetireGrace is retired
+// (sweepReaders): it imports nothing and takes no connection, and the next
+// call for its spec makes a new account, named with a generation. nats-server
+// deletes no account at runtime: the retired accounts, and the exports of the
+// bus account to them, stay until the options of the embedded server are
+// reloaded (a compaction of the retired accounts, a route change, a TLS
+// reload). A reload deletes every account made at runtime and resets the
+// exports of the bus account; the connections of the reader accounts are
+// closed (reload) and the next connection of a reader makes its account
+// again. Calls are serialized, so a connection never lands in an account
+// whose imports are still being made; an account whose making failed half
+// way is retired.
 func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	if err := s.validReaderSpec(spec); err != nil {
 		return "", err
 	}
-	name := ReaderAccountName(spec)
+	key := ReaderAccountName(spec)
 
 	s.nsLock.RLock()
 	defer s.nsLock.RUnlock()
 	ns := s.ns
 	s.readerLock.Lock()
 	defer s.readerLock.Unlock()
-	if s.readersOf != ns {
-		s.readers, s.readersOf = map[string]*reader{}, ns
+	if s.reloading {
+		// nats-server authenticates connections during a reload, and deletes
+		// the accounts made at runtime: an account made now could be lost
+		// half way. The connection is refused and comes again.
+		return "", errors.New("bus: the options of the embedded server are being reloaded; connect again")
 	}
-	old, ok := s.readers[name]
-	if ok {
+	s.readersOn(ns)
+	now := time.Now()
+	var old *reader
+	if name, ok := s.readerKeys[key]; ok {
+		r := s.readers[name]
 		if _, err := ns.LookupAccount(name); err == nil {
+			r.used = now
 			return name, nil
 		}
 		// Gone with a reload of the options: made again, its ban kept.
+		old = r
+		s.forgetReader(name)
 	}
 
 	bus, err := ns.LookupAccount(AccountName)
 	if err != nil {
 		return "", fmt.Errorf("bus: the account %s: %w", AccountName, err)
 	}
-	acc, isNew := ns.LookupOrRegisterAccount(name)
-	switch {
-	case spec.Leaf:
+	name := s.freeReaderName(ns, key)
+	acc, _ := ns.LookupOrRegisterAccount(name)
+	if err := s.importReader(ns, bus, acc, spec); err != nil {
+		// The claims remove the imports made so far.
+		s.retireReader(ns, name, acc)
+		return "", err
+	}
+	made := *spec
+	made.Subjects, made.Consumers = slices.Clone(spec.Subjects), slices.Clone(spec.Consumers)
+	r := &reader{spec: &made, key: key, used: now}
+	if old != nil {
+		r.bannedUntil = old.bannedUntil
+	}
+	s.readers[name], s.readerKeys[key] = r, name
+	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects,
+		"consumers", len(spec.Consumers), "leaf", spec.Leaf)
+	return name, nil
+}
+
+// freeReaderName returns the first name of the reader accounts of key that
+// no account of ns has: key itself, or key_<generation>. The caller holds
+// readerLock.
+func (s *Server) freeReaderName(ns *natsserver.Server, key string) string {
+	name := key
+	for {
+		if _, err := ns.LookupAccount(name); err != nil {
+			return name
+		}
+		s.readerSeq++
+		name = key + "_" + strconv.FormatUint(s.readerSeq, 10)
+	}
+}
+
+// importReader gives the new account acc what spec imports from the bus
+// account.
+func (s *Server) importReader(ns *natsserver.Server, bus, acc *natsserver.Account, spec *ReaderSpec) error {
+	if spec.Leaf {
 		// The limits of a leaf account. The claims replace the imports and
-		// exports of the account, also those of an earlier call that failed
-		// half way, so they are set before the imports.
-		claims := jwt.NewAccountClaims(name)
+		// exports of the account, so they are set before the imports.
+		claims := jwt.NewAccountClaims(acc.GetName())
 		claims.Limits.Conn = 0
 		claims.Limits.LeafNodeConn = 1
 		claims.Limits.Subs = ReaderMaxSubscriptions
 		claims.Limits.Payload = ReaderMaxPayload
 		ns.UpdateAccountClaims(acc, claims)
-	case !isNew:
-		// Without claims nothing removes the imports of an earlier call
-		// (claims would also answer the JetStream API of an account without
-		// JetStream before the imports do).
-		return "", fmt.Errorf("bus: the account %s was not made completely; it stays until the bus restarts", name)
 	}
 	for _, sub := range spec.Subjects {
 		if err := bus.AddStreamExport(sub, []*natsserver.Account{acc}); err != nil {
-			return "", fmt.Errorf("bus: exporting %q: %w", sub, err)
+			return fmt.Errorf("bus: exporting %q: %w", sub, err)
 		}
 		if err := acc.AddStreamImport(bus, sub, ""); err != nil {
-			return "", fmt.Errorf("bus: importing %q: %w", sub, err)
+			return fmt.Errorf("bus: importing %q: %w", sub, err)
 		}
 	}
 	imports := [][]consumerImport{spec.infoImports()}
@@ -344,28 +421,241 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 				resp = natsserver.Streamed
 			}
 			if err := bus.AddServiceExportWithResponse(imp.to, resp, []*natsserver.Account{acc}); err != nil {
-				return "", fmt.Errorf("bus: exporting %q: %w", imp.to, err)
+				return fmt.Errorf("bus: exporting %q: %w", imp.to, err)
 			}
 			if err := acc.AddServiceImport(bus, imp.from, imp.to); err != nil {
-				return "", fmt.Errorf("bus: importing %q: %w", imp.from, err)
+				return fmt.Errorf("bus: importing %q: %w", imp.from, err)
 			}
 			if imp.streamed {
 				// The way back of a fetch is kept for the longest wait of a
 				// fetch, not for the two minutes of nats-server.
 				if err := bus.SetServiceExportResponseThreshold(imp.to, s.responseThreshold); err != nil {
-					return "", fmt.Errorf("bus: the response threshold of %q: %w", imp.to, err)
+					return fmt.Errorf("bus: the response threshold of %q: %w", imp.to, err)
 				}
 			}
 		}
 	}
-	made := *spec
-	made.Subjects, made.Consumers = slices.Clone(spec.Subjects), slices.Clone(spec.Consumers)
-	r := &reader{spec: &made}
-	if old != nil {
-		r.bannedUntil = old.bannedUntil
+	return nil
+}
+
+// readersOn starts the reader accounts of the embedded server ns afresh
+// when it replaced the one they were made on: a restarted server has none.
+// The caller holds readerLock.
+func (s *Server) readersOn(ns *natsserver.Server) {
+	if s.readersOf != ns {
+		s.readers, s.readerKeys, s.readersOf = map[string]*reader{}, map[string]string{}, ns
+		s.retiredReaders = 0
 	}
-	s.readers[name] = r
-	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects,
-		"consumers", len(spec.Consumers), "leaf", spec.Leaf)
-	return name, nil
+}
+
+// forgetReader drops the reader account name from the live ones. The
+// caller holds readerLock.
+func (s *Server) forgetReader(name string) {
+	if r, ok := s.readers[name]; ok {
+		if s.readerKeys[r.key] == name {
+			delete(s.readerKeys, r.key)
+		}
+		delete(s.readers, name)
+	}
+}
+
+// retireReader leaves the reader account name inert: its claims import
+// nothing and allow no connection and no leaf node. nats-server can't delete
+// an account at runtime; the account and the exports of the bus account to
+// it stay until the next reload of the options (compactReaders). The caller
+// holds readerLock.
+func (s *Server) retireReader(ns *natsserver.Server, name string, acc *natsserver.Account) {
+	claims := jwt.NewAccountClaims(name)
+	claims.Limits.Conn = 0
+	claims.Limits.LeafNodeConn = 0
+	claims.Limits.Subs = 0
+	claims.Limits.Imports = 0
+	claims.Limits.Exports = 0
+	ns.UpdateAccountClaims(acc, claims)
+	s.forgetReader(name)
+	s.retiredReaders++
+}
+
+// setReaderRetirement changes when the reader accounts are retired and
+// compacted; for tests.
+func (s *Server) setReaderRetirement(grace time.Duration, compactMin int, compactInterval time.Duration) {
+	s.readerLock.Lock()
+	defer s.readerLock.Unlock()
+	s.retireGrace, s.compactMin, s.compactInterval = grace, compactMin, compactInterval
+}
+
+// sweepReaders retires the reader accounts that had no connection for the
+// grace period (readerRetireGrace), closes the connections whose reader
+// account is no longer theirs (closeStaleReaders), and drops the retired
+// accounts when they are due (compactReaders). A reader account exists only
+// on the server its reader connected to, so every server sweeps its own.
+// Whether the reader still has its right does not matter: an account without
+// a connection holds nothing a reader would miss (its consumers live in the
+// bus account), and a reader that comes back gets a new one.
+func (s *Server) sweepReaders(now time.Time) {
+	ns := s.server()
+	var idle []string
+	s.readerLock.Lock()
+	if s.readersOf == ns && !s.reloading {
+		for name, r := range s.readers {
+			acc, err := ns.LookupAccount(name)
+			if err != nil {
+				// Deleted by a reload of the options: the next call for its
+				// spec makes it again. Kept while its reader is cut off.
+				if !now.Before(r.bannedUntil) {
+					s.forgetReader(name)
+				}
+				continue
+			}
+			if acc.NumConnections() > 0 || acc.NumLeafNodes() > 0 {
+				r.used = now
+				continue
+			}
+			if now.Sub(r.used) >= s.retireGrace {
+				idle = append(idle, name)
+			}
+		}
+	}
+	s.readerLock.Unlock()
+
+	// One at a time: nats-server walks every account of the server for a
+	// retirement (milliseconds with thousands of accounts), and the
+	// authentication of the readers waits for readerLock.
+	retired := 0
+	for _, name := range idle {
+		select {
+		case <-s.stopCh:
+			return
+		default:
+		}
+		if s.retireIdle(ns, name, now) {
+			retired++
+		}
+	}
+	s.readerLock.Lock()
+	compact := s.readersOf == ns && !s.reloading && s.compactDue(now)
+	live, total := len(s.readers), s.retiredReaders
+	s.readerLock.Unlock()
+	if retired > 0 {
+		s.logger.Debug("reader accounts without a connection retired", "retired", retired,
+			"retired_total", total, "live", live)
+	}
+	s.closeStaleReaders(ns)
+	if compact {
+		s.compactReaders(now)
+	}
+}
+
+// retireIdle retires the reader account name if it is still live, has no
+// connection and was not used for the grace period, and reports whether it
+// did.
+func (s *Server) retireIdle(ns *natsserver.Server, name string, now time.Time) bool {
+	s.readerLock.Lock()
+	defer s.readerLock.Unlock()
+	r, ok := s.readers[name]
+	if !ok || s.readersOf != ns || s.reloading || now.Sub(r.used) < s.retireGrace {
+		return false
+	}
+	acc, err := ns.LookupAccount(name)
+	if err != nil || acc.NumConnections() > 0 || acc.NumLeafNodes() > 0 {
+		return false
+	}
+	s.retireReader(ns, name, acc)
+	return true
+}
+
+// readerSweepLoop sweeps the reader accounts (sweepReaders) until the bus
+// shuts down. It is a loop of its own: a sweep may take long with many
+// accounts, and must not hold up the check of the fetches (leafWatchLoop).
+func (s *Server) readerSweepLoop() {
+	ticker := time.NewTicker(readerSweepInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case now := <-ticker.C:
+			s.sweepReaders(now)
+		}
+	}
+}
+
+// compactDue reports whether the retired reader accounts are to be dropped.
+// The caller holds readerLock.
+func (s *Server) compactDue(now time.Time) bool {
+	return s.retiredReaders >= s.compactMin && s.retiredReaders > len(s.readers) &&
+		now.Sub(s.compactedAt) >= s.compactInterval
+}
+
+// compactReaders drops the retired reader accounts: it reloads the options
+// of the embedded server, unchanged. nats-server then deletes every account
+// made at runtime, resets the exports of the bus account to its
+// configuration and closes the client connections (it does not know the
+// users the custom authentication registered); reload closes the leaf nodes
+// of the reader accounts. Every connection of this server reconnects, the
+// readers into new accounts.
+func (s *Server) compactReaders(now time.Time) {
+	s.routesLock.Lock()
+	defer s.routesLock.Unlock()
+	// ns and opts change only under routesLock.
+	ns, opts := s.ns, s.opts
+	s.readerLock.Lock()
+	// A reload since the sweep (a route change) may have dropped them.
+	due := s.readersOf == ns && !s.reloading && s.compactDue(now)
+	retired, live := s.retiredReaders, len(s.readers)
+	if due {
+		s.compactedAt = now
+	}
+	s.readerLock.Unlock()
+	if !due {
+		return
+	}
+	s.logger.Info("dropping the retired reader accounts of the system bus: the connections of this server reconnect",
+		"retired", retired, "live", live)
+	if err := s.reload(ns, opts.Clone()); err != nil {
+		s.logger.Warn("failed to drop the retired reader accounts of the system bus", "error", err)
+	}
+}
+
+// closeStaleReaders closes the connections of reader accounts that are no
+// longer in the account they were registered in: it was deleted by a reload
+// of the options, or made again under its name. nats-server closes the
+// client connections at a reload itself, but keeps a leaf node in its
+// deleted account, where it reaches none of its imports. A connection the
+// server does not list yet (it is being authenticated) is looked at again by
+// the next sweep.
+func (s *Server) closeStaleReaders(ns *natsserver.Server) {
+	type entry struct {
+		id uint64
+		c  *client
+	}
+	var readers []entry
+	s.l.Lock()
+	for id, c := range s.clients {
+		if strings.HasPrefix(c.grant.Account, ReaderAccountPrefix) {
+			readers = append(readers, entry{id, c})
+		}
+	}
+	s.l.Unlock()
+
+	closed := 0
+	for _, e := range readers {
+		if acc, err := ns.LookupAccount(e.c.grant.Account); err == nil && acc == e.c.acc {
+			continue
+		}
+		if err := ns.DisconnectClientByID(e.id); err == nil {
+			closed++
+		} else if time.Since(e.c.at) < connectGrace {
+			continue
+		}
+		s.l.Lock()
+		if s.clients[e.id] == e.c {
+			delete(s.clients, e.id)
+		}
+		s.l.Unlock()
+	}
+	if closed > 0 {
+		s.logger.Info("closed the bus connections of reader accounts a reload dropped; they reconnect",
+			"connections", closed)
+	}
 }

@@ -526,3 +526,50 @@ func TestBus_Revalidate_NotListedYet(t *testing.T) {
 	s.Revalidate()
 	must.False(t, recorded())
 }
+
+// nats-server authenticates the connections again during a reload of its
+// options, also one that has not sent its CONNECT yet. The authorizer may
+// ask for a reader account then (an anonymous policy with a cdc rule and no
+// bus rule): the reload must not wait for itself. Every compaction of the
+// reader accounts reloads (review finding CON-5).
+func TestBus_ReloadAuthenticatesReader(t *testing.T) {
+	ci.Parallel(t)
+	c := testConfig(t, "s1")
+	c.Clustered = true
+	var (
+		l   sync.Mutex
+		bus *Server
+	)
+	s := startServer(t, c, func(Credentials) (*Grant, error) {
+		l.Lock()
+		s := bus
+		l.Unlock()
+		name, err := s.ReaderAccount(readerTestSpec("anonymous"))
+		if err != nil {
+			return nil, err
+		}
+		return &Grant{Kind: KindToken, Name: "anonymous", All: true, Account: name}, nil
+	})
+	l.Lock()
+	bus = s
+	l.Unlock()
+
+	// A connection that sends no CONNECT: the server lists it until its
+	// authentication times out.
+	conn, err := net.Dial("tcp", net.JoinHostPort(c.BindAddr, strconv.Itoa(c.Port)))
+	must.NoError(t, err)
+	defer conn.Close()
+	testutil.WaitForResult(func() (bool, error) {
+		n := s.server().NumClients()
+		return n == 1, fmt.Errorf("%d clients", n)
+	}, func(err error) { t.Fatal(err) })
+
+	done := make(chan error, 1)
+	go func() { done <- s.SetRoutes([]string{"127.0.0.1:1"}) }()
+	select {
+	case err := <-done:
+		must.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("the reload of the routes waits for itself")
+	}
+}

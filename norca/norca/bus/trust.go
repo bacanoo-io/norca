@@ -179,7 +179,7 @@ func verifyPeerAgain(conf *tls.Config, cs *tls.ConnectionState) error {
 }
 
 // liveRoutes returns the remote addresses of the routes of the embedded
-// server. The caller holds nsLock.
+// server. The caller holds nsLock or routesLock.
 func (s *Server) liveRoutes() map[string]bool {
 	live := map[string]bool{}
 	routez, err := s.ns.Routez(nil)
@@ -195,12 +195,13 @@ func (s *Server) liveRoutes() map[string]bool {
 // recheckTrust checks the open connections against the TLS configuration
 // ReloadTLS just applied, and closes those a new handshake would refuse:
 // clients and leaf nodes by the certificate they presented, routes as
-// routeTrust says. The caller holds routesLock and nsLock.
+// routeTrust says. The caller holds routesLock.
 //
-// NATS (v2.15) closes the client and leaf node connections itself on any
-// reload of its options (it reloads the authorization, and the users the
-// custom authentication registers are not in its list): they reconnect
-// under the new configuration. The check of the clients stays for a NATS
+// NATS (v2.15) closes the client connections itself on any reload of its
+// options (it reloads the authorization, and the users the custom
+// authentication registers are not in its list): they reconnect under the
+// new configuration. It keeps the leaf nodes, which are all in reader
+// accounts: reload closes them. The check of the clients stays for a NATS
 // that keeps them. The routes NATS keeps.
 func (s *Server) recheckTrust(clientTLS, clusterTLS *tls.Config) error {
 	s.l.Lock()
@@ -236,11 +237,11 @@ func (s *Server) recheckTrust(clientTLS, clusterTLS *tls.Config) error {
 	s.logger.Info("making the routes this server dialled again under the reloaded TLS configuration")
 	without := s.opts.Clone()
 	without.Routes = s.routeURLs(nil)
-	if err := s.ns.ReloadOptions(without); err != nil {
+	if err := s.reload(s.ns, without); err != nil {
 		return err
 	}
 	opts := s.opts.Clone()
-	if err := s.ns.ReloadOptions(opts); err != nil {
+	if err := s.reload(s.ns, opts); err != nil {
 		return err
 	}
 	s.opts = opts
