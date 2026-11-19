@@ -256,6 +256,12 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 	}
 }
 
+// certificateRevokeOrderName returns the name of the revocation order of a
+// serial of a certificate.
+func certificateRevokeOrderName(namespace, name, serial string) string {
+	return fmt.Sprintf("%s.%s.revoke-%.16s", namespace, name, serial)
+}
+
 // errCertificateNotRevocable is the error of a revocation that no issuer is
 // left to make; it says why.
 var errCertificateNotRevocable = errors.New("nobody can revoke the certificate")
@@ -300,7 +306,7 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 	}
 
 	// An external issuer revokes through an order of its own.
-	name := fmt.Sprintf("%s.%s.revoke-%.16s", obj.Namespace, obj.Name, status.Serial)
+	name := certificateRevokeOrderName(obj.Namespace, obj.Name, status.Serial)
 	existing, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateOrderKind, "", name)
 	if err != nil || existing != nil {
 		return err

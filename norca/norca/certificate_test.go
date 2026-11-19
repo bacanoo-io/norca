@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1141,29 +1142,94 @@ func TestCertificate_ExternalIssuerLostNames(t *testing.T) {
 		"state": "valid", "chain": intermediate.sign(t, csr.PublicKey, csr.DNSNames, nil) + intermediate.pem}))
 	issued := c.waitFor("default", "web-tls", "issued", certReady)
 
-	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
-	st := c.waitFor("default", "web-tls", "withdrawn", withdrawn)
-	must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: issued.Serial}, *st)
-	must.SliceContains(t, c.eventReasons("default", structs.CertificateKind, "web-tls"), "Withdrawn")
+	// revocationOrder waits for the revocation order of the serial with the
+	// state and returns its name.
+	revocationOrder := func(state string) string {
+		t.Helper()
+		var name string
+		must.Wait(t, wait.InitialSuccess(
+			wait.BoolFunc(func() bool {
+				orders, err := listObjects(c.s.State(), nil, structs.CertificateOrderKind, "")
+				must.NoError(t, err)
+				name = ""
+				for _, o := range orders {
+					spec := &structs.CertificateOrderSpec{}
+					must.NoError(t, structs.DecodeObjectPart(o.Spec, spec))
+					status := &structs.CertificateOrderStatus{}
+					must.NoError(t, structs.DecodeObjectPart(o.Status, status))
+					if spec.Revoke == issued.Serial && status.State == state {
+						must.Eq(t, "default/web-tls", spec.Certificate)
+						must.Eq(t, structs.CertificateRevokeReasonCessationOfOperation, spec.Reason)
+						name = o.Name
+					}
+				}
+				return name != ""
+			}),
+			wait.Timeout(30*time.Second),
+			wait.Gap(50*time.Millisecond),
+		), must.Sprintf("waiting for a revocation order in the state %q", state))
+		return name
+	}
 
-	// Every version of the secret that held the key is destroyed.
+	// The key leaves the secret at once; the serial stays in the status
+	// until the issuer has revoked the certificate.
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	first := revocationOrder(structs.CertificateOrderPending)
+	waiting := c.waitFor("default", "web-tls", "waiting for the revocation", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		reason, message := certificateFailure(obj.Status)
+		return reason == "NamesNotAllowed" && strings.Contains(message, "waiting for the issuer") &&
+			!objectConditionTrue(obj.Status, structs.CertificateConditionReady)
+	})
+	must.Eq(t, issued.Serial, waiting.Serial)
 	secret, err := c.s.State().SecretByPath(nil, "default", "certs/web")
 	must.NoError(t, err)
 	must.NotNil(t, secret)
 	for _, v := range secret.Versions {
 		must.True(t, v.Destroyed, must.Sprintf("version %d is destroyed", v.Version))
 	}
+	must.Eq(t, 1, certificateOrderCount(t, c.s), must.Sprint("no order for a new certificate"))
 
-	// The issuer has a revocation order for the serial, and no order for a
-	// new certificate is placed.
-	orders, err := listObjects(c.s.State(), nil, structs.CertificateOrderKind, "")
-	must.NoError(t, err)
-	must.Len(t, 1, orders)
-	revocation := &structs.CertificateOrderSpec{}
-	must.NoError(t, structs.DecodeObjectPart(orders[0].Spec, revocation))
-	must.Eq(t, issued.Serial, revocation.Revoke)
-	must.Eq(t, "default/web-tls", revocation.Certificate)
-	must.Eq[any](t, "cessationOfOperation", orders[0].Spec["reason"])
+	// The issuer fails the revocation: the certificate says so and does not
+	// forget the serial; after the wait a new revocation order is placed.
+	must.NoError(t, c.status("", structs.CertificateOrderKind, first, map[string]any{"state": "failed", "problem": "the CA is down"}))
+	failed := c.waitFor("default", "web-tls", "the failed revocation", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return st.Failures == 1 && st.RetryAt != ""
+	})
+	must.Eq(t, issued.Serial, failed.Serial)
+	messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationFailed")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], "the CA is down")
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateOrderKind, first) == nil }),
+		wait.Timeout(30*time.Second),
+		wait.Gap(50*time.Millisecond),
+	), must.Sprint("the failed order is removed"))
+
+	// The wait is cut short.
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			obj, _ := c.certificate("default", "web-tls")
+			changed := obj.Copy()
+			changed.Status["retryAt"] = time.Now().Add(-time.Second).UTC().Format(time.RFC3339)
+			_, err := c.s.writeOperatorObject(changed)
+			return err
+		}),
+		wait.Timeout(30*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+	second := revocationOrder(structs.CertificateOrderPending)
+	must.NoError(t, c.status("", structs.CertificateOrderKind, second, map[string]any{"state": "valid"}))
+
+	st := c.waitFor("default", "web-tls", "withdrawn", withdrawn)
+	must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: issued.Serial}, *st)
+	messages = c.eventMessages("default", structs.CertificateKind, "web-tls", "Withdrawn")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], issued.Serial+" is revoked")
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return certificateOrderCount(t, c.s) == 0 }),
+		wait.Timeout(30*time.Second),
+		wait.Gap(50*time.Millisecond),
+	), must.Sprint("the done revocation order is removed"))
 }
 
 // A namespace that loses the names of a certificate whose issuer is gone too
