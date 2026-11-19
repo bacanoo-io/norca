@@ -464,7 +464,7 @@ func newTenantPass(t *testing.T, s *Server) *tenantPass {
 	t.Helper()
 	snap, err := s.State().Snapshot()
 	must.NoError(t, err)
-	p := &tenantPass{now: time.Now().UTC(), store: s.State(), ws: memdb.NewWatchSet()}
+	p := &tenantPass{now: time.Now().UTC(), store: s.State(), ws: memdb.NewWatchSet(), term: s.releases.leadershipTerm()}
 	p.releases, err = releaseOwners(snap)
 	must.NoError(t, err)
 	p.tenants, err = tenantOwners(snap)
@@ -1638,18 +1638,19 @@ func TestTenant_DeleteResourceRefused(t *testing.T) {
 	must.NoError(t, store.UpsertCSIVolume(nextIndex(), []*structs.CSIVolume{volume}))
 
 	ref := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "held"}
-	err := o.deleteResource(ref)
+	p := newTenantPass(t, c.s)
+	err := o.deleteResource(p, ref)
 	must.Error(t, err, must.Sprint("a refused deletion of the namespace counted as done"))
 	must.StrContains(t, err.Error(), "contains at least one CSI volume")
 	ns, _ := store.NamespaceByName(nil, "held")
 	must.NotNil(t, ns)
 
 	// A namespace that is gone already is fine.
-	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "never-there"}))
-	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceQuota, Name: "never-there"}))
-	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: "never-there"}))
-	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceACLRole, Name: "never-there"}))
-	must.NoError(t, o.deleteResource(tenantResourceRef{
+	must.NoError(t, o.deleteResource(p, tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(p, tenantResourceRef{Type: structs.TenantResourceQuota, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(p, tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(p, tenantResourceRef{Type: structs.TenantResourceACLRole, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(p, tenantResourceRef{
 		Type: structs.TenantResourceNetworkPolicy, Namespace: "held", Name: structs.TenantNetworkPolicyName}))
 }
 

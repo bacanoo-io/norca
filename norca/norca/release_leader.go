@@ -79,6 +79,21 @@ func (m *releaseManager) setLeader(leader bool) {
 	}
 }
 
+// leadershipTerm returns the context of the current leadership term, nil on
+// a server that is not the leader. The term is the server's: release
+// operations run in it, and so do the passes of the tenant operator, whose
+// writes are forwarded to the leader like those of an operation (review
+// finding CON-6c). The context is cancelled with errReleaseLeadershipEnded
+// when the term ends.
+func (m *releaseManager) leadershipTerm() context.Context {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.term == nil {
+		return nil
+	}
+	return m.term.ctx
+}
+
 // beginOp returns the context of an operation in the current term, with the
 // timeout, and the function that ends the operation. It fails on a server
 // that is not the leader.
