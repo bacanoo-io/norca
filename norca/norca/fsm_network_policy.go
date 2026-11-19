@@ -29,8 +29,14 @@ func (n *nomadFSM) applyNetworkPolicyUpsert(msgType structs.MessageType, buf []b
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.UpsertNetworkPolicies(msgType, index, req.NetworkPolicies); err != nil {
-		n.logger.Error("UpsertNetworkPolicies failed", "error", err)
+	if err := n.state.UpsertNetworkPoliciesExpected(msgType, index, req.NetworkPolicies, req.ExpectedModifyIndex); err != nil {
+		// A refused check-and-set is an answer for the writer, not an
+		// error of the servers.
+		if structs.IsIndexConflictError(err) {
+			n.logger.Debug("UpsertNetworkPolicies refused", "error", err)
+		} else {
+			n.logger.Error("UpsertNetworkPolicies failed", "error", err)
+		}
 		return err
 	}
 	return nil

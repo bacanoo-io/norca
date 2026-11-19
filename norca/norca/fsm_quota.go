@@ -32,8 +32,14 @@ func (n *nomadFSM) applyQuotaSpecUpsert(msgType structs.MessageType, buf []byte,
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.UpsertQuotaSpecs(msgType, index, req.Quotas); err != nil {
-		n.logger.Error("UpsertQuotaSpecs failed", "error", err)
+	if err := n.state.UpsertQuotaSpecsExpected(msgType, index, req.Quotas, req.ExpectedModifyIndex); err != nil {
+		// A refused check-and-set is an answer for the writer, not an
+		// error of the servers.
+		if structs.IsIndexConflictError(err) {
+			n.logger.Debug("UpsertQuotaSpecs refused", "error", err)
+		} else {
+			n.logger.Error("UpsertQuotaSpecs failed", "error", err)
+		}
 		return err
 	}
 

@@ -114,6 +114,11 @@ func (a *ACL) UpsertPolicies(args *structs.ACLPolicyUpsertRequest, reply *struct
 		policy.SetHash()
 	}
 
+	// Norca: a check-and-set upsert is checked on a snapshot first.
+	if err := a.srv.checkACLPolicyIndexes(args); err != nil {
+		return err
+	}
+
 	// Update via Raft
 	_, index, err := a.srv.raftApply(structs.ACLPolicyUpsertRequestType, args)
 	if err != nil {

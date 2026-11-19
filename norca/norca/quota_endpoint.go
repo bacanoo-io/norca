@@ -67,6 +67,10 @@ func (q *Quota) UpsertQuotaSpecs(args *structs.QuotaSpecUpsertRequest, reply *st
 		spec.Canonicalize()
 		spec.SetHash()
 	}
+	// A check-and-set upsert is checked on a snapshot first.
+	if err := q.srv.checkQuotaIndexes(args); err != nil {
+		return err
+	}
 
 	_, index, err := q.srv.raftApply(structs.QuotaSpecUpsertRequestType|structs.IgnoreUnknownTypeFlag, args)
 	if err != nil {

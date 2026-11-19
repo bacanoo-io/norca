@@ -957,6 +957,12 @@ func (u *QuotaUsage) RegionUsage(region string) *QuotaLimit {
 // specifications.
 type QuotaSpecUpsertRequest struct {
 	Quotas []*QuotaSpec
+
+	// ExpectedModifyIndex, when set, makes the upsert a check-and-set,
+	// keyed by quota name; 0: the quota must not exist. See
+	// CheckModifyIndex.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
 }
 

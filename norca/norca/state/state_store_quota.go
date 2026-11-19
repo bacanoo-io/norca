@@ -213,12 +213,32 @@ func (s *StateStore) QuotaRemainingForNamespace(ws memdb.WatchSet, namespace str
 // UpsertQuotaSpecs inserts or updates the given quota specifications and
 // recomputes their usage.
 func (s *StateStore) UpsertQuotaSpecs(msgType structs.MessageType, index uint64, specs []*structs.QuotaSpec) error {
+	return s.UpsertQuotaSpecsExpected(msgType, index, specs, nil)
+}
+
+// UpsertQuotaSpecsExpected is UpsertQuotaSpecs with the check-and-set of
+// QuotaSpecUpsertRequest.ExpectedModifyIndex: if one quota fails it,
+// nothing is written (structs.IsIndexConflictError).
+func (s *StateStore) UpsertQuotaSpecsExpected(msgType structs.MessageType, index uint64, specs []*structs.QuotaSpec, expected map[string]uint64) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
 	for _, spec := range specs {
 		if spec == nil {
 			continue
+		}
+		if _, checked := expected[spec.Name]; checked {
+			existing, err := txn.First(TableQuotaSpecs, indexID, spec.Name)
+			if err != nil {
+				return fmt.Errorf("quota spec lookup failed: %w", err)
+			}
+			var have uint64
+			if existing != nil {
+				have = existing.(*structs.QuotaSpec).ModifyIndex
+			}
+			if err := structs.CheckModifyIndex(expected, "quota", spec.Name, existing != nil, have); err != nil {
+				return err
+			}
 		}
 		if err := s.upsertQuotaSpecTxn(txn, index, spec); err != nil {
 			return err

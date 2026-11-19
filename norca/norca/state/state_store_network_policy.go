@@ -130,6 +130,14 @@ func (s *StateStore) NetworkPolicyByName(ws memdb.WatchSet, namespace, name stri
 
 // UpsertNetworkPolicies inserts or updates network policies.
 func (s *StateStore) UpsertNetworkPolicies(msgType structs.MessageType, index uint64, policies []*structs.NetworkPolicy) error {
+	return s.UpsertNetworkPoliciesExpected(msgType, index, policies, nil)
+}
+
+// UpsertNetworkPoliciesExpected is UpsertNetworkPolicies with the
+// check-and-set of NetworkPolicyUpsertRequest.ExpectedModifyIndex, keyed by
+// structs.NetworkPolicyIndexKey: if one policy fails it, nothing is written
+// (structs.IsIndexConflictError).
+func (s *StateStore) UpsertNetworkPoliciesExpected(msgType structs.MessageType, index uint64, policies []*structs.NetworkPolicy, expected map[string]uint64) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
@@ -140,6 +148,14 @@ func (s *StateStore) UpsertNetworkPolicies(msgType structs.MessageType, index ui
 		existing, err := txn.First(TableNetworkPolicies, indexID, policy.Namespace, policy.Name)
 		if err != nil {
 			return fmt.Errorf("network policy lookup failed: %w", err)
+		}
+		var have uint64
+		if existing != nil {
+			have = existing.(*structs.NetworkPolicy).ModifyIndex
+		}
+		key := structs.NetworkPolicyIndexKey(policy.Namespace, policy.Name)
+		if err := structs.CheckModifyIndex(expected, "network policy", key, existing != nil, have); err != nil {
+			return err
 		}
 		if existing != nil {
 			policy.CreateIndex = existing.(*structs.NetworkPolicy).CreateIndex

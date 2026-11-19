@@ -216,6 +216,10 @@ func (n *NetworkPolicy) UpsertNetworkPolicies(args *structs.NetworkPolicyUpsertR
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "namespace %q does not exist", policy.Namespace)
 		}
 	}
+	// A check-and-set upsert is checked on the snapshot first.
+	if err := checkNetworkPolicyIndexes(snap, args); err != nil {
+		return err
+	}
 
 	_, index, err := n.srv.raftApply(structs.NetworkPolicyUpsertRequestType|structs.IgnoreUnknownTypeFlag, args)
 	if err != nil {

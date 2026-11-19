@@ -668,6 +668,13 @@ type SingleNetworkPolicyResponse struct {
 // NetworkPolicyUpsertRequest is used to create or update network policies.
 type NetworkPolicyUpsertRequest struct {
 	NetworkPolicies []*NetworkPolicy
+
+	// ExpectedModifyIndex, when set, makes the upsert a check-and-set,
+	// keyed by NetworkPolicyIndexKey of the namespace and name of a
+	// policy (the namespace of the request for a policy without one);
+	// 0: the policy must not exist. See CheckModifyIndex.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
 }
 

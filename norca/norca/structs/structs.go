@@ -5769,6 +5769,12 @@ type NamespaceDeleteRequest struct {
 // NamespaceUpsertRequest is used to upsert a set of namespaces
 type NamespaceUpsertRequest struct {
 	Namespaces []*Namespace
+
+	// ExpectedModifyIndex, when set, makes the upsert a check-and-set,
+	// keyed by namespace name; 0: the namespace must not exist. See
+	// CheckModifyIndex.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
 }
 
@@ -13122,6 +13128,12 @@ type ACLPolicyDeleteRequest struct {
 // ACLPolicyUpsertRequest is used to upsert a set of policies
 type ACLPolicyUpsertRequest struct {
 	Policies []*ACLPolicy
+
+	// ExpectedModifyIndex, when set, makes the upsert a check-and-set,
+	// keyed by policy name; 0: the policy must not exist. See
+	// CheckModifyIndex.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
 }
 

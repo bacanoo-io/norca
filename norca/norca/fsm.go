@@ -1321,8 +1321,14 @@ func (n *nomadFSM) applyACLPolicyUpsert(msgType structs.MessageType, buf []byte,
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.UpsertACLPolicies(msgType, index, req.Policies); err != nil {
-		n.logger.Error("UpsertACLPolicies failed", "error", err)
+	if err := n.state.UpsertACLPoliciesExpected(msgType, index, req.Policies, req.ExpectedModifyIndex); err != nil {
+		// A refused check-and-set is an answer for the writer, not an
+		// error of the servers.
+		if structs.IsIndexConflictError(err) {
+			n.logger.Debug("UpsertACLPolicies refused", "error", err)
+		} else {
+			n.logger.Error("UpsertACLPolicies failed", "error", err)
+		}
 		return err
 	}
 	return nil
@@ -1578,8 +1584,14 @@ func (n *nomadFSM) applyNamespaceUpsert(buf []byte, index uint64) interface{} {
 		}
 	}
 
-	if err := n.state.UpsertNamespaces(index, req.Namespaces); err != nil {
-		n.logger.Error("UpsertNamespaces failed", "error", err)
+	if err := n.state.UpsertNamespacesExpected(index, req.Namespaces, req.ExpectedModifyIndex); err != nil {
+		// A refused check-and-set is an answer for the writer, not an
+		// error of the servers.
+		if structs.IsIndexConflictError(err) {
+			n.logger.Debug("UpsertNamespaces refused", "error", err)
+		} else {
+			n.logger.Error("UpsertNamespaces failed", "error", err)
+		}
 		return err
 	}
 

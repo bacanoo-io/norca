@@ -5956,6 +5956,13 @@ func (s *StateStore) updatePluginWithJobSummary(index uint64, summary *structs.J
 
 // UpsertACLPolicies is used to create or update a set of ACL policies
 func (s *StateStore) UpsertACLPolicies(msgType structs.MessageType, index uint64, policies []*structs.ACLPolicy) error {
+	return s.UpsertACLPoliciesExpected(msgType, index, policies, nil)
+}
+
+// UpsertACLPoliciesExpected is UpsertACLPolicies with the check-and-set of
+// ACLPolicyUpsertRequest.ExpectedModifyIndex: if one policy fails it,
+// nothing is written (structs.IsIndexConflictError).
+func (s *StateStore) UpsertACLPoliciesExpected(msgType structs.MessageType, index uint64, policies []*structs.ACLPolicy, expected map[string]uint64) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
@@ -5970,6 +5977,13 @@ func (s *StateStore) UpsertACLPolicies(msgType structs.MessageType, index uint64
 		existing, err := txn.First("acl_policy", "id", policy.Name)
 		if err != nil {
 			return fmt.Errorf("policy lookup failed: %v", err)
+		}
+		var have uint64
+		if existing != nil {
+			have = existing.(*structs.ACLPolicy).ModifyIndex
+		}
+		if err := structs.CheckModifyIndex(expected, "ACL policy", policy.Name, existing != nil, have); err != nil {
+			return err
 		}
 
 		// Update all the indexes
@@ -6743,10 +6757,31 @@ func (s *StateStore) NamespaceNames() ([]string, error) {
 
 // UpsertNamespaces is used to register or update a set of namespaces.
 func (s *StateStore) UpsertNamespaces(index uint64, namespaces []*structs.Namespace) error {
+	return s.UpsertNamespacesExpected(index, namespaces, nil)
+}
+
+// UpsertNamespacesExpected is UpsertNamespaces with the check-and-set of
+// NamespaceUpsertRequest.ExpectedModifyIndex: if one namespace fails it,
+// nothing is written (structs.IsIndexConflictError).
+func (s *StateStore) UpsertNamespacesExpected(index uint64, namespaces []*structs.Namespace, expected map[string]uint64) error {
 	txn := s.db.WriteTxn(index)
 	defer txn.Abort()
 
 	for _, ns := range namespaces {
+		if _, checked := expected[ns.Name]; checked {
+			existing, err := txn.First(TableNamespaces, "id", ns.Name)
+			if err != nil {
+				return fmt.Errorf("namespace lookup failed: %v", err)
+			}
+			var have uint64
+			if existing != nil {
+				have = existing.(*structs.Namespace).ModifyIndex
+			}
+			if err := structs.CheckModifyIndex(expected, "namespace", ns.Name, existing != nil, have); err != nil {
+				return err
+			}
+		}
+
 		// Handle upgrade path.
 		ns.Canonicalize()
 		if err := s.upsertNamespaceImpl(index, txn, ns); err != nil {

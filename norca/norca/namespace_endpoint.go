@@ -65,6 +65,11 @@ func (n *Namespace) UpsertNamespaces(args *structs.NamespaceUpsertRequest,
 		ns.SetHash()
 	}
 
+	// Norca: a check-and-set upsert is checked on a snapshot first.
+	if err := n.srv.checkNamespaceIndexes(args); err != nil {
+		return err
+	}
+
 	// Update via Raft
 	_, index, err := n.srv.raftApply(structs.NamespaceUpsertRequestType, args)
 	if err != nil {
