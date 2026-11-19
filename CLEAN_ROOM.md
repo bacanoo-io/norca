@@ -521,6 +521,7 @@ each names the failing test and its output before the change.
 | `1bc968cf2`, `a9605a6be` | `norca/namespace_endpoint.go`, `norca/acl_endpoint.go`, `norca/fsm.go`, `norca/state/state_store.go`, `norca/structs/structs.go`, `command/agent/namespace_endpoint.go`, `command/agent/acl_endpoint.go` | Upserts of namespaces, quotas, ACL policies and network policies take an expected modify index per name (0: must not exist yet), checked in the transaction of the state store, with `?cas=` over HTTP; the tenant operator and the deployer use it (they overwrote a resource created or changed between their read and their write) |
 | `97d0470ae`, `50dc2e27e`, `e8fadee43`, `9a74eb6db`, `452dc4e6b`, `d75ef4508` | `norca/config.go` | Unexported test hooks of the tenant and release code (Norca components) only |
 | `9a74eb6db` | `norca/leader.go` | Establishing and revoking leadership starts and ends the term of the release operations (a Norca component), so an operation stops writing when its server loses leadership |
+| `f837d8ba4` | `norca/config.go` | An unexported test hook of the tenant operator (a Norca component) only |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
