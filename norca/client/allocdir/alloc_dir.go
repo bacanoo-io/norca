@@ -7,12 +7,15 @@ package allocdir
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -372,10 +375,16 @@ func (d *AllocDir) List(path string) ([]*cstructs.AllocFileInfo, error) {
 	}
 
 	p := filepath.Join(d.AllocDir, path)
-	finfos, err := os.ReadDir(p)
+	dir, err := d.openReadable(path, p)
 	if err != nil {
 		return []*cstructs.AllocFileInfo{}, err
 	}
+	finfos, err := dir.ReadDir(-1)
+	_ = dir.Close()
+	if err != nil {
+		return []*cstructs.AllocFileInfo{}, err
+	}
+	slices.SortFunc(finfos, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	files := make([]*cstructs.AllocFileInfo, len(finfos))
 	for idx, file := range finfos {
 		info, err := file.Info()
@@ -402,12 +411,15 @@ func (d *AllocDir) Stat(path string) (*cstructs.AllocFileInfo, error) {
 	}
 
 	p := filepath.Join(d.AllocDir, path)
+	if err := d.checkProtected(path, p); err != nil {
+		return nil, err
+	}
 	info, err := os.Stat(p)
 	if err != nil {
 		return nil, err
 	}
 
-	contentType := detectContentType(info, p)
+	contentType := detectContentType(info, p, func() (*os.File, error) { return d.openReadable(path, p) })
 
 	return &cstructs.AllocFileInfo{
 		Size:        info.Size(),
@@ -420,11 +432,12 @@ func (d *AllocDir) Stat(path string) (*cstructs.AllocFileInfo, error) {
 }
 
 // detectContentType tries to infer the file type by reading the first
-// 512 bytes of the file. Json file extensions are special cased.
-func detectContentType(fileInfo os.FileInfo, path string) string {
+// 512 bytes of the file, which open opens. Json file extensions are special
+// cased.
+func detectContentType(fileInfo os.FileInfo, path string, open func() (*os.File, error)) string {
 	contentType := "application/octet-stream"
 	if !fileInfo.IsDir() {
-		f, err := os.Open(path)
+		f, err := open()
 		// Best effort content type detection
 		// We ignore errors because this is optional information
 		if err == nil {
@@ -452,29 +465,121 @@ func (d *AllocDir) ReadAt(path string, offset int64) (io.ReadCloser, error) {
 	}
 
 	p := filepath.Join(d.AllocDir, path)
-
-	// Check if it is trying to read into a secret directory
-	d.mu.RLock()
-	for _, dir := range d.TaskDirs {
-		if withinDir(dir.SecretsDir, p) {
-			d.mu.RUnlock()
-			return nil, fmt.Errorf("Reading secret file prohibited: %s", path)
-		}
-		if withinDir(dir.PrivateDir, p) {
-			d.mu.RUnlock()
-			return nil, fmt.Errorf("Reading private file prohibited: %s", path)
-		}
-	}
-	d.mu.RUnlock()
-
-	f, err := os.Open(p)
+	f, err := d.openReadable(path, p)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := f.Seek(offset, 0); err != nil {
+		_ = f.Close()
 		return nil, fmt.Errorf("can't seek to offset %d: %v", offset, err)
 	}
 	return f, nil
+}
+
+// protectedDir is a directory of a task the file system API never reads.
+type protectedDir struct {
+	path string
+	kind string // "secret" or "private", for the error
+}
+
+// protectedDirs returns the secrets and private directories of the tasks,
+// each as given and, when that differs, with its symbolic links resolved.
+func (d *AllocDir) protectedDirs() []protectedDir {
+	d.mu.RLock()
+	dirs := make([]protectedDir, 0, 4*len(d.TaskDirs))
+	for _, td := range d.TaskDirs {
+		dirs = append(dirs,
+			protectedDir{path: td.SecretsDir, kind: "secret"},
+			protectedDir{path: td.PrivateDir, kind: "private"})
+	}
+	d.mu.RUnlock()
+
+	for i, n := 0, len(dirs); i < n; i++ {
+		if resolved, err := filepath.EvalSymlinks(dirs[i].path); err == nil && resolved != dirs[i].path {
+			dirs = append(dirs, protectedDir{path: resolved, kind: dirs[i].kind})
+		}
+	}
+	return dirs
+}
+
+// refuseProtected returns an error when one of paths is or is within one of
+// dirs; path is the path the caller asked for.
+func refuseProtected(path string, dirs []protectedDir, paths ...string) error {
+	for _, dir := range dirs {
+		for _, p := range paths {
+			if withinDir(dir.path, p) {
+				return fmt.Errorf("Reading %s file prohibited: %s", dir.kind, path)
+			}
+		}
+	}
+	return nil
+}
+
+// checkProtected refuses p, the path asked for (path) joined to the
+// allocation directory, when it is or is within the secrets or private
+// directory of a task, as given or with its symbolic links resolved: a link
+// elsewhere in the allocation directory that points into a secrets directory
+// is refused as well as the secrets directory itself. Only the task can make
+// such a link, but a sidecar that makes one in the shared alloc directory
+// would otherwise hand the secrets of the other tasks, their workload
+// identity tokens included, to any token with read-fs or read-logs.
+func (d *AllocDir) checkProtected(path, p string) error {
+	paths := []string{p}
+	resolved, err := filepath.EvalSymlinks(p)
+	switch {
+	case err == nil:
+		paths = append(paths, resolved)
+	case errors.Is(err, iofs.ErrNotExist):
+		// Nothing to resolve: opening it fails, and checkOpened checks
+		// what a later open finds.
+	default:
+		return fmt.Errorf("Failed to resolve path %s: %v", path, err)
+	}
+	return refuseProtected(path, d.protectedDirs(), paths...)
+}
+
+// openReadable opens p for the file system API (path as in checkProtected).
+// The file it opened is checked again where the platform names the file of
+// a descriptor (Linux): the task may swap a link between the checks and the
+// open, so the opened file must still be within the allocation directory
+// and outside the secrets and private directories.
+func (d *AllocDir) openReadable(path, p string) (*os.File, error) {
+	if err := d.checkProtected(path, p); err != nil {
+		return nil, err
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	if err := d.checkOpened(path, f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
+// checkOpened checks the file f, opened for path, by the name the kernel
+// gives its descriptor. Without such a name (see openedPath) it checks
+// nothing: checkProtected has checked the path before the open.
+func (d *AllocDir) checkOpened(path string, f *os.File) error {
+	opened, ok, err := openedPath(f)
+	if err != nil {
+		return fmt.Errorf("Failed to check the opened file %s: %v", path, err)
+	}
+	if !ok {
+		return nil
+	}
+
+	inside := withinDir(d.AllocDir, opened)
+	if !inside {
+		if resolved, err := filepath.EvalSymlinks(d.AllocDir); err == nil {
+			inside = withinDir(resolved, opened)
+		}
+	}
+	if !inside {
+		return fmt.Errorf("Path escapes the alloc directory")
+	}
+	return refuseProtected(path, d.protectedDirs(), opened)
 }
 
 // withinDir reports whether path is dir or below it. It compares whole path

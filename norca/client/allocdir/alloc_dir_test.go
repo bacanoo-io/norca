@@ -511,7 +511,7 @@ func TestAllocDir_DetectContentType(t *testing.T) {
 	for _, file := range testFiles {
 		fileInfo, err := os.Stat(file)
 		require.Nil(err)
-		res := detectContentType(fileInfo, file)
+		res := detectContentType(fileInfo, file, func() (*os.File, error) { return os.Open(file) })
 		require.Equal(expectedEncodings[file], res, "unexpected output for %v", file)
 	}
 }
