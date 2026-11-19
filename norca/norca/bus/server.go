@@ -155,7 +155,7 @@ func New(config *Config, logger hclog.Logger, authz Authorizer) (*Server, error)
 		responseThreshold:   ReaderResponseThreshold,
 		leafBanTime:         ReaderBanTime,
 		retireGrace:         readerRetireGrace,
-		compactMin:          readerCompactMin,
+		compactMin:          config.ReaderCompactThreshold,
 		compactInterval:     readerCompactInterval,
 		stopCh:              make(chan struct{}),
 	}

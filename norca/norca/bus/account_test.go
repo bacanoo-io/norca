@@ -623,13 +623,16 @@ func TestBus_ReaderAccountCompaction(t *testing.T) {
 	leafs, clients := &leafAuthz{}, newTestAuthz()
 	c := testConfig(t, "s1")
 	c.LeafNodes = LeafNodesConfig{Enabled: true, Port: ci.PortAllocator.Grab(1)[0]}
+	// The configured threshold decides: four retired accounts are dropped
+	// with 3, and would not be with the default.
+	c.ReaderCompactThreshold = 3
 	s := startServer(t, c, func(cr Credentials) (*Grant, error) {
 		if cr.Leaf {
 			return leafs.authorize(cr)
 		}
 		return clients.authorize(cr)
 	})
-	s.setReaderRetirement(time.Minute, 3, time.Hour)
+	s.setReaderRetirement(time.Minute, time.Hour)
 	testutil.WaitForResult(func() (bool, error) {
 		return s.JetStreamReady(), errors.New("no JetStream meta leader")
 	}, func(err error) { t.Fatal(err) })
@@ -758,9 +761,11 @@ func TestBus_ReaderAccountMemory(t *testing.T) {
 	if n <= 0 {
 		t.Skip("NORCA_BUS_READER_ACCOUNTS is not set")
 	}
-	s := startServer(t, testConfig(t, "s1"), newTestAuthz().authorize)
+	c := testConfig(t, "s1")
 	// The first sweep retires them all, the second drops them.
-	s.setReaderRetirement(time.Minute, n+1, 0)
+	c.ReaderCompactThreshold = n + 1
+	s := startServer(t, c, newTestAuthz().authorize)
+	s.setReaderRetirement(time.Minute, 0)
 	heap := func() int64 {
 		runtime.GC()
 		runtime.GC()
@@ -795,7 +800,7 @@ func TestBus_ReaderAccountMemory(t *testing.T) {
 	t.Logf("%d accounts retired in %s", n, time.Since(start))
 	retired := heap()
 
-	s.setReaderRetirement(time.Minute, 1, 0)
+	s.setReaderCompactThreshold(1)
 	start = time.Now()
 	s.sweepReaders(now)
 	t.Logf("compacted in %s", time.Since(start))

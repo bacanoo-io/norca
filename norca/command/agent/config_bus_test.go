@@ -31,6 +31,8 @@ server {
     max_storage     = "2GiB"
     max_payload     = "2MiB"
     max_connections = 500
+
+    reader_compact_threshold = 300
   }
 }`
 	path := filepath.Join(t.TempDir(), "bus.hcl")
@@ -52,6 +54,7 @@ server {
 	must.Eq(t, int64(2<<30), cfg.MaxStorage)
 	must.Eq(t, int32(2<<20), cfg.MaxPayload)
 	must.Eq(t, 500, cfg.MaxConnections)
+	must.Eq(t, 300, cfg.ReaderCompactThreshold)
 
 	// Unknown keys are refused.
 	must.NoError(t, os.WriteFile(path, []byte(`server { bus { max_msgs = 1 } }`), 0o600))
@@ -70,6 +73,7 @@ func TestConfig_Bus_Defaults(t *testing.T) {
 	must.Eq(t, bus.DefaultPort, blocks.bus.Port)
 	must.Eq(t, bus.DefaultClusterPort, blocks.bus.ClusterPort)
 	must.Eq(t, int64(bus.DefaultMaxStorage), blocks.bus.MaxStorage)
+	must.Eq(t, bus.DefaultReaderCompactThreshold, blocks.bus.ReaderCompactThreshold)
 
 	// enabled = false turns it off; a later file merges field by field.
 	off := (&BusConfig{Enabled: pointer.Of(false)}).Merge(&BusConfig{MaxMemory: "64MiB"})
@@ -77,6 +81,20 @@ func TestConfig_Bus_Defaults(t *testing.T) {
 	must.NoError(t, err)
 	must.False(t, cfg.Enabled)
 	must.Eq(t, int64(64<<20), cfg.MaxMemory)
+
+	// The compaction threshold: a later file sets it, one without it (0)
+	// keeps it, and 0 left in the end is the default.
+	set := (&BusConfig{}).Merge(&BusConfig{ReaderCompactThreshold: 50})
+	must.Eq(t, 50, set.ReaderCompactThreshold)
+	kept := set.Merge(&BusConfig{MaxMemory: "64MiB"})
+	must.Eq(t, 50, kept.ReaderCompactThreshold)
+	must.Eq(t, 50, kept.Copy().ReaderCompactThreshold)
+	cfg, err = kept.toServerConfig(c.Ports)
+	must.NoError(t, err)
+	must.Eq(t, 50, cfg.ReaderCompactThreshold)
+	cfg, err = (&BusConfig{ReaderCompactThreshold: 0}).toServerConfig(c.Ports)
+	must.NoError(t, err)
+	must.Eq(t, bus.DefaultReaderCompactThreshold, cfg.ReaderCompactThreshold)
 }
 
 func TestConfig_Bus_Invalid(t *testing.T) {
@@ -92,9 +110,12 @@ func TestConfig_Bus_Invalid(t *testing.T) {
 		must.Error(t, err, must.Sprint(name))
 	}
 
+	_, err := (&BusConfig{ReaderCompactThreshold: -1}).toServerConfig(ports)
+	must.ErrorContains(t, err, "bus.reader_compact_threshold must be positive")
+
 	same := ports.Copy()
 	same.BusCluster = same.Bus
-	_, err := (&BusConfig{}).toServerConfig(same)
+	_, err = (&BusConfig{}).toServerConfig(same)
 	must.ErrorContains(t, err, "must differ")
 }
 

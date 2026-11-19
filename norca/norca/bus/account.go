@@ -121,19 +121,16 @@ const (
 	// for retirement and compaction.
 	readerSweepInterval = time.Minute
 
-	// readerCompactMin and readerCompactInterval decide when the retired
-	// reader accounts are dropped (compactReaders): at least
-	// readerCompactMin of them, more than the live ones, and not within
-	// readerCompactInterval of the last compaction. A compaction reloads the
-	// options of the embedded server, which closes every client connection
-	// of this server (they reconnect), as a route change does, and the live
-	// readers make their accounts again. A retired account keeps about 20 kB
-	// (TestBus_ReaderAccountMemory: 33 kB made, 21 kB retired, nothing after
-	// the compaction, for a reader with two consumers), and every account
-	// slows down the making of the next ones; a thousand of them, 20 MB, are
-	// worth one such reconnection an hour at most, and more than the live
-	// ones keep the retired memory below that of the live accounts.
-	readerCompactMin      = 1000
+	// Config.ReaderCompactThreshold and readerCompactInterval decide when
+	// the retired reader accounts are dropped (compactReaders): at least
+	// ReaderCompactThreshold of them (DefaultReaderCompactThreshold), more
+	// than the live ones, and not within readerCompactInterval of the last
+	// compaction. A compaction reloads the options of the embedded server,
+	// which closes every client connection of this server (they reconnect),
+	// as a route change does, and the live readers make their accounts
+	// again. Such a reconnection at most once an hour is worth the memory of
+	// the retired accounts, and more than the live ones keep the retired
+	// memory below that of the live accounts.
 	readerCompactInterval = time.Hour
 )
 
@@ -477,11 +474,20 @@ func (s *Server) retireReader(ns *natsserver.Server, name string, acc *natsserve
 }
 
 // setReaderRetirement changes when the reader accounts are retired and
-// compacted; for tests.
-func (s *Server) setReaderRetirement(grace time.Duration, compactMin int, compactInterval time.Duration) {
+// compacted; for tests. The threshold of the compaction comes from
+// Config.ReaderCompactThreshold; setReaderCompactThreshold changes it.
+func (s *Server) setReaderRetirement(grace, compactInterval time.Duration) {
 	s.readerLock.Lock()
 	defer s.readerLock.Unlock()
-	s.retireGrace, s.compactMin, s.compactInterval = grace, compactMin, compactInterval
+	s.retireGrace, s.compactInterval = grace, compactInterval
+}
+
+// setReaderCompactThreshold changes the threshold of the compaction of a
+// running server; for tests.
+func (s *Server) setReaderCompactThreshold(n int) {
+	s.readerLock.Lock()
+	defer s.readerLock.Unlock()
+	s.compactMin = n
 }
 
 // sweepReaders retires the reader accounts that had no connection for the

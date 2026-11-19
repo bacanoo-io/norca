@@ -28,7 +28,8 @@ import (
 //	  max_payload     = "1MiB"
 //	  max_connections = 10000
 //
-//	  consul_kv_max_bytes = "256MiB"
+//	  consul_kv_max_bytes      = "256MiB"
+//	  reader_compact_threshold = 2000
 //
 //	  events {
 //	    enabled        = true
@@ -61,6 +62,11 @@ type BusConfig struct {
 
 	// MaxConnections bounds the client connections of a server.
 	MaxConnections int `hcl:"max_connections"`
+
+	// ReaderCompactThreshold is how many retired reader accounts of change
+	// data capture a server has at least before it drops them, which closes
+	// every client connection of that server once. Default 2000.
+	ReaderCompactThreshold int `hcl:"reader_compact_threshold"`
 
 	// Events configures the event stream the leader publishes.
 	Events *BusEventsConfig `hcl:"events"`
@@ -219,6 +225,9 @@ func (a *BusConfig) Merge(b *BusConfig) *BusConfig {
 	if b.MaxConnections != 0 {
 		result.MaxConnections = b.MaxConnections
 	}
+	if b.ReaderCompactThreshold != 0 {
+		result.ReaderCompactThreshold = b.ReaderCompactThreshold
+	}
 	if b.Events != nil {
 		result.Events = result.Events.Merge(b.Events)
 	}
@@ -282,6 +291,9 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 	}
 	if b.MaxConnections != 0 {
 		cfg.MaxConnections = b.MaxConnections
+	}
+	if b.ReaderCompactThreshold != 0 {
+		cfg.ReaderCompactThreshold = b.ReaderCompactThreshold
 	}
 
 	// The bucket of the Consul KV takes at most an eighth of the storage

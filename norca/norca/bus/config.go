@@ -35,6 +35,15 @@ const (
 	// DefaultMaxConnections bounds the client connections of a server.
 	DefaultMaxConnections = 10000
 
+	// DefaultReaderCompactThreshold is how many retired reader accounts a
+	// server has at least before it drops them (ReaderCompactThreshold). A
+	// retired account keeps about 20 kB (TestBus_ReaderAccountMemory: 33 kB
+	// made, 21 kB retired, nothing after the compaction, for a reader with
+	// two consumers), and every account slows down the making of the next
+	// ones; two thousand of them, about 40 MB, are worth the reconnection of
+	// every client of the server that dropping them costs.
+	DefaultReaderCompactThreshold = 2000
+
 	// DefaultEventsMaxAge and DefaultEventsMaxBytes bound the event stream.
 	DefaultEventsMaxAge   = 72 * time.Hour
 	DefaultEventsMaxBytes = 1 << 30
@@ -104,6 +113,13 @@ type Config struct {
 	// MaxConnections bounds the client connections.
 	MaxConnections int
 
+	// ReaderCompactThreshold is how many retired reader accounts there must
+	// be at least before the server drops them; they must also be more than
+	// the live ones, and are dropped at most once an hour. Dropping them
+	// reloads the embedded server, which closes every client connection of
+	// this server once.
+	ReaderCompactThreshold int
+
 	// ClientTLS secures the client listener and ClusterTLS the routes. Both
 	// are nil without TLS. ClusterTLS is used for incoming and outgoing
 	// routes, so it must verify the peer itself.
@@ -156,6 +172,8 @@ func DefaultConfig() *Config {
 		ConsulKVMaxBytes: DefaultConsulKVMaxBytes,
 		MaxPayload:       DefaultMaxPayload,
 		MaxConnections:   DefaultMaxConnections,
+
+		ReaderCompactThreshold: DefaultReaderCompactThreshold,
 		Events: EventsConfig{
 			Enabled:       true,
 			SubjectPrefix: DefaultSubjectPrefix,
@@ -215,6 +233,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MaxConnections <= 0 {
 		errs = append(errs, fmt.Errorf("bus.max_connections must be positive"))
+	}
+	if c.ReaderCompactThreshold <= 0 {
+		errs = append(errs, fmt.Errorf("bus.reader_compact_threshold must be positive"))
 	}
 	if c.Events.Enabled {
 		if err := ValidSubjectPrefix(c.Events.SubjectPrefix); err != nil {
