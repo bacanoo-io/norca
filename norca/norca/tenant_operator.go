@@ -551,6 +551,13 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				w.failures = append(w.failures, err.Error())
 				continue
 			}
+			// A role of the name with another ID than the one the tenant
+			// recorded is not the tenant's: its role was deleted, and
+			// somebody else created this one (review finding ATM-7). The
+			// tenant no longer lists it and treats it as any role it finds.
+			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && liveRole != nil && liveRole.ID != mine.ID {
+				delete(w.owned, roleRef.key())
+			}
 			if !w.take(roleRef, roleOriginal(liveRole), roleOriginal(role)) {
 				continue
 			}
@@ -1170,6 +1177,11 @@ func (o *tenantOperator) resourceExists(ref tenantResourceRef) (bool, error) {
 		out, err := store.ACLPolicyByName(nil, ref.Name)
 		return out != nil, err
 	case structs.TenantResourceACLRole:
+		// The role the tenant recorded, by its ID (tenantRoleID).
+		if ref.ID != "" {
+			out, err := store.GetACLRoleByID(nil, ref.ID)
+			return out != nil, err
+		}
 		out, err := store.GetACLRoleByName(nil, ref.Name)
 		return out != nil, err
 	case structs.TenantResourceNetworkPolicy:
@@ -1177,6 +1189,32 @@ func (o *tenantOperator) resourceExists(ref tenantResourceRef) (bool, error) {
 		return out != nil, err
 	}
 	return false, fmt.Errorf("unknown resource type %q", ref.Type)
+}
+
+// tenantRoleID returns the ID of the ACL role a tenant created, "" if it no
+// longer exists. The role is the one of the ID the tenant recorded, never
+// the role that has its name now: that one may have been created by
+// somebody else after the tenant's was deleted (review finding ATM-7). A
+// role the tenant was creating when the status was written (pending, no ID
+// recorded yet) is the role of the name only if it holds what the tenant
+// was creating, as take decides.
+func (o *tenantOperator) tenantRoleID(ref tenantResourceRef) (string, error) {
+	store := o.srv.State()
+	if ref.ID != "" {
+		role, err := store.GetACLRoleByID(nil, ref.ID)
+		if err != nil || role == nil {
+			return "", err
+		}
+		return role.ID, nil
+	}
+	role, err := store.GetACLRoleByName(nil, ref.Name)
+	if err != nil || role == nil {
+		return "", err
+	}
+	if ref.Pending && ref.Creating != "" && ref.Creating == roleOriginal(role).fingerprint() {
+		return role.ID, nil
+	}
+	return "", nil
 }
 
 // deleteResource deletes a resource of a tenant; one that is gone is not an
@@ -1204,12 +1242,16 @@ func (o *tenantOperator) deleteResource(ref tenantResourceRef) error {
 			Names: []string{ref.Name}, WriteRequest: o.writeRequest(""),
 		}, &resp)
 	case structs.TenantResourceACLRole:
-		id := ref.ID
-		if role, lerr := o.srv.State().GetACLRoleByName(nil, ref.Name); lerr == nil && role != nil {
-			id = role.ID
-		} else if lerr == nil && role == nil {
+		id, lerr := o.tenantRoleID(ref)
+		switch {
+		case lerr != nil:
+			return lerr
+		case id == "":
+			// The tenant's role is gone; a role of its name is not the
+			// tenant's.
 			return nil
 		}
+		ref.ID = id
 		var reply structs.ACLRolesDeleteByIDResponse
 		err = o.srv.RPC(structs.ACLDeleteRolesByIDRPCMethod, &structs.ACLRolesDeleteByIDRequest{
 			ACLRoleIDs: []string{id}, WriteRequest: o.writeRequest(""),

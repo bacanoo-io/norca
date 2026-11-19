@@ -1684,7 +1684,9 @@ func TestTenant_RefusedNamespaceDeletesNothing(t *testing.T) {
 	must.NoError(t, store.VarSet(index+1, &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
 
 	// A deleted tenant that created all of them; the store does not have
-	// the object, so the loop of the operators never sees it.
+	// the object, so the loop of the operators never sees it. Its status
+	// has the ID of the role, as the operator records it.
+	must.Len(t, 1, roles.ACLRoles)
 	ghost := &structs.CustomObject{
 		ID: uuid.Generate(), Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: "planted",
 		Generation: 1, ModifyIndex: 7, DeletionTime: time.Now().UnixNano(),
@@ -1693,7 +1695,7 @@ func TestTenant_RefusedNamespaceDeletesNothing(t *testing.T) {
 			"ns":   {Type: structs.TenantResourceNamespace, Name: "planted"},
 			"np":   {Type: structs.TenantResourceNetworkPolicy, Namespace: "planted", Name: structs.TenantNetworkPolicyName},
 			"pol":  {Type: structs.TenantResourceACLPolicy, Name: "planted-dev"},
-			"role": {Type: structs.TenantResourceACLRole, Name: "planted-dev"},
+			"role": {Type: structs.TenantResourceACLRole, Name: "planted-dev", ID: roles.ACLRoles[0].ID},
 		})},
 	}
 	o.finishDeletion(newTenantPass(t, c.s), ghost)
