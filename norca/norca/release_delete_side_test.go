@@ -365,3 +365,214 @@ func TestRelease_RestoredStaysTheRelease(t *testing.T) {
 	must.Nil(t, pol, must.Sprintf("the uninstall left the policy the restore created: %v", un.Changes))
 	must.Eq(t, "<none>", c.namespaceDescription("ar-busy"))
 }
+
+func releaseQuota(name string) *structs.ReleaseResource {
+	return &structs.ReleaseResource{Type: structs.ReleaseResourceQuota, Quota: &structs.QuotaSpec{
+		Name:   name,
+		Limits: []*structs.QuotaLimit{{Region: "global", RegionLimit: &structs.Resources{CPU: 1000, MemoryMB: 1000}}},
+	}}
+}
+
+func releaseNamespaceWithQuota(name, quota string) *structs.ReleaseResource {
+	res := releaseNamespace(name, "v1")
+	res.Namespace.Quota = quota
+	return res
+}
+
+// putVariableIn writes a Variables entry into a namespace, which keeps the
+// namespace from being deleted.
+func (c *releaseTestClient) putVariableIn(namespace string) {
+	c.t.Helper()
+	var resp structs.VariablesApplyResponse
+	must.NoError(c.t, c.srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
+		Op: structs.VarOpSet,
+		Var: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Namespace: namespace, Path: "in/it"},
+			Items:            map[string]string{"k": "v"},
+		},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: namespace, AuthToken: c.token},
+	}, &resp))
+	must.Nil(c.t, resp.Error)
+}
+
+// namespaceQuota is the quota a namespace names, "<none>" if the namespace
+// does not exist.
+func (c *releaseTestClient) namespaceQuota(name string) string {
+	c.t.Helper()
+	ns, err := c.srv.State().NamespaceByName(nil, name)
+	must.NoError(c.t, err)
+	if ns == nil {
+		return "<none>"
+	}
+	return ns.Quota
+}
+
+// A failed atomic operation that removed a quota and the namespace that
+// named it gives the namespace its quota back (review finding ATM-15): the
+// restore creates the namespace again, then the quota, and attaches the
+// quota again. The removal detached the quota from the namespace before it
+// deleted the quota, and the detach was not recorded: the namespace came
+// back without its quota.
+func TestRelease_RestoreAttachesQuota(t *testing.T) {
+	ci.Parallel(t)
+	tests := []struct {
+		name string
+		// busy is the namespace a Variable keeps from being deleted: the
+		// upgrade fails on it, after it deleted the quota.
+		busy string
+	}{
+		// The namespace of the quota is deleted, the other one fails.
+		{name: "namespace deleted", busy: "rq-a"},
+		// The namespace of the quota can't be deleted.
+		{name: "namespace refused", busy: "rq-z"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ci.Parallel(t)
+			c, cleanup := newReleaseTestClient(t)
+			defer cleanup()
+
+			_, err := c.apply("default", "rq", &structs.ReleaseApplyRequest{
+				Pack: &structs.ReleasePack{Name: "rq"}, Atomic: pointer.Of(false),
+				Resources: []*structs.ReleaseResource{
+					releaseQuota("rq-quota"), releaseNamespaceWithQuota("rq-z", "rq-quota"),
+					releaseNamespace("rq-a", "v1"), releaseNamespace("rq-keep", "v1"),
+				},
+			})
+			must.NoError(t, err)
+			c.putVariableIn(tc.busy)
+
+			_, err = c.apply("default", "rq", &structs.ReleaseApplyRequest{
+				Pack: &structs.ReleasePack{Name: "rq"}, Atomic: pointer.Of(true),
+				Resources: []*structs.ReleaseResource{releaseNamespace("rq-keep", "v1")},
+			})
+			must.ErrorContains(t, err, "rolled back to revision 1")
+			q, err := c.srv.State().QuotaSpecByName(nil, "rq-quota")
+			must.NoError(t, err)
+			must.NotNil(t, q, must.Sprint("the restore did not create the quota again"))
+			must.Eq(t, "rq-quota", c.namespaceQuota("rq-z"), must.Sprint("the restore did not attach the quota again"))
+			must.SliceEmpty(t, c.get("default", "rq").Status.LastOperation.Warnings)
+		})
+	}
+}
+
+// A namespace that a removal or an uninstall detached its quota from and then
+// did not delete gets the quota back right away (review finding ATM-15), with
+// check-and-set against the detach; when the quota was deleted meanwhile,
+// the operation says that the namespace no longer names it. The namespace
+// was left without its quota.
+func TestRelease_RemovalAttachesQuotaBack(t *testing.T) {
+	ci.Parallel(t)
+
+	// The quota can't be deleted: a namespace of somebody else names it
+	// now. The upgrade fails before it comes to the namespace.
+	t.Run("quota in use", func(t *testing.T) {
+		ci.Parallel(t)
+		var c *releaseTestClient
+		c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+			cfg.releaseBeforeDelete = func(rel string, ref *structs.ReleaseResourceRef) {
+				if rel == "default/bq" && ref.Type == structs.ReleaseResourceQuota {
+					c.putNamespace(&structs.Namespace{Name: "bq-other", Quota: "bq-quota"})
+				}
+			}
+		})
+		defer cleanup()
+		_, err := c.apply("default", "bq", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bq"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{
+				releaseQuota("bq-quota"), releaseNamespaceWithQuota("bq-ns", "bq-quota"), releaseNamespace("bq-keep", "v1"),
+			},
+		})
+		must.NoError(t, err)
+
+		_, err = c.apply("default", "bq", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bq"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseNamespace("bq-keep", "v1")},
+		})
+		must.ErrorContains(t, err, "in use")
+		must.Eq(t, "bq-quota", c.namespaceQuota("bq-ns"), must.Sprint("the namespace that was not deleted lost its quota"))
+	})
+
+	// The quota can't be deleted, and when the uninstall comes to the
+	// namespace, another release owns it.
+	t.Run("uninstall, namespace disowned", func(t *testing.T) {
+		ci.Parallel(t)
+		var c *releaseTestClient
+		c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+			cfg.releaseBeforeDelete = func(rel string, ref *structs.ReleaseResourceRef) {
+				if rel == "default/bu" && ref.Type == structs.ReleaseResourceQuota {
+					c.putNamespace(&structs.Namespace{Name: "bu-other", Quota: "bu-quota"})
+					recordReleaseOwner(t, c.srv, "bu-owner", &structs.ReleaseResourceRef{Type: structs.ReleaseResourceNamespace, Name: "bu-ns"})
+				}
+			}
+		})
+		defer cleanup()
+		_, err := c.apply("default", "bu", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bu"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseQuota("bu-quota"), releaseNamespaceWithQuota("bu-ns", "bu-quota")},
+		})
+		must.NoError(t, err)
+
+		_, err = c.uninstall("default", "bu", "")
+		must.ErrorContains(t, err, "in use")
+		must.Eq(t, "bu-quota", c.namespaceQuota("bu-ns"), must.Sprint("the namespace that was not deleted lost its quota"))
+	})
+
+	// The namespace changed after the detach: it is left as it is, and the
+	// operation says so. The quota can't be deleted, and neither can the
+	// namespace, which has a Variable.
+	t.Run("changed after the detach", func(t *testing.T) {
+		ci.Parallel(t)
+		var c *releaseTestClient
+		c, cleanup := newReleaseTestClientConfig(t, func(cfg *Config) {
+			cfg.releaseBeforeDelete = func(rel string, ref *structs.ReleaseResourceRef) {
+				switch {
+				case rel != "default/bc":
+				case ref.Type == structs.ReleaseResourceQuota:
+					c.putNamespace(&structs.Namespace{Name: "bc-other", Quota: "bc-quota"})
+				case ref.Type == structs.ReleaseResourceNamespace:
+					c.putNamespace(&structs.Namespace{Name: "bc-ns", Description: "by hand"})
+				}
+			}
+		})
+		defer cleanup()
+		ns := releaseNamespaceWithQuota("bc-ns", "bc-quota")
+		_, err := c.apply("default", "bc", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bc"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseQuota("bc-quota"), ns},
+		})
+		must.NoError(t, err)
+		c.putVariableIn("bc-ns")
+
+		_, err = c.uninstall("default", "bc", "")
+		must.Error(t, err)
+		must.Eq(t, "by hand", c.namespaceDescription("bc-ns"))
+		must.Eq(t, "", c.namespaceQuota("bc-ns"), must.Sprint("the quota was attached back over a later change"))
+		warnings := c.get("default", "bc").Status.LastOperation.Warnings
+		must.True(t, mentions(warnings, ns), must.Sprintf("no warning names %s: %q", ns.Ref(), warnings))
+	})
+
+	// The quota was deleted before the namespace was refused: the namespace
+	// can't name it again, and the operation says so.
+	t.Run("quota deleted", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newReleaseTestClient(t)
+		defer cleanup()
+		ns := releaseNamespaceWithQuota("bd-ns", "bd-quota")
+		_, err := c.apply("default", "bd", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bd"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseQuota("bd-quota"), ns, releaseNamespace("bd-keep", "v1")},
+		})
+		must.NoError(t, err)
+		c.putVariableIn("bd-ns")
+
+		_, err = c.apply("default", "bd", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "bd"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseNamespace("bd-keep", "v1")},
+		})
+		must.Error(t, err)
+		must.Eq(t, "", c.namespaceQuota("bd-ns"))
+		warnings := c.get("default", "bd").Status.LastOperation.Warnings
+		must.True(t, mentions(warnings, ns), must.Sprintf("no warning names %s: %q", ns.Ref(), warnings))
+	})
+}
