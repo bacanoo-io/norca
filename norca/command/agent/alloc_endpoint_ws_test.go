@@ -4,8 +4,10 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -296,4 +298,252 @@ func TestReadWsHandshakeWithin(t *testing.T) {
 		must.NoError(t, err)
 		must.Eq(t, " late", string(msg))
 	})
+}
+
+// The parts of a handshake message around its token.
+const (
+	wsTestHandshakeHead = `{"version":1,"auth_token":"`
+	wsTestHandshakeTail = `"}`
+)
+
+// wsHandshakeOfSize is a handshake message of exactly size bytes; its token
+// is as long as that needs.
+func wsHandshakeOfSize(t *testing.T, size int) []byte {
+	t.Helper()
+	pad := size - len(wsTestHandshakeHead) - len(wsTestHandshakeTail)
+	must.Positive(t, pad)
+	return []byte(wsTestHandshakeHead + strings.Repeat("a", pad) + wsTestHandshakeTail)
+}
+
+// wsDialOneFrame dials with a write buffer that takes a message of size
+// bytes whole, so the client sends it in one frame. The default dialer sends
+// a larger message in frames of 4096 bytes.
+func wsDialOneFrame(t *testing.T, wsURL string, size int) *websocket.Conn {
+	t.Helper()
+	dialer := websocket.Dialer{WriteBufferSize: size + 1024}
+	conn, _, err := dialer.Dial(wsURL, nil)
+	must.NoError(t, err)
+	return conn
+}
+
+// mustWsTooBig: the server refuses what the client sent with the close frame
+// "message too big" (1009). The server closes the connection with a part of
+// the message unread, which resets it: a client that loses the close frame
+// that way sees the reset. Anything else fails the test: a data message, a
+// close frame with another code, or no answer.
+func mustWsTooBig(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+
+	must.NoError(t, conn.SetReadDeadline(time.Now().Add(20*time.Second)))
+	_, msg, err := conn.ReadMessage()
+	must.Error(t, err, must.Sprintf("the server answered with a message: %.100q", msg))
+	if websocket.IsCloseError(err, websocket.CloseMessageTooBig) {
+		return
+	}
+	var closeErr *websocket.CloseError
+	must.False(t, errors.As(err, &closeErr), must.Sprintf("unexpected close frame: %.300v", err))
+	var netErr net.Error
+	must.False(t, errors.As(err, &netErr) && netErr.Timeout(), must.Sprintf("no answer: %v", err))
+	t.Logf("no close frame read, the connection ended with: %v", err)
+}
+
+// mustWsConnClosed: the server closed the connection (after its close
+// frame, which the caller has read).
+func mustWsConnClosed(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+
+	raw := conn.NetConn()
+	must.NoError(t, raw.SetReadDeadline(time.Now().Add(10*time.Second)))
+	_, err := raw.Read(make([]byte, 1))
+	must.Error(t, err)
+	var netErr net.Error
+	must.False(t, errors.As(err, &netErr) && netErr.Timeout(), must.Sprintf("connection left open: %v", err))
+}
+
+// TestAllocExec_HandshakeTooBig: the exec handler does not read a handshake
+// message of megabytes. The message carries the ACL token, so it is read
+// before any token is checked; it was read whatever its size, and its token
+// went on into the exec RPC.
+func TestAllocExec_HandshakeTooBig(t *testing.T) {
+	ci.Parallel(t)
+
+	s := makeHTTPServer(t, func(c *Config) {
+		c.LogLevel = "ERROR"
+	})
+	defer s.Shutdown()
+
+	wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + uuid.Generate() +
+		"/exec?task=web&ws_handshake=true&command=" + url.QueryEscape(`["true"]`)
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	must.NoError(t, err)
+	defer conn.Close()
+
+	// the server ends the connection while the message is on its way, so
+	// the write may fail
+	must.NoError(t, conn.SetWriteDeadline(time.Now().Add(20*time.Second)))
+	_ = conn.WriteMessage(websocket.TextMessage, wsHandshakeOfSize(t, 4<<20))
+
+	mustWsTooBig(t, conn)
+	mustWsConnClosed(t, conn)
+}
+
+// TestAllocExec_HandshakeAtLimitBadToken: a handshake message as large as
+// the limit allows is read, and its bad token is refused the way a short bad
+// token is.
+func TestAllocExec_HandshakeAtLimitBadToken(t *testing.T) {
+	ci.Parallel(t)
+
+	httpACLTest(t, func(c *Config) {
+		c.LogLevel = "ERROR"
+	}, func(s *TestAgent) {
+		wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + uuid.Generate() +
+			"/exec?task=web&ws_handshake=true&command=" + url.QueryEscape(`["true"]`)
+
+		answer := func(handshake []byte) error {
+			conn := wsDialOneFrame(t, wsURL, len(handshake))
+			defer conn.Close()
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, handshake))
+			must.NoError(t, conn.SetReadDeadline(time.Now().Add(20*time.Second)))
+			_, msg, err := conn.ReadMessage()
+			must.Error(t, err, must.Sprintf("the server answered with a message: %.100q", msg))
+			return err
+		}
+
+		short := answer(wsHandshakeOfSize(t, 128))
+		must.True(t, websocket.IsCloseError(short, websocket.CloseInternalServerErr),
+			must.Sprintf("unexpected error: %v", short))
+		must.StrContains(t, short.Error(), structs.ErrPermissionDenied.Error())
+
+		atLimit := answer(wsHandshakeOfSize(t, wsHandshakeMaxBytes))
+		must.Eq(t, short.Error(), atLimit.Error())
+	})
+}
+
+// TestReadWsHandshakeWithin_SizeLimit: the handshake message may be
+// wsHandshakeMaxBytes long. A longer one is refused with the close frame
+// "message too big" as soon as its frames add up to more, and no session
+// starts. The limit is over once the handshake is read, and a request
+// without a handshake never has it: the messages of the session may be
+// longer.
+func TestReadWsHandshakeWithin_SizeLimit(t *testing.T) {
+	ci.Parallel(t)
+
+	const big = 4 << 20
+
+	type handshakeResult struct {
+		err      error // of readWsHandshakeWithin
+		closeErr error // of the close frame the handler writes for err
+	}
+
+	// The handler does what allocExec does around the handshake, then
+	// answers the first message of the session with the length of the token
+	// it got and of that message.
+	serve := func(t *testing.T) (string, <-chan handshakeResult) {
+		results := make(chan handshakeResult, 1)
+		upgrader := websocket.Upgrader{ReadBufferSize: 2048, WriteBufferSize: 2048}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ws, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer ws.Close()
+
+			var q structs.QueryOptions
+			if err := readWsHandshakeWithin(ws, wsHandshakeTimeout, r, &q); err != nil {
+				closeErr := ws.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(toWsCode(400), err.Error()))
+				results <- handshakeResult{err: err, closeErr: closeErr}
+				return
+			}
+			results <- handshakeResult{}
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				ws.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "session read failed"))
+				return
+			}
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%d %d", len(q.AuthToken), len(msg))))
+		}))
+		t.Cleanup(srv.Close)
+		return "ws" + strings.TrimPrefix(srv.URL, "http"), results
+	}
+
+	tokenLen := func(handshakeSize int) int {
+		return handshakeSize - len(wsTestHandshakeHead) - len(wsTestHandshakeTail)
+	}
+
+	cases := []struct {
+		name      string
+		handshake int  // size of the handshake message; 0: none is asked for
+		oneFrame  bool // the client sends each message in one frame
+		session   int  // size of the first message of the session
+		tooBig    bool // the handshake message is refused
+	}{
+		{name: "handshake at the limit, one frame", handshake: wsHandshakeMaxBytes, oneFrame: true, session: 5},
+		{name: "handshake at the limit, in frames", handshake: wsHandshakeMaxBytes, session: 5},
+		{name: "handshake one byte over the limit, one frame", handshake: wsHandshakeMaxBytes + 1, oneFrame: true, session: 5, tooBig: true},
+		{name: "handshake one byte over the limit, in frames", handshake: wsHandshakeMaxBytes + 1, session: 5, tooBig: true},
+		{name: "handshake of megabytes, one frame", handshake: big, oneFrame: true, session: 5, tooBig: true},
+		{name: "handshake of megabytes, in frames", handshake: big, session: 5, tooBig: true},
+		{name: "session message of megabytes after the handshake, one frame", handshake: 64, oneFrame: true, session: big},
+		{name: "session message of megabytes after the handshake, in frames", handshake: 64, session: big},
+		{name: "no handshake asked, first message of megabytes, one frame", oneFrame: true, session: big},
+		{name: "no handshake asked, first message of megabytes, in frames", session: big},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ci.Parallel(t)
+
+			wsURL, results := serve(t)
+			if tc.handshake > 0 {
+				wsURL += "/?ws_handshake=true"
+			}
+
+			var conn *websocket.Conn
+			if tc.oneFrame {
+				conn = wsDialOneFrame(t, wsURL, max(tc.handshake, tc.session))
+			} else {
+				var err error
+				conn, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+				must.NoError(t, err)
+			}
+			defer conn.Close()
+			must.NoError(t, conn.SetWriteDeadline(time.Now().Add(20*time.Second)))
+
+			session := []byte(strings.Repeat("s", tc.session))
+
+			if tc.tooBig {
+				// the server ends the connection while the messages are
+				// on their way, so the writes may fail
+				_ = conn.WriteMessage(websocket.TextMessage, wsHandshakeOfSize(t, tc.handshake))
+				_ = conn.WriteMessage(websocket.TextMessage, session)
+
+				mustWsTooBig(t, conn)
+				mustWsConnClosed(t, conn)
+
+				res := <-results
+				must.ErrorIs(t, res.err, websocket.ErrReadLimit)
+				must.StrContains(t, res.err.Error(), fmt.Sprintf("handshake message larger than %d bytes", wsHandshakeMaxBytes))
+				// the read sent the close frame; the one of the handler
+				// for the error is not sent after it
+				must.ErrorIs(t, res.closeErr, websocket.ErrCloseSent)
+				return
+			}
+
+			wantToken := 0
+			if tc.handshake > 0 {
+				must.NoError(t, conn.WriteMessage(websocket.TextMessage, wsHandshakeOfSize(t, tc.handshake)))
+				wantToken = tokenLen(tc.handshake)
+			}
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, session))
+
+			must.NoError(t, conn.SetReadDeadline(time.Now().Add(20*time.Second)))
+			_, msg, err := conn.ReadMessage()
+			must.NoError(t, err)
+			must.Eq(t, fmt.Sprintf("%d %d", wantToken, tc.session), string(msg))
+			must.NoError(t, (<-results).err)
+		})
+	}
 }
