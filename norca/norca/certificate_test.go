@@ -694,6 +694,107 @@ func TestCertificate_RevokeReason(t *testing.T) {
 		must.Sprint("the event says the reason"))
 }
 
+// The reason of a certificate that is revoked already may still be raised to
+// keyCompromise, and to nothing else (review finding ATM-25b): the entry of
+// the revocation list keeps the time of the revocation and carries the new
+// code. Any other reason for a revoked certificate changes nothing, without
+// an error.
+func TestCertificate_RevokeReasonRaised(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	held := c.waitFor("default", "web-tls", "issued", certReady)
+
+	// Without its issuer nothing new is issued after the revocation: the
+	// revoked certificate stays the current one.
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "internal"))
+	c.waitFor("default", "web-tls", "IssuerNotFound", func(obj *structs.CustomObject, _ *structs.CertificateStatus) bool {
+		reason, _ := certificateFailure(obj.Status)
+		return reason == "IssuerNotFound"
+	})
+
+	revoke := func(reason string) {
+		t.Helper()
+		var resp structs.CertificateRevokeResponse
+		must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+			Name: "web-tls", Reason: reason, WriteRequest: c.write("default")}, &resp), must.Sprint(reason))
+		must.Eq(t, held.Serial, resp.Serial, must.Sprint(reason))
+	}
+	entry := func() *structs.CertificateRevocation {
+		t.Helper()
+		ca := c.roots().Authorities[0]
+		i := slices.IndexFunc(ca.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == held.Serial })
+		must.NonNegative(t, i)
+		must.Len(t, 1, ca.Revoked)
+		return ca.Revoked[i]
+	}
+
+	revoke(structs.CertificateRevokeReasonSuperseded)
+	first := entry()
+	must.Eq(t, "superseded", first.Reason)
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Serial)
+	must.Eq(t, held.Serial, st.Revoke)
+
+	// Another reason, or none, for the revoked certificate: nothing changes.
+	for _, reason := range []string{structs.CertificateRevokeReasonAffiliationChanged, structs.CertificateRevokeReasonUnspecified, ""} {
+		revoke(reason)
+		must.Eq(t, first, entry(), must.Sprint(reason))
+	}
+	must.Eq(t, 4, c.crlReasons()[held.Serial])
+	must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason"))
+
+	// keyCompromise takes its place, once.
+	revoke(structs.CertificateRevokeReasonKeyCompromise)
+	raised := entry()
+	must.Eq(t, "keyCompromise", raised.Reason, must.Sprint("the reason of a revoked certificate is raised to keyCompromise"))
+	must.Eq(t, first.RevokedAt, raised.RevokedAt)
+	must.Eq(t, 1, c.crlReasons()[held.Serial], must.Sprint("the revocation list gives the reason keyCompromise"))
+	revoke(structs.CertificateRevokeReasonKeyCompromise)
+	revoke(structs.CertificateRevokeReasonSuperseded)
+	must.Eq(t, raised, entry(), must.Sprint("keyCompromise is not taken back"))
+	messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], "keyCompromise")
+	must.StrContains(t, messages[0], held.Serial)
+
+	// The time of the revocation is that of the first one, whenever the
+	// reason is raised.
+	authority := c.roots().ActiveID
+	at := time.Now().UTC().Truncate(time.Second)
+	revokeAt := func(reason string, after time.Duration) (bool, *structs.CertificateRevocation) {
+		t.Helper()
+		found, changed, err := c.s.certificateCA.revoke(authority, &structs.CertificateRevocation{
+			Serial: "0a0b0c", Certificate: "default/other", RevokedAt: at.Add(after), NotAfter: at.Add(24 * time.Hour), Reason: reason})
+		must.NoError(t, err)
+		must.True(t, found)
+		ca := c.roots().Authorities[0]
+		i := slices.IndexFunc(ca.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == "0a0b0c" })
+		must.NonNegative(t, i)
+		return changed, ca.Revoked[i]
+	}
+	changed, rev := revokeAt("", 0)
+	must.True(t, changed)
+	changed, rev = revokeAt(structs.CertificateRevokeReasonCessationOfOperation, time.Hour)
+	must.False(t, changed)
+	must.Eq(t, "", rev.Reason)
+	changed, rev = revokeAt(structs.CertificateRevokeReasonKeyCompromise, 2*time.Hour)
+	must.True(t, changed)
+	must.Eq(t, "keyCompromise", rev.Reason)
+	must.True(t, rev.RevokedAt.Equal(at), must.Sprintf("revoked at %s, not at %s", rev.RevokedAt, at))
+	changed, rev = revokeAt(structs.CertificateRevokeReasonSuperseded, 3*time.Hour)
+	must.False(t, changed)
+	must.Eq(t, "keyCompromise", rev.Reason)
+	must.Eq(t, 1, c.crlReasons()["0a0b0c"])
+}
+
 // A certificate is taken back only when the namespace lost the names, not
 // when the issuer it names can't sign them: an IP address certificate of the
 // built-in issuer whose issuer was recreated as an external one stays.
@@ -1160,10 +1261,29 @@ func TestCertificate_ExternalIssuerChain(t *testing.T) {
 
 	// A revocation goes to the issuer as an order of its own, with the
 	// reason (review finding ATM-25), and a new certificate is ordered; the
-	// current one is served until it is there.
+	// current one is served until it is there. While the controller has not
+	// finished the order, a repeated revocation raises its reason to
+	// keyCompromise; another reason leaves it (review finding ATM-25b).
+	revocationReason := func() string {
+		t.Helper()
+		o := c.get("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", issued.Serial))
+		must.NotNil(t, o)
+		spec := &structs.CertificateOrderSpec{}
+		must.NoError(t, structs.DecodeObjectPart(o.Spec, spec))
+		return spec.Reason
+	}
 	var revoked structs.CertificateRevokeResponse
 	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+		Name: "web-tls", Reason: structs.CertificateRevokeReasonSuperseded, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, revocationReason())
+	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+		Name: "web-tls", Reason: structs.CertificateRevokeReasonAffiliationChanged, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, revocationReason())
+	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
 		Name: "web-tls", Reason: structs.CertificateRevokeReasonKeyCompromise, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonKeyCompromise, revocationReason(),
+		must.Sprint("the reason of the open revocation order is raised to keyCompromise"))
+	must.Eq(t, issued.Serial, revoked.Serial)
 	renewing := c.waitFor("default", "web-tls", "a second order", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
 		return st.Order != "" && objectConditionTrue(obj.Status, structs.CertificateConditionRenewing)
 	})

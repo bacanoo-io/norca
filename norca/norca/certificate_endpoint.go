@@ -243,11 +243,28 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		}
 		reply.Serial = status.Serial
 		if status.Revoke == status.Serial {
+			// Revoked already: nothing changes, except that the reason may
+			// still be raised to keyCompromise (review finding ATM-25b).
 			reply.Index = obj.ModifyIndex
+			if reason != structs.CertificateRevokeReasonKeyCompromise {
+				return nil
+			}
+			raised, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason)
+			if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
+				continue
+			}
+			if err != nil && !errors.Is(err, errCertificateNotRevocable) {
+				return err
+			}
+			if raised {
+				c.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "RevocationReason", fmt.Sprintf(
+					"%s given by %s as the reason of the revocation of the certificate with the serial %s, revoked before",
+					reason, objectReporter(args), status.Serial))
+			}
 			return nil
 		}
 
-		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason); err != nil &&
+		if _, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason); err != nil &&
 			!errors.Is(err, errCertificateNotRevocable) {
 			return err
 		}
@@ -287,13 +304,22 @@ var errCertificateNotRevocable = errors.New("nobody can revoke the certificate")
 // certificate: the CA that signed it is gone (only after every certificate
 // it signed has expired), or the external issuer is gone or was recreated as
 // a built-in one.
-func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomObject, status *structs.CertificateStatus, reason string) error {
+//
+// For a certificate the issuer was told of before, nothing changes, except
+// that the reason keyCompromise takes the place of another one (review
+// finding ATM-25b): in the entry of the built-in issuer, whose time of
+// revocation stays (certificateCA.revoke), and in the revocation order of an
+// external issuer that its controller has not finished. With no order left,
+// a new one with the reason is placed; whether the certificate authority
+// behind the controller takes a reason for a certificate it has revoked is
+// its own matter. It reports whether the issuer was told anything new.
+func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomObject, status *structs.CertificateStatus, reason string) (bool, error) {
 	notAfter, _ := time.Parse(time.RFC3339, status.NotAfter)
 
 	// A certificate with an authority was signed by the built-in issuer,
 	// whatever the issuer of that name is now.
 	if status.Authority != "" {
-		found, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
+		found, changed, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
 			Serial:      status.Serial,
 			Certificate: obj.Namespace + "/" + obj.Name,
 			RevokedAt:   time.Now().UTC().Truncate(time.Second),
@@ -303,28 +329,31 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 		if err == nil && !found {
 			err = fmt.Errorf("%w: the certificate authority %s that signed it is gone", errCertificateNotRevocable, status.Authority)
 		}
-		return err
+		return changed, err
 	}
 	issuerObj, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateIssuerKind, "", status.Issuer)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if issuerObj == nil {
-		return fmt.Errorf("%w: the issuer %q is gone", errCertificateNotRevocable, status.Issuer)
+		return false, fmt.Errorf("%w: the issuer %q is gone", errCertificateNotRevocable, status.Issuer)
 	}
 	issuer := &structs.CertificateIssuerSpec{}
 	if err := structs.DecodeObjectPart(issuerObj.Spec, issuer); err != nil {
-		return err
+		return false, err
 	}
 	if issuer.External == nil {
-		return fmt.Errorf("%w: the issuer %q is no longer the external issuer that signed it", errCertificateNotRevocable, status.Issuer)
+		return false, fmt.Errorf("%w: the issuer %q is no longer the external issuer that signed it", errCertificateNotRevocable, status.Issuer)
 	}
 
 	// An external issuer revokes through an order of its own.
 	name := certificateRevokeOrderName(obj.Namespace, obj.Name, status.Serial)
 	existing, err := store.CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateOrderKind, "", name)
-	if err != nil || existing != nil {
-		return err
+	if err != nil {
+		return false, err
+	}
+	if existing != nil {
+		return s.raiseRevokeOrderReason(existing, reason)
 	}
 	spec, err := structs.EncodeObjectPart(&structs.CertificateOrderSpec{
 		Issuer:      status.Issuer,
@@ -333,7 +362,7 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 		Reason:      reason,
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, err = s.writeOperatorObject(&structs.CustomObject{
 		Group:     structs.OperatorsGroup,
@@ -343,5 +372,28 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 		Spec:      spec,
 		Status:    map[string]any{"state": structs.CertificateOrderPending},
 	})
-	return err
+	return err == nil, err
+}
+
+// raiseRevokeOrderReason gives a revocation order that is not done yet the
+// reason keyCompromise in the place of another one; any other reason leaves
+// the order as it is. It reports whether the order was changed. An order the
+// controller wrote meanwhile fails with a conflict.
+func (s *Server) raiseRevokeOrderReason(order *structs.CustomObject, reason string) (bool, error) {
+	if reason != structs.CertificateRevokeReasonKeyCompromise {
+		return false, nil
+	}
+	spec := &structs.CertificateOrderSpec{}
+	status := &structs.CertificateOrderStatus{}
+	if err := structs.DecodeObjectPart(order.Spec, spec); err != nil {
+		return false, err
+	}
+	_ = structs.DecodeObjectPart(order.Status, status)
+	if spec.Reason == reason || status.State == structs.CertificateOrderValid || status.State == structs.CertificateOrderFailed {
+		return false, nil
+	}
+	changed := order.Copy()
+	changed.Spec["reason"] = reason
+	_, err := s.writeOperatorObject(changed)
+	return err == nil, err
 }

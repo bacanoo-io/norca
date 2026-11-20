@@ -571,7 +571,7 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 		return false, ""
 	}
 
-	err := o.srv.revokeWithIssuer(p.store, obj, st, structs.CertificateRevokeReasonCessationOfOperation)
+	_, err := o.srv.revokeWithIssuer(p.store, obj, st, structs.CertificateRevokeReasonCessationOfOperation)
 	switch {
 	case errors.Is(err, errCertificateNotRevocable):
 		// Nothing to wait for: the certificate stays valid until it
