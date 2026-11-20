@@ -135,6 +135,37 @@ func TestCertificateRevokeCommand_Serial(t *testing.T) {
 	}, bodies)
 }
 
+// TestCertificateRevokeCommand_Pending checks that the output does not say
+// "Revoked" for a certificate its external issuer was only asked to revoke
+// (review finding ATM-24g).
+func TestCertificateRevokeCommand_Pending(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		in := &api.CertificateRevokeRequest{}
+		_ = json.NewDecoder(r.Body).Decode(in)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(&api.CertificateRevokeResponse{Serial: "0a1b", Earlier: in.Serial != "", Pending: true})
+	}))
+	t.Cleanup(srv.Close)
+	run := func(args ...string) string {
+		ui := cli.NewMockUi()
+		code := (&CertificateRevokeCommand{Meta: Meta{Ui: ui}}).Run(append([]string{"-address=" + srv.URL}, args...))
+		must.Zero(t, code, must.Sprint(ui.ErrorWriter.String()))
+		return ui.OutputWriter.String()
+	}
+
+	out := run("-serial=0a1b", "web-tls")
+	must.StrNotContains(t, out, "Revoked the")
+	must.StrContains(t, out, "Asked the issuer to revoke the earlier certificate with the serial 0a1b")
+	must.StrContains(t, out, "the current certificate stays")
+
+	out = run("web-tls")
+	must.StrNotContains(t, out, "Revoked the")
+	must.StrContains(t, out, "Asked the issuer to revoke the certificate with the serial 0a1b")
+	must.StrContains(t, out, "a new one is being issued")
+}
+
 // The earlier certificates of a Certificate object are in what "norca object
 // get" prints: its status, with their serial numbers and the end of their
 // validity (review finding ATM-24b).

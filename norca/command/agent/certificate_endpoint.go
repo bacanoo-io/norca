@@ -108,7 +108,7 @@ func (s *HTTPServer) CertificateSpecificRequest(resp http.ResponseWriter, req *h
 		return nil, err
 	}
 	setIndex(resp, out.Index)
-	return &api.CertificateRevokeResponse{Serial: out.Serial, Earlier: out.Earlier}, nil
+	return &api.CertificateRevokeResponse{Serial: out.Serial, Earlier: out.Earlier, Pending: out.Pending}, nil
 }
 
 // CertificateAuthorityImportRequest handles /v1/certificates/ca/import.

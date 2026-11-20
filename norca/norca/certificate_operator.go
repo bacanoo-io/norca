@@ -350,10 +350,12 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		if refused.lostNames {
 			o.withdraw(p, obj, spec, &st, secret, ours, refused.message, out)
 		} else {
+			o.settleHeld(p, obj, &st)
 			o.settleEarlier(p, obj, &st)
 		}
 
 	default:
+		o.settleHeld(p, obj, &st)
 		o.settleEarlier(p, obj, &st)
 		why := o.issuanceNeeded(p, spec, &st, have, issuerSpec)
 		retryAt, _ := time.Parse(time.RFC3339, st.RetryAt)
@@ -577,7 +579,13 @@ func (o *certificateOperator) withdrawEarlier(p *certificatePass, obj *structs.C
 	earlier := slices.Clone(st.Earlier)
 	for i, e := range earlier {
 		if e.Revoked {
-			// By a user, whatever the reason, or by a pass before.
+			// By a user, whatever the reason, or by a pass before. Only an
+			// order of a user that raises its reason may still be open.
+			if e.Authority == "" {
+				entry := *e
+				o.settleRevocation(p, obj, "earlier certificate", e.Serial, e.Issuer, &entry.Revoked, &entry.RevokeReason, &entry.Revoking)
+				earlier[i] = &entry
+			}
 			continue
 		}
 		one := &structs.CertificateStatus{
@@ -585,11 +593,13 @@ func (o *certificateOperator) withdrawEarlier(p *certificatePass, obj *structs.C
 			Authority: e.Authority,
 			Serial:    e.Serial,
 			NotAfter:  e.NotAfter,
+			Revoking:  e.Revoking,
 			Failures:  e.Failures,
 			RetryAt:   e.RetryAt,
 		}
 		done, unrevocable := o.revokeWithdrawn(p, obj, one, "earlier certificate", out)
 		entry := *e
+		entry.Revoked, entry.RevokeReason, entry.Revoking = one.Revoked, one.RevokeReason, one.Revoking
 		entry.Failures, entry.RetryAt, entry.NotRevocable = one.Failures, one.RetryAt, unrevocable
 		switch {
 		case unrevocable != "":
@@ -617,6 +627,106 @@ func (o *certificateOperator) withdrawEarlier(p *certificatePass, obj *structs.C
 	return news
 }
 
+// certificateOrderReason returns the reason a revocation order carries, by
+// the name of its RFC 5280 CRLReason: unspecified for none.
+func certificateOrderReason(spec *structs.CertificateOrderSpec) string {
+	if spec.Reason == "" {
+		return structs.CertificateRevokeReasonUnspecified
+	}
+	return spec.Reason
+}
+
+// revocation says how the revocation order of a serial of a certificate
+// stands in this pass: its state is "" if there is none, else
+// structs.CertificateOrderValid, structs.CertificateOrderFailed, or
+// structs.CertificateOrderPending for one its controller has not finished.
+// reason is the reason the order carries (certificateOrderReason).
+func (p *certificatePass) revocation(obj *structs.CustomObject, serial string) (state, reason string) {
+	order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]
+	if order == nil {
+		return "", ""
+	}
+	return certificateRevocationState(order)
+}
+
+// certificateRevocationState returns the state and the reason of a
+// revocation order, as certificatePass.revocation tells them.
+func certificateRevocationState(order *structs.CustomObject) (state, reason string) {
+	spec := &structs.CertificateOrderSpec{}
+	status := &structs.CertificateOrderStatus{}
+	_ = structs.DecodeObjectPart(order.Spec, spec)
+	_ = structs.DecodeObjectPart(order.Status, status)
+	switch status.State {
+	case structs.CertificateOrderValid, structs.CertificateOrderFailed:
+		return status.State, certificateOrderReason(spec)
+	}
+	return structs.CertificateOrderPending, certificateOrderReason(spec)
+}
+
+// listed reports whether the revocation list of a CA of the built-in issuer
+// holds a serial of a certificate.
+func (p *certificatePass) listed(obj *structs.CustomObject, authority, serial string) bool {
+	for _, ca := range p.all {
+		if ca.ID != authority {
+			continue
+		}
+		for _, rev := range ca.Revoked {
+			if rev.Serial == serial && rev.Certificate == obj.Namespace+"/"+obj.Name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// settleRevocation brings what the status says of the revocation of one
+// certificate of an external issuer in line with the revocation order of its
+// serial (review finding ATM-24g): revoked, reason and revoking are the
+// fields of the certificate that is held (structs.CertificateStatus) or of
+// an earlier one (structs.CertificateEarlier), what names it in the event
+// ("certificate", "earlier certificate"). Revoked means that the issuer has
+// done an order, whoever placed it, and the reason is that of the order; an
+// order that is only placed marks nothing. revoking, which the endpoint of
+// the revocation sets for the order of a user, follows the reason of the
+// order while it is open and ends with it: an order that failed, or that is
+// gone, leaves the certificate as it was, and nothing is placed again.
+func (o *certificateOperator) settleRevocation(p *certificatePass, obj *structs.CustomObject, what, serial, issuer string,
+	revoked *bool, reason, revoking *string) {
+
+	switch state, asked := p.revocation(obj, serial); state {
+	case structs.CertificateOrderValid:
+		if !*revoked {
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
+				"%s with the serial %s revoked by the issuer %q for the reason %s: its revocation order is done",
+				what, serial, issuer, asked))
+		}
+		*revoked, *reason, *revoking = true, asked, ""
+	case structs.CertificateOrderPending:
+		if *revoking != "" {
+			*revoking = asked
+		}
+	default:
+		*revoking = ""
+	}
+}
+
+// settleHeld looks after what the status says of the revocation of the
+// certificate that is held (review finding ATM-24g), which goes with it into
+// the earlier certificates when the next one is issued (keepEarlier): a
+// revocation order may be done, and removed (cleanOrders), long before that.
+// A certificate of the built-in issuer is revoked when the revocation list
+// of its CA holds it.
+func (o *certificateOperator) settleHeld(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus) {
+	switch {
+	case st.Serial == "":
+		st.Revoked, st.RevokeReason, st.Revoking = false, "", ""
+	case st.Authority != "":
+		st.Revoked = st.Revoked || p.listed(obj, st.Authority, st.Serial)
+	default:
+		o.settleRevocation(p, obj, "certificate", st.Serial, st.Issuer, &st.Revoked, &st.RevokeReason, &st.Revoking)
+	}
+}
+
 // settleEarlier looks after the earlier certificates of a certificate that
 // is not under withdrawal. What a withdrawal left unfinished when the
 // namespace got the names back is not carried on (review finding ATM-24e),
@@ -624,21 +734,20 @@ func (o *certificateOperator) withdrawEarlier(p *certificatePass, obj *structs.C
 // order that is placed runs its course, a failed one is not placed again, and
 // the count of failures, the wait and the missing issuer of an entry are
 // forgotten; the next withdrawal starts anew. An entry whose revocation order
-// the issuer has done is marked revoked, whoever placed the order.
+// the issuer has done is marked revoked, whoever placed the order, and only
+// then (settleRevocation; review finding ATM-24g). One of the built-in issuer
+// that the revocation list of its CA holds is marked too.
 func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus) {
 	var earlier []*structs.CertificateEarlier
 	for i, e := range st.Earlier {
-		if e.Revoked {
-			continue
-		}
 		entry := *e
-		entry.Failures, entry.RetryAt, entry.NotRevocable = 0, "", ""
+		if !e.Revoked {
+			entry.Failures, entry.RetryAt, entry.NotRevocable = 0, "", ""
+		}
 		if e.Authority == "" {
-			if order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, e.Serial)]; order != nil {
-				status := &structs.CertificateOrderStatus{}
-				_ = structs.DecodeObjectPart(order.Status, status)
-				entry.Revoked = status.State == structs.CertificateOrderValid
-			}
+			o.settleRevocation(p, obj, "earlier certificate", e.Serial, e.Issuer, &entry.Revoked, &entry.RevokeReason, &entry.Revoking)
+		} else if !e.Revoked {
+			entry.Revoked = p.listed(obj, e.Authority, e.Serial)
 		}
 		if entry == *e {
 			continue
@@ -647,10 +756,6 @@ func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.Cus
 			earlier = slices.Clone(st.Earlier)
 		}
 		earlier[i] = &entry
-		if entry.Revoked {
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
-				"earlier certificate with the serial %s revoked by the issuer %q: its revocation order is done", e.Serial, e.Issuer))
-		}
 	}
 	if earlier != nil {
 		st.Earlier = earlier
@@ -670,21 +775,37 @@ func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.Cus
 // RevocationFailed, and placed again after a wait that doubles every time;
 // cleanOrders removes the failed order after this pass has seen it. A
 // revocation order of the serial that the user placed is waited for the
-// same way.
+// same way. What is done is recorded in st (Revoked, and RevokeReason with
+// an external issuer; review finding ATM-24g), which is what marks the
+// certificate among the earlier ones; one that is revoked already is not
+// revoked again.
 func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.CustomObject,
 	st *structs.CertificateStatus, what string, out *certificateOutcome) (done bool, unrevocable string) {
 
 	serial := st.Serial
+	if st.Revoked {
+		// Revoked before, at the request of a user: its issuer is not asked
+		// again.
+		return true, ""
+	}
 	retryAt, _ := time.Parse(time.RFC3339, st.RetryAt)
 	waiting := fmt.Sprintf("; waiting for the issuer %q to revoke the %s with the serial %s", st.Issuer, what, serial)
 	if st.Authority == "" {
-		if order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]; order != nil {
+		order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]
+		if order == nil {
+			// An order of a user is over; the withdrawal sees to the rest.
+			st.Revoking = ""
+		} else {
+			spec := &structs.CertificateOrderSpec{}
 			status := &structs.CertificateOrderStatus{}
+			_ = structs.DecodeObjectPart(order.Spec, spec)
 			_ = structs.DecodeObjectPart(order.Status, status)
 			switch status.State {
 			case structs.CertificateOrderValid:
+				st.Revoked, st.RevokeReason, st.Revoking = true, certificateOrderReason(spec), ""
 				return true, ""
 			case structs.CertificateOrderFailed:
+				st.Revoking = ""
 				problem := status.Problem
 				if problem == "" {
 					problem = "the issuer gave no reason"
@@ -725,6 +846,7 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 		p.want(p.now.Add(operatorsRetry))
 		return false, ""
 	case st.Authority != "":
+		st.Revoked = true
 		return true, ""
 	default:
 		// The order is placed: its status brings the next pass.
@@ -853,7 +975,12 @@ func certificateEarlierValid(earlier []*structs.CertificateEarlier, now time.Tim
 // who signed it. One that is revoked is kept too, marked: the built-in
 // issuer has it in the revocation list of its CA, but an external issuer has
 // no such list, and the reason of either may still be raised to
-// keyCompromise (review finding ATM-25b). The list is bounded: beyond
+// keyCompromise (review finding ATM-25b). The mark is for a revocation that
+// is done, as the status says it of the certificate that is held (review
+// finding ATM-24g): one that was asked for, the serial in revoke, and whose
+// order is open, failed or waiting to be placed again enters unmarked, with
+// revoking if a user asked for it and the order is open (settleEarlier then
+// marks it when the issuer has done the order). The list is bounded: beyond
 // structs.CertificateEarlierMax the oldest entry goes, and an event names
 // its serial, which the status then no longer vouches for. The list of st
 // is not changed.
@@ -868,7 +995,12 @@ func (o *certificateOperator) keepEarlier(p *certificatePass, obj *structs.Custo
 		Issuer:    st.Issuer,
 		Authority: st.Authority,
 		NotAfter:  st.NotAfter,
-		Revoked:   st.Revoke == st.Serial,
+		// What is done, not what was asked for (review finding ATM-24g): the
+		// callers have brought these in line with the issuer in this pass
+		// (settleHeld, revokeWithdrawn).
+		Revoked:      st.Revoked,
+		RevokeReason: st.RevokeReason,
+		Revoking:     st.Revoking,
 	})
 	for len(earlier) > structs.CertificateEarlierMax {
 		dropped := earlier[0]
