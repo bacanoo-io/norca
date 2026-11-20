@@ -115,6 +115,99 @@ func TestHTTP_Certificates(t *testing.T) {
 	})
 }
 
+// The serial number of a revocation reaches the servers, and the answer
+// says that an earlier certificate was revoked (review finding ATM-24b).
+func TestHTTP_CertificateRevokeSerial(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		client := s.Client()
+		certs := client.Certificates()
+
+		// A serial that is none is refused before the certificate is
+		// looked for; a well-formed one of a missing certificate is not.
+		_, err := certs.Revoke("missing", &api.CertificateRevokeRequest{Serial: "not-a-serial"}, nil)
+		must.ErrorContains(t, err, "400")
+		must.ErrorContains(t, err, "invalid serial number")
+		_, err = certs.Revoke("missing", &api.CertificateRevokeRequest{Serial: "0A:0B"}, nil)
+		must.ErrorContains(t, err, "404")
+
+		// A certificate of the built-in issuer, replaced by a revocation.
+		_, err = client.Namespaces().Register(&api.Namespace{
+			Name: "default", Meta: map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"}}, nil)
+		must.NoError(t, err)
+		apply := func(obj *api.CustomObject) {
+			t.Helper()
+			must.Wait(t, wait.InitialSuccess(
+				wait.ErrorFunc(func() error {
+					_, _, err := client.Objects().Apply(obj, nil, nil)
+					return err
+				}),
+				wait.Timeout(20*time.Second),
+				wait.Gap(100*time.Millisecond),
+			))
+		}
+		apply(&api.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateIssuerKind, Name: "internal",
+			Spec: map[string]any{"builtin": map[string]any{}}})
+		apply(&api.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateKind, Namespace: "default", Name: "web-tls",
+			Spec: map[string]any{"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"}})
+		serial := func(not string) string {
+			t.Helper()
+			var current string
+			must.Wait(t, wait.InitialSuccess(
+				wait.BoolFunc(func() bool {
+					obj, _, err := client.Objects().Get(structs.OperatorsGroup, structs.CertificateKind, "web-tls", nil)
+					if err != nil {
+						return false
+					}
+					current, _ = obj.Status["serial"].(string)
+					return current != "" && current != not
+				}),
+				wait.Timeout(30*time.Second),
+				wait.Gap(100*time.Millisecond),
+			))
+			return current
+		}
+		first := serial("")
+		resp, err := certs.Revoke("web-tls", nil, nil)
+		must.NoError(t, err)
+		must.Eq(t, first, resp.Serial)
+		must.False(t, resp.Earlier)
+		second := serial(first)
+
+		// The object API shows the earlier certificate.
+		obj, _, err := client.Objects().Get(structs.OperatorsGroup, structs.CertificateKind, "web-tls", nil)
+		must.NoError(t, err)
+		earlier, _ := obj.Status["earlier"].([]any)
+		must.Len(t, 1, earlier)
+		entry, _ := earlier[0].(map[string]any)
+		must.Eq[any](t, first, entry["serial"])
+		must.Eq[any](t, true, entry["revoked"])
+		must.NotEq[any](t, "", entry["notAfter"])
+
+		// Its reason is raised by its serial; the current one stays.
+		resp, err = certs.Revoke("web-tls", &api.CertificateRevokeRequest{
+			Serial: strings.ToUpper(first), Reason: structs.CertificateRevokeReasonKeyCompromise}, nil)
+		must.NoError(t, err)
+		must.Eq(t, first, resp.Serial)
+		must.True(t, resp.Earlier)
+		roots, _, err := certs.Roots(nil)
+		must.NoError(t, err)
+		reasons := map[string]string{}
+		for _, ca := range roots.Authorities {
+			for _, rev := range ca.Revoked {
+				reasons[rev.Serial] = rev.Reason
+			}
+		}
+		must.Eq(t, map[string]string{first: structs.CertificateRevokeReasonKeyCompromise}, reasons)
+		must.Eq(t, second, serial(first))
+
+		// A serial that is no certificate of the object.
+		_, err = certs.Revoke("web-tls", &api.CertificateRevokeRequest{Serial: "0a0b0c"}, nil)
+		must.ErrorContains(t, err, "404")
+	})
+}
+
 // The reason of a revocation reaches the API (review finding ATM-25).
 func TestCertificateAuthorityToAPI_Reason(t *testing.T) {
 	ci.Parallel(t)

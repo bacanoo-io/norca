@@ -228,3 +228,63 @@ func TestCertificateOrderName(t *testing.T) {
 	must.True(t, validCustomObjectName.MatchString(name))
 	must.False(t, strings.Contains(name, "/"))
 }
+
+// A serial number is taken in the forms a user sees it in, and compared in
+// the one the status holds (review finding ATM-24b).
+func TestNormalizeCertificateSerial(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name     string
+		serial   string
+		expected string
+		ok       bool
+	}{
+		{name: "as the status shows it", serial: "4f2a9c01d37be6a8", expected: "4f2a9c01d37be6a8", ok: true},
+		{name: "upper case", serial: "4F2A9C01", expected: "4f2a9c01", ok: true},
+		{name: "colons between the octets", serial: "4F:2A:9C:01", expected: "4f2a9c01", ok: true},
+		{name: "a leading 0x", serial: "0x4f2a9c01", expected: "4f2a9c01", ok: true},
+		{name: "space around it", serial: " 4f2a9c01\n", expected: "4f2a9c01", ok: true},
+		{name: "a leading zero octet", serial: "00:8F:2A", expected: "8f2a", ok: true},
+		{name: "an odd number of digits", serial: "f2a", expected: "0f2a", ok: true},
+		{name: "a leading zero digit kept for the octet", serial: "0a0b0c", expected: "0a0b0c", ok: true},
+		{name: "twenty octets", serial: strings.Repeat("ab", 20), expected: strings.Repeat("ab", 20), ok: true},
+		{name: "empty", serial: ""},
+		{name: "only zeros", serial: "0000"},
+		{name: "only the prefix", serial: "0x"},
+		{name: "not hexadecimal", serial: "4f2g"},
+		{name: "a decimal point", serial: "12.5"},
+		{name: "a path", serial: "../4f2a"},
+		{name: "too long", serial: strings.Repeat("ab", 40)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := NormalizeCertificateSerial(tt.serial)
+			must.Eq(t, tt.ok, ok)
+			must.Eq(t, tt.expected, got)
+		})
+	}
+}
+
+// The earlier certificates are part of the status as the object holds it.
+func TestCertificateStatus_Earlier(t *testing.T) {
+	ci.Parallel(t)
+
+	in := &CertificateStatus{Serial: "0b", Earlier: []*CertificateEarlier{
+		{Serial: "0a", Issuer: "internal", Authority: "ca-1", NotAfter: "2027-01-01T00:00:00Z", Revoked: true},
+		{Serial: "09", Issuer: "acme", NotAfter: "2027-01-02T00:00:00Z"},
+	}}
+	part, err := EncodeObjectPart(in)
+	must.NoError(t, err)
+	must.Eq[any](t, []any{
+		map[string]any{"serial": "0a", "issuer": "internal", "authority": "ca-1", "notAfter": "2027-01-01T00:00:00Z", "revoked": true},
+		map[string]any{"serial": "09", "issuer": "acme", "notAfter": "2027-01-02T00:00:00Z"},
+	}, part["earlier"])
+	out := &CertificateStatus{}
+	must.NoError(t, DecodeObjectPart(part, out))
+	must.Eq(t, in, out)
+
+	none, err := EncodeObjectPart(&CertificateStatus{Serial: "0b"})
+	must.NoError(t, err)
+	must.MapNotContainsKey(t, none, "earlier")
+}

@@ -101,14 +101,14 @@ func (s *HTTPServer) CertificateSpecificRequest(resp http.ResponseWriter, req *h
 			return nil, CodedError(http.StatusBadRequest, err.Error())
 		}
 	}
-	args := structs.CertificateRevokeRequest{Name: name, Reason: in.Reason}
+	args := structs.CertificateRevokeRequest{Name: name, Reason: in.Reason, Serial: in.Serial}
 	s.parseWriteRequest(req, &args.WriteRequest)
 	var out structs.CertificateRevokeResponse
 	if err := s.agent.RPC("Certificate.Revoke", &args, &out); err != nil {
 		return nil, err
 	}
 	setIndex(resp, out.Index)
-	return &api.CertificateRevokeResponse{Serial: out.Serial}, nil
+	return &api.CertificateRevokeResponse{Serial: out.Serial, Earlier: out.Earlier}, nil
 }
 
 // CertificateAuthorityImportRequest handles /v1/certificates/ca/import.

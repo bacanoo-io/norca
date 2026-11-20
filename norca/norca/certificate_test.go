@@ -596,8 +596,11 @@ func TestCertificate_LostNames(t *testing.T) {
 		{"gone", "certs/gone", gone},
 	} {
 		st := c.waitFor("default", tc.name, "withdrawn", withdrawn)
-		must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: tc.issued.Serial}, *st,
-			must.Sprint("nothing in the status says a certificate is held"))
+		// What was held is an earlier certificate now, revoked (review
+		// finding ATM-24b).
+		must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: tc.issued.Serial, Earlier: []*structs.CertificateEarlier{{
+			Serial: tc.issued.Serial, Issuer: "internal", Authority: tc.issued.Authority, NotAfter: tc.issued.NotAfter, Revoked: true,
+		}}}, *st, must.Sprint("nothing in the status says a certificate is held"))
 		obj, _ := c.certificate("default", tc.name)
 		must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionReady))
 		must.SliceContains(t, c.eventReasons("default", structs.CertificateKind, tc.name), "Withdrawn")
@@ -692,6 +695,107 @@ func TestCertificate_RevokeReason(t *testing.T) {
 	messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked")
 	must.True(t, slices.ContainsFunc(messages, func(m string) bool { return strings.Contains(m, "for the reason keyCompromise") }),
 		must.Sprint("the event says the reason"))
+}
+
+// The reason of a certificate that is revoked already may still be raised to
+// keyCompromise, and to nothing else (review finding ATM-25b): the entry of
+// the revocation list keeps the time of the revocation and carries the new
+// code. Any other reason for a revoked certificate changes nothing, without
+// an error.
+func TestCertificate_RevokeReasonRaised(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	held := c.waitFor("default", "web-tls", "issued", certReady)
+
+	// Without its issuer nothing new is issued after the revocation: the
+	// revoked certificate stays the current one.
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "internal"))
+	c.waitFor("default", "web-tls", "IssuerNotFound", func(obj *structs.CustomObject, _ *structs.CertificateStatus) bool {
+		reason, _ := certificateFailure(obj.Status)
+		return reason == "IssuerNotFound"
+	})
+
+	revoke := func(reason string) {
+		t.Helper()
+		var resp structs.CertificateRevokeResponse
+		must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+			Name: "web-tls", Reason: reason, WriteRequest: c.write("default")}, &resp), must.Sprint(reason))
+		must.Eq(t, held.Serial, resp.Serial, must.Sprint(reason))
+	}
+	entry := func() *structs.CertificateRevocation {
+		t.Helper()
+		ca := c.roots().Authorities[0]
+		i := slices.IndexFunc(ca.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == held.Serial })
+		must.NonNegative(t, i)
+		must.Len(t, 1, ca.Revoked)
+		return ca.Revoked[i]
+	}
+
+	revoke(structs.CertificateRevokeReasonSuperseded)
+	first := entry()
+	must.Eq(t, "superseded", first.Reason)
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Serial)
+	must.Eq(t, held.Serial, st.Revoke)
+
+	// Another reason, or none, for the revoked certificate: nothing changes.
+	for _, reason := range []string{structs.CertificateRevokeReasonAffiliationChanged, structs.CertificateRevokeReasonUnspecified, ""} {
+		revoke(reason)
+		must.Eq(t, first, entry(), must.Sprint(reason))
+	}
+	must.Eq(t, 4, c.crlReasons()[held.Serial])
+	must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason"))
+
+	// keyCompromise takes its place, once.
+	revoke(structs.CertificateRevokeReasonKeyCompromise)
+	raised := entry()
+	must.Eq(t, "keyCompromise", raised.Reason, must.Sprint("the reason of a revoked certificate is raised to keyCompromise"))
+	must.Eq(t, first.RevokedAt, raised.RevokedAt)
+	must.Eq(t, 1, c.crlReasons()[held.Serial], must.Sprint("the revocation list gives the reason keyCompromise"))
+	revoke(structs.CertificateRevokeReasonKeyCompromise)
+	revoke(structs.CertificateRevokeReasonSuperseded)
+	must.Eq(t, raised, entry(), must.Sprint("keyCompromise is not taken back"))
+	messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], "keyCompromise")
+	must.StrContains(t, messages[0], held.Serial)
+
+	// The time of the revocation is that of the first one, whenever the
+	// reason is raised.
+	authority := c.roots().ActiveID
+	at := time.Now().UTC().Truncate(time.Second)
+	revokeAt := func(reason string, after time.Duration) (bool, *structs.CertificateRevocation) {
+		t.Helper()
+		found, changed, err := c.s.certificateCA.revoke(authority, &structs.CertificateRevocation{
+			Serial: "0a0b0c", Certificate: "default/other", RevokedAt: at.Add(after), NotAfter: at.Add(24 * time.Hour), Reason: reason})
+		must.NoError(t, err)
+		must.True(t, found)
+		ca := c.roots().Authorities[0]
+		i := slices.IndexFunc(ca.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == "0a0b0c" })
+		must.NonNegative(t, i)
+		return changed, ca.Revoked[i]
+	}
+	changed, rev := revokeAt("", 0)
+	must.True(t, changed)
+	changed, rev = revokeAt(structs.CertificateRevokeReasonCessationOfOperation, time.Hour)
+	must.False(t, changed)
+	must.Eq(t, "", rev.Reason)
+	changed, rev = revokeAt(structs.CertificateRevokeReasonKeyCompromise, 2*time.Hour)
+	must.True(t, changed)
+	must.Eq(t, "keyCompromise", rev.Reason)
+	must.True(t, rev.RevokedAt.Equal(at), must.Sprintf("revoked at %s, not at %s", rev.RevokedAt, at))
+	changed, rev = revokeAt(structs.CertificateRevokeReasonSuperseded, 3*time.Hour)
+	must.False(t, changed)
+	must.Eq(t, "keyCompromise", rev.Reason)
+	must.Eq(t, 1, c.crlReasons()["0a0b0c"])
 }
 
 // A certificate is taken back only when the namespace lost the names, not
@@ -1160,10 +1264,29 @@ func TestCertificate_ExternalIssuerChain(t *testing.T) {
 
 	// A revocation goes to the issuer as an order of its own, with the
 	// reason (review finding ATM-25), and a new certificate is ordered; the
-	// current one is served until it is there.
+	// current one is served until it is there. While the controller has not
+	// finished the order, a repeated revocation raises its reason to
+	// keyCompromise; another reason leaves it (review finding ATM-25b).
+	revocationReason := func() string {
+		t.Helper()
+		o := c.get("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", issued.Serial))
+		must.NotNil(t, o)
+		spec := &structs.CertificateOrderSpec{}
+		must.NoError(t, structs.DecodeObjectPart(o.Spec, spec))
+		return spec.Reason
+	}
 	var revoked structs.CertificateRevokeResponse
 	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+		Name: "web-tls", Reason: structs.CertificateRevokeReasonSuperseded, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, revocationReason())
+	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+		Name: "web-tls", Reason: structs.CertificateRevokeReasonAffiliationChanged, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, revocationReason())
+	must.NoError(t, c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
 		Name: "web-tls", Reason: structs.CertificateRevokeReasonKeyCompromise, WriteRequest: c.write("default")}, &revoked))
+	must.Eq(t, structs.CertificateRevokeReasonKeyCompromise, revocationReason(),
+		must.Sprint("the reason of the open revocation order is raised to keyCompromise"))
+	must.Eq(t, issued.Serial, revoked.Serial)
 	renewing := c.waitFor("default", "web-tls", "a second order", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
 		return st.Order != "" && objectConditionTrue(obj.Status, structs.CertificateConditionRenewing)
 	})
@@ -1306,7 +1429,12 @@ func TestCertificate_ExternalIssuerLostNames(t *testing.T) {
 	must.NoError(t, c.status("", structs.CertificateOrderKind, second, map[string]any{"state": "valid"}))
 
 	st := c.waitFor("default", "web-tls", "withdrawn", withdrawn)
-	must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: issued.Serial}, *st)
+	// What was held is an earlier certificate now, revoked: an external
+	// issuer has no list of its revocations, and the reason of this one can
+	// still be raised by its serial (review finding ATM-24b).
+	must.Eq(t, structs.CertificateStatus{Orders: st.Orders, Revoke: issued.Serial, Earlier: []*structs.CertificateEarlier{{
+		Serial: issued.Serial, Issuer: "acme", NotAfter: issued.NotAfter, Revoked: true,
+	}}}, *st)
 	messages = c.eventMessages("default", structs.CertificateKind, "web-tls", "Withdrawn")
 	must.Len(t, 1, messages)
 	must.StrContains(t, messages[0], issued.Serial+" is revoked")
@@ -1630,4 +1758,422 @@ func TestSignCertificate_ExpiredCA(t *testing.T) {
 	_, cert, err := signCertificate(&mtlsSigner{cert: ca.cert, key: ca.key}, key.Public(), spec, time.Hour)
 	must.NoError(t, err)
 	must.True(t, cert.NotAfter.After(cert.NotBefore))
+}
+
+// revokeSerial revokes the certificate with a serial number of a Certificate
+// object, as a user does; without a serial, the current one.
+func (c *certTest) revokeSerial(ns, name, serial, reason string) (*structs.CertificateRevokeResponse, error) {
+	resp := &structs.CertificateRevokeResponse{}
+	err := c.s.RPC("Certificate.Revoke", &structs.CertificateRevokeRequest{
+		Name: name, Serial: serial, Reason: reason, WriteRequest: c.write(ns)}, resp)
+	return resp, err
+}
+
+// earlierCertificate returns the entry of a serial number among the earlier
+// certificates of a status, or nil.
+func earlierCertificate(st *structs.CertificateStatus, serial string) *structs.CertificateEarlier {
+	i := slices.IndexFunc(st.Earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == serial })
+	if i < 0 {
+		return nil
+	}
+	return st.Earlier[i]
+}
+
+// colonSerial writes a serial number the way openssl prints it: upper case,
+// with colons between the octets.
+func colonSerial(serial string) string {
+	var parts []string
+	for i := 0; i+2 <= len(serial); i += 2 {
+		parts = append(parts, strings.ToUpper(serial[i:i+2]))
+	}
+	return strings.Join(parts, ":")
+}
+
+// A certificate that a newer one replaced while it was still valid stays
+// revocable, by its serial number (review finding ATM-24b): the status keeps
+// it, a revocation with the serial revokes exactly it, and neither issues a
+// new certificate nor touches the secret. Its reason may be raised to
+// keyCompromise afterwards (review finding ATM-25b). A serial that is not
+// one of the object's is refused the same way whether or not it is the
+// serial of something else.
+func TestCertificate_RevokeEarlier(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "other-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"other.example.com"}, "secret_path": "certs/other"})
+	must.NoError(t, err)
+	first := c.waitFor("default", "web-tls", "issued", certReady)
+	other := c.waitFor("default", "other-tls", "issued", certReady)
+	must.SliceEmpty(t, first.Earlier)
+
+	// The current version of the secret is deleted: a new certificate is
+	// issued (review finding ATM-24), and the first one, still valid and
+	// not revoked, is kept as an earlier certificate.
+	c.secretVersions(structs.SecretOpDelete, "default", "certs/web", first.SecretVersion)
+	second := c.waitFor("default", "web-tls", "issued again", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return certReady(obj, st) && st.Serial != first.Serial
+	})
+	must.Eq(t, []*structs.CertificateEarlier{{
+		Serial: first.Serial, Issuer: "internal", Authority: first.Authority, NotAfter: first.NotAfter,
+	}}, second.Earlier, must.Sprint("the replaced certificate is kept in the status"))
+
+	// The status is the servers': a user can't write a serial into it.
+	err = c.status("default", structs.CertificateKind, "web-tls", map[string]any{
+		"earlier": []any{map[string]any{"serial": other.Serial, "issuer": "internal", "authority": other.Authority, "notAfter": other.NotAfter}}})
+	must.ErrorContains(t, err, "written by the servers only")
+
+	// What is not a certificate of this object is refused, in the same
+	// words: a serial nobody has, the current serial of another certificate,
+	// and a revoked serial of another certificate in the list of the CA.
+	_, changed, err := c.s.certificateCA.revoke(first.Authority, &structs.CertificateRevocation{
+		Serial: "0a0b0c", Certificate: "default/other-tls", RevokedAt: time.Now().UTC(), NotAfter: time.Now().Add(time.Hour).UTC()})
+	must.NoError(t, err)
+	must.True(t, changed)
+	var refusals []string
+	for _, serial := range []string{"0d0e0f", other.Serial, "0a0b0c"} {
+		_, err := c.revokeSerial("default", "web-tls", serial, structs.CertificateRevokeReasonKeyCompromise)
+		must.Error(t, err, must.Sprint(serial))
+		code, msg, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok, must.Sprint(err))
+		must.Eq(t, 404, code, must.Sprint(serial))
+		refusals = append(refusals, strings.ReplaceAll(msg, serial, "<serial>"))
+	}
+	must.Eq(t, refusals[0], refusals[1], must.Sprint("the refusal does not tell a serial of another certificate from an unknown one"))
+	must.Eq(t, refusals[0], refusals[2])
+	must.SliceNotContains(t, c.crlSerials(), other.Serial)
+	must.Eq(t, 0, c.crlReasons()["0a0b0c"], must.Sprint("the reason of the revocation of another certificate is not raised"))
+	for _, serial := range []string{"xyz", "0x", strings.Repeat("ab", 40)} {
+		_, err := c.revokeSerial("default", "web-tls", serial, "")
+		must.Error(t, err, must.Sprint(serial))
+		code, _, _ := structs.CodeFromRPCCodedErr(err)
+		must.Eq(t, 400, code, must.Sprint(serial))
+	}
+	must.SliceNotContains(t, c.crlSerials(), first.Serial)
+	must.SliceNotContains(t, c.crlSerials(), second.Serial)
+
+	// The earlier certificate is revoked by its serial, given the way a
+	// tool prints it. The current one stays, and so does the secret.
+	secretBefore, err := c.s.State().SecretByPath(nil, "default", "certs/web")
+	must.NoError(t, err)
+	resp, err := c.revokeSerial("default", "web-tls", colonSerial(first.Serial), structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.Eq(t, first.Serial, resp.Serial, must.Sprint("the certificate with the serial is the one revoked"))
+	must.True(t, resp.Earlier)
+	must.Eq(t, 4, c.crlReasons()[first.Serial], must.Sprint("the earlier certificate is in the revocation list"))
+	must.SliceNotContains(t, c.crlSerials(), second.Serial, must.Sprint("the current certificate is not revoked"))
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, []*structs.CertificateEarlier{{
+		Serial: first.Serial, Issuer: "internal", Authority: first.Authority, NotAfter: first.NotAfter, Revoked: true,
+	}}, st.Earlier, must.Sprint("the entry stays, marked revoked"))
+	// The operator runs on the change of the status within its settle
+	// time: nothing new is issued.
+	time.Sleep(2 * time.Second)
+	_, st = c.certificate("default", "web-tls")
+	must.Eq(t, second.Serial, st.Serial, must.Sprint("the revocation of an earlier certificate issues no new one"))
+	must.Eq(t, "", st.Revoke)
+	secretAfter, err := c.s.State().SecretByPath(nil, "default", "certs/web")
+	must.NoError(t, err)
+	must.Eq(t, secretBefore.ModifyIndex, secretAfter.ModifyIndex, must.Sprint("the secret is not touched"))
+	messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked")
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], first.Serial)
+	must.StrContains(t, messages[0], "earlier")
+
+	// Its reason is raised to keyCompromise, and by nothing else.
+	for _, reason := range []string{structs.CertificateRevokeReasonAffiliationChanged, ""} {
+		_, err = c.revokeSerial("default", "web-tls", first.Serial, reason)
+		must.NoError(t, err)
+		must.Eq(t, 4, c.crlReasons()[first.Serial], must.Sprint(reason))
+	}
+	resp, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.Eq(t, first.Serial, resp.Serial)
+	must.True(t, resp.Earlier)
+	must.Eq(t, 1, c.crlReasons()[first.Serial], must.Sprint("the reason of the earlier certificate is raised to keyCompromise"))
+	raisedMessages := c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason")
+	must.Len(t, 1, raisedMessages)
+	must.StrContains(t, raisedMessages[0], first.Serial)
+
+	// With the serial of the current certificate the revocation is what it
+	// is without a serial: a new certificate is issued, and the revoked one
+	// becomes an earlier certificate, marked revoked.
+	resp, err = c.revokeSerial("default", "web-tls", strings.ToUpper(second.Serial), "")
+	must.NoError(t, err)
+	must.Eq(t, second.Serial, resp.Serial)
+	must.False(t, resp.Earlier)
+	third := c.waitFor("default", "web-tls", "issued after the revocation", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return certReady(obj, st) && st.Serial != second.Serial && st.Revoke == ""
+	})
+	must.Len(t, 2, third.Earlier)
+	must.Eq(t, &structs.CertificateEarlier{
+		Serial: second.Serial, Issuer: "internal", Authority: second.Authority, NotAfter: second.NotAfter, Revoked: true,
+	}, earlierCertificate(third, second.Serial))
+	must.Eq(t, 0, c.crlReasons()[second.Serial])
+
+	// After the reissue the reason of that one is raised by its serial too
+	// (the limit review finding ATM-25b was left with).
+	resp, err = c.revokeSerial("default", "web-tls", second.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.True(t, resp.Earlier)
+	must.Eq(t, 1, c.crlReasons()[second.Serial], must.Sprint("the reason of a revoked, replaced certificate is raised by serial"))
+	_, st = c.certificate("default", "web-tls")
+	must.Eq(t, third.Serial, st.Serial)
+
+	// A revoked certificate of the object that the status no longer lists
+	// is found in the list of its CA: only its reason can still change.
+	_, changed, err = c.s.certificateCA.revoke(third.Authority, &structs.CertificateRevocation{
+		Serial: "0102ab", Certificate: "default/web-tls", RevokedAt: time.Now().UTC(), NotAfter: time.Now().Add(time.Hour).UTC()})
+	must.NoError(t, err)
+	must.True(t, changed)
+	_, err = c.revokeSerial("default", "web-tls", "0102ab", structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.Eq(t, 0, c.crlReasons()["0102ab"])
+	resp, err = c.revokeSerial("default", "web-tls", "01:02:AB", structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.Eq(t, "0102ab", resp.Serial)
+	must.True(t, resp.Earlier)
+	must.Eq(t, 1, c.crlReasons()["0102ab"])
+
+	// Without a serial the revocation is of the current certificate, as
+	// before.
+	resp, err = c.revokeSerial("default", "web-tls", "", "")
+	must.NoError(t, err)
+	must.Eq(t, third.Serial, resp.Serial)
+	must.False(t, resp.Earlier)
+}
+
+// setEarlier writes the earlier certificates of a certificate into its
+// status, as the operator does.
+func (c *certTest) setEarlier(ns, name string, change func([]*structs.CertificateEarlier) []*structs.CertificateEarlier) {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			obj, st := c.certificate(ns, name)
+			part, err := structs.EncodeObjectPart(&structs.CertificateStatus{Earlier: change(st.Earlier)})
+			if err != nil {
+				return err
+			}
+			changed := obj.Copy()
+			delete(changed.Status, "earlier")
+			if list, ok := part["earlier"]; ok {
+				changed.Status["earlier"] = list
+			}
+			_, err = c.s.writeOperatorObject(changed)
+			return err
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+}
+
+// The earlier certificates of a status are bounded: one that has expired is
+// dropped, and beyond structs.CertificateEarlierMax the oldest one goes, with
+// an event that names its serial, since it can no longer be revoked by it
+// (review finding ATM-24b).
+func TestCertificate_EarlierBounded(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	held := c.waitFor("default", "web-tls", "issued", certReady)
+
+	serialOf := func(i int) string { return "ee00" + strings.Repeat(string("0123456789abcdef"[i]), 4) }
+	notAfter := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	c.setEarlier("default", "web-tls", func([]*structs.CertificateEarlier) []*structs.CertificateEarlier {
+		var full []*structs.CertificateEarlier
+		for i := range structs.CertificateEarlierMax {
+			full = append(full, &structs.CertificateEarlier{Serial: serialOf(i), Issuer: "internal", Authority: held.Authority, NotAfter: notAfter})
+		}
+		return full
+	})
+
+	// One more: the oldest is dropped, and an event says which.
+	_, err = c.revokeSerial("default", "web-tls", "", "")
+	must.NoError(t, err)
+	next := c.waitFor("default", "web-tls", "issued after the revocation", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return certReady(obj, st) && st.Serial != held.Serial
+	})
+	must.Len(t, structs.CertificateEarlierMax, next.Earlier)
+	must.Nil(t, earlierCertificate(next, serialOf(0)), must.Sprint("the oldest earlier certificate is dropped"))
+	must.Eq(t, serialOf(1), next.Earlier[0].Serial)
+	must.Eq(t, held.Serial, next.Earlier[structs.CertificateEarlierMax-1].Serial)
+	dropped := c.eventMessages("default", structs.CertificateKind, "web-tls", "EarlierCertificateDropped")
+	must.Len(t, 1, dropped)
+	must.StrContains(t, dropped[0], serialOf(0))
+	_, err = c.revokeSerial("default", "web-tls", serialOf(0), "")
+	must.Error(t, err, must.Sprint("a dropped serial is no longer revocable by serial"))
+
+	// An entry whose certificate has expired is dropped by the operator,
+	// and is not revocable meanwhile either.
+	c.setEarlier("default", "web-tls", func(list []*structs.CertificateEarlier) []*structs.CertificateEarlier {
+		out := make([]*structs.CertificateEarlier, len(list))
+		for i, e := range list {
+			cp := *e
+			if cp.Serial == serialOf(3) {
+				cp.NotAfter = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
+			}
+			out[i] = &cp
+		}
+		return out
+	})
+	_, err = c.revokeSerial("default", "web-tls", serialOf(3), "")
+	must.Error(t, err)
+	pruned := c.waitFor("default", "web-tls", "the expired entry dropped", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return earlierCertificate(st, serialOf(3)) == nil
+	})
+	must.Len(t, structs.CertificateEarlierMax-1, pruned.Earlier)
+	must.Eq(t, next.Serial, pruned.Serial)
+	must.SliceNotContains(t, c.crlSerials(), serialOf(3))
+}
+
+// An earlier certificate of an external issuer is revoked by its serial
+// through a revocation order of its own, which names the issuer and the
+// serial, all its controller needs (review finding ATM-24b); nothing new is
+// ordered for the current certificate. A revoked one whose order is done
+// gets a new order when its reason is raised to keyCompromise (review
+// finding ATM-25b): an external issuer has no list to find it in, so the
+// status keeps the revoked certificates too.
+func TestCertificate_ExternalIssuerRevokeEarlier(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+
+	root := newTestCA(t, "acme root", nil)
+	intermediate := newTestCA(t, "acme issuing", root)
+	_, err := c.apply("", structs.CertificateIssuerKind, "acme", map[string]any{"external": map[string]any{"controller": "test"}})
+	must.NoError(t, err)
+	must.NoError(t, c.status("", structs.CertificateIssuerKind, "acme", map[string]any{
+		"heartbeat": time.Now().UTC().Format(time.RFC3339), "roots": root.pem}))
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "acme", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+
+	// issue plays the controller for the next order of the certificate.
+	issue := func(previousOrder, previousSerial string) *structs.CertificateStatus {
+		t.Helper()
+		ordered := c.waitFor("default", "web-tls", "an order", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+			return st.Order != "" && st.Order != previousOrder
+		})
+		order := c.get("", structs.CertificateOrderKind, ordered.Order)
+		must.NotNil(t, order)
+		orderSpec := &structs.CertificateOrderSpec{}
+		must.NoError(t, structs.DecodeObjectPart(order.Spec, orderSpec))
+		csr, err := parseWorkloadCSR(orderSpec.CSR)
+		must.NoError(t, err)
+		must.NoError(t, c.status("", structs.CertificateOrderKind, ordered.Order, map[string]any{
+			"state": "valid", "chain": intermediate.sign(t, csr.PublicKey, csr.DNSNames, nil) + intermediate.pem}))
+		return c.waitFor("default", "web-tls", "issued", func(obj *structs.CustomObject, st *structs.CertificateStatus) bool {
+			return certReady(obj, st) && st.Serial != previousSerial && st.Order == ""
+		})
+	}
+	// revocation returns the revocation order of a serial, or nil.
+	revocation := func(serial string) *structs.CertificateOrderSpec {
+		t.Helper()
+		o := c.get("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", serial))
+		if o == nil {
+			return nil
+		}
+		spec := &structs.CertificateOrderSpec{}
+		must.NoError(t, structs.DecodeObjectPart(o.Spec, spec))
+		return spec
+	}
+	// finish plays the controller for the revocation order of a serial; the
+	// operator then removes the order.
+	finish := func(serial string) {
+		t.Helper()
+		name := certificateRevokeOrderName("default", "web-tls", serial)
+		must.NoError(t, c.status("", structs.CertificateOrderKind, name, map[string]any{"state": "valid"}))
+		must.Wait(t, wait.InitialSuccess(
+			wait.BoolFunc(func() bool { return c.get("", structs.CertificateOrderKind, name) == nil }),
+			wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	}
+
+	first := issue("", "")
+	must.Eq(t, uint64(1), first.Orders)
+
+	// The current version of the secret is deleted: the second certificate
+	// replaces the first, which is neither expired nor revoked.
+	c.secretVersions(structs.SecretOpDelete, "default", "certs/web", first.SecretVersion)
+	second := issue("default.web-tls.1", first.Serial)
+	must.Eq(t, []*structs.CertificateEarlier{{Serial: first.Serial, Issuer: "acme", NotAfter: first.NotAfter}}, second.Earlier)
+	must.Nil(t, revocation(first.Serial))
+
+	// Revoked by its serial: an order for the issuer with the serial and
+	// the reason, and nothing ordered for the current certificate.
+	resp, err := c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.Eq(t, first.Serial, resp.Serial)
+	must.True(t, resp.Earlier)
+	must.Eq(t, &structs.CertificateOrderSpec{
+		Issuer: "acme", Certificate: "default/web-tls", Revoke: first.Serial, Reason: structs.CertificateRevokeReasonSuperseded,
+	}, revocation(first.Serial), must.Sprint("the revocation order names the issuer and the serial of the earlier certificate"))
+	must.Nil(t, revocation(second.Serial))
+	_, st := c.certificate("default", "web-tls")
+	must.True(t, earlierCertificate(st, first.Serial).Revoked)
+
+	// While the order is open its reason is raised; a done order is gone,
+	// and the raise places a new one.
+	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonAffiliationChanged)
+	must.NoError(t, err)
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, revocation(first.Serial).Reason)
+	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.Eq(t, structs.CertificateRevokeReasonKeyCompromise, revocation(first.Serial).Reason)
+	finish(first.Serial)
+	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.Nil(t, revocation(first.Serial), must.Sprint("another reason for a revoked certificate tells the issuer nothing"))
+	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.Eq(t, &structs.CertificateOrderSpec{
+		Issuer: "acme", Certificate: "default/web-tls", Revoke: first.Serial, Reason: structs.CertificateRevokeReasonKeyCompromise,
+	}, revocation(first.Serial))
+	finish(first.Serial)
+
+	_, st = c.certificate("default", "web-tls")
+	must.Eq(t, second.Serial, st.Serial, must.Sprint("the current certificate stays"))
+	must.Eq(t, "", st.Order)
+	must.Eq(t, second.Orders, st.Orders, must.Sprint("nothing is ordered for the current certificate"))
+
+	// The current certificate is revoked and replaced: revoked as it is, it
+	// is kept, and its reason can be raised by its serial after the reissue.
+	resp, err = c.revokeSerial("default", "web-tls", "", "")
+	must.NoError(t, err)
+	must.Eq(t, second.Serial, resp.Serial)
+	must.False(t, resp.Earlier)
+	third := issue("default.web-tls.2", second.Serial)
+	must.Eq(t, &structs.CertificateEarlier{Serial: second.Serial, Issuer: "acme", NotAfter: second.NotAfter, Revoked: true},
+		earlierCertificate(third, second.Serial))
+	finish(second.Serial)
+	resp, err = c.revokeSerial("default", "web-tls", second.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.True(t, resp.Earlier)
+	must.Eq(t, &structs.CertificateOrderSpec{
+		Issuer: "acme", Certificate: "default/web-tls", Revoke: second.Serial, Reason: structs.CertificateRevokeReasonKeyCompromise,
+	}, revocation(second.Serial), must.Sprint("the reason of a revoked, replaced certificate of an external issuer is raised by serial"))
+
+	// An earlier certificate whose issuer is gone can't be revoked, and the
+	// answer says so.
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "acme"))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateIssuerKind, "acme") == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonKeyCompromise)
+	must.ErrorContains(t, err, "is gone")
 }

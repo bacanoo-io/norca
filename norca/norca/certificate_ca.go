@@ -565,29 +565,40 @@ func (c *certificateCA) importCA(certPEM, keyPEM string) (*structs.CertificateAu
 	return ca, index, nil
 }
 
-// revoke records a revoked certificate with the CA that signed it. It
-// reports whether the CA is still there.
-func (c *certificateCA) revoke(authorityID string, rev *structs.CertificateRevocation) (bool, error) {
+// revoke records a revoked certificate with the CA that signed it. A serial
+// that is revoked already keeps its entry, with the time of the revocation;
+// only its reason may still change, and only to keyCompromise (review
+// finding ATM-25b): a key found compromised after its certificate was
+// revoked for something else is what a relying party has to learn (CA/Browser
+// Forum Baseline Requirements, section 7.2.2), while any other change of the
+// reason would only rewrite history. found reports whether the CA is still
+// there, changed whether the call recorded anything.
+func (c *certificateCA) revoke(authorityID string, rev *structs.CertificateRevocation) (found, changed bool, err error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	all, err := c.srv.State().CertificateAuthorities(nil)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	for _, ca := range all {
 		if ca.ID != authorityID || ca.Region != c.srv.Region() {
 			continue
 		}
-		if slices.ContainsFunc(ca.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == rev.Serial }) {
-			return true, nil
-		}
 		cp := ca.Copy()
-		cp.Revoked = append(cp.Revoked, rev)
+		i := slices.IndexFunc(cp.Revoked, func(r *structs.CertificateRevocation) bool { return r.Serial == rev.Serial })
+		switch {
+		case i < 0:
+			cp.Revoked = append(cp.Revoked, rev)
+		case rev.Reason == structs.CertificateRevokeReasonKeyCompromise && cp.Revoked[i].Reason != rev.Reason:
+			cp.Revoked[i].Reason = rev.Reason
+		default:
+			return true, false, nil
+		}
 		_, err := c.apply(&structs.CertificateAuthoritiesUpsertRequest{Authorities: []*structs.CertificateAuthority{cp}})
-		return true, err
+		return true, err == nil, err
 	}
-	return false, nil
+	return false, false, nil
 }
 
 // revocationList signs the revocation list of a CA (RFC 5280), valid for a
