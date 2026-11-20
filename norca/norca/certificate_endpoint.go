@@ -197,6 +197,12 @@ const certificateRevokeAttempts = 5
 // asked for, and the answer Pending. The operator marks the certificate
 // revoked when the order is done (certificateOperator.settleRevocation).
 //
+// A certificate no issuer is left to revoke (revokeWithIssuer), or whose
+// last revocation order is over without the revocation, is refused with a
+// conflict that says why, at the first request as at a repeated one (review
+// finding ATM-24k): the first one writes nothing then, so the status does
+// not say revoke, no event says Revoked, and no new certificate is issued.
+//
 // With a serial number it revokes the certificate of the object with that
 // serial (review finding ATM-24b): the current one as without it, an earlier
 // one (revokeEarlier) without a new certificate.
@@ -293,6 +299,16 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		if err != nil && !unrevocable {
 			return err
 		}
+		if unrevocable && first {
+			// Nobody is left to revoke it (review finding ATM-24k): the
+			// request is refused as that for an earlier certificate is
+			// (revokeEarlier). Nothing is written, so nothing says that it
+			// was revoked or asked for, and no certificate is issued in the
+			// place of one that stays valid.
+			return structs.NewErrRPCCodedf(http.StatusConflict,
+				"the certificate with the serial %s is not revoked, %v; it stays valid until %s, and the request changes nothing",
+				status.Serial, err, status.NotAfter)
+		}
 		if unrevocable && again {
 			// The new certificate is on its way; the caller learns that
 			// this one stays valid.
@@ -320,8 +336,11 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			case state == structs.CertificateOrderPending:
 				revoking = open
 				changed.Status["revoking"] = open
-			case again && state != structs.CertificateOrderValid:
-				// The operator has not removed the order that failed.
+			case (first || again) && state != structs.CertificateOrderValid:
+				// The operator has not removed the order that failed: that
+				// of the request before, or, at a first request, one a
+				// withdrawal left behind (review finding ATM-24k). No order
+				// was placed, so nothing is written.
 				return structs.NewErrRPCCodedf(http.StatusConflict,
 					"the last revocation order of the certificate with the serial %s is over, and the certificate is not revoked; ask again",
 					status.Serial)
