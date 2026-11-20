@@ -644,8 +644,26 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			// recorded is not the tenant's: its role was deleted, and
 			// somebody else created this one (review finding ATM-7). The
 			// tenant no longer lists it and treats it as any role it finds.
-			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && liveRole != nil && liveRole.ID != mine.ID {
-				delete(w.owned, roleRef.key())
+			//
+			// A role the tenant took over that no longer has the name (it
+			// was renamed by hand, or deleted) is given back first, by the
+			// ID the tenant recorded and under the name it has now: only
+			// then does the tenant forget it, and make a role of its own or
+			// take the one that has the name (review finding ATM-26c). One
+			// that can't be given back keeps its entry, and the tenant
+			// makes no role of the name until it can be (RestoreFailed).
+			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && (liveRole == nil || liveRole.ID != mine.ID) {
+				if mine.Adopted {
+					if _, err := o.giveBack(p, obj, mine, spec.ReleaseWithoutRestore); err != nil {
+						w.restoreFailures = append(w.restoreFailures, err.Error())
+						o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
+							fmt.Sprintf("giving %s back failed: %v", mine, err))
+						continue
+					}
+					delete(w.owned, roleRef.key())
+				} else if liveRole != nil {
+					delete(w.owned, roleRef.key())
+				}
 			}
 			if !w.take(roleRef, roleOriginal(liveRole), roleOriginal(role)) {
 				continue

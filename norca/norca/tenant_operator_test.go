@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -648,4 +649,144 @@ func TestTenantOperator_GiveBackBeforeFirstWrite(t *testing.T) {
 	must.NotNil(t, ns)
 	must.Eq(t, "as the first pass read it", ns.Description, must.Sprint("the namespace the tenant wrote was not given back as found"))
 	must.Eq(t, map[string]string{"team": "old"}, ns.Meta)
+}
+
+// An ACL role a tenant took over and changed, renamed by hand later, is given
+// back before the tenant makes a role of its own: the role of the ID the
+// tenant recorded gets back what the tenant found, under the name it has now.
+// The tenant took a role missing under its name for a role to make again and
+// forgot what it had taken over: the renamed role kept what the tenant wrote
+// into it (review finding ATM-26c).
+func TestTenantOperator_AdoptedRoleRenamed(t *testing.T) {
+	ci.Parallel(t)
+
+	adopt := func(t *testing.T, c *certTest, tenant string) *structs.ACLRole {
+		t.Helper()
+		tenantByHand{c}.policyAndRole(tenant + "-dev")
+		byHand, err := c.s.State().GetACLRoleByName(nil, tenant+"-dev")
+		must.NoError(t, err)
+		must.NotNil(t, byHand)
+		_, err = c.apply("", structs.TenantKind, tenant, map[string]any{
+			"namespace": map[string]any{"description": "Tenant"},
+			"roles":     map[string]any{"dev": []any{"submit-job"}},
+			"adopt":     []any{"acl-policy", "acl-role"},
+		})
+		must.NoError(t, err)
+		obj := waitGeneration(c, tenant)
+		must.SliceContains(t, tenantAdopted(obj), "acl-role//"+tenant+"-dev")
+		written, err := c.s.State().GetACLRoleByID(nil, byHand.ID)
+		must.NoError(t, err)
+		must.NotEq(t, "made by hand", written.Description, must.Sprint("the tenant did not write the role"))
+		return byHand
+	}
+	// givenBack checks the renamed role and the role of the tenant's own.
+	givenBack := func(t *testing.T, c *certTest, tenant string, byHand *structs.ACLRole) {
+		t.Helper()
+		key := "acl-role//" + tenant + "-dev"
+		obj := waitTenant(c, tenant, "ready with a role of its own", func(o *structs.CustomObject) bool {
+			ref := tenantRefs(o)[key]
+			return tenantReady(o) && ref.ID != "" && ref.ID != byHand.ID && !ref.Pending
+		})
+		ref := tenantRefs(obj)[key]
+		must.False(t, ref.Adopted, must.Sprint("the role the tenant made is marked as taken over"))
+		must.Nil(t, ref.Original)
+
+		renamed, err := c.s.State().GetACLRoleByID(nil, byHand.ID)
+		must.NoError(t, err)
+		must.NotNil(t, renamed)
+		must.Eq(t, "ops-dev", renamed.Name)
+		must.Eq(t, "made by hand", renamed.Description, must.Sprint("the renamed role was not given back: it keeps what the tenant wrote"))
+		must.Len(t, 1, renamed.Policies)
+		must.Eq(t, tenant+"-dev-other", renamed.Policies[0].Name)
+		mustHaveEvent(t, c, obj, "Restored", "gave acl-role "+tenant+"-dev back")
+
+		own, err := c.s.State().GetACLRoleByName(nil, tenant+"-dev")
+		must.NoError(t, err)
+		must.NotNil(t, own)
+		must.Eq(t, ref.ID, own.ID)
+		must.Len(t, 1, own.Policies)
+		must.Eq(t, tenant+"-dev", own.Policies[0].Name)
+
+		// The role of its own goes with the tenant; the renamed one stays.
+		must.NoError(t, c.delete("", structs.TenantKind, tenant))
+		waitTenantGone(c, tenant)
+		own, err = c.s.State().GetACLRoleByID(nil, ref.ID)
+		must.NoError(t, err)
+		must.Nil(t, own, must.Sprint("the role the tenant made stayed"))
+		renamed, err = c.s.State().GetACLRoleByID(nil, byHand.ID)
+		must.NoError(t, err)
+		must.NotNil(t, renamed, must.Sprint("the deleted tenant deleted the role it had given back"))
+		must.Eq(t, "made by hand", renamed.Description)
+	}
+
+	t.Run("renamed", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		byHand := adopt(t, c, "team-n1")
+		renameRole(t, c.s, "team-n1-dev", "ops-dev")
+		givenBack(t, c, "team-n1", byHand)
+	})
+
+	// Somebody else's role has the name by the time the tenant looks: the
+	// renamed role is given back all the same, and the other role is taken
+	// over as any role the tenant finds.
+	t.Run("renamed and replaced", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		byHand := adopt(t, c, "team-n2")
+		role, err := c.s.State().GetACLRoleByID(nil, byHand.ID)
+		must.NoError(t, err)
+		renamed := role.Copy()
+		renamed.Name = "ops-dev"
+		renamed.SetHash()
+		other := &structs.ACLRole{ID: uuid.Generate(), Name: "team-n2-dev", Description: "somebody else's",
+			Policies: []*structs.ACLRolePolicyLink{{Name: "team-n2-dev-other"}}}
+		other.SetHash()
+		raftWrite(t, c.s, structs.ACLRolesUpsertRequestType, &structs.ACLRolesUpsertRequest{ACLRoles: []*structs.ACLRole{renamed, other}})
+
+		obj := waitTenant(c, "team-n2", "ready with the other role", func(o *structs.CustomObject) bool {
+			return tenantReady(o) && tenantRefs(o)["acl-role//team-n2-dev"].ID == other.ID
+		})
+		ref := tenantRefs(obj)["acl-role//team-n2-dev"]
+		must.True(t, ref.Adopted)
+		must.Eq(t, "somebody else's", ref.Original.Description)
+		role, err = c.s.State().GetACLRoleByID(nil, byHand.ID)
+		must.NoError(t, err)
+		must.NotNil(t, role)
+		must.Eq(t, "ops-dev", role.Name)
+		must.Eq(t, "made by hand", role.Description, must.Sprint("the renamed role was not given back: it keeps what the tenant wrote"))
+		must.Len(t, 1, role.Policies)
+		must.Eq(t, "team-n2-dev-other", role.Policies[0].Name)
+	})
+
+	// A renamed role that can't be given back keeps the tenant from making
+	// its own, with the condition RestoreFailed, until it can be.
+	t.Run("can't be given back", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		byHand := adopt(t, c, "team-n3")
+		var resp structs.GenericResponse
+		must.NoError(t, c.s.RPC("ACL.DeletePolicies", &structs.ACLPolicyDeleteRequest{
+			Names: []string{"team-n3-dev-other"}, WriteRequest: c.write(""),
+		}, &resp))
+		renameRole(t, c.s, "team-n3-dev", "ops-dev")
+
+		obj := waitTenant(c, "team-n3", "RestoreFailed", func(o *structs.CustomObject) bool {
+			return objectConditionTrue(o.Status, structs.TenantConditionRestoreFailed)
+		})
+		must.False(t, tenantReady(obj))
+		ref := tenantRefs(obj)["acl-role//team-n3-dev"]
+		must.True(t, ref.Adopted, must.Sprint("the tenant forgot the role it could not give back"))
+		must.Eq(t, byHand.ID, ref.ID)
+		own, err := c.s.State().GetACLRoleByName(nil, "team-n3-dev")
+		must.NoError(t, err)
+		must.Nil(t, own, must.Sprint("the tenant made its own role before it gave the renamed one back"))
+		mustHaveEvent(t, c, obj, "RestoreFailed", "team-n3-dev-other")
+
+		tenantByHand{c}.policy("team-n3-dev-other", `agent { policy = "read" }`)
+		givenBack(t, c, "team-n3", byHand)
+	})
 }
