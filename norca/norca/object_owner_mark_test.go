@@ -19,9 +19,7 @@ import (
 
 // The tests of this file state what right on an OWNER it takes to mark a
 // resource as its dependent (the open item "norca.owner" of the review round
-// 2026-11-17; review findings JOG-20 and JOG-21). An assertion marked CURRENT
-// BEHAVIOUR states what the servers do today and is a suspected defect: when
-// the behaviour is fixed, that assertion is to be turned around, not kept.
+// 2026-11-17; review findings JOG-20 and JOG-21).
 
 const testOwnerMarkHookKind = "Hook"
 
@@ -87,16 +85,12 @@ func (c *certTest) jobIn(namespace, id string) *structs.Job {
 }
 
 // A job names its owner in its meta (norca.owner), and Job.Register asks for
-// no right on that owner: the owner may be an object of another namespace
-// that the writer of the job can neither read nor write.
-//
-// CURRENT BEHAVIOUR: with the right submit-job in any one namespace a caller
-// makes a job the dependent of an object of another namespace. The deletion
-// of that object in the default (background) and in the foreground mode is
-// then refused to everyone who may not stop jobs in the namespace of that
-// job, whatever their rights in the namespace of the object are; only the
-// orphan mode is left to them, which keeps their own dependents too. The
-// servers also write the ID of such a job into the event log of the owner.
+// the right on that owner that naming an owner of an object takes (review
+// finding JOG-20): with the right submit-job in one namespace a caller does
+// not make a job the dependent of an object of another namespace, which it
+// can neither read nor write. The administrator of that object deletes it in
+// every mode, and the event log of the object never has the ID of such a
+// job.
 func TestObjectOwnerMark_JobOfAnotherNamespace(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := ownerMarkServer(t)
@@ -120,52 +114,51 @@ func TestObjectOwnerMark_JobOfAnotherNamespace(t *testing.T) {
 		must.NoError(t, victim.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
 	}
 
-	// CURRENT BEHAVIOUR: the mark is accepted without a right on the owner.
-	must.NoError(t, attacker.squatJob("other", "squat-shop", "shop"))
-	must.NoError(t, attacker.squatJob("other", "squat-site", "site"))
+	// The mark is refused without a right on the owner, with the same answer
+	// for an owner that does not exist, and no job is written.
+	err := attacker.squatJob("other", "squat-shop", "shop")
+	must.Eq(t, 403, errCode(t, err), must.Sprint("the owner mark was accepted without a right on the owner"))
+	must.ErrorContains(t, err, `owner example.com/Database "shop" in namespace "default"`)
+	must.ErrorContains(t, err, "requires the write or manage-finalizers capability on the owner")
+	missingErr := attacker.squatJob("other", "squat-shop", "no-such-database")
+	must.Eq(t, 403, errCode(t, missingErr))
+	must.Eq(t, strings.ReplaceAll(err.Error(), `"shop"`, `"no-such-database"`), missingErr.Error())
+	job, err := c.s.State().JobByID(nil, "other", "squat-shop")
+	must.NoError(t, err)
+	must.Nil(t, job)
 
-	// (a) The deletion of the owner is refused to its administrator in the
-	// modes that take the dependents. The error names the namespace of the
-	// job, not the job.
-	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
-		err := victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", mode)
-		must.Eq(t, 403, errCode(t, err), must.Sprintf("mode %q", mode))
-		must.ErrorContains(t, err, `in the namespace "other"`)
-		must.ErrorContains(t, err, "submit-job")
-		must.StrNotContains(t, err.Error(), "squat-shop")
-	}
-	must.False(t, c.object(testOwnerGroup, testOwnerKind, "shop").Deleting())
-
-	// The orphan mode is the way out the administrator has.
-	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", structs.ObjectPropagationOrphan))
+	// (a) The administrator of the owner deletes it in the modes that take
+	// the dependents.
+	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", ""))
 	c.waitGone(testOwnerGroup, testOwnerKind, "shop")
-	must.False(t, c.jobIn("other", "squat-shop").Stop)
+	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "site", structs.ObjectPropagationForeground))
+	c.waitGone(testOwnerGroup, testOwnerKind, "site")
 
-	// (b) A management token passes the check, and the collector stops the
-	// job of the attacker with the owner.
-	must.NoError(t, c.deleteWith(testOwnerGroup, testOwnerKind, "site", ""))
-	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
-		return c.jobIn("other", "squat-site").Stop
-	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("the job of the attacker is stopped"))
-
-	// (e) A job that names an owner which is being deleted in the foreground
-	// mode is not stopped (nobody was checked for it), and the servers say
-	// so in the event log of the owner, with the ID the attacker chose.
+	// (e) No job is attached to an owner that is being deleted in the
+	// foreground mode, so its event log has no text of the attacker.
 	must.NoError(t, victim.objectFinalizers(testOwnerKind, "held", []string{"example.com/hold"}, nil))
 	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "held", structs.ObjectPropagationForeground))
-	must.NoError(t, attacker.squatJob("other", "text-chosen-by-the-attacker", "held"))
-	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+	err = attacker.squatJob("other", "text-chosen-by-the-attacker", "held")
+	must.Eq(t, 403, errCode(t, err))
+	must.Wait(t, wait.ContinualSuccess(wait.BoolFunc(func() bool {
 		log, err := c.s.State().ObjectEventLog(nil, testOwnerGroup, testOwnerKind, "default", "held")
 		must.NoError(t, err)
-		return log != nil && slices.ContainsFunc(log.Events, func(e *structs.ObjectEvent) bool {
-			return e.Reason == objectEventDependentKept &&
-				strings.Contains(e.Message, `"text-chosen-by-the-attacker"`) && strings.Contains(e.Message, `"other"`)
+		return log == nil || !slices.ContainsFunc(log.Events, func(e *structs.ObjectEvent) bool {
+			return e.Reason == objectEventDependentKept || strings.Contains(e.Message, "text-chosen-by-the-attacker")
 		})
-	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)),
-		must.Sprint("the event log of the owner names the job of the attacker"))
+	}), wait.Timeout(time.Second), wait.Gap(100*time.Millisecond)),
+		must.Sprint("the event log of the owner names a job of the attacker"))
 	must.NoError(t, victim.objectFinalizers(testOwnerKind, "held", nil, []string{"example.com/hold"}))
 	c.waitGone(testOwnerGroup, testOwnerKind, "held")
-	must.False(t, c.jobIn("other", "text-chosen-by-the-attacker").Stop)
+
+	// A job of the administrator, in the namespace of the owner, is a
+	// dependent as before: it is stopped with its owner.
+	must.NoError(t, victim.applyOwned(testOwnerGroup, testOwnerKind, "mine", map[string]any{}))
+	must.NoError(t, victim.squatJob("default", "mine-app", "mine"))
+	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "mine", ""))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.jobIn("default", "mine-app").Stop
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("the dependent job is stopped"))
 }
 
 // An object names its owners in Owners, and naming an owner takes "write" or
