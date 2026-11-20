@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -532,13 +533,41 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 	// every way out (Norca).
 	defer conn.Close()
 
-	if err := readWsHandshake(conn.ReadJSON, req, &args.QueryOptions); err != nil {
+	if err := readWsHandshakeWithin(conn, wsHandshakeTimeout, req, &args.QueryOptions); err != nil {
 		conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(toWsCode(400), err.Error()))
 		return nil, err
 	}
 
 	return s.execStreamImpl(conn, &args)
+}
+
+// wsHandshakeTimeout is how long the exec handler waits for the handshake
+// message of a client that asked for one with ws_handshake=true (Norca).
+// The message carries the ACL token, so until it arrives the connection is
+// open without authentication. The clients send it as soon as the websocket
+// is open; 5s is what the agent gives a client for the TLS and the RPC
+// handshake by default (limits https_handshake_timeout and
+// rpc_handshake_timeout).
+const wsHandshakeTimeout = 5 * time.Second
+
+// readWsHandshakeWithin is readWsHandshake with a time limit on the read of
+// the handshake message (Norca): without one a client that never sends it
+// holds the connection, its goroutine and its slot of
+// http_max_conns_per_client for as long as it likes, with no ACL token
+// checked. The limit ends with the handshake: the session after it has none.
+func readWsHandshakeWithin(conn *websocket.Conn, limit time.Duration, req *http.Request, q *structs.QueryOptions) error {
+	if err := conn.SetReadDeadline(time.Now().Add(limit)); err != nil {
+		return err
+	}
+	if err := readWsHandshake(conn.ReadJSON, req, q); err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return fmt.Errorf("no handshake message within %s", limit)
+		}
+		return err
+	}
+	return conn.SetReadDeadline(time.Time{})
 }
 
 // readWsHandshake reads the websocket handshake message and sets

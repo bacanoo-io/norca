@@ -1303,27 +1303,31 @@ func TestHTTPServer_Limits_OK(t *testing.T) {
 	}
 
 	assertNoLimit := func(t *testing.T, addr string) {
-		var err error
-
 		// Create max connections
 		conns := make([]net.Conn, maxConns)
 		errCh := make(chan error, maxConns)
 		for i := 0; i < maxConns; i++ {
-			conns[i], err = net.DialTimeout("tcp", addr, 1*time.Second)
+			conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
 			require.NoError(t, err)
+			conns[i] = conn
 
-			go func(i int) {
+			// The goroutine has its own error and reports every failure
+			// through errCh: the goroutines wrote one shared err, which
+			// the loop wrote as well (a data race).
+			go func(conn net.Conn) {
 				buf := []byte{0}
 				readDeadline := time.Now().Add(1 * time.Second)
-				err = conns[i].SetReadDeadline(readDeadline)
-				require.NoError(t, err)
-				n, err := conns[i].Read(buf)
+				if err := conn.SetReadDeadline(readDeadline); err != nil {
+					errCh <- fmt.Errorf("failed to set the read deadline: %v", err)
+					return
+				}
+				n, err := conn.Read(buf)
 				if n > 0 {
 					errCh <- fmt.Errorf("n > 0: %d", n)
 					return
 				}
 				errCh <- err
-			}(i)
+			}(conn)
 		}
 
 		// Now assert each error is a clientside read deadline error
