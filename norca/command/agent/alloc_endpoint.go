@@ -551,22 +551,46 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 // rpc_handshake_timeout).
 const wsHandshakeTimeout = 5 * time.Second
 
+// wsHandshakeMaxBytes is the largest handshake message the exec handler
+// reads (Norca). The message is read before any ACL token is checked, so its
+// size is what a client without a token can make the agent take in. It is a
+// JSON object of a version number and the token (wsHandshakeMessage). The
+// token is the secret ID of an ACL token, 36 bytes, or a workload identity,
+// a JWT signed with Ed25519: a few hundred bytes with usual names, growing
+// with the names of the job and the task in it, which have no length limit.
+// 16 KiB leaves room for a JWT of about 12000 bytes of claims.
+const wsHandshakeMaxBytes = 16 << 10
+
 // readWsHandshakeWithin is readWsHandshake with a time limit on the read of
 // the handshake message (Norca): without one a client that never sends it
 // holds the connection, its goroutine and its slot of
 // http_max_conns_per_client for as long as it likes, with no ACL token
 // checked. The limit ends with the handshake: the session after it has none.
+//
+// The handshake message has a size limit too, wsHandshakeMaxBytes. The
+// websocket refuses a longer one itself: when the frames of the message add
+// up to more, it sends the close frame "message too big" without reading
+// the rest and fails the read with websocket.ErrReadLimit, which is
+// returned wrapped (after that close frame the connection sends no second
+// one). This limit ends with the handshake as well: the messages of the
+// session are not limited, as before.
 func readWsHandshakeWithin(conn *websocket.Conn, limit time.Duration, req *http.Request, q *structs.QueryOptions) error {
 	if err := conn.SetReadDeadline(time.Now().Add(limit)); err != nil {
 		return err
 	}
+	conn.SetReadLimit(wsHandshakeMaxBytes)
 	if err := readWsHandshake(conn.ReadJSON, req, q); err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
 			return fmt.Errorf("no handshake message within %s", limit)
 		}
+		if errors.Is(err, websocket.ErrReadLimit) {
+			return fmt.Errorf("handshake message larger than %d bytes: %w", wsHandshakeMaxBytes, err)
+		}
 		return err
 	}
+	// 0 is no limit, which a new connection has
+	conn.SetReadLimit(0)
 	return conn.SetReadDeadline(time.Time{})
 }
 
