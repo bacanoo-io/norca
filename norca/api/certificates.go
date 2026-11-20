@@ -61,6 +61,15 @@ type CertificateRevokeRequest struct {
 	// CRLReason: unspecified, keyCompromise, affiliationChanged,
 	// superseded or cessationOfOperation; empty for none (unspecified).
 	Reason string `json:",omitempty"`
+
+	// Serial is the serial number of the certificate to revoke, in
+	// hexadecimal, as the status of the Certificate object shows it (upper
+	// case and colons between the octets are accepted); empty for the
+	// current certificate. It may name the current certificate, with the
+	// same effect as without it, or an earlier certificate of the object
+	// that is still valid (the list earlier of its status): that one is
+	// revoked, and the current certificate stays.
+	Serial string `json:",omitempty"`
 }
 
 // CertificateRevokeResponse is the answer to the revocation of a
@@ -68,6 +77,11 @@ type CertificateRevokeRequest struct {
 type CertificateRevokeResponse struct {
 	// Serial is the serial number that was revoked, in hexadecimal.
 	Serial string
+
+	// Earlier says that an earlier certificate of the object was revoked:
+	// the current one stays, and no new one is issued.
+	Earlier bool
+
 	WriteMeta
 }
 
@@ -129,7 +143,9 @@ func (c *Certificates) CRL(authority string, q *QueryOptions) (*CertificateCRL, 
 
 // Revoke revokes the current certificate of a Certificate object of the
 // namespace of the write options, for the reason of req if it gives one; a
-// new one is issued. req may be nil.
+// new one is issued. With a serial number in req the certificate with it is
+// revoked: an earlier certificate of the object without a new one being
+// issued (CertificateRevokeResponse.Earlier). req may be nil.
 func (c *Certificates) Revoke(name string, req *CertificateRevokeRequest, w *WriteOptions) (*CertificateRevokeResponse, error) {
 	if name == "" {
 		return nil, errors.New("missing certificate name")

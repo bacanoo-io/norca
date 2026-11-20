@@ -44,6 +44,10 @@ Usage: norca certificate <subcommand> [options]
 
       $ norca certificate revoke -namespace=team-a web-tls
 
+  Revoke an earlier certificate of it, by its serial number:
+
+      $ norca certificate revoke -namespace=team-a -serial=4f2a9c01 web-tls
+
   Bring a CA of the organisation in the place of the issuing CA:
 
       $ norca certificate ca import -cert=ca.pem -key=ca-key.pem
@@ -213,7 +217,7 @@ type CertificateRevokeCommand struct {
 func (c *CertificateRevokeCommand) Name() string { return "certificate revoke" }
 
 func (c *CertificateRevokeCommand) Synopsis() string {
-	return "Revoke the current certificate of a Certificate object"
+	return "Revoke the current or an earlier certificate of a Certificate object"
 }
 
 func (c *CertificateRevokeCommand) Help() string {
@@ -224,6 +228,15 @@ Usage: norca certificate revoke [options] <name>
   the namespace: the built-in issuer lists it in its revocation list, an
   external issuer is asked to revoke it. A new certificate with a new key is
   issued and written to the secret.
+
+  With -serial the certificate with that serial number is revoked. It is
+  the current certificate, with the same effect, or an earlier certificate
+  of the object that a newer one replaced while it was still valid: the
+  list "earlier" in the status of the object ("norca object get
+  norca.io/Certificate <name>") shows those, with the end of their
+  validity. An earlier certificate is revoked without a new one being
+  issued, and the secret is not touched. The reason of a certificate that
+  is revoked already can still be raised to keyCompromise this way.
 
   If ACLs are enabled, this command requires a token with the 'write'
   capability for objects of the kind norca.io/Certificate in the namespace.
@@ -240,6 +253,11 @@ Revoke Options:
     cessationOfOperation. The revocation list of the built-in issuer
     carries it, and an external issuer is given it. Without it the reason
     is unspecified.
+
+  -serial=<serial>
+    The serial number of the certificate to revoke, in hexadecimal, as the
+    status of the object shows it; upper case and colons between the
+    octets are accepted. Without it the current certificate is revoked.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -249,6 +267,7 @@ func (c *CertificateRevokeCommand) AutocompleteFlags() complete.Flags {
 		complete.Flags{
 			"-reason": complete.PredictSet("unspecified", "keyCompromise", "affiliationChanged",
 				"superseded", "cessationOfOperation"),
+			"-serial": complete.PredictAnything,
 		})
 }
 
@@ -257,10 +276,11 @@ func (c *CertificateRevokeCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *CertificateRevokeCommand) Run(args []string) int {
-	var reason string
+	var reason, serial string
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&reason, "reason", "", "")
+	flags.StringVar(&serial, "serial", "", "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -277,13 +297,17 @@ func (c *CertificateRevokeCommand) Run(args []string) int {
 		return 1
 	}
 	var req *api.CertificateRevokeRequest
-	if reason != "" {
-		req = &api.CertificateRevokeRequest{Reason: reason}
+	if reason != "" || serial != "" {
+		req = &api.CertificateRevokeRequest{Reason: reason, Serial: serial}
 	}
 	resp, err := client.Certificates().Revoke(name, req, nil)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error revoking the certificate: %s", err))
 		return 1
+	}
+	if resp.Earlier {
+		c.Ui.Output(fmt.Sprintf("Revoked the earlier certificate with the serial %s of %q; the current certificate stays", resp.Serial, name))
+		return 0
 	}
 	c.Ui.Output(fmt.Sprintf("Revoked the certificate with the serial %s of %q; a new one is being issued", resp.Serial, name))
 	return 0
