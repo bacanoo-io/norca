@@ -3,7 +3,9 @@
 
 // Package connprefix makes the per-client connection limits of the HTTP and
 // the RPC listeners count an IPv6 client by its /64: a host has a whole /64
-// to connect from, so a limit per address does not bound it.
+// to connect from, so a limit per address does not bound it. It also makes
+// the limit of the HTTP listeners count a hijacked connection until it is
+// closed (TrackListener).
 package connprefix
 
 import (
@@ -38,9 +40,24 @@ func Unwrap(conn net.Conn) net.Conn {
 
 // HTTPConnState returns an http.Server ConnState hook that calls the hook f
 // of a connection limiter with ForLimit(conn).
+//
+// A hijacked connection keeps counting until it is closed: the hook of
+// go-connlimit frees a connection at http.StateHijacked, although the
+// handler that took it over (a websocket) keeps it open, so a client could
+// hold any number of them. For a connection of a TrackListener f does not
+// see http.StateHijacked; it sees http.StateClosed when the connection is
+// closed, by whoever closes it. Other connections can't tell when they are
+// closed, and f sees their http.StateHijacked.
 func HTTPConnState(f func(net.Conn, http.ConnState)) func(net.Conn, http.ConnState) {
 	return func(conn net.Conn, state http.ConnState) {
-		f(ForLimit(conn), state)
+		lc := ForLimit(conn)
+		if state == http.StateHijacked {
+			if tc := tracked(conn); tc != nil {
+				tc.afterClose(func() { f(lc, http.StateClosed) })
+				return
+			}
+		}
+		f(lc, state)
 	}
 }
 

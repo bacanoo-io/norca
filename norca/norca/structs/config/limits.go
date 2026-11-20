@@ -28,6 +28,9 @@ type Limits struct {
 
 	// HTTPMaxConnsPerClient is the maximum number of concurrent HTTP
 	// connections from a single IP address. nil/0 means no limit.
+	//
+	// An IPv6 client is counted by its /64. A connection that a handler
+	// took over (the websocket of alloc exec) counts until it is closed.
 	HTTPMaxConnsPerClient *int `hcl:"http_max_conns_per_client"`
 
 	// RPCHandshakeTimeout is the deadline by which RPC handshakes must

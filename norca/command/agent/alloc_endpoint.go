@@ -528,6 +528,9 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 	if err != nil {
 		return nil, fmt.Errorf("failed to upgrade connection: %v", err)
 	}
+	// The connection is hijacked: nothing closes it but this handler, on
+	// every way out (Norca).
+	defer conn.Close()
 
 	if err := readWsHandshake(conn.ReadJSON, req, &args.QueryOptions); err != nil {
 		conn.WriteMessage(websocket.CloseMessage,

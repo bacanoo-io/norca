@@ -8,12 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/go-msgpack/codec"
@@ -128,4 +131,43 @@ func TestForwardExecInput_ClosedPipe(t *testing.T) {
 	must.True(t, isClosedPipe(fmt.Errorf("msgpack encode error: %s", io.ErrClosedPipe)))
 	must.False(t, isClosedPipe(nil))
 	must.False(t, isClosedPipe(io.EOF))
+}
+
+// TestAllocExec_HandshakeErrorClosesConn: the exec handler closes the
+// connection it hijacked when the handshake message of the client is bad.
+// It only sent the close frame and left the connection open: the client
+// could hold it, and since a hijacked connection counts in
+// http_max_conns_per_client until it is closed, every such request would
+// take a slot of its client for good.
+func TestAllocExec_HandshakeErrorClosesConn(t *testing.T) {
+	ci.Parallel(t)
+
+	const limit = 3
+
+	s := makeHTTPServer(t, func(c *Config) {
+		c.Limits.HTTPMaxConnsPerClient = pointer.Of(limit)
+		c.LogLevel = "ERROR"
+	})
+	defer s.Shutdown()
+
+	wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + uuid.Generate() +
+		"/exec?task=web&ws_handshake=true&command=" + url.QueryEscape(`["true"]`)
+
+	// more requests than the client has connections
+	for i := 0; i < 2*limit; i++ {
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		must.NoError(t, err, must.Sprintf("request %d", i))
+		defer conn.Close()
+		must.NoError(t, conn.WriteJSON(map[string]any{"version": 99}))
+
+		_, _, err = conn.ReadMessage()
+		must.True(t, websocket.IsCloseError(err, websocket.ClosePolicyViolation),
+			must.Sprintf("request %d: unexpected error: %v", i, err))
+
+		// the server closes the connection after the close frame
+		raw := conn.NetConn()
+		must.NoError(t, raw.SetReadDeadline(time.Now().Add(10*time.Second)))
+		_, err = raw.Read(make([]byte, 1))
+		must.ErrorIs(t, err, io.EOF, must.Sprintf("request %d", i))
+	}
 }
