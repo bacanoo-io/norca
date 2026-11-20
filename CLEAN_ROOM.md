@@ -523,6 +523,7 @@ each names the failing test and its output before the change.
 | `9a74eb6db` | `norca/leader.go` | Establishing and revoking leadership starts and ends the term of the release operations (a Norca component), so an operation stops writing when its server loses leadership |
 | `f837d8ba4` | `norca/config.go` | An unexported test hook of the tenant operator (a Norca component) only |
 | `63687f8d8` | `command/agent/http.go`, `norca/rpc.go` | The HTTP and RPC connection limits (`http_max_conns_per_client`, `rpc_max_conns_per_client`, the RPC stream limit) count an IPv6 client by its /64 instead of its exact address, through a Norca helper (`helper/connprefix`) that wraps the connection only for the limiter (a host with a /64 could open the limit again from every address of it) |
+| `0e47b8c61`, `1cf5b9033`, `67c45f2e2` | `norca/acl_endpoint.go`, `norca/fsm.go`, `norca/state/state_store_acl.go`, `norca/structs/acl.go`, `command/agent/acl_endpoint.go`, `norca/config.go` | Upserts of ACL roles take an expected modify index per name (0: must not exist yet), checked against the role of the request's ID in the transaction of the state store, with `?cas=` over HTTP; the tenant operator uses it (it overwrote a role changed between its read and its write). In `config.go` only the comment of an unexported test hook of the tenant operator |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
