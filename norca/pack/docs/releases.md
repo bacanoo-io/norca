@@ -78,8 +78,8 @@ their extension. The format of each file is that of the corresponding `norca ...
 
 | Template | Resource | Format | Order |
 | --- | --- | --- | --- |
-| `*.namespace.hcl.tpl` | Namespace | `norca namespace apply` | 1 |
-| `*.quota.hcl.tpl` | Quota | `norca quota apply` | 2 |
+| `*.quota.hcl.tpl` | Quota | `norca quota apply` | 1 |
+| `*.namespace.hcl.tpl` | Namespace | `norca namespace apply` | 2 |
 | `*.acl.hcl.tpl` | ACL policy | `policy "<name>" { description, rules, job_acl { ... } }` | 3 |
 | `*.var.hcl.tpl` | Variables entry | `norca var put` file, plus `secret_items = [...]` | 4 |
 | `*.kind.hcl.tpl` | Object kind | `norca object-kind apply` | 5 |
@@ -88,8 +88,12 @@ their extension. The format of each file is that of the corresponding `norca ...
 | `*.object.hcl.tpl` | Custom object | `norca object apply` | 8 |
 | `*.nomad.tpl` | Job | job specification | 9 |
 
-Deletion uses the reverse order. A namespace that references a quota of the same pack is created
-first and attached to the quota once it exists. `*.netpol.hcl.tpl` (network rules) is reserved and
+Deletion uses the reverse order. A quota is applied before the namespaces, so a namespace that
+references a quota of the same pack is written with it in one step and never exists without it; and
+a namespace is deleted before its quota. A quota that a namespace still uses is not deleted: when a
+namespace of the release can't be deleted (it is not empty, or it is no longer the release's), the
+namespace keeps its quota, the release keeps the quota, and the operation fails and names the
+namespace. `*.netpol.hcl.tpl` (network rules) is reserved and
 rejected until the servers support network rules.
 
 **No file is read for a rendered resource template:** the HCL function `file()` of the kind and object

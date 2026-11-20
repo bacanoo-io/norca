@@ -21,13 +21,14 @@ import (
 )
 
 // templateTypes maps the extensions of resource templates to the release
-// resource types. Jobs keep the original ".nomad.tpl" extension.
+// resource types, in the application order of the servers (SortResources).
+// Jobs keep the original ".nomad.tpl" extension.
 var templateTypes = []struct {
 	suffix string
 	typ    string
 }{
-	{".namespace.hcl.tpl", api.ReleaseResourceNamespace},
 	{".quota.hcl.tpl", api.ReleaseResourceQuota},
+	{".namespace.hcl.tpl", api.ReleaseResourceNamespace},
 	{".acl.hcl.tpl", api.ReleaseResourceACLPolicy},
 	{".var.hcl.tpl", api.ReleaseResourceVariable},
 	{".kind.hcl.tpl", api.ReleaseResourceObjectKind},

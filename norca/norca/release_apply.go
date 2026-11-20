@@ -1489,64 +1489,13 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 		return err
 	}
 
-	// Quotas of the release that don't exist yet are attached to the
-	// namespaces of the release once they are created.
-	quotas := map[string]bool{}
-	for _, res := range resources {
-		if res.Type == structs.ReleaseResourceQuota {
-			quotas[res.Quota.Name] = true
-		}
-	}
-	var deferred []*structs.ReleaseResource
-	flushDeferred := func() error {
-		for _, res := range deferred {
-			ref := res.Ref()
-			// The namespace was written without its quota: the restore
-			// compares it with this second write now.
-			var change *appliedChange
-			for _, c := range slices.Backward(op.applied) {
-				if c.ref.Key() == ref.Key() && !c.deleted {
-					change = c
-					break
-				}
-			}
-			if change == nil {
-				snap, err := op.m.srv.State().Snapshot()
-				if err != nil {
-					return err
-				}
-				before, err := op.m.readLive(snap, ref)
-				if err != nil {
-					return err
-				}
-				change = &appliedChange{ref: ref, before: before}
-			}
-			op.beforeApply(ref)
-			if err := op.checkOwner(aclObj, res); err != nil {
-				return fmt.Errorf("%s: %w", ref, err)
-			}
-			result, err := op.applyResource(res)
-			if err != nil {
-				return fmt.Errorf("%s: %w", ref, err)
-			}
-			if change.written == nil {
-				op.applied = append(op.applied, change)
-			}
-			change.written, change.index = res, result.index
-		}
-		deferred = nil
-		return nil
-	}
-
+	// The resources are in application order (SortReleaseResources): the
+	// quotas come before the namespaces, so a namespace is written with the
+	// quota it names in one write, also when the quota is new.
 	var jobs []*registeredJob
 	for _, res := range resources {
 		if res.IsHook() {
 			continue
-		}
-		if len(deferred) > 0 && res.Order() > structs.ReleaseResourceTypeOrder(structs.ReleaseResourceQuota) {
-			if err := flushDeferred(); err != nil {
-				return err
-			}
 		}
 		if err := op.ctx.Err(); err != nil {
 			if op.leadershipEnded() {
@@ -1583,18 +1532,9 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 		}
 
 		toApply := res
-		switch res.Type {
-		case structs.ReleaseResourceVariable:
+		if res.Type == structs.ReleaseResourceVariable {
 			if toApply, err = op.withSecrets(res, before, in.secrets); err != nil {
 				return err
-			}
-		case structs.ReleaseResourceNamespace:
-			if q := res.Namespace.Quota; q != "" && quotas[q] {
-				if existing, err := snap.QuotaSpecByName(nil, q); err == nil && existing == nil {
-					toApply = res.Copy()
-					toApply.Namespace.Quota = ""
-					deferred = append(deferred, res)
-				}
 			}
 		}
 
@@ -1651,10 +1591,9 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 			jobs = append(jobs, &registeredJob{namespace: ref.Namespace, id: ref.Name, evalID: result.evalID})
 		}
 	}
-	if err := flushDeferred(); err != nil {
-		return err
-	}
 
+	// What the pack no longer has is deleted after what it has was applied:
+	// a namespace that stays no longer names a quota that goes.
 	if err := op.deleteResources(removed, true); err != nil {
 		return err
 	}
@@ -1740,36 +1679,16 @@ func (op *releaseOp) beforeTakeOver(owner string) {
 	}
 }
 
-// deleteResources deletes resources in the given (deletion) order. Quotas
-// are detached from namespaces that are deleted with them first; a
-// namespace that is then not deleted gets its quota back (attachQuotaBack).
-// With record, the deletions and the detaches are recorded for an atomic
-// restore.
-func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record bool) (err error) {
-	quotas := map[string]bool{}
-	for _, ref := range refs {
-		if ref.Type == structs.ReleaseResourceQuota {
-			quotas[ref.Name] = true
-		}
-	}
-	// detached are the detaches of the namespaces the operation detached
-	// a quota from and has not deleted, by key; deletions the recorded
-	// deletions of those namespaces.
-	detached := map[string]*appliedChange{}
-	deletions := map[string]*appliedChange{}
-	defer func() {
-		// An interrupted operation writes nothing more (ATM-12).
-		if errors.Is(err, errReleaseInterrupted) {
-			return
-		}
-		// A failed atomic operation restores what it changed next.
-		restoring := record && op.atomic && err != nil
-		for _, ref := range refs {
-			if detach, ok := detached[ref.Key()]; ok {
-				op.attachQuotaBack(detach, deletions[ref.Key()], restoring)
-			}
-		}
-	}()
+// deleteResources deletes resources in the given (deletion) order, in which
+// the namespaces come before the quotas: a namespace that is deleted is gone
+// before the quota it names, and no quota is taken off a namespace. The quota
+// of a namespace that is not deleted (refused, another owner's now) can't be
+// deleted either, its endpoint refuses a quota in use: the namespace keeps
+// its quota, the release keeps the quota, and the operation fails as with any
+// refused deletion, and says which of its namespaces still names the quota
+// (review finding ATM-15b). With record, the deletions are recorded for an
+// atomic restore.
+func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record bool) error {
 	var errs []error
 	for _, ref := range refs {
 		if op.disowned[ref.Key()] {
@@ -1780,52 +1699,11 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 			return err
 		}
 		if !before.exists() {
-			// Gone: there is nothing to attach a quota back to.
-			delete(detached, ref.Key())
 			continue
 		}
 		if why != "" {
 			op.disown(ref, why)
 			continue
-		}
-		if ref.Type == structs.ReleaseResourceQuota {
-			// Detach the quota from the namespaces deleted with it, if
-			// they are still the release's, as they were read. The
-			// detach is recorded: an atomic restore attaches the quota
-			// again once it created the quota again (review finding
-			// ATM-15).
-			for _, nsRef := range refs {
-				if nsRef.Type != structs.ReleaseResourceNamespace || op.disowned[nsRef.Key()] {
-					continue
-				}
-				_, live, why, err := op.stillReleases(nsRef)
-				if err != nil {
-					return err
-				}
-				if why != "" && live.exists() {
-					op.disown(nsRef, why)
-					continue
-				}
-				if !live.exists() || live.res.Namespace.Quota != ref.Name {
-					continue
-				}
-				res := &structs.ReleaseResource{Type: structs.ReleaseResourceNamespace, Namespace: live.res.Namespace.Copy()}
-				res.Namespace.Quota = ""
-				read := live.modifyIndex
-				result, err := op.applyResourceAt(res, &read)
-				if errors.Is(err, errReleaseInterrupted) {
-					return err
-				}
-				if err != nil {
-					errs = append(errs, fmt.Errorf("%s: detaching quota: %w", nsRef, err))
-					continue
-				}
-				detach := &appliedChange{ref: nsRef, before: live, written: res, index: result.index}
-				detached[nsRef.Key()] = detach
-				if record {
-					op.applied = append(op.applied, detach)
-				}
-			}
 		}
 		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeDelete}
 		op.changes = append(op.changes, change)
@@ -1847,71 +1725,46 @@ func (op *releaseOp) deleteResources(refs []*structs.ReleaseResourceRef, record 
 			continue
 		}
 		if record {
-			deletion := &appliedChange{ref: ref, before: before, deleted: true}
-			op.applied = append(op.applied, deletion)
-			deletions[ref.Key()] = deletion
+			op.applied = append(op.applied, &appliedChange{ref: ref, before: before, deleted: true})
 		}
 		if err != nil {
 			change.Error = err.Error()
+			if ref.Type == structs.ReleaseResourceQuota {
+				op.warnQuotaInUse(ref, refs)
+			}
 			if record {
 				return fmt.Errorf("deleting %s: %w", ref, err)
 			}
 			errs = append(errs, fmt.Errorf("deleting %s: %w", ref, err))
-			continue
 		}
-		delete(detached, ref.Key())
 	}
 	return structs.ReleaseErrors(errs)
 }
 
-// attachQuotaBack attaches its quota back to a namespace that
-// deleteResources detached the quota from (detach) and then did not delete:
-// disowned, changed, refused, or not reached after a failure (review finding
-// ATM-15). The write is a check-and-set against the detach: a namespace
-// changed since is left as it is, with a warning. A quota deleted meanwhile
-// can't be named: when an atomic restore follows (restoring), the restore
-// attaches the quota after it created the quota again; otherwise the
-// operation warns. Attached back, the detach and the deletion of the
-// namespace (deletion, nil if not recorded) are no changes a restore would
-// undo.
-func (op *releaseOp) attachQuotaBack(detach, deletion *appliedChange, restoring bool) {
-	quota := detach.before.res.Namespace.Quota
+// warnQuotaInUse warns, after the deletion of a quota failed, about the
+// namespaces among refs (what the operation was to delete) that exist and
+// still name the quota: the operation did not delete them, so the quota
+// stays with them, and the release keeps it.
+func (op *releaseOp) warnQuotaInUse(quota *structs.ReleaseResourceRef, refs []*structs.ReleaseResourceRef) {
 	snap, err := op.m.srv.State().Snapshot()
 	if err != nil {
-		op.warn("%s was not deleted, and attaching its quota %q back failed: %v", detach.ref, quota, err)
 		return
 	}
-	ns, err := snap.NamespaceByName(nil, detach.ref.Name)
-	if err != nil {
-		op.warn("%s was not deleted, and attaching its quota %q back failed: %v", detach.ref, quota, err)
-		return
+	var names []string
+	for _, ref := range refs {
+		if ref.Type != structs.ReleaseResourceNamespace {
+			continue
+		}
+		ns, err := snap.NamespaceByName(nil, ref.Name)
+		if err == nil && ns != nil && ns.Quota == quota.Name {
+			names = append(names, ref.String())
+		}
 	}
-	if ns == nil {
-		return
+	if len(names) > 0 {
+		slices.Sort(names)
+		op.warn("%s was not deleted: %s, which the operation did not delete, still names it; the release keeps the quota",
+			quota, strings.Join(names, ", "))
 	}
-	q, err := snap.QuotaSpecByName(nil, quota)
-	switch {
-	case err != nil:
-		op.warn("%s was not deleted, and attaching its quota %q back failed: %v", detach.ref, quota, err)
-		return
-	case q == nil && restoring:
-		return
-	case q == nil:
-		op.warn("%s was not deleted, and no longer names the quota %q: the quota was deleted", detach.ref, quota)
-		return
-	}
-	index := detach.index
-	_, err = op.applyResourceAt(detach.before.res, &index)
-	switch {
-	case errors.Is(err, errReleaseInterrupted):
-		return
-	case errors.Is(err, errReleaseResourceChanged):
-		op.warn("%s was not deleted, and its quota %q was not attached back: it changed after the release detached the quota", detach.ref, quota)
-	case err != nil:
-		op.warn("%s was not deleted, and attaching its quota %q back failed: %v", detach.ref, quota, err)
-		return
-	}
-	op.applied = slices.DeleteFunc(op.applied, func(c *appliedChange) bool { return c == detach || c == deletion })
 }
 
 // stillReleases reads a resource the release recorded (ref, from its
@@ -2046,7 +1899,9 @@ func (op *releaseOp) withSecrets(res *structs.ReleaseResource, before *liveResou
 	return out, nil
 }
 
-// restore undoes the changes of a failed atomic operation in reverse order.
+// restore undoes the changes of a failed atomic operation in reverse order:
+// what the operation deleted last is created again first, so a quota before
+// the namespace that names it.
 func (op *releaseOp) restore() []error {
 	changes := op.applied
 	if op.attempted != nil {
@@ -2056,38 +1911,14 @@ func (op *releaseOp) restore() []error {
 	var errs []error
 	for i := len(changes) - 1; i >= 0; i-- {
 		c := changes[i]
-		index, err := op.restoreChange(c, c == op.attempted)
-		if err != nil {
+		if err := op.restoreChange(c, c == op.attempted); err != nil {
 			errs = append(errs, fmt.Errorf("restoring %s: %w", c.ref, err))
 			if errors.Is(err, errReleaseInterrupted) {
 				break
 			}
-			continue
-		}
-		if index != 0 {
-			restoredAt(changes[:i], c, index)
 		}
 	}
 	return errs
-}
-
-// restoredAt records that the restore wrote back the state before the
-// change c, at the modify index index: the earlier change of the operation
-// to the resource, if it left the resource as c found it, is compared with
-// the restore's write from now on, not with its own. So a namespace that the
-// operation detached its quota from and then deleted, and that the restore
-// created again without the quota, gets the quota again once the restore
-// created the quota again (review finding ATM-15).
-func restoredAt(earlier []*appliedChange, c *appliedChange, index uint64) {
-	for _, e := range slices.Backward(earlier) {
-		if e.ref.Key() != c.ref.Key() {
-			continue
-		}
-		if !e.deleted && e.written != nil && e.index != 0 && e.index == c.before.modifyIndex {
-			e.index = index
-		}
-		return
-	}
 }
 
 // restoreChange puts a resource back as it was before the operation, but
@@ -2098,45 +1929,38 @@ func restoredAt(earlier []*appliedChange, c *appliedChange, index uint64) {
 // endpoint has one (releaseWritesChecked, releaseDeletesChecked); a deletion
 // of the other types is unconditional, so the deletion RPC itself is the
 // window left. attempted is the change whose apply failed: whether its
-// endpoint wrote anything is not known. It returns the modify index of the
-// resource the restore wrote back as its endpoint answered it, 0 if it wrote
-// none or the endpoint does not say.
-func (op *releaseOp) restoreChange(c *appliedChange, attempted bool) (uint64, error) {
+// endpoint wrote anything is not known.
+func (op *releaseOp) restoreChange(c *appliedChange, attempted bool) error {
 	snap, err := op.m.srv.State().Snapshot()
 	if err != nil {
-		return 0, err
+		return err
 	}
 	live, err := op.m.readLive(snap, c.ref)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	switch {
 	case !live.exists() && !c.before.exists(),
 		live.exists() && c.before.exists() && live.modifyIndex == c.before.modifyIndex:
 		// As it was before: nothing to restore.
-		return 0, nil
+		return nil
 	case !op.leftByOperation(c, live, attempted):
 		what := "it changed after the operation wrote it"
 		if c.deleted {
 			what = "it was created again after the operation deleted it"
 		}
 		op.warn("%s was not restored: %s, and is left as it is", c.ref, what)
-		return 0, nil
+		return nil
 	}
 
 	op.beforeRestore(c.ref)
 	read := live.modifyIndex // 0: it does not exist
-	var written uint64
 	if c.before.exists() {
 		var index *uint64
 		if releaseWritesChecked(c.ref.Type) {
 			index = &read
 		}
-		var result *applyResult
-		result, err = op.applyResourceAt(c.before.res, index)
-		if err == nil {
-			written = result.index
-		}
+		_, err = op.applyResourceAt(c.before.res, index)
 	} else {
 		var index *uint64
 		if releaseDeletesChecked(c.ref.Type) {
@@ -2146,13 +1970,12 @@ func (op *releaseOp) restoreChange(c *appliedChange, attempted bool) (uint64, er
 	}
 	if errors.Is(err, errReleaseResourceChanged) {
 		op.warn("%s was not restored: it changed while the operation restored it, and is left as it is", c.ref)
-		return 0, nil
+		return nil
 	}
-	if err != nil {
-		return 0, err
+	if err == nil {
+		op.restored[c.ref.Key()] = true
 	}
-	op.restored[c.ref.Key()] = true
-	return written, nil
+	return err
 }
 
 // leftByOperation reports whether the live resource is still as the change
