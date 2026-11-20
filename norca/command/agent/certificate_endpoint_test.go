@@ -6,13 +6,16 @@ package agent
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -71,10 +74,26 @@ func TestHTTP_Certificates(t *testing.T) {
 		// What is refused.
 		_, err = certs.ImportAuthority(&api.CertificateAuthorityImportRequest{Cert: "x", Key: "y"}, nil)
 		must.ErrorContains(t, err, "400")
-		_, err = certs.Revoke("missing", nil)
+		_, err = certs.Revoke("missing", nil, nil)
 		must.ErrorContains(t, err, "404")
-		_, err = certs.Revoke("", nil)
+		_, err = certs.Revoke("missing", &api.CertificateRevokeRequest{Reason: "keyCompromise"}, nil)
+		must.ErrorContains(t, err, "404")
+		_, err = certs.Revoke("", nil, nil)
 		must.ErrorContains(t, err, "missing certificate name")
+
+		// A reason that is not one a subscriber may give, or a body that
+		// can't be decoded (review finding ATM-25).
+		for _, reason := range []string{"caCompromise", "bogus"} {
+			_, err = certs.Revoke("missing", &api.CertificateRevokeRequest{Reason: reason}, nil)
+			must.ErrorContains(t, err, "400", must.Sprint(reason))
+			must.ErrorContains(t, err, "unknown revocation reason", must.Sprint(reason))
+		}
+		req, err := http.NewRequest(http.MethodPut, "/v1/certificate/web/revoke", strings.NewReader("{"))
+		must.NoError(t, err)
+		_, err = s.Server.CertificateSpecificRequest(httptest.NewRecorder(), req)
+		var coded HTTPCodedError
+		must.True(t, errors.As(err, &coded), must.Sprint(err))
+		must.Eq(t, http.StatusBadRequest, coded.Code())
 
 		// Only the methods the routes know.
 		for path, handler := range map[string]func(http.ResponseWriter, *http.Request) (any, error){
@@ -89,9 +108,25 @@ func TestHTTP_Certificates(t *testing.T) {
 			_, err = handler(httptest.NewRecorder(), req)
 			must.ErrorContains(t, err, ErrInvalidMethod, must.Sprint(path))
 		}
-		req, err := http.NewRequest(http.MethodPut, "/v1/certificate/web", nil)
+		req, err = http.NewRequest(http.MethodPut, "/v1/certificate/web", nil)
 		must.NoError(t, err)
 		_, err = s.Server.CertificateSpecificRequest(httptest.NewRecorder(), req)
 		must.Error(t, err)
 	})
+}
+
+// The reason of a revocation reaches the API (review finding ATM-25).
+func TestCertificateAuthorityToAPI_Reason(t *testing.T) {
+	ci.Parallel(t)
+
+	out := certificateAuthorityToAPI(&structs.CertificateAuthority{
+		ID: "ca",
+		Revoked: []*structs.CertificateRevocation{
+			{Serial: "01", Reason: structs.CertificateRevokeReasonKeyCompromise},
+			{Serial: "02"},
+		},
+	})
+	must.Len(t, 2, out.Revoked)
+	must.Eq(t, "keyCompromise", out.Revoked[0].Reason)
+	must.Eq(t, "", out.Revoked[1].Reason)
 }

@@ -312,7 +312,11 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		return status.Order
 	}
 	ours := secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name
-	have := ours && status.Serial != "" &&
+	// A current version that is soft deleted or destroyed can't be read:
+	// the certificate is not held, and a new one is issued into a new
+	// version (review finding ATM-24). The old one is not revoked: a
+	// deletion is no key compromise, and a soft delete can be undone.
+	have := ours && !secret.Deleted && !secret.Destroyed && status.Serial != "" &&
 		slices.Contains(secret.ItemKeys, structs.CertificateSecretItemCert) &&
 		slices.Contains(secret.ItemKeys, structs.CertificateSecretItemKey)
 	notAfter, _ := time.Parse(time.RFC3339, status.NotAfter)
@@ -904,9 +908,10 @@ func (o *certificateOperator) issueExternal(p *certificatePass, obj *structs.Cus
 	}
 
 	// The key waits in the secret, next to the current certificate. A
-	// secret whose versions a withdrawal destroyed holds none.
+	// secret whose current version is soft deleted or destroyed (by a
+	// withdrawal or a user) holds none that can be kept.
 	items := structs.SecretItems{}
-	if secret != nil && !secret.Destroyed {
+	if secret != nil && !secret.Deleted && !secret.Destroyed {
 		current, _, err := o.srv.secretReadValue(obj.Namespace, spec.SecretPath, 0)
 		if err != nil {
 			o.fail(p, obj, st, out, "SecretReadFailed", err.Error())
@@ -970,6 +975,13 @@ func (o *certificateOperator) takeChain(p *certificatePass, obj *structs.CustomO
 	if secret == nil {
 		o.dropOrder(p, st)
 		o.fail(p, obj, st, out, "KeyLost", "the secret with the key of the order is gone")
+		return
+	}
+	if secret.Deleted || secret.Destroyed {
+		// Waiting would not bring the key back: a version can only be
+		// undeleted by hand.
+		o.dropOrder(p, st)
+		o.fail(p, obj, st, out, "KeyLost", "the version of the secret with the key of the order is deleted")
 		return
 	}
 	current, _, err := o.srv.secretReadValue(obj.Namespace, spec.SecretPath, 0)

@@ -608,9 +608,13 @@ func (c *certificateCA) revocationList(ca *structs.CertificateAuthority) (string
 		if !ok {
 			continue
 		}
+		// The code of the reason; 0, unspecified, leaves the extension out
+		// (RFC 5280, section 5.3.1).
+		reason, _ := structs.CertificateRevokeReasonCode(rev.Reason)
 		template.RevokedCertificateEntries = append(template.RevokedCertificateEntries, x509.RevocationListEntry{
 			SerialNumber:   serial,
 			RevocationTime: rev.RevokedAt,
+			ReasonCode:     reason,
 		})
 	}
 	der, err := x509.CreateRevocationList(rand.Reader, template, signer.cert, signer.key)

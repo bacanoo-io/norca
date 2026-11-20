@@ -32,6 +32,10 @@ type CertificateRevocation struct {
 	Certificate string
 	RevokedAt   time.Time
 	NotAfter    time.Time
+
+	// Reason is the reason of the revocation, the name of an RFC 5280
+	// CRLReason; empty for none (unspecified).
+	Reason string
 }
 
 // CertificateRoots is the trust bundle of the issuing CA of a region.
@@ -49,6 +53,14 @@ type CertificateRoots struct {
 // CertificateCRL is a PEM encoded revocation list of an issuing CA.
 type CertificateCRL struct {
 	CRL string
+}
+
+// CertificateRevokeRequest is what a revocation of a certificate may say.
+type CertificateRevokeRequest struct {
+	// Reason is the reason of the revocation, the name of an RFC 5280
+	// CRLReason: unspecified, keyCompromise, affiliationChanged,
+	// superseded or cessationOfOperation; empty for none (unspecified).
+	Reason string `json:",omitempty"`
 }
 
 // CertificateRevokeResponse is the answer to the revocation of a
@@ -116,13 +128,18 @@ func (c *Certificates) CRL(authority string, q *QueryOptions) (*CertificateCRL, 
 }
 
 // Revoke revokes the current certificate of a Certificate object of the
-// namespace of the write options; a new one is issued.
-func (c *Certificates) Revoke(name string, w *WriteOptions) (*CertificateRevokeResponse, error) {
+// namespace of the write options, for the reason of req if it gives one; a
+// new one is issued. req may be nil.
+func (c *Certificates) Revoke(name string, req *CertificateRevokeRequest, w *WriteOptions) (*CertificateRevokeResponse, error) {
 	if name == "" {
 		return nil, errors.New("missing certificate name")
 	}
+	var body any
+	if req != nil {
+		body = req
+	}
 	var resp CertificateRevokeResponse
-	wm, err := c.client.put("/v1/certificate/"+url.PathEscape(name)+"/revoke", nil, &resp, w)
+	wm, err := c.client.put("/v1/certificate/"+url.PathEscape(name)+"/revoke", body, &resp, w)
 	if err != nil {
 		return nil, err
 	}

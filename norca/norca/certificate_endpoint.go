@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/acl"
@@ -210,6 +211,16 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 	if !aclObj.AllowObjectOperation(namespace, kindRef, acl.ObjectCapabilityWrite) {
 		return structs.ErrPermissionDenied
 	}
+	// The reason, by the name of its RFC 5280 CRLReason (review finding
+	// ATM-25); unspecified is the same as none.
+	reason := args.Reason
+	if _, ok := structs.CertificateRevokeReasonCode(reason); !ok {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "unknown revocation reason %q: give one of %s",
+			reason, strings.Join(structs.CertificateRevokeReasons, ", "))
+	}
+	if reason == structs.CertificateRevokeReasonUnspecified {
+		reason = ""
+	}
 
 	for attempt := 1; ; attempt++ {
 		snap, err := c.srv.State().Snapshot()
@@ -236,7 +247,7 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			return nil
 		}
 
-		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, ""); err != nil &&
+		if err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason); err != nil &&
 			!errors.Is(err, errCertificateNotRevocable) {
 			return err
 		}
@@ -245,8 +256,11 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		written, err := c.srv.writeOperatorObject(changed)
 		if err == nil {
 			reply.Index = written.ModifyIndex
-			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
-				"certificate with the serial %s revoked by %s", status.Serial, objectReporter(args)))
+			message := fmt.Sprintf("certificate with the serial %s revoked by %s", status.Serial, objectReporter(args))
+			if reason != "" {
+				message += " for the reason " + reason
+			}
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", message)
 			operatorCount(structs.CertificateKind, "revoked")
 			return nil
 		}
@@ -284,6 +298,7 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 			Certificate: obj.Namespace + "/" + obj.Name,
 			RevokedAt:   time.Now().UTC().Truncate(time.Second),
 			NotAfter:    notAfter,
+			Reason:      reason,
 		})
 		if err == nil && !found {
 			err = fmt.Errorf("%w: the certificate authority %s that signed it is gone", errCertificateNotRevocable, status.Authority)
