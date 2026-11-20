@@ -35,6 +35,7 @@ func certificateAuthorityToAPI(ca *structs.CertificateAuthority) *api.Certificat
 			Certificate: r.Certificate,
 			RevokedAt:   r.RevokedAt,
 			NotAfter:    r.NotAfter,
+			Reason:      r.Reason,
 		})
 	}
 	return out
@@ -84,7 +85,8 @@ func (s *HTTPServer) CertificateCRLRequest(resp http.ResponseWriter, req *http.R
 	return &api.CertificateCRL{CRL: out.CRL}, nil
 }
 
-// CertificateSpecificRequest handles /v1/certificate/<name>/revoke.
+// CertificateSpecificRequest handles /v1/certificate/<name>/revoke. The
+// body, api.CertificateRevokeRequest, is optional.
 func (s *HTTPServer) CertificateSpecificRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
 	name, found := strings.CutSuffix(strings.TrimPrefix(req.URL.Path, "/v1/certificate/"), "/revoke")
 	if !found || name == "" || strings.Contains(name, "/") {
@@ -93,7 +95,13 @@ func (s *HTTPServer) CertificateSpecificRequest(resp http.ResponseWriter, req *h
 	if req.Method != http.MethodPut && req.Method != http.MethodPost {
 		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
 	}
-	args := structs.CertificateRevokeRequest{Name: name}
+	var in api.CertificateRevokeRequest
+	if req.ContentLength != 0 {
+		if err := decodeBody(req, &in); err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+	}
+	args := structs.CertificateRevokeRequest{Name: name, Reason: in.Reason}
 	s.parseWriteRequest(req, &args.WriteRequest)
 	var out structs.CertificateRevokeResponse
 	if err := s.agent.RPC("Certificate.Revoke", &args, &out); err != nil {

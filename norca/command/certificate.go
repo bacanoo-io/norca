@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
@@ -230,12 +231,25 @@ Usage: norca certificate revoke [options] <name>
 General Options:
 
   ` + generalOptionsUsage(usageOptsDefault) + `
+
+Revoke Options:
+
+  -reason=<reason>
+    The reason of the revocation, the name of an RFC 5280 CRLReason:
+    unspecified, keyCompromise, affiliationChanged, superseded or
+    cessationOfOperation. The revocation list of the built-in issuer
+    carries it, and an external issuer is given it. Without it the reason
+    is unspecified.
 `
 	return strings.TrimSpace(helpText)
 }
 
 func (c *CertificateRevokeCommand) AutocompleteFlags() complete.Flags {
-	return c.Meta.AutocompleteFlags(FlagSetClient)
+	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
+		complete.Flags{
+			"-reason": complete.PredictSet("unspecified", "keyCompromise", "affiliationChanged",
+				"superseded", "cessationOfOperation"),
+		})
 }
 
 func (c *CertificateRevokeCommand) AutocompleteArgs() complete.Predictor {
@@ -243,8 +257,10 @@ func (c *CertificateRevokeCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *CertificateRevokeCommand) Run(args []string) int {
+	var reason string
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
+	flags.StringVar(&reason, "reason", "", "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -260,7 +276,11 @@ func (c *CertificateRevokeCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
-	resp, err := client.Certificates().Revoke(name, nil)
+	var req *api.CertificateRevokeRequest
+	if reason != "" {
+		req = &api.CertificateRevokeRequest{Reason: reason}
+	}
+	resp, err := client.Certificates().Revoke(name, req, nil)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error revoking the certificate: %s", err))
 		return 1
