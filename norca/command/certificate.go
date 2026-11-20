@@ -238,6 +238,12 @@ Usage: norca certificate revoke [options] <name>
   issued, and the secret is not touched. The reason of a certificate that
   is revoked already can still be raised to keyCompromise this way.
 
+  The built-in issuer revokes at once. An external issuer is asked to, and
+  the command says so: the certificate is revoked when the issuer has done
+  it. Until then the status of the object shows "revoking" for the
+  certificate, and "revoked" after; a revocation the issuer fails ends
+  without either, and can be asked for again.
+
   If ACLs are enabled, this command requires a token with the 'write'
   capability for objects of the kind norca.io/Certificate in the namespace.
 
@@ -305,7 +311,16 @@ func (c *CertificateRevokeCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error revoking the certificate: %s", err))
 		return 1
 	}
-	if resp.Earlier {
+	// An external issuer is only asked: it has revoked nothing yet.
+	const asked = "it is revoked when the issuer has done so: the status of the object says revoking until then, and revoked after"
+	switch {
+	case resp.Earlier && resp.Pending:
+		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the earlier certificate with the serial %s of %q; %s; the current certificate stays", resp.Serial, name, asked))
+		return 0
+	case resp.Pending:
+		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the certificate with the serial %s of %q; %s; a new one is being issued", resp.Serial, name, asked))
+		return 0
+	case resp.Earlier:
 		c.Ui.Output(fmt.Sprintf("Revoked the earlier certificate with the serial %s of %q; the current certificate stays", resp.Serial, name))
 		return 0
 	}

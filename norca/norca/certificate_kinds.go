@@ -91,6 +91,9 @@ const certificateKindSchema = `{
         "orderRequest": {"type": "string"},
         "orders": {"type": "integer", "minimum": 0},
         "revoke": {"type": "string"},
+        "revoked": {"type": "boolean"},
+        "revokeReason": {"type": "string"},
+        "revoking": {"type": "string"},
         "earlier": {
           "type": "array",
           "maxItems": 16,
@@ -103,6 +106,8 @@ const certificateKindSchema = `{
               "authority": {"type": "string"},
               "notAfter": {"type": "string"},
               "revoked": {"type": "boolean"},
+              "revokeReason": {"type": "string"},
+              "revoking": {"type": "string"},
               "failures": {"type": "integer", "minimum": 0},
               "retryAt": {"type": "string"},
               "notRevocable": {"type": "string"}

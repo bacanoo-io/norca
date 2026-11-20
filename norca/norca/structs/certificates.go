@@ -303,6 +303,12 @@ type CertificateRevokeResponse struct {
 	// of the object: the current one stays, and nothing new is issued.
 	Earlier bool
 
+	// Pending says that the certificate is not revoked yet (review finding
+	// ATM-24g): its external issuer was asked to with a revocation order,
+	// which its controller has not done. The status of the object says how
+	// that stands (revoking, then revoked).
+	Pending bool
+
 	WriteMeta
 }
 
@@ -371,6 +377,15 @@ type CertificateStatus struct {
 	// certificate with it is replaced.
 	Revoke string `json:"revoke,omitempty"`
 
+	// Revoked, RevokeReason and Revoking say how the revocation of the
+	// current certificate stands, with the meaning they have for an earlier
+	// one (CertificateEarlier; review finding ATM-24g): Revoke is what was
+	// asked for, Revoked what is done. They go with the certificate into
+	// Earlier when the next one is issued.
+	Revoked      bool   `json:"revoked,omitempty"`
+	RevokeReason string `json:"revokeReason,omitempty"`
+	Revoking     string `json:"revoking,omitempty"`
+
 	// Earlier are the certificates of the object that a newer one replaced
 	// (or that a withdrawal took back) while they were still valid, the
 	// oldest first: what a revocation by serial number may name (review
@@ -404,11 +419,28 @@ type CertificateEarlier struct {
 	// NotAfter is the end of its validity (RFC 3339).
 	NotAfter string `json:"notAfter,omitempty"`
 
-	// Revoked says that it is revoked as far as the servers know: a
-	// revocation by a user marks it when its issuer is told, a withdrawal
-	// (review finding ATM-24e) when its issuer has revoked it. Its reason
-	// may still be raised to keyCompromise.
+	// Revoked says that its revocation is done (review finding ATM-24g): the
+	// built-in issuer has it in the revocation list of its CA, or the
+	// external issuer has done a revocation order for it, whoever placed the
+	// order. A revocation that was only asked for does not set it. The reason
+	// of a revoked certificate may still be raised to keyCompromise.
 	Revoked bool `json:"revoked,omitempty"`
+
+	// RevokeReason is the reason an external issuer revoked it with, the
+	// name of an RFC 5280 CRLReason (CertificateRevokeReasons, unspecified
+	// for none): that of its revocation order that was done last. It is
+	// empty for a certificate of the built-in issuer, whose revocation list
+	// carries the reason.
+	RevokeReason string `json:"revokeReason,omitempty"`
+
+	// Revoking says that a user asked an external issuer to revoke it and
+	// the issuer has not answered: it is the reason of the revocation order
+	// that is open (unspecified for none), and empty otherwise. With Revoked
+	// set too, the order raises the reason of a certificate that is revoked
+	// already. It ends when the order does: done, the certificate is Revoked
+	// with the reason; failed or not answered in time, nothing is tried
+	// again, and the user may ask again.
+	Revoking string `json:"revoking,omitempty"`
 
 	// Failures, RetryAt and NotRevocable belong to its revocation by a
 	// withdrawal, which takes back every valid certificate of a namespace

@@ -192,6 +192,11 @@ const certificateRevokeAttempts = 5
 // built-in issuer lists it in its revocation list, an external issuer gets
 // a revocation order. The operator then issues a new certificate.
 //
+// The order of an external issuer revokes nothing until its controller has
+// done it (review finding ATM-24g): the status says revoking, with the reason
+// asked for, and the answer Pending. The operator marks the certificate
+// revoked when the order is done (certificateOperator.settleRevocation).
+//
 // With a serial number it revokes the certificate of the object with that
 // serial (review finding ATM-24b): the current one as without it, an earlier
 // one (revokeEarlier) without a new certificate.
@@ -251,62 +256,115 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			return err
 		}
 		if serial != "" && serial != status.Serial {
-			index, err := c.revokeEarlier(snap, obj, status, serial, reason, args)
+			index, pending, err := c.revokeEarlier(snap, obj, status, serial, reason, args)
 			if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
 				continue
 			}
 			if err != nil {
 				return err
 			}
-			reply.Serial, reply.Earlier, reply.Index = serial, true, index
+			reply.Serial, reply.Earlier, reply.Pending, reply.Index = serial, true, pending, index
 			return nil
 		}
 		if status.Serial == "" {
 			return structs.NewErrRPCCodedf(http.StatusConflict, "certificate %q has not been issued yet", args.Name)
 		}
 		reply.Serial = status.Serial
-		if status.Revoke == status.Serial {
-			// Revoked already: nothing changes, except that the reason may
+		external := status.Authority == ""
+		first := status.Revoke != status.Serial
+		// again: asked for before, and the order of the external issuer
+		// ended without the revocation (the event RevocationFailed told it):
+		// it may be asked for again, as an earlier certificate may (review
+		// finding ATM-24d). A new certificate is on its way already.
+		again := !first && external && !status.Revoked && status.Revoking == ""
+		if !first && !again && reason != structs.CertificateRevokeReasonKeyCompromise {
+			// Asked for already: nothing changes, except that the reason may
 			// still be raised to keyCompromise (review finding ATM-25b).
 			reply.Index = obj.ModifyIndex
-			if reason != structs.CertificateRevokeReasonKeyCompromise {
-				return nil
-			}
-			raised, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason)
-			if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
-				continue
-			}
-			if err != nil && !errors.Is(err, errCertificateNotRevocable) {
-				return err
-			}
-			if raised {
-				c.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "RevocationReason", fmt.Sprintf(
-					"%s given by %s as the reason of the revocation of the certificate with the serial %s, revoked before",
-					reason, objectReporter(args), status.Serial))
-			}
+			reply.Pending = external && !status.Revoked
 			return nil
 		}
 
-		if _, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason); err != nil &&
-			!errors.Is(err, errCertificateNotRevocable) {
+		told, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, status, reason)
+		if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
+			continue
+		}
+		unrevocable := errors.Is(err, errCertificateNotRevocable)
+		if err != nil && !unrevocable {
 			return err
 		}
+		if unrevocable && again {
+			// The new certificate is on its way; the caller learns that
+			// this one stays valid.
+			return structs.NewErrRPCCodedf(http.StatusConflict,
+				"the certificate with the serial %s is not revoked, %v; it stays valid until %s", status.Serial, err, status.NotAfter)
+		}
+
+		// What the status says of it: that it was asked for (revoke), and how
+		// that stands with the issuer. The built-in issuer has revoked it;
+		// the order of an external issuer is only placed.
 		changed := obj.Copy()
 		changed.Status["revoke"] = status.Serial
-		written, err := c.srv.writeOperatorObject(changed)
-		if err == nil {
-			reply.Index = written.ModifyIndex
-			message := fmt.Sprintf("certificate with the serial %s revoked by %s", status.Serial, objectReporter(args))
-			if reason != "" {
-				message += " for the reason " + reason
+		revoked, revoking := status.Revoked, status.Revoking
+		switch {
+		case unrevocable:
+		case !external:
+			revoked = true
+			changed.Status["revoked"] = true
+		default:
+			state, open, err := c.srv.revocationOrderState(obj, status.Serial)
+			if err != nil {
+				return err
 			}
-			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", message)
+			switch {
+			case state == structs.CertificateOrderPending:
+				revoking = open
+				changed.Status["revoking"] = open
+			case again && state != structs.CertificateOrderValid:
+				// The operator has not removed the order that failed.
+				return structs.NewErrRPCCodedf(http.StatusConflict,
+					"the last revocation order of the certificate with the serial %s is over, and the certificate is not revoked; ask again",
+					status.Serial)
+			}
+		}
+		written := obj
+		if first || revoked != status.Revoked || revoking != status.Revoking {
+			written, err = c.srv.writeOperatorObject(changed)
+			if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
+		reply.Index = written.ModifyIndex
+		reply.Pending = external && !revoked && revoking != ""
+
+		because := ""
+		if reason != "" {
+			because = " for the reason " + reason
+		}
+		switch {
+		case (first || again) && reply.Pending:
+			// The reason is that of the order, which may have been open.
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "RevocationOrdered", fmt.Sprintf(
+				"revocation of the certificate with the serial %s ordered from the issuer %q by %s for the reason %s",
+				status.Serial, status.Issuer, objectReporter(args), revoking))
 			operatorCount(structs.CertificateKind, "revoked")
-			return nil
+		case first:
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
+				"certificate with the serial %s revoked by %s%s", status.Serial, objectReporter(args), because))
+			operatorCount(structs.CertificateKind, "revoked")
+		case told || revoking != status.Revoking:
+			before := "revoked before"
+			if reply.Pending {
+				before = "which its issuer has not done yet"
+			}
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "RevocationReason", fmt.Sprintf(
+				"%s given by %s as the reason of the revocation of the certificate with the serial %s, %s",
+				reason, objectReporter(args), status.Serial, before))
 		}
-		if !structs.IsObjectConflictError(err) || attempt >= certificateRevokeAttempts {
-			return err
-		}
+		return nil
 	}
 }
 
@@ -326,27 +384,35 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 // object.
 //
 // An earlier certificate in the status is revoked with the issuer that
-// signed it and then marked revoked, where it stays until it expires; one
-// that is revoked already, there or in a revocation list, changes only when
-// the reason is keyCompromise (review finding ATM-25b), as the current one
-// does. An object changed meanwhile fails with a conflict; the caller tries
-// again.
+// signed it. The built-in issuer has revoked it at once, and it is marked
+// revoked. An external issuer gets a revocation order, which revokes nothing
+// until its controller has done it (review finding ATM-24g): the entry says
+// revoking, with the reason asked for, pending reports it, and the operator
+// marks the entry when the order is done, or ends the pending state when it
+// is not (certificateOperator.settleRevocation). Asked for again meanwhile,
+// nothing changes and no second order is placed. A revoked entry stays until
+// it expires; one that is revoked or asked for already, there or in a
+// revocation list, changes only when the reason is keyCompromise (review
+// finding ATM-25b), as the current one does: the open order is rewritten,
+// and with it what the entry says is asked for. An object changed meanwhile
+// fails with a conflict; the caller tries again.
 func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.CustomObject, status *structs.CertificateStatus,
-	serial, reason string, args *structs.CertificateRevokeRequest) (uint64, error) {
+	serial, reason string, args *structs.CertificateRevokeRequest) (index uint64, pending bool, err error) {
 
 	raise := reason == structs.CertificateRevokeReasonKeyCompromise
-	raised := func() {
+	raised := func(before string) {
 		c.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "RevocationReason", fmt.Sprintf(
-			"%s given by %s as the reason of the revocation of the earlier certificate with the serial %s, revoked before",
-			reason, objectReporter(args), serial))
+			"%s given by %s as the reason of the revocation of the earlier certificate with the serial %s, %s",
+			reason, objectReporter(args), serial, before))
 	}
 
 	earlier := certificateEarlierValid(status.Earlier, time.Now().UTC())
 	i := slices.IndexFunc(earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == serial })
 	if i >= 0 {
 		entry := earlier[i]
-		if entry.Revoked && !raise {
-			return obj.ModifyIndex, nil
+		external := entry.Authority == ""
+		if !raise && (entry.Revoked || entry.Revoking != "") {
+			return obj.ModifyIndex, !entry.Revoked, nil
 		}
 		told, err := c.srv.revokeWithIssuer(&snap.StateStore, obj, &structs.CertificateStatus{
 			Issuer:    entry.Issuer,
@@ -357,53 +423,92 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 		if errors.Is(err, errCertificateNotRevocable) {
 			// Nothing is issued in its place, so there is nothing else to
 			// do for it: the caller learns that it stays valid.
-			return 0, structs.NewErrRPCCodedf(http.StatusConflict,
+			return 0, false, structs.NewErrRPCCodedf(http.StatusConflict,
 				"the certificate with the serial %s is not revoked, %v; it stays valid until %s", serial, err, entry.NotAfter)
 		}
 		if err != nil {
-			return 0, err
-		}
-		if entry.Revoked {
-			if told {
-				raised()
-			}
-			return obj.ModifyIndex, nil
+			return 0, false, err
 		}
 
-		marked := make([]*structs.CertificateEarlier, len(earlier))
+		updated := *entry
+		switch {
+		case !external && entry.Revoked:
+			if told {
+				raised("revoked before")
+			}
+			return obj.ModifyIndex, false, nil
+		case !external:
+			// What a withdrawal recorded of its own attempts (review
+			// finding ATM-24e) is over with the mark.
+			updated.Revoked, updated.Failures, updated.RetryAt, updated.NotRevocable = true, 0, "", ""
+		default:
+			state, open, err := c.srv.revocationOrderState(obj, serial)
+			if err != nil {
+				return 0, false, err
+			}
+			switch {
+			case state == structs.CertificateOrderPending:
+				updated.Revoking = open
+			case state == structs.CertificateOrderValid || entry.Revoked:
+				// Done meanwhile: the operator marks it. Or revoked before,
+				// and the order that raised its reason is over.
+			default:
+				return 0, false, structs.NewErrRPCCodedf(http.StatusConflict,
+					"the last revocation order of the certificate with the serial %s is over, and the certificate is not revoked; ask again", serial)
+			}
+		}
+		pending = !updated.Revoked && updated.Revoking != ""
+		if updated == *entry {
+			return obj.ModifyIndex, pending, nil
+		}
+
+		list := make([]*structs.CertificateEarlier, len(earlier))
 		for j, e := range earlier {
 			cp := *e
 			if j == i {
-				// What a withdrawal recorded of its own attempts (review
-				// finding ATM-24e) is over with the mark.
-				cp.Revoked, cp.Failures, cp.RetryAt, cp.NotRevocable = true, 0, "", ""
+				cp = updated
 			}
-			marked[j] = &cp
+			list[j] = &cp
 		}
-		part, err := structs.EncodeObjectPart(&structs.CertificateStatus{Earlier: marked})
+		part, err := structs.EncodeObjectPart(&structs.CertificateStatus{Earlier: list})
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
 		changed := obj.Copy()
 		changed.Status["earlier"] = part["earlier"]
 		written, err := c.srv.writeOperatorObject(changed)
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
-		message := fmt.Sprintf("earlier certificate with the serial %s revoked by %s", serial, objectReporter(args))
+		because := ""
 		if reason != "" {
-			message += " for the reason " + reason
+			because = " for the reason " + reason
 		}
-		c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", message+"; the current certificate stays")
-		operatorCount(structs.CertificateKind, "revoked")
-		return written.ModifyIndex, nil
+		switch {
+		case !external:
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
+				"earlier certificate with the serial %s revoked by %s%s; the current certificate stays",
+				serial, objectReporter(args), because))
+			operatorCount(structs.CertificateKind, "revoked")
+		case entry.Revoked:
+			raised("revoked before")
+		case entry.Revoking != "":
+			raised("which its issuer has not done yet")
+		default:
+			// The reason is that of the order, which may have been open.
+			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "RevocationOrdered", fmt.Sprintf(
+				"revocation of the earlier certificate with the serial %s ordered from the issuer %q by %s for the reason %s; the current certificate stays",
+				serial, entry.Issuer, objectReporter(args), updated.Revoking))
+			operatorCount(structs.CertificateKind, "revoked")
+		}
+		return written.ModifyIndex, pending, nil
 	}
 
 	// A revoked certificate of the object that the status does not list:
 	// the revocation list of the CA that signed it names the object.
 	all, err := snap.CertificateAuthorities(nil)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	for _, ca := range all {
 		if ca.Region != c.srv.Region() {
@@ -414,7 +519,7 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 				continue
 			}
 			if !raise {
-				return obj.ModifyIndex, nil
+				return obj.ModifyIndex, false, nil
 			}
 			_, changed, err := c.srv.certificateCA.revoke(ca.ID, &structs.CertificateRevocation{
 				Serial:      rev.Serial,
@@ -424,15 +529,15 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 				Reason:      reason,
 			})
 			if err != nil {
-				return 0, err
+				return 0, false, err
 			}
 			if changed {
-				raised()
+				raised("revoked before")
 			}
-			return obj.ModifyIndex, nil
+			return obj.ModifyIndex, false, nil
 		}
 	}
-	return 0, structs.NewErrRPCCodedf(http.StatusNotFound,
+	return 0, false, structs.NewErrRPCCodedf(http.StatusNotFound,
 		"certificate %q has no certificate with the serial %s that can be revoked: it is neither its current certificate nor an earlier one that is still valid",
 		args.Name, serial)
 }
@@ -441,6 +546,19 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 // serial of a certificate.
 func certificateRevokeOrderName(namespace, name, serial string) string {
 	return fmt.Sprintf("%s.%s.revoke-%.16s", namespace, name, serial)
+}
+
+// revocationOrderState returns how the revocation order of a serial of a
+// certificate stands now, and the reason it carries, as
+// certificatePass.revocation tells them: the state is "" if there is none.
+func (s *Server) revocationOrderState(obj *structs.CustomObject, serial string) (state, reason string, err error) {
+	order, err := s.State().CustomObjectByName(nil, structs.OperatorsGroup, structs.CertificateOrderKind, "",
+		certificateRevokeOrderName(obj.Namespace, obj.Name, serial))
+	if err != nil || order == nil {
+		return "", "", err
+	}
+	state, reason, _ = certificateRevocationState(order)
+	return state, reason, nil
 }
 
 // errCertificateNotRevocable is the error of a revocation that no issuer is

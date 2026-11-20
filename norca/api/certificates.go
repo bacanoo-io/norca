@@ -82,6 +82,14 @@ type CertificateRevokeResponse struct {
 	// the current one stays, and no new one is issued.
 	Earlier bool
 
+	// Pending says that the certificate is not revoked yet: its external
+	// issuer was asked to revoke it, and has not answered. The status of the
+	// Certificate object says how that stands: revoking while the issuer
+	// is asked, revoked once it is done; a revocation the issuer fails ends
+	// without either, and can be asked for again. The built-in issuer
+	// revokes at once.
+	Pending bool
+
 	WriteMeta
 }
 
