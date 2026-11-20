@@ -2427,8 +2427,14 @@ func (n *nomadFSM) applyACLRolesUpsert(msgType structs.MessageType, buf []byte, 
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.UpsertACLRoles(msgType, index, req.ACLRoles, req.AllowMissingPolicies); err != nil {
-		n.logger.Error("UpsertACLRoles failed", "error", err)
+	if err := n.state.UpsertACLRolesExpected(msgType, index, req.ACLRoles, req.AllowMissingPolicies, req.ExpectedModifyIndex); err != nil {
+		// A refused check-and-set is an answer for the writer, not an
+		// error of the servers.
+		if structs.IsIndexConflictError(err) {
+			n.logger.Debug("UpsertACLRoles refused", "error", err)
+		} else {
+			n.logger.Error("UpsertACLRoles failed", "error", err)
+		}
 		return err
 	}
 

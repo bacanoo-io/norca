@@ -8,10 +8,11 @@ import (
 	"strings"
 )
 
-// The check-and-set of the writes of namespaces, quotas, ACL policies and
-// network policies: the ExpectedModifyIndex of their upsert requests maps
-// the key of a resource of the request (its name; for a network policy
-// NetworkPolicyIndexKey) to the modify index the writer read, 0 for a
+// The check-and-set of the writes of namespaces, quotas, ACL policies, ACL
+// roles and network policies: the ExpectedModifyIndex of their upsert
+// requests maps the key of a resource of the request (its name; for a
+// network policy NetworkPolicyIndexKey) to the modify index the writer read
+// (of an ACL role: of the stored role of the ID in the request), 0 for a
 // resource that must not exist yet. A resource without an entry is written
 // unchecked. The check runs at the endpoint and again in the FSM, in the
 // transaction of the write; if one resource fails it, nothing of the request

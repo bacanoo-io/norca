@@ -12,7 +12,7 @@ import (
 )
 
 // checkExpectedIndexes is the endpoint side of the check-and-set of an
-// upsert of namespaces, quotas, ACL policies or network policies
+// upsert of namespaces, quotas, ACL policies, ACL roles or network policies
 // (structs.CheckModifyIndex). keys are the keys of the resources of the
 // request; every key of expected must be one of them. lookup reads a
 // resource from a snapshot of the state: whether it exists and its modify
@@ -104,6 +104,31 @@ func (s *Server) checkACLPolicyIndexes(args *structs.ACLPolicyUpsertRequest) err
 			return false, 0, err
 		}
 		return true, policy.ModifyIndex, nil
+	})
+}
+
+// checkACLRoleIndexes checks the check-and-set of an ACL role upsert on
+// snap. The key of a role is its name in the request; the stored role it is
+// checked against is state.ACLRoleForIndexCheck.
+func checkACLRoleIndexes(snap *state.StateSnapshot, args *structs.ACLRolesUpsertRequest) error {
+	if len(args.ExpectedModifyIndex) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(args.ACLRoles))
+	byKey := make(map[string]*structs.ACLRole, len(args.ACLRoles))
+	for _, role := range args.ACLRoles {
+		if role == nil {
+			continue
+		}
+		keys = append(keys, role.Name)
+		byKey[role.Name] = role
+	}
+	return checkExpectedIndexes("ACL role", args.ExpectedModifyIndex, keys, func(name string) (bool, uint64, error) {
+		role, err := snap.ACLRoleForIndexCheck(byKey[name])
+		if err != nil || role == nil {
+			return false, 0, err
+		}
+		return true, role.ModifyIndex, nil
 	})
 }
 

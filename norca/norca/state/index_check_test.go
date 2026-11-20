@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 )
@@ -86,6 +87,36 @@ func indexCheckKinds() []indexCheckKind {
 			},
 		},
 		{
+			// A role is written by its ID: the stored role of the name is
+			// changed, a new one gets a new ID.
+			name: "ACL role",
+			key:  plainKey,
+			upsert: func(s *StateStore, index uint64, names []string, desc string, expected map[string]uint64) error {
+				var out []*structs.ACLRole
+				for _, name := range names {
+					role := &structs.ACLRole{ID: uuid.Generate(), Name: name, Description: desc,
+						Policies: []*structs.ACLRolePolicyLink{{Name: "any"}}}
+					stored, err := s.GetACLRoleByName(nil, name)
+					if err != nil {
+						return err
+					}
+					if stored != nil {
+						role.ID = stored.ID
+					}
+					out = append(out, role)
+				}
+				return s.UpsertACLRolesExpected(structs.MsgTypeTestSetup, index, out, true, expected)
+			},
+			read: func(t *testing.T, s *StateStore, name string) (string, uint64) {
+				r, err := s.GetACLRoleByName(nil, name)
+				must.NoError(t, err)
+				if r == nil {
+					return "", 0
+				}
+				return r.Description, r.ModifyIndex
+			},
+		},
+		{
 			name: "network policy",
 			key:  func(name string) string { return structs.NetworkPolicyIndexKey("default", name) },
 			upsert: func(s *StateStore, index uint64, names []string, desc string, expected map[string]uint64) error {
@@ -108,11 +139,11 @@ func indexCheckKinds() []indexCheckKind {
 	}
 }
 
-// The upserts of namespaces, quotas, ACL policies and network policies check
-// ExpectedModifyIndex in their transaction: 0 creates only what does not
-// exist, an index changes only what still has it, a resource without an
-// entry is written unchecked, and one failed check writes nothing of the
-// request (review finding ATM-1).
+// The upserts of namespaces, quotas, ACL policies, ACL roles and network
+// policies check ExpectedModifyIndex in their transaction: 0 creates only
+// what does not exist, an index changes only what still has it, a resource
+// without an entry is written unchecked, and one failed check writes nothing
+// of the request (review findings ATM-1, ATM-26).
 func TestStateStore_UpsertExpectedModifyIndex(t *testing.T) {
 	ci.Parallel(t)
 
@@ -174,4 +205,49 @@ func TestStateStore_UpsertExpectedModifyIndex(t *testing.T) {
 			must.Eq(t, 1007, index)
 		})
 	}
+}
+
+// The check-and-set of an ACL role upsert is keyed by the name of the role in
+// the request and made against the stored role of its ID: a rename is checked
+// against the role it renames, and a role whose ID no role has is checked
+// against the role that has its name (review finding ATM-26).
+func TestStateStore_UpsertACLRolesExpected_ByID(t *testing.T) {
+	ci.Parallel(t)
+	s := testStateStore(t)
+	links := []*structs.ACLRolePolicyLink{{Name: "any"}}
+	upsert := func(index uint64, role *structs.ACLRole, expected uint64) error {
+		return s.UpsertACLRolesExpected(structs.MsgTypeTestSetup, index, []*structs.ACLRole{role}, true,
+			map[string]uint64{role.Name: expected})
+	}
+	conflict := func(t *testing.T, err error, text string) {
+		t.Helper()
+		must.True(t, structs.IsIndexConflictError(err), must.Sprintf("not a conflict: %v", err))
+		must.StrContains(t, err.Error(), text)
+	}
+
+	id := uuid.Generate()
+	must.NoError(t, upsert(1000, &structs.ACLRole{ID: id, Name: "dev", Description: "one", Policies: links}, 0))
+
+	// A rename with a stale index, and with the index of the role.
+	err := upsert(1001, &structs.ACLRole{ID: id, Name: "developer", Description: "one", Policies: links}, 999)
+	conflict(t, err, `ACL role "developer" has modify index 1000, expected 999`)
+	must.NoError(t, upsert(1002, &structs.ACLRole{ID: id, Name: "developer", Description: "one", Policies: links}, 1000))
+	role, err := s.GetACLRoleByID(nil, id)
+	must.NoError(t, err)
+	must.Eq(t, "developer", role.Name)
+	must.Eq(t, 1002, role.ModifyIndex)
+
+	// Another role of the name: not created, with or without an index.
+	err = upsert(1003, &structs.ACLRole{ID: uuid.Generate(), Name: "developer", Description: "two", Policies: links}, 0)
+	conflict(t, err, `ACL role "developer" exists (modify index 1002), expected it not to exist`)
+	err = upsert(1004, &structs.ACLRole{ID: uuid.Generate(), Name: "developer", Description: "two", Policies: links}, 1000)
+	conflict(t, err, `ACL role "developer" has modify index 1002, expected 1000`)
+
+	// The role of the ID is gone.
+	must.NoError(t, s.DeleteACLRolesByID(structs.MsgTypeTestSetup, 1005, []string{id}))
+	err = upsert(1006, &structs.ACLRole{ID: id, Name: "developer", Description: "two", Policies: links}, 1002)
+	conflict(t, err, `ACL role "developer" does not exist, expected modify index 1002`)
+	role, err = s.GetACLRoleByName(nil, "developer")
+	must.NoError(t, err)
+	must.Nil(t, role)
 }

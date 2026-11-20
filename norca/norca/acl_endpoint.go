@@ -1309,6 +1309,11 @@ func (a *ACL) UpsertRoles(
 		return err
 	}
 
+	// Norca: a check-and-set upsert is checked on the snapshot first.
+	if err := checkACLRoleIndexes(stateSnapshot, args); err != nil {
+		return err
+	}
+
 	// Validate each role.
 	for idx, role := range args.ACLRoles {
 
