@@ -132,6 +132,91 @@ func TestTenant_RoleByRecordedID(t *testing.T) {
 	}
 }
 
+// A tenant gives an ACL role it took over back by the ID it recorded
+// (review finding ATM-14): somebody deleted the role and created another
+// role of its name. The tenant's role is gone, and the other role is left as
+// it is. The give-back looked the role up by its name and wrote what the
+// tenant had found onto the other role.
+func TestTenant_RoleGivenBackByRecordedID(t *testing.T) {
+	ci.Parallel(t)
+
+	// The role leaves the spec of a living tenant.
+	t.Run("dropped from the spec", func(t *testing.T) {
+		ci.Parallel(t)
+		c, armed := newTenantArmedTest(t, "namespace//team-g")
+		raftWrite(t, c.s, structs.ACLPolicyUpsertRequestType, &structs.ACLPolicyUpsertRequest{
+			Policies: []*structs.ACLPolicy{{Name: "ops-read", Rules: `node { policy = "read" }`}},
+		})
+		tenantByHand{c}.policyAndRole("team-g-dev")
+		_, err := c.apply("", structs.TenantKind, "team-g", map[string]any{
+			"namespace": map[string]any{"description": "G1"},
+			"roles":     map[string]any{"dev": []any{"submit-job"}},
+			"adopt":     []any{"acl-policy", "acl-role"},
+		})
+		must.NoError(t, err)
+		obj := waitGeneration(c, "team-g")
+		must.SliceContains(t, tenantAdopted(obj), "acl-role//team-g-dev")
+		must.NotEq(t, "", tenantRefs(obj)["acl-role//team-g-dev"].ID, must.Sprint("the tenant recorded no ID"))
+
+		// While the pass that drops the role writes the namespace, before
+		// it gives the role back, somebody replaces the role.
+		var foreignID string
+		replace := func(s *Server) { foreignID = replaceRole(t, s, "team-g-dev") }
+		armed.Store(&replace)
+		_, err = c.apply("", structs.TenantKind, "team-g", map[string]any{"namespace": map[string]any{"description": "G2"}})
+		must.NoError(t, err)
+		obj = waitGeneration(c, "team-g")
+		must.Nil(t, armed.Load(), must.Sprint("the role was not replaced during the pass"))
+
+		role, err := c.s.State().GetACLRoleByName(nil, "team-g-dev")
+		must.NoError(t, err)
+		must.NotNil(t, role, must.Sprint("the role of somebody else is gone"))
+		must.Eq(t, foreignID, role.ID)
+		must.Len(t, 1, role.Policies)
+		must.Eq(t, "ops-read", role.Policies[0].Name, must.Sprint("the tenant gave its role back onto a role it did not take over"))
+		must.SliceNotContains(t, tenantResources(obj), "acl-role//team-g-dev")
+		mustHaveEvent(t, c, obj, "Released", "team-g-dev: it no longer exists")
+	})
+
+	// The tenant is deleted, driven by hand on what it listed.
+	t.Run("tenant deleted", func(t *testing.T) {
+		ci.Parallel(t)
+		c, _ := newTenantArmedTest(t, "")
+		raftWrite(t, c.s, structs.ACLPolicyUpsertRequestType, &structs.ACLPolicyUpsertRequest{
+			Policies: []*structs.ACLPolicy{{Name: "ops-read", Rules: `node { policy = "read" }`}},
+		})
+		_, err := c.apply("", structs.TenantKind, "team-h", map[string]any{
+			"namespace": map[string]any{"description": "H1"},
+		})
+		must.NoError(t, err)
+		stored := waitGeneration(c, "team-h")
+
+		// The role the tenant took over, of the ID it recorded, is gone;
+		// somebody else's role has its name.
+		role := &structs.ACLRole{ID: uuid.Generate(), Name: "team-h-dev", Description: "made by hand",
+			Policies: []*structs.ACLRolePolicyLink{{Name: "ops-read"}}}
+		role.SetHash()
+		raftWrite(t, c.s, structs.ACLRolesUpsertRequestType, &structs.ACLRolesUpsertRequest{ACLRoles: []*structs.ACLRole{role}})
+
+		deleting := stored.Copy()
+		deleting.DeletionTime = time.Now().UnixNano()
+		deleting.Finalizers = []string{structs.OperatorsFinalizer}
+		deleting.Status = map[string]any{"resources": []any{
+			map[string]any{"type": structs.TenantResourceACLRole, "name": "team-h-dev", "id": uuid.Generate(), "adopted": true,
+				"original": map[string]any{"description": "as the tenant found it", "policies": []any{"ops-read"}}},
+		}}
+		o := newTenantOperator(c.s, c.s.logger)
+		o.finishDeletion(newTenantPass(t, c.s), deleting)
+
+		live, err := c.s.State().GetACLRoleByName(nil, "team-h-dev")
+		must.NoError(t, err)
+		must.NotNil(t, live, must.Sprint("the role of somebody else is gone"))
+		must.Eq(t, role.ID, live.ID)
+		must.Eq(t, "made by hand", live.Description, must.Sprint("the deleted tenant gave its role back onto a role it did not take over"))
+		mustHaveEvent(t, c, stored, "Released", "team-h-dev: it no longer exists")
+	})
+}
+
 // A tenant does not delete a resource it lists that a release owns, or that
 // a release operation is writing (review finding ATM-13): one a release
 // owns is dropped from the tenant's list with an event, one being written

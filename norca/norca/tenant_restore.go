@@ -298,7 +298,18 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		}
 
 	case structs.TenantResourceACLRole:
-		live, err := store.GetACLRoleByName(nil, ref.Name)
+		// The role the tenant took over is the one of the ID it recorded
+		// (tenantRoleID): a role that has its name now may have been
+		// created by somebody else after the tenant's was deleted, and is
+		// not the tenant's to write (review finding ATM-14).
+		id, err := o.tenantRoleID(ref)
+		if err != nil {
+			return "", err
+		}
+		if id == "" {
+			return tenantGivenBackGone, nil
+		}
+		live, err := store.GetACLRoleByID(nil, id)
 		if err != nil {
 			return "", err
 		}
@@ -308,7 +319,9 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if asIs {
 			return tenantGivenBackAsIs, nil
 		}
-		want := &structs.ACLRole{Name: ref.Name, Description: orig.Description}
+		// The tenant writes the description and the policies of a role,
+		// never its name: the role keeps the name it has.
+		want := &structs.ACLRole{Name: live.Name, Description: orig.Description}
 		for _, name := range orig.Policies {
 			policy, err := store.ACLPolicyByName(nil, name)
 			if err != nil {
