@@ -2192,6 +2192,12 @@ func TestCertificate_ExternalIssuerRevokeEarlier(t *testing.T) {
 		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
 	_, err = c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonKeyCompromise)
 	must.ErrorContains(t, err, "is gone")
+	// It was revoked before the issuer went: what is refused is the new
+	// reason, and the answer does not call a revoked certificate valid.
+	must.ErrorContains(t, err, "the certificate with the serial "+first.Serial+" is revoked already")
+	must.ErrorContains(t, err, "is not changed to keyCompromise")
+	must.StrNotContains(t, err.Error(), "is not revoked")
+	must.StrNotContains(t, err.Error(), "stays valid")
 }
 
 // A withdrawal takes back the earlier certificates too (review finding
@@ -3035,6 +3041,60 @@ func TestCertificate_ExternalIssuerRevokeNoIssuer(t *testing.T) {
 		refused(reason, `the issuer "acme" is no longer the external issuer that signed it`)
 	}
 	must.Eq(t, "mine", c.secretItems("default", "certs/web")["cert"])
+}
+
+// The reason of a revoked current certificate can't be raised to
+// keyCompromise when no issuer is left to tell: the request is refused with a
+// conflict, as that for an earlier certificate is, instead of an answer that
+// reads as if the reason were taken. The refusal says that the certificate is
+// revoked already, not that it is valid, and the status stays as it is. A
+// request that raises nothing is answered as before: nothing changes.
+func TestCertificate_ExternalIssuerRaiseNoIssuer(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	held := a.issue("")
+
+	// Revoked by its issuer; the next certificate is not there yet.
+	resp, err := c.revokeSerial("default", "web-tls", "", structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.True(t, resp.Pending)
+	a.revocationDone(held.Serial, map[string]any{"state": "valid"})
+	c.waitFor("default", "web-tls", "the current certificate revoked", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		return st.Revoked && st.Serial == held.Serial
+	})
+
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "acme"))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateIssuerKind, "acme") == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+
+	_, err = c.revokeSerial("default", "web-tls", "", structs.CertificateRevokeReasonKeyCompromise)
+	must.Error(t, err, must.Sprint("a reason nobody can be told is not answered as taken"))
+	code, msg, ok := structs.CodeFromRPCCodedErr(err)
+	must.True(t, ok, must.Sprint(err))
+	must.Eq(t, 409, code)
+	must.StrContains(t, msg, "the certificate with the serial "+held.Serial+" is revoked already")
+	must.StrContains(t, msg, "is not changed to keyCompromise")
+	must.StrContains(t, msg, `the issuer "acme" is gone`)
+	must.StrNotContains(t, msg, "is not revoked")
+	must.StrNotContains(t, msg, "stays valid")
+
+	resp, err = c.revokeSerial("default", "web-tls", "", structs.CertificateRevokeReasonAffiliationChanged)
+	must.NoError(t, err, must.Sprint("a request that raises nothing changes nothing, as before"))
+	must.False(t, resp.Pending)
+
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Serial)
+	must.Eq(t, held.Serial, st.Revoke)
+	must.True(t, st.Revoked)
+	must.Eq(t, structs.CertificateRevokeReasonSuperseded, st.RevokeReason)
+	must.Eq(t, "", st.Revoking)
+	must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationReason"))
+	must.Nil(t, a.revocation(held.Serial), must.Sprint("no revocation order is placed"))
 }
 
 // A first request for the revocation of the current certificate that finds a

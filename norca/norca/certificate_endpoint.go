@@ -202,6 +202,8 @@ const certificateRevokeAttempts = 5
 // conflict that says why, at the first request as at a repeated one (review
 // finding ATM-24k): the first one writes nothing then, so the status does
 // not say revoke, no event says Revoked, and no new certificate is issued.
+// So is the reason keyCompromise for a certificate that is revoked or asked
+// for already when no issuer is left to tell (certificateReasonNotRaised).
 //
 // With a serial number it revokes the certificate of the object with that
 // serial (review finding ATM-24b): the current one as without it, an earlier
@@ -299,7 +301,8 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		if err != nil && !unrevocable {
 			return err
 		}
-		if unrevocable && first {
+		switch {
+		case unrevocable && first:
 			// Nobody is left to revoke it (review finding ATM-24k): the
 			// request is refused as that for an earlier certificate is
 			// (revokeEarlier). Nothing is written, so nothing says that it
@@ -308,10 +311,13 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			return structs.NewErrRPCCodedf(http.StatusConflict,
 				"the certificate with the serial %s is not revoked, %v; it stays valid until %s, and the request changes nothing",
 				status.Serial, err, status.NotAfter)
-		}
-		if unrevocable && again {
-			// The new certificate is on its way; the caller learns that
-			// this one stays valid.
+		case unrevocable && status.Revoked:
+			// Only the reason was to be raised, and nobody can be told.
+			return certificateReasonNotRaised(status.Serial, reason, err)
+		case unrevocable:
+			// Asked for before, and not done: the order is over (again), or
+			// open with nobody to raise its reason for. The new certificate
+			// is on its way; the caller learns that this one stays valid.
 			return structs.NewErrRPCCodedf(http.StatusConflict,
 				"the certificate with the serial %s is not revoked, %v; it stays valid until %s", status.Serial, err, status.NotAfter)
 		}
@@ -323,7 +329,6 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		changed.Status["revoke"] = status.Serial
 		revoked, revoking := status.Revoked, status.Revoking
 		switch {
-		case unrevocable:
 		case !external:
 			revoked = true
 			changed.Status["revoked"] = true
@@ -439,6 +444,10 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 			Serial:    entry.Serial,
 			NotAfter:  entry.NotAfter,
 		}, reason)
+		if errors.Is(err, errCertificateNotRevocable) && entry.Revoked {
+			// Only the reason was to be raised, and nobody can be told.
+			return 0, false, certificateReasonNotRaised(serial, reason, err)
+		}
 		if errors.Is(err, errCertificateNotRevocable) {
 			// Nothing is issued in its place, so there is nothing else to
 			// do for it: the caller learns that it stays valid.
@@ -583,6 +592,15 @@ func (s *Server) revocationOrderState(obj *structs.CustomObject, serial string) 
 // errCertificateNotRevocable is the error of a revocation that no issuer is
 // left to make; it says why.
 var errCertificateNotRevocable = errors.New("nobody can revoke the certificate")
+
+// certificateReasonNotRaised is the conflict of a request that gives a
+// revoked certificate another reason when no issuer is left to tell (why is
+// the errCertificateNotRevocable of it): the certificate stays revoked as it
+// is, which the text must not put as "not revoked" or "valid".
+func certificateReasonNotRaised(serial, reason string, why error) error {
+	return structs.NewErrRPCCodedf(http.StatusConflict,
+		"the certificate with the serial %s is revoked already, and the reason of that is not changed to %s, %v", serial, reason, why)
+}
 
 // revokeWithIssuer tells the issuer of a certificate that its current
 // certificate is revoked, for the reason (the name of an RFC 5280 CRLReason,
