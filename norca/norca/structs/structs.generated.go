@@ -75278,9 +75278,9 @@ func (x *CertificateEarlier) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(5)
+				r.WriteArrayStart(8)
 			} else {
-				r.WriteMapStart(5)
+				r.WriteMapStart(8)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -75410,6 +75410,79 @@ func (x *CertificateEarlier) CodecEncodeSelf(e *codec1978.Encoder) {
 				}
 			}
 			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeUint(uint64(x.Failures))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Failures\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Failures`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeUint(uint64(x.Failures))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RetryAt)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RetryAt))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"RetryAt\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `RetryAt`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RetryAt)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RetryAt))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.NotRevocable)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.NotRevocable))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"NotRevocable\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `NotRevocable`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.NotRevocable)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.NotRevocable))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
 				r.WriteArrayEnd()
 			} else {
 				r.WriteMapEnd()
@@ -75496,6 +75569,24 @@ func (x *CertificateEarlier) codecDecodeSelfFromMap(l int, d *codec1978.Decoder)
 			} else {
 				x.Revoked = (bool)(r.DecodeBool())
 			}
+		case "Failures":
+			if r.TryDecodeAsNil() {
+				x.Failures = 0
+			} else {
+				x.Failures = (uint64)(r.DecodeUint64())
+			}
+		case "RetryAt":
+			if r.TryDecodeAsNil() {
+				x.RetryAt = ""
+			} else {
+				x.RetryAt = (string)(r.DecodeString())
+			}
+		case "NotRevocable":
+			if r.TryDecodeAsNil() {
+				x.NotRevocable = ""
+			} else {
+				x.NotRevocable = (string)(r.DecodeString())
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -75507,16 +75598,16 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj9 int
-	var yyb9 bool
-	var yyhl9 bool = l >= 0
-	yyj9++
-	if yyhl9 {
-		yyb9 = yyj9 > l
+	var yyj12 int
+	var yyb12 bool
+	var yyhl12 bool = l >= 0
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
 	} else {
-		yyb9 = r.CheckBreak()
+		yyb12 = r.CheckBreak()
 	}
-	if yyb9 {
+	if yyb12 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75526,13 +75617,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Serial = (string)(r.DecodeString())
 	}
-	yyj9++
-	if yyhl9 {
-		yyb9 = yyj9 > l
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
 	} else {
-		yyb9 = r.CheckBreak()
+		yyb12 = r.CheckBreak()
 	}
-	if yyb9 {
+	if yyb12 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75542,13 +75633,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Issuer = (string)(r.DecodeString())
 	}
-	yyj9++
-	if yyhl9 {
-		yyb9 = yyj9 > l
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
 	} else {
-		yyb9 = r.CheckBreak()
+		yyb12 = r.CheckBreak()
 	}
-	if yyb9 {
+	if yyb12 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75558,13 +75649,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Authority = (string)(r.DecodeString())
 	}
-	yyj9++
-	if yyhl9 {
-		yyb9 = yyj9 > l
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
 	} else {
-		yyb9 = r.CheckBreak()
+		yyb12 = r.CheckBreak()
 	}
-	if yyb9 {
+	if yyb12 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75574,13 +75665,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.NotAfter = (string)(r.DecodeString())
 	}
-	yyj9++
-	if yyhl9 {
-		yyb9 = yyj9 > l
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
 	} else {
-		yyb9 = r.CheckBreak()
+		yyb12 = r.CheckBreak()
 	}
-	if yyb9 {
+	if yyb12 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75590,18 +75681,66 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Revoked = (bool)(r.DecodeBool())
 	}
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
+	} else {
+		yyb12 = r.CheckBreak()
+	}
+	if yyb12 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Failures = 0
+	} else {
+		x.Failures = (uint64)(r.DecodeUint64())
+	}
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
+	} else {
+		yyb12 = r.CheckBreak()
+	}
+	if yyb12 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.RetryAt = ""
+	} else {
+		x.RetryAt = (string)(r.DecodeString())
+	}
+	yyj12++
+	if yyhl12 {
+		yyb12 = yyj12 > l
+	} else {
+		yyb12 = r.CheckBreak()
+	}
+	if yyb12 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.NotRevocable = ""
+	} else {
+		x.NotRevocable = (string)(r.DecodeString())
+	}
 	for {
-		yyj9++
-		if yyhl9 {
-			yyb9 = yyj9 > l
+		yyj12++
+		if yyhl12 {
+			yyb12 = yyj12 > l
 		} else {
-			yyb9 = r.CheckBreak()
+			yyb12 = r.CheckBreak()
 		}
-		if yyb9 {
+		if yyb12 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj9-1, "")
+		z.DecStructFieldNotFound(yyj12-1, "")
 	}
 	r.ReadArrayEnd()
 }

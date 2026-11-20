@@ -349,9 +349,12 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		}
 		if refused.lostNames {
 			o.withdraw(p, obj, spec, &st, secret, ours, refused.message, out)
+		} else {
+			o.settleEarlier(p, obj, &st)
 		}
 
 	default:
+		o.settleEarlier(p, obj, &st)
 		why := o.issuanceNeeded(p, spec, &st, have, issuerSpec)
 		retryAt, _ := time.Parse(time.RFC3339, st.RetryAt)
 		switch {
@@ -472,6 +475,13 @@ func (o *certificateOperator) refusal(p *certificatePass, obj *structs.CustomObj
 // see to it; the secret is emptied all the same. A certificate no issuer is
 // left to revoke (the external issuer is gone) is withdrawn without, which
 // the event says.
+//
+// The earlier certificates of the object that are still valid are taken back
+// the same way (withdrawEarlier, review finding ATM-24e), each on its own:
+// none waits for another, nor does the certificate that is held. The event
+// Withdrawn names the ones a pass has revoked or found without an issuer; it
+// is recorded when the held certificate is given up, and again whenever a
+// later pass has such news of an earlier one.
 func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
 	st *structs.CertificateStatus, secret *structs.Secret, ours bool, why string, out *certificateOutcome) {
 
@@ -483,51 +493,177 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 		// names back before the revocation is done, a new certificate is
 		// issued (issuanceNeeded).
 		st.Revoke = serial
-		revoked, unrevocable = o.revokeWithdrawn(p, obj, st, out)
+		revoked, unrevocable = o.revokeWithdrawn(p, obj, st, "certificate", out)
 		if unrevocable != "" {
 			st.Revoke = ""
 			out.failedMessage += "; " + unrevocable
 		}
 	}
 
+	// The earlier certificates, before the list may lose its oldest entry
+	// to the certificate that was held (keepEarlier).
+	news := o.withdrawEarlier(p, obj, st, out)
+
+	// given: what was held is given up in this pass.
+	given := false
 	removed, err := o.removeSecret(obj, spec, secret, ours)
-	if errors.Is(err, structs.ErrSecretConflict) {
+	switch {
+	case errors.Is(err, structs.ErrSecretConflict):
 		o.secretChanged(p, obj, spec)
-		return
-	}
-	if err != nil {
+	case err != nil:
 		o.logger.Warn("failed to take the certificate of a namespace that may no longer ask for it out of its secret",
 			"namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
 		out.failedMessage += fmt.Sprintf("; taking the certificate out of the secret %q failed: %v", spec.SecretPath, err)
 		p.want(p.now.Add(operatorsRetry))
-		return
+	default:
+		// The secret holds no certificate of the operator now.
+		out.ready = false
+		given = revoked && (serial != "" || removed)
 	}
-	// The secret holds no certificate of the operator now.
-	out.ready = false
-	if !revoked || (serial == "" && !removed) {
+	if !given && len(news) == 0 {
 		return
 	}
 
-	// What was held stays known as an earlier certificate, and so do the
-	// ones before it: the revocation by serial number finds them there.
-	*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke, Earlier: o.keepEarlier(p, obj, st)}
 	message := fmt.Sprintf("the namespace may no longer ask for this certificate (%s)", why)
-	switch {
-	case unrevocable != "":
-		message += fmt.Sprintf(": the certificate with the serial %s is not revoked, %s", serial, unrevocable)
-	case serial != "" && st.Revoke == serial:
-		message += fmt.Sprintf(": the certificate with the serial %s is revoked", serial)
+	if given {
+		// What was held stays known as an earlier certificate, and so do
+		// the ones before it: the revocation by serial number finds them
+		// there.
+		*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke, Earlier: o.keepEarlier(p, obj, st)}
+		switch {
+		case unrevocable != "":
+			message += fmt.Sprintf(": the certificate with the serial %s is not revoked, %s", serial, unrevocable)
+			// Told here: the next passes, which try it with the earlier
+			// certificates, do not tell it again.
+			if i := slices.IndexFunc(st.Earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == serial }); i >= 0 {
+				entry := *st.Earlier[i]
+				entry.NotRevocable = unrevocable
+				st.Earlier = slices.Clone(st.Earlier)
+				st.Earlier[i] = &entry
+			}
+		case serial != "" && st.Revoke == serial:
+			message += fmt.Sprintf(": the certificate with the serial %s is revoked", serial)
+		}
+		if removed {
+			message += fmt.Sprintf("; what the secret %q held for it is destroyed", spec.SecretPath)
+		}
+		operatorCount(structs.CertificateKind, "withdrawn")
 	}
-	if removed {
-		message += fmt.Sprintf("; what the secret %q held for it is destroyed", spec.SecretPath)
+	for _, text := range news {
+		message += "; " + text
 	}
-	operatorCount(structs.CertificateKind, "withdrawn")
 	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Withdrawn", message)
 }
 
-// revokeWithdrawn has the certificate a withdrawal takes back revoked, with
+// withdrawEarlier has the earlier certificates of a certificate under
+// withdrawal revoked (review finding ATM-24e): replaced by a renewal, a
+// changed spec or a deleted version of the secret, they are valid until their
+// end for names the namespace may no longer ask for. Every entry that is not
+// marked revoked (the expired ones are gone from the list) is revoked like
+// the certificate that is held (revokeWithdrawn), with the issuer and the
+// authority of its own and its own count of failures and wait, so that none
+// holds up another. An entry is marked revoked when that is done: at once
+// with the built-in issuer, with an external one when its revocation order is
+// valid. One no issuer is left to revoke stays unmarked, with the reason in
+// the entry, and is tried on every pass: the issuer may be there again.
+//
+// It returns what the event of the withdrawal has to tell, each only once:
+// the serials revoked in this pass, and the entries found without an issuer
+// that were not known to be so.
+func (o *certificateOperator) withdrawEarlier(p *certificatePass, obj *structs.CustomObject,
+	st *structs.CertificateStatus, out *certificateOutcome) (news []string) {
+
+	var revoked []string
+	earlier := slices.Clone(st.Earlier)
+	for i, e := range earlier {
+		if e.Revoked {
+			// By a user, whatever the reason, or by a pass before.
+			continue
+		}
+		one := &structs.CertificateStatus{
+			Issuer:    e.Issuer,
+			Authority: e.Authority,
+			Serial:    e.Serial,
+			NotAfter:  e.NotAfter,
+			Failures:  e.Failures,
+			RetryAt:   e.RetryAt,
+		}
+		done, unrevocable := o.revokeWithdrawn(p, obj, one, "earlier certificate", out)
+		entry := *e
+		entry.Failures, entry.RetryAt, entry.NotRevocable = one.Failures, one.RetryAt, unrevocable
+		switch {
+		case unrevocable != "":
+			entry.Failures, entry.RetryAt = 0, ""
+			text := fmt.Sprintf("the earlier certificate with the serial %s is not revoked, %s", e.Serial, unrevocable)
+			out.failedMessage += "; " + text
+			if e.NotRevocable != unrevocable {
+				news = append(news, text)
+			}
+		case done:
+			entry.Revoked, entry.Failures, entry.RetryAt = true, 0, ""
+			revoked = append(revoked, e.Serial)
+		}
+		earlier[i] = &entry
+	}
+	st.Earlier = earlier
+
+	switch len(revoked) {
+	case 0:
+	case 1:
+		news = slices.Insert(news, 0, fmt.Sprintf("the earlier certificate with the serial %s is revoked", revoked[0]))
+	default:
+		news = slices.Insert(news, 0, fmt.Sprintf("the earlier certificates with the serials %s are revoked", strings.Join(revoked, ", ")))
+	}
+	return news
+}
+
+// settleEarlier looks after the earlier certificates of a certificate that
+// is not under withdrawal. What a withdrawal left unfinished when the
+// namespace got the names back is not carried on (review finding ATM-24e),
+// as the revocation of the certificate that was held is not: a revocation
+// order that is placed runs its course, a failed one is not placed again, and
+// the count of failures, the wait and the missing issuer of an entry are
+// forgotten; the next withdrawal starts anew. An entry whose revocation order
+// the issuer has done is marked revoked, whoever placed the order.
+func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus) {
+	var earlier []*structs.CertificateEarlier
+	for i, e := range st.Earlier {
+		if e.Revoked {
+			continue
+		}
+		entry := *e
+		entry.Failures, entry.RetryAt, entry.NotRevocable = 0, "", ""
+		if e.Authority == "" {
+			if order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, e.Serial)]; order != nil {
+				status := &structs.CertificateOrderStatus{}
+				_ = structs.DecodeObjectPart(order.Status, status)
+				entry.Revoked = status.State == structs.CertificateOrderValid
+			}
+		}
+		if entry == *e {
+			continue
+		}
+		if earlier == nil {
+			earlier = slices.Clone(st.Earlier)
+		}
+		earlier[i] = &entry
+		if entry.Revoked {
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
+				"earlier certificate with the serial %s revoked by the issuer %q: its revocation order is done", e.Serial, e.Issuer))
+		}
+	}
+	if earlier != nil {
+		st.Earlier = earlier
+	}
+}
+
+// revokeWithdrawn has a certificate a withdrawal takes back revoked, with
 // the reason cessationOfOperation, and reports whether that is over: done,
-// or no issuer is left to revoke it (unrevocable says why). The built-in
+// or no issuer is left to revoke it (unrevocable says why). st is the status
+// of the certificate that is held, or for an earlier certificate
+// (withdrawEarlier) one with the serial, the issuer, the authority, the end,
+// the failures and the wait of that one; what names it in the messages
+// ("certificate", "earlier certificate"). The built-in
 // issuer lists it in the revocation list of its CA at once. An external
 // issuer revokes through a revocation order the withdrawal waits for: one
 // that failed is counted (Failures, RetryAt), told in the event
@@ -536,11 +672,11 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 // revocation order of the serial that the user placed is waited for the
 // same way.
 func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.CustomObject,
-	st *structs.CertificateStatus, out *certificateOutcome) (done bool, unrevocable string) {
+	st *structs.CertificateStatus, what string, out *certificateOutcome) (done bool, unrevocable string) {
 
 	serial := st.Serial
 	retryAt, _ := time.Parse(time.RFC3339, st.RetryAt)
-	waiting := fmt.Sprintf("; waiting for the issuer %q to revoke the certificate with the serial %s", st.Issuer, serial)
+	waiting := fmt.Sprintf("; waiting for the issuer %q to revoke the %s with the serial %s", st.Issuer, what, serial)
 	if st.Authority == "" {
 		if order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]; order != nil {
 			status := &structs.CertificateOrderStatus{}
@@ -557,11 +693,11 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 					// Not counted yet.
 					retryAt = o.retryLater(p, st)
 					o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
-						"the issuer %q did not revoke the certificate with the serial %s: %s; tried again at %s",
-						st.Issuer, serial, problem, st.RetryAt))
+						"the issuer %q did not revoke the %s with the serial %s: %s; tried again at %s",
+						st.Issuer, what, serial, problem, st.RetryAt))
 				}
-				out.failedMessage += fmt.Sprintf("; revoking the certificate with the serial %s failed (%s), tried again at %s",
-					serial, problem, st.RetryAt)
+				out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed (%s), tried again at %s",
+					what, serial, problem, st.RetryAt)
 				p.want(retryAt)
 				return false, ""
 			default:
@@ -571,7 +707,7 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 		}
 	}
 	if p.now.Before(retryAt) {
-		out.failedMessage += fmt.Sprintf("; revoking the certificate with the serial %s is tried again at %s", serial, st.RetryAt)
+		out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s is tried again at %s", what, serial, st.RetryAt)
 		p.want(retryAt)
 		return false, ""
 	}
@@ -585,7 +721,7 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 	case err != nil:
 		o.logger.Warn("failed to revoke the certificate of a namespace that may no longer ask for it",
 			"namespace", obj.Namespace, "certificate", obj.Name, "serial", serial, "error", err)
-		out.failedMessage += fmt.Sprintf("; revoking the certificate with the serial %s failed: %v", serial, err)
+		out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed: %v", what, serial, err)
 		p.want(p.now.Add(operatorsRetry))
 		return false, ""
 	case st.Authority != "":

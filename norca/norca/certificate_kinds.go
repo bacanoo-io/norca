@@ -102,7 +102,10 @@ const certificateKindSchema = `{
               "issuer": {"type": "string"},
               "authority": {"type": "string"},
               "notAfter": {"type": "string"},
-              "revoked": {"type": "boolean"}
+              "revoked": {"type": "boolean"},
+              "failures": {"type": "integer", "minimum": 0},
+              "retryAt": {"type": "string"},
+              "notRevocable": {"type": "string"}
             },
             "additionalProperties": false
           }

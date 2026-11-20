@@ -373,7 +373,11 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 		marked := make([]*structs.CertificateEarlier, len(earlier))
 		for j, e := range earlier {
 			cp := *e
-			cp.Revoked = cp.Revoked || j == i
+			if j == i {
+				// What a withdrawal recorded of its own attempts (review
+				// finding ATM-24e) is over with the mark.
+				cp.Revoked, cp.Failures, cp.RetryAt, cp.NotRevocable = true, 0, "", ""
+			}
 			marked[j] = &cp
 		}
 		part, err := structs.EncodeObjectPart(&structs.CertificateStatus{Earlier: marked})
