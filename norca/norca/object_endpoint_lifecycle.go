@@ -71,8 +71,9 @@ func checkObjectManagedBy(aclObj *acl.ACL, args structs.RequestWithIdentity, obj
 // resolveObjectOwners fills in the defaults of owner references: the
 // namespace of a namespaced owner defaults to the object's namespace, the
 // namespace of a cluster-scoped owner is empty, and the ID of an existing
-// owner object is filled in.
-func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*structs.ObjectOwnerReference) ([]*structs.ObjectOwnerReference, error) {
+// owner object is filled in for a writer who may read that owner: to anyone
+// else it would tell whether the owner exists.
+func resolveObjectOwners(snap *state.StateSnapshot, aclObj *acl.ACL, namespace string, owners []*structs.ObjectOwnerReference) ([]*structs.ObjectOwnerReference, error) {
 	if owners == nil {
 		return nil, nil
 	}
@@ -100,7 +101,8 @@ func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*
 		case ref.Namespace == "":
 			ref.Namespace = namespace
 		}
-		if ref.ID == "" && ownerKind != nil {
+		if ref.ID == "" && ownerKind != nil &&
+			aclObj.AllowObjectOperation(objectOwnerACLNamespace(ref.Namespace), ref.Kind, acl.ObjectCapabilityRead) {
 			owner, err := snap.CustomObjectByName(nil, group, kind, ref.Namespace, ref.Name)
 			if err != nil {
 				return nil, err
@@ -114,17 +116,52 @@ func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*
 	return out, nil
 }
 
-// checkObjectOwnerAccess refuses a new reference to an owner object outside
-// the namespace of the object (another namespace, a cluster-scoped owner,
-// or a namespaced owner of a cluster-scoped object) unless the writer has
-// "write" or "manage-finalizers" on the owner. A dependent holds back the
-// foreground deletion of its owner like a finalizer does, so the right to
-// write objects in one namespace must not be enough to hold back an object
-// of another one. owners are resolved (resolveObjectOwners); the references
-// the stored object already has are kept without the check.
-func checkObjectOwnerAccess(aclObj *acl.ACL, namespace string, existing *structs.CustomObject, owners []*structs.ObjectOwnerReference) error {
+// objectOwnerACLNamespace returns the namespace whose object rules decide on
+// an owner: its namespace, or that of the cluster-scoped objects for an owner
+// without one.
+func objectOwnerACLNamespace(namespace string) string {
+	if namespace == "" {
+		return acl.ObjectClusterNamespace
+	}
+	return namespace
+}
+
+// allowObjectOwner reports whether the ACL allows naming the object of a
+// kind ("group/Kind") in a namespace ("": cluster-scoped) as an owner: with
+// "write" or "manage-finalizers" on it. The owners of objects
+// (checkObjectOwnerAccess) and of jobs (checkJobOwnerMark) are checked with
+// it. It reads no state: the answer does not tell whether the owner exists.
+func allowObjectOwner(aclObj *acl.ACL, kindRef, namespace string) bool {
+	aclNamespace := objectOwnerACLNamespace(namespace)
+	return aclObj.AllowObjectOperation(aclNamespace, kindRef, acl.ObjectCapabilityWrite) ||
+		aclObj.AllowObjectOperation(aclNamespace, kindRef, acl.ObjectCapabilityManageFinalizers)
+}
+
+// errObjectOwnerAccess is the error of naming an owner without the right on
+// it (allowObjectOwner). It is the same whether the owner exists or not.
+func errObjectOwnerAccess(kindRef, namespace, name string) error {
+	where := "cluster-scoped"
+	if namespace != "" {
+		where = fmt.Sprintf("in namespace %q", namespace)
+	}
+	return structs.NewErrRPCCodedf(http.StatusForbidden,
+		"owner %s %q %s: naming an owner requires the write or manage-finalizers capability on the owner",
+		kindRef, name, where)
+}
+
+// checkObjectOwnerAccess refuses a new reference to an owner object unless
+// the writer has "write" or "manage-finalizers" on the owner, wherever the
+// owner is: in another namespace, cluster-scoped, or in the namespace of the
+// object, of another kind or of its own. A dependent holds back the
+// foreground deletion of its owner like a finalizer does, and the deletion
+// of an owner is refused to a caller without the rights on its dependents,
+// so the right to write the objects of one kind must not be enough to make
+// them dependents of any other object. The owner need not exist. owners are
+// resolved (resolveObjectOwners); the references the stored object already
+// has are kept without the check.
+func checkObjectOwnerAccess(aclObj *acl.ACL, existing *structs.CustomObject, owners []*structs.ObjectOwnerReference) error {
 	for _, ref := range owners {
-		if !ref.IsObject() || ref.Namespace == namespace {
+		if !ref.IsObject() {
 			continue
 		}
 		if existing != nil && slices.ContainsFunc(existing.Owners, func(o *structs.ObjectOwnerReference) bool {
@@ -132,21 +169,9 @@ func checkObjectOwnerAccess(aclObj *acl.ACL, namespace string, existing *structs
 		}) {
 			continue
 		}
-		aclNamespace := ref.Namespace
-		if aclNamespace == "" {
-			aclNamespace = acl.ObjectClusterNamespace
+		if !allowObjectOwner(aclObj, ref.Kind, ref.Namespace) {
+			return errObjectOwnerAccess(ref.Kind, ref.Namespace, ref.Name)
 		}
-		if aclObj.AllowObjectOperation(aclNamespace, ref.Kind, acl.ObjectCapabilityWrite) ||
-			aclObj.AllowObjectOperation(aclNamespace, ref.Kind, acl.ObjectCapabilityManageFinalizers) {
-			continue
-		}
-		where := "cluster-scoped"
-		if ref.Namespace != "" {
-			where = fmt.Sprintf("in namespace %q", ref.Namespace)
-		}
-		return structs.NewErrRPCCodedf(http.StatusForbidden,
-			"owner %s %q %s: an owner outside the namespace of the object requires the write or manage-finalizers capability on the owner",
-			ref.Kind, ref.Name, where)
 	}
 	return nil
 }

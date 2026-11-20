@@ -94,7 +94,8 @@ namespace "*" {
 	_, err = c.apply(dependent("hook", fleetRef), nil, false, outsider.SecretID)
 	must.Eq(t, 403, errCode(t, err))
 
-	// An owner in the object's own namespace needs nothing more.
+	// An owner in the object's own namespace is checked too (JOG-21): the
+	// writer of the kind has the right on it.
 	_, err = c.apply(testPGObject("other", "parent", spec), nil, false, outsider.SecretID)
 	must.NoError(t, err)
 	_, err = c.apply(dependent("child", &structs.ObjectOwnerReference{Kind: "db.example.com/PostgresCluster", Name: "parent"}),

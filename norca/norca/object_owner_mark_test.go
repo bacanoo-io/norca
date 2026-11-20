@@ -17,11 +17,11 @@ import (
 	"github.com/shoenig/test/wait"
 )
 
-// The tests of this file document what right on an OWNER it takes to mark a
+// The tests of this file state what right on an OWNER it takes to mark a
 // resource as its dependent (the open item "norca.owner" of the review round
-// 2026-11-17), as the code stands. An assertion marked CURRENT BEHAVIOUR
-// states what the servers do today and is a suspected defect: when the
-// behaviour is fixed, that assertion is to be turned around, not kept.
+// 2026-11-17; review findings JOG-20 and JOG-21). An assertion marked CURRENT
+// BEHAVIOUR states what the servers do today and is a suspected defect: when
+// the behaviour is fixed, that assertion is to be turned around, not kept.
 
 const testOwnerMarkHookKind = "Hook"
 
@@ -168,28 +168,36 @@ func TestObjectOwnerMark_JobOfAnotherNamespace(t *testing.T) {
 	must.False(t, c.jobIn("other", "text-chosen-by-the-attacker").Stop)
 }
 
-// An object names its owners in Owners. An owner outside the namespace of
-// the object takes "write" or "manage-finalizers" on the owner
-// (checkObjectOwnerAccess); an owner in the same namespace takes nothing,
-// whatever its kind is.
-//
-// CURRENT BEHAVIOUR: a caller with the rights of one kind in a namespace
-// makes an object of that kind the dependent of an object of another kind of
-// the namespace, which the caller can neither read nor write. The reply tells
-// the caller whether that owner exists, and its ID. With a finalizer on the
-// dependent, a foreground deletion of the owner never ends: the administrator
-// of the owner can neither take it back nor change it to the orphan mode, nor
-// remove the finalizer of the dependent. A management token ends it.
+// An object names its owners in Owners, and naming an owner takes "write" or
+// "manage-finalizers" on the owner (checkObjectOwnerAccess), also when the
+// owner is in the namespace of the object (review finding JOG-21): a caller
+// with the rights of one kind in a namespace does not make an object of that
+// kind the dependent of an object of another kind of the namespace. The
+// refusal is the same for an owner that exists and for one that does not,
+// and the ID of the owner is in the reply only for a writer who may read the
+// owner.
 func TestObjectOwnerMark_OtherKindOfTheSameNamespace(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := ownerMarkServer(t)
 	defer cleanup()
 
+	// The rights of the Hooks, none on the Databases.
 	attacker := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "attacker", `namespace "default" {
   object "example.com/Hook" { capabilities = ["read", "write", "manage-finalizers"] }
 }`))
 	victim := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "victim", `namespace "default" {
   object "example.com/Database" { capabilities = ["read", "write", "manage-finalizers"] }
+}`))
+	// The Hooks, and the finalizers of the Databases: enough to name one as
+	// an owner, not to read it.
+	finalizers := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "finalizers", `namespace "default" {
+  object "example.com/Hook" { capabilities = ["read", "write", "manage-finalizers"] }
+  object "example.com/Database" { capabilities = ["manage-finalizers"] }
+}`))
+	// The Hooks, and the Databases written and read.
+	writer := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1007, "writer", `namespace "default" {
+  object "example.com/Hook" { capabilities = ["read", "write", "manage-finalizers"] }
+  object "example.com/Database" { capabilities = ["read", "write"] }
 }`))
 
 	must.NoError(t, victim.applyOwned(testOwnerGroup, testOwnerKind, "shop", map[string]any{}))
@@ -203,62 +211,78 @@ func TestObjectOwnerMark_OtherKindOfTheSameNamespace(t *testing.T) {
 	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
 
 	const fin = "example.com/never-removed"
-	hook := func(name, owner string) *structs.CustomObject {
+	hook := func(name string, owners ...*structs.ObjectOwnerReference) *structs.CustomObject {
 		return &structs.CustomObject{Group: testOwnerGroup, Kind: testOwnerMarkHookKind, Name: name,
-			Spec: map[string]any{}, Finalizers: []string{fin}, Owners: []*structs.ObjectOwnerReference{ownedBy(testOwnerGroup, testOwnerKind, owner)}}
+			Spec: map[string]any{}, Finalizers: []string{fin}, Owners: owners}
+	}
+	database := func(name string) *structs.ObjectOwnerReference {
+		return ownedBy(testOwnerGroup, testOwnerKind, name)
 	}
 
-	// CURRENT BEHAVIOUR: the mark is accepted without a right on the owner,
-	// and (d) the reply has the ID of the owner if the owner exists.
-	written, err := attacker.applyObject(hook("hold", "shop"))
+	// Without a right on the owner the reference is refused, with the same
+	// answer for an owner that exists and for one that does not.
+	_, err = attacker.applyObject(hook("hold", database("shop")))
+	must.Eq(t, 403, errCode(t, err), must.Sprint("an owner of the same namespace was accepted without a right on it"))
+	must.ErrorContains(t, err, `owner example.com/Database "shop" in namespace "default"`)
+	must.ErrorContains(t, err, "requires the write or manage-finalizers capability on the owner")
+	_, missingErr := attacker.applyObject(hook("probe", database("no-such-database")))
+	must.Eq(t, 403, errCode(t, missingErr))
+	must.Eq(t, strings.ReplaceAll(err.Error(), `"shop"`, `"no-such-database"`), missingErr.Error())
+	must.Nil(t, c.object(testOwnerGroup, testOwnerMarkHookKind, "hold"))
+	must.Nil(t, c.object(testOwnerGroup, testOwnerMarkHookKind, "probe"))
+
+	// An object without an owner is theirs to write.
+	_, err = attacker.applyObject(hook("alone"))
 	must.NoError(t, err)
-	must.Eq(t, shop.ID, written.Owners[0].ID)
-	written, err = attacker.applyObject(hook("probe", "no-such-database"))
+
+	// With the finalizers of the owner the reference is made. The reply has
+	// no ID of an owner the writer may not read, whether it exists or not.
+	written, err := finalizers.applyObject(hook("kept", database("shop")))
+	must.NoError(t, err)
+	must.Eq(t, "default", written.Owners[0].Namespace)
+	must.Eq(t, "", written.Owners[0].ID, must.Sprint("the reply tells a caller who may not read the owner that it exists"))
+	written, err = finalizers.applyObject(hook("kept-missing", database("no-such-database")))
 	must.NoError(t, err)
 	must.Eq(t, "", written.Owners[0].ID)
 
-	// (c) The foreground deletion of the owner is accepted (the dependent
-	// destroys no storage), the collector marks the dependent, and the owner
-	// waits for the finalizer of the attacker.
-	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", structs.ObjectPropagationForeground))
-	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
-		obj := c.object(testOwnerGroup, testOwnerMarkHookKind, "hold")
-		return obj != nil && obj.Deleting()
-	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the dependent is marked for deletion"))
-	must.Wait(t, wait.ContinualSuccess(wait.BoolFunc(func() bool {
-		obj := c.object(testOwnerGroup, testOwnerKind, "shop")
-		return obj != nil && obj.Deleting()
-	}), wait.Timeout(2*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("the owner stays in deletion"))
+	// With write and read on the owner the reply has its ID, if it exists.
+	written, err = writer.applyObject(hook("tracked", database("shop")))
+	must.NoError(t, err)
+	must.Eq(t, shop.ID, written.Owners[0].ID)
+	written, err = writer.applyObject(hook("tracked-missing", database("no-such-database")))
+	must.NoError(t, err)
+	must.Eq(t, "", written.Owners[0].ID)
 
-	// The administrator of the owner has no way out: a deletion in the
-	// orphan mode changes nothing of an object being deleted, and the
-	// finalizer of the dependent is not theirs to remove.
-	var resp structs.CustomObjectWriteResponse
-	must.NoError(t, c.s.RPC("CustomObject.Delete", &structs.CustomObjectDeleteRequest{
-		Group: testOwnerGroup, Kind: testOwnerKind, Name: "shop", Propagation: structs.ObjectPropagationOrphan,
-		WriteRequest: victim.write("default"),
-	}, &resp))
-	must.True(t, resp.Unchanged)
-	must.Eq(t, structs.ObjectPropagationForeground, c.object(testOwnerGroup, testOwnerKind, "shop").DeletionPropagation)
-	err = victim.objectFinalizers(testOwnerMarkHookKind, "hold", nil, []string{fin})
-	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
-	must.NotNil(t, c.object(testOwnerGroup, testOwnerKind, "shop"))
+	// A writer of the dependent keeps the references it already has, without
+	// the right on the owner and without learning its ID, but adds none.
+	update := hook("tracked", database("shop"))
+	update.Spec = map[string]any{"changed": true}
+	written, err = attacker.applyObject(update)
+	must.NoError(t, err)
+	must.Len(t, 1, written.Owners)
+	must.Eq(t, "", written.Owners[0].ID)
+	must.True(t, structs.ObjectOwnedBy(c.object(testOwnerGroup, testOwnerMarkHookKind, "tracked"),
+		testOwnerGroup, testOwnerKind, "default", "shop"))
+	update.Owners = append(update.Owners, database("site"))
+	_, err = attacker.applyObject(update)
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, `owner example.com/Database "site" in namespace "default"`)
 
-	// A management token ends it, on the dependent.
-	must.NoError(t, c.objectFinalizers(testOwnerMarkHookKind, "hold", nil, []string{fin}))
-	c.waitGone(testOwnerGroup, testOwnerMarkHookKind, "hold")
-	c.waitGone(testOwnerGroup, testOwnerKind, "shop")
+	// An owner of the same kind is checked like any other: whoever writes the
+	// objects of a kind in a namespace has the right on them.
+	_, err = attacker.applyObject(hook("parent"))
+	must.NoError(t, err)
+	written, err = attacker.applyObject(hook("child", ownedBy(testOwnerGroup, testOwnerMarkHookKind, "parent")))
+	must.NoError(t, err)
+	must.Eq(t, c.object(testOwnerGroup, testOwnerMarkHookKind, "parent").ID, written.Owners[0].ID)
 }
 
 // A volume request can be written, with or without an owner, only with the
 // rights of the volume API: the sentence of the review finding SEC-8, "the
-// owner reference can't be added without the csi right", holds. With that
-// right and the right to write requests, and none on the owner:
-//
-// CURRENT BEHAVIOUR: a request that does not retain its volume is made the
-// dependent of an object of another kind of the namespace, and the deletion
-// of that object is refused to its administrator in the modes that take the
-// dependents (the check of SEC-8), who has the orphan mode left.
+// owner reference can't be added without the csi right", holds. That right
+// and the right to write requests are not enough to name an object of
+// another kind of the namespace as the owner (review finding JOG-21): its
+// administrator deletes it in every mode, and the request stays.
 func TestObjectOwnerMark_VolumeRequestOfAnotherOwner(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := ownerMarkServer(t)
@@ -281,28 +305,26 @@ plugin { policy = "read" }`))
 
 	must.NoError(t, victim.applyOwned(testOwnerGroup, testOwnerKind, "shop", map[string]any{}))
 
-	// The check that holds: no request, and so no owner mark on one, without
-	// the volume right.
+	// The check that holds: no request without the volume right, with an
+	// owner (the check of the owner comes first) or without one.
 	err := noVolume.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "squat", deletes, database)
+	must.Eq(t, 403, errCode(t, err))
+	err = noVolume.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "squat", deletes)
 	must.Eq(t, 403, errCode(t, err))
 	must.ErrorContains(t, err, "csi-write-volume")
 
-	// CURRENT BEHAVIOUR: with it, the mark is accepted without a right on
-	// the owner.
-	must.NoError(t, attacker.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "squat", deletes, database))
+	// With it, the mark is refused without a right on the owner.
+	err = attacker.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "squat", deletes, database)
+	must.Eq(t, 403, errCode(t, err), must.Sprint("a volume request was made the dependent of an owner without a right on it"))
+	must.ErrorContains(t, err, `owner example.com/Database "shop" in namespace "default"`)
+	must.NoError(t, attacker.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "squat", deletes))
 	c.waitRequest("squat", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
 		return readyReason(obj) == "True" && slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
 	})
 
-	// (a) The administrator of the owner is refused, and is not told which
-	// request it is (they may not read requests).
-	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
-		err := victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", mode)
-		must.Eq(t, 403, errCode(t, err), must.Sprintf("mode %q", mode))
-		must.ErrorContains(t, err, "csi-write-volume")
-		must.StrNotContains(t, err.Error(), "squat")
-	}
-	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", structs.ObjectPropagationOrphan))
+	// The administrator of the owner deletes it in the default mode, and the
+	// request of the attacker is none of its dependents.
+	must.NoError(t, victim.deleteWith(testOwnerGroup, testOwnerKind, "shop", ""))
 	c.waitGone(testOwnerGroup, testOwnerKind, "shop")
 	squat := c.object(structs.OperatorsGroup, csiVolumeRequestKind, "squat")
 	must.NotNil(t, squat)
