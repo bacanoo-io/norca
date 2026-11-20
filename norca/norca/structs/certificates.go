@@ -70,6 +70,13 @@ const (
 	// certificate.
 	CertificateRevokeReasonCessationOfOperation = "cessationOfOperation"
 
+	// The other reasons a user may give for a revocation, by the names of
+	// the CRLReason of RFC 5280 too (CertificateRevokeReasons).
+	CertificateRevokeReasonUnspecified        = "unspecified"
+	CertificateRevokeReasonKeyCompromise      = "keyCompromise"
+	CertificateRevokeReasonAffiliationChanged = "affiliationChanged"
+	CertificateRevokeReasonSuperseded         = "superseded"
+
 	// CertificateDefaultValidity and CertificateMaxValidity bound the
 	// validity of certificates of the built-in issuer.
 	CertificateDefaultValidity = 90 * 24 * time.Hour
@@ -96,6 +103,37 @@ const (
 
 // CertificateKeyTypes are the key types a certificate can ask for.
 var CertificateKeyTypes = []string{"ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-4096", "ed25519"}
+
+// CertificateRevokeReasons are the reasons a revocation may give: the
+// CRLReasons of RFC 5280 (section 5.3.1) that a subscriber may give (RFC
+// 8555, section 7.6), which the controllers of external issuers accept too.
+// The others are the CA's own. A revocation without a reason is unspecified.
+var CertificateRevokeReasons = []string{
+	CertificateRevokeReasonUnspecified,
+	CertificateRevokeReasonKeyCompromise,
+	CertificateRevokeReasonAffiliationChanged,
+	CertificateRevokeReasonSuperseded,
+	CertificateRevokeReasonCessationOfOperation,
+}
+
+// CertificateRevokeReasonCode returns the CRLReason code of RFC 5280 of the
+// reason of a revocation, 0 (unspecified) for none. ok is false for a reason
+// that is not one of CertificateRevokeReasons.
+func CertificateRevokeReasonCode(reason string) (code int, ok bool) {
+	switch reason {
+	case "", CertificateRevokeReasonUnspecified:
+		return 0, true
+	case CertificateRevokeReasonKeyCompromise:
+		return 1, true
+	case CertificateRevokeReasonAffiliationChanged:
+		return 3, true
+	case CertificateRevokeReasonSuperseded:
+		return 4, true
+	case CertificateRevokeReasonCessationOfOperation:
+		return 5, true
+	}
+	return 0, false
+}
 
 // CertificateAuthority is an issuing CA of a region for Certificate objects
 // of the built-in issuer: the active one, and retired ones that stay in the
@@ -158,6 +196,11 @@ type CertificateRevocation struct {
 	// validity of the certificate: after it the entry is dropped.
 	RevokedAt time.Time
 	NotAfter  time.Time
+
+	// Reason is the reason of the revocation, the name of an RFC 5280
+	// CRLReason (CertificateRevokeReasons); empty for none (unspecified).
+	// The revocation list carries its code.
+	Reason string
 }
 
 // Copy returns a deep copy of a.
@@ -234,6 +277,11 @@ type CertificateCRLResponse struct {
 // object; a new one is issued. The namespace is that of the request.
 type CertificateRevokeRequest struct {
 	Name string
+
+	// Reason is the reason of the revocation, one of
+	// CertificateRevokeReasons; empty for none (unspecified).
+	Reason string
+
 	WriteRequest
 }
 
