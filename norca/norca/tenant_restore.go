@@ -335,6 +335,9 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if roleMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
+		// A check-and-set on the role as read here: a rename in between
+		// is not written back (review finding ATM-26).
+		o.beforeWrite(ref)
 		if _, err := o.upsertRole(p, live, want); err != nil {
 			return "", fmt.Errorf("%s: %v", ref, err)
 		}

@@ -433,8 +433,8 @@ type Config struct {
 	volumeRequestBeforeRegister func(vol *structs.CSIVolume)
 
 	// tenantBeforeWrite, when set, runs right before the tenant operator
-	// writes a namespace, quota, ACL policy or network policy its pass
-	// read. For tests: what is committed between the read and the write.
+	// writes a namespace, quota, ACL policy, ACL role or network policy its
+	// pass read. For tests: what is committed between the read and the write.
 	tenantBeforeWrite func(ref tenantResourceRef)
 
 	// tenantBeforeDelete, when set, runs right before the tenant operator
