@@ -259,12 +259,50 @@ func (s *Server) recordObjectEvents(obj *structs.CustomObject, events []*structs
 	return index, err
 }
 
+// objectDeletionLetsGo reports whether a deletion in the propagation mode
+// given changes the deletion that is under way of the object: only a
+// deletion in the orphan mode does, of an object that is being deleted in
+// the background or the foreground mode. The mode of a deletion is not
+// changed in any other direction: the dependents of an object deleted in the
+// orphan mode were promised to stay, and the deleter of an object is checked
+// for its dependents when the deletion starts
+// (checkObjectDependentsDelete), not later.
+//
+// The change is one write of the object (or its removal, if nothing holds it
+// any more), with check-and-set on its modify index. What it means for the
+// dependents follows from what the garbage collector (objectgc) does for an
+// object that is being deleted:
+//
+//   - from then on the collector takes no dependent for the object: it
+//     collects for an object marked in the foreground mode, and for the
+//     tombstone of the background and the foreground mode, and the object is
+//     neither any more; its tombstone will be one of the orphan mode;
+//   - the object no longer waits for its dependents: it is removed when its
+//     own finalizers are gone, at once if it has none;
+//   - the dependents that were not deleted yet stay as they are, with their
+//     reference to the owner, as after any deletion in the orphan mode;
+//   - what the collector did before is not taken back: a dependent it
+//     removed is gone, one it marked for deletion (it has finalizers) stays
+//     marked and is removed when its finalizers are gone, with its own
+//     dependents, and a job it stopped stays stopped. A pass of the
+//     collector that runs at the time of the change may still take the
+//     dependents it had read.
+//
+// The caller needs what the deletion of the object needs; the check of the
+// dependents is not made for the orphan mode, as in a first deletion.
+func objectDeletionLetsGo(existing *structs.CustomObject, propagation string) bool {
+	return existing.Deleting() && propagation == structs.ObjectPropagationOrphan &&
+		existing.DeletionPropagation != structs.ObjectPropagationOrphan
+}
+
 // Delete deletes an object. An object without finalizers is removed at
 // once, unless the foreground mode is requested; otherwise it is marked for
 // deletion (DeletionTime) and removed when its finalizers are gone and, in
 // the foreground mode, the garbage collector has deleted its dependents.
 // The reply is the object as marked, or as it was before it was removed
-// (DeletionTime 0).
+// (DeletionTime 0). A deletion in the orphan mode of an object that is being
+// deleted in another mode lets go of its dependents (objectDeletionLetsGo);
+// any other repeated deletion changes nothing.
 func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *structs.CustomObjectWriteResponse) error {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("CustomObject.Delete", args, args, reply); done {
@@ -351,12 +389,18 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			}
 		}
 
-		// A repeated deletion of an object being deleted changes nothing.
+		// A repeated deletion of an object being deleted changes nothing,
+		// except that it may let go of the dependents (review finding
+		// JOG-21): see objectDeletionLetsGo.
+		lettingGo := false
 		if existing.Deleting() {
-			reply.Object = existing
-			reply.Unchanged = true
-			reply.Index = existing.ModifyIndex
-			return nil
+			if !objectDeletionLetsGo(existing, propagation) {
+				reply.Object = existing
+				reply.Unchanged = true
+				reply.Index = existing.ModifyIndex
+				return nil
+			}
+			lettingGo = true
 		}
 
 		// What the deletion takes with it: the garbage collector deletes
@@ -388,11 +432,16 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 		removeNow := len(existing.Finalizers) == 0 && propagation != structs.ObjectPropagationForeground
 		var marked *structs.CustomObject
 		if !removeNow {
+			now := time.Now().UnixNano()
 			marked = existing.Copy()
-			marked.DeletionTime = time.Now().UnixNano()
+			// The deletion that lets go of the dependents is the one
+			// that was started: its time stays.
+			if !lettingGo {
+				marked.DeletionTime = now
+			}
 			marked.DeletionPropagation = propagation
 			marked.DeletionApproved = approved
-			marked.ModifyTime = marked.DeletionTime
+			marked.ModifyTime = now
 		}
 		if args.DryRun {
 			reply.Object = existing
