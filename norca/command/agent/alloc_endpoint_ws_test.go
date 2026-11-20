@@ -11,15 +11,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/shoenig/test/must"
@@ -212,6 +215,232 @@ func TestAllocExec_HandshakeTimeout(t *testing.T) {
 	must.ErrorIs(t, err, io.EOF)
 }
 
+// wsTestCloseReasonMax is the longest reason a websocket close frame holds:
+// a control frame has at most 125 bytes of payload (RFC 6455, 5.5), and the
+// close code takes two of them.
+const wsTestCloseReasonMax = 123
+
+// mustWsCloseFrame reads until the connection ends and wants it to end with
+// a close frame of the server. Without one the read fails with the close
+// error 1006, which no frame carries, and that fails the test.
+func mustWsCloseFrame(t *testing.T, conn *websocket.Conn) *websocket.CloseError {
+	t.Helper()
+
+	must.NoError(t, conn.SetReadDeadline(time.Now().Add(20*time.Second)))
+	for {
+		_, _, err := conn.ReadMessage()
+		if err == nil {
+			continue
+		}
+		var closeErr *websocket.CloseError
+		must.True(t, errors.As(err, &closeErr), must.Sprintf("no close frame: %v", err))
+		must.NotEq(t, websocket.CloseAbnormalClosure, closeErr.Code, must.Sprintf("no close frame: %v", err))
+		return closeErr
+	}
+}
+
+// mustWsCutReason: reason is full, which does not fit into a close frame, cut
+// to fit: a beginning of full, as much of it as fits, and "..." after it.
+func mustWsCutReason(t *testing.T, full, reason string) {
+	t.Helper()
+
+	const ellipsis = "..."
+	must.Greater(t, wsTestCloseReasonMax, len(full), must.Sprint("the full text fits, nothing to cut"))
+	must.LessEq(t, wsTestCloseReasonMax, len(reason), must.Sprintf("reason: %q", reason))
+	must.True(t, utf8.ValidString(reason), must.Sprintf("reason: %q", reason))
+	must.StrHasSuffix(t, ellipsis, reason)
+	kept := strings.TrimSuffix(reason, ellipsis)
+	must.StrHasPrefix(t, kept, full)
+	// no more is cut than the frame asks for: the rest of the room is less
+	// than a character (at most 4 bytes)
+	must.Greater(t, wsTestCloseReasonMax-utf8.UTFMax, len(reason), must.Sprintf("reason: %q", reason))
+}
+
+// TestWsCloseReason: a text that fits into a close frame is its reason as it
+// is; a longer one is cut to the 123 bytes a close frame has for it, between
+// two characters, and ends in "..."; the reason is valid UTF-8 whatever the
+// text is.
+func TestWsCloseReason(t *testing.T) {
+	ci.Parallel(t)
+
+	must.Eq(t, wsTestCloseReasonMax, wsCloseReasonMaxBytes)
+
+	cases := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "empty", text: "", want: ""},
+		{name: "short", text: "task not found", want: "task not found"},
+		{name: "ASCII of 123 bytes", text: strings.Repeat("a", 123), want: strings.Repeat("a", 123)},
+		{name: "ASCII of 124 bytes", text: strings.Repeat("a", 124), want: strings.Repeat("a", 120) + "..."},
+		{name: "ASCII of 5000 bytes", text: strings.Repeat("a", 5000), want: strings.Repeat("a", 120) + "..."},
+		{
+			// 41 characters of three bytes
+			name: "three-byte characters of 123 bytes",
+			text: strings.Repeat("€", 41),
+			want: strings.Repeat("€", 41),
+		},
+		{
+			// the cut at byte 120 is between two characters
+			name: "three-byte characters, cut at a boundary",
+			text: strings.Repeat("€", 42),
+			want: strings.Repeat("€", 40) + "...",
+		},
+		{
+			// byte 120 is the last byte of a character: it goes whole
+			name: "three-byte characters, cut before the last byte",
+			text: "a" + strings.Repeat("€", 41),
+			want: "a" + strings.Repeat("€", 39) + "...",
+		},
+		{
+			// byte 120 is the second byte of a character
+			name: "three-byte characters, cut inside a character",
+			text: "aa" + strings.Repeat("€", 41),
+			want: "aa" + strings.Repeat("€", 39) + "...",
+		},
+		{
+			name: "two-byte characters, cut inside a character",
+			text: "a" + strings.Repeat("é", 100),
+			want: "a" + strings.Repeat("é", 59) + "...",
+		},
+		{
+			name: "four-byte characters, cut inside a character",
+			text: "aaa" + strings.Repeat("😀", 31),
+			want: "aaa" + strings.Repeat("😀", 29) + "...",
+		},
+		{
+			name: "long text with a character at the end of the room",
+			text: strings.Repeat("a", 117) + "€" + strings.Repeat("a", 10),
+			want: strings.Repeat("a", 117) + "€" + "...",
+		},
+		{name: "invalid byte", text: "bad \xff byte", want: "bad � byte"},
+		{name: "run of invalid bytes", text: "bad \xff\xfe\xfd bytes", want: "bad � bytes"},
+		{name: "half of a character at the end", text: "half \xe2\x82", want: "half �"},
+		{
+			// 122 bytes, 124 with the invalid byte replaced
+			name: "invalid byte makes the text too long",
+			text: strings.Repeat("a", 121) + "\xff",
+			want: strings.Repeat("a", 120) + "...",
+		},
+		{
+			name: "long text of invalid bytes",
+			text: strings.Repeat("\xffa", 100),
+			want: strings.Repeat("�a", 30) + "...",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := wsCloseReason(tc.text)
+			must.Eq(t, tc.want, got)
+			must.LessEq(t, wsTestCloseReasonMax, len(got))
+			must.True(t, utf8.ValidString(got))
+			// the websocket takes it as the payload of a control frame
+			must.LessEq(t, 125, len(websocket.FormatCloseMessage(websocket.ClosePolicyViolation, got)))
+		})
+	}
+}
+
+// TestAllocExec_HandshakeErrorLongCloseReason: a handshake error whose text
+// does not fit into a close frame still reaches the client as the close
+// frame "policy violation", with the beginning of the text as its reason.
+// The text went out whole, the websocket refused to write a control frame of
+// that size, and the client saw the connection end without a close frame
+// (1006). The client sets the length here: the text quotes its ws_handshake
+// value.
+func TestAllocExec_HandshakeErrorLongCloseReason(t *testing.T) {
+	ci.Parallel(t)
+
+	s := makeHTTPServer(t, func(c *Config) {
+		c.LogLevel = "ERROR"
+	})
+	defer s.Shutdown()
+
+	cases := []struct {
+		name  string
+		value string // of ws_handshake
+	}{
+		{name: "ASCII value", value: strings.Repeat("a", 200)},
+		{name: "value of two-byte characters", value: strings.Repeat("é", 200)},
+		{name: "value of three-byte characters", value: strings.Repeat("€", 200)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, parseErr := strconv.ParseBool(tc.value)
+			must.Error(t, parseErr)
+			full := fmt.Sprintf("ws_handshake value is not a boolean: %v", parseErr)
+
+			wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + uuid.Generate() +
+				"/exec?task=web&ws_handshake=" + url.QueryEscape(tc.value) +
+				"&command=" + url.QueryEscape(`["true"]`)
+			conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+			must.NoError(t, err)
+			defer conn.Close()
+
+			closeErr := mustWsCloseFrame(t, conn)
+			must.Eq(t, websocket.ClosePolicyViolation, closeErr.Code)
+			mustWsCutReason(t, full, closeErr.Text)
+			mustWsConnClosed(t, conn)
+		})
+	}
+}
+
+// TestAllocExec_SessionErrorLongCloseReason: the error that ends an exec
+// session reaches the client in a close frame when its text does not fit
+// into one: the beginning of the text is the reason. The text is the error
+// of the exec RPC, here of an allocation nobody knows, which quotes the
+// allocation ID of the request. It went out whole, was refused by the
+// websocket, and the client saw 1006 instead of the error of its session.
+func TestAllocExec_SessionErrorLongCloseReason(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, func(c *Config) {
+		c.LogLevel = "ERROR"
+	}, func(s *TestAgent) {
+		// an allocation whose task has a long name and does not start
+		// while the test runs: the exec RPC refuses it with an error that
+		// quotes the name
+		const oldTask = "web"
+		task := strings.Repeat("t", 200)
+		alloc := mockFSAlloc(s.client.NodeID(), map[string]interface{}{
+			"start_block_for": "5m",
+			"run_for":         "1s",
+		})
+		alloc.Job.TaskGroups[0].Tasks[0].Name = task
+		alloc.TaskResources[task] = alloc.TaskResources[oldTask]
+		delete(alloc.TaskResources, oldTask)
+		alloc.AllocatedResources.Tasks[task] = alloc.AllocatedResources.Tasks[oldTask]
+		delete(alloc.AllocatedResources.Tasks, oldTask)
+		addAllocToClient(s, alloc, noWaitClientAlloc)
+
+		testutil.WaitForResult(func() (bool, error) {
+			state, err := s.client.GetAllocState(alloc.ID)
+			if err != nil {
+				return false, err
+			}
+			if state.TaskStates[task] == nil {
+				return false, fmt.Errorf("the client has no state of the task yet")
+			}
+			return true, nil
+		}, func(err error) {
+			t.Fatal(err)
+		})
+
+		full := fmt.Sprintf("task %q not started yet.", task)
+
+		wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + alloc.ID +
+			"/exec?task=" + task + "&command=" + url.QueryEscape(`["true"]`)
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		must.NoError(t, err)
+		defer conn.Close()
+
+		closeErr := mustWsCloseFrame(t, conn)
+		must.Eq(t, websocket.ClosePolicyViolation, closeErr.Code)
+		mustWsCutReason(t, full, closeErr.Text)
+		mustWsConnClosed(t, conn)
+	})
+}
+
 // TestReadWsHandshakeWithin: the time limit of the handshake message ends a
 // silent client, and it is over once the handshake is read: a session that
 // is idle for longer than the limit afterwards is not cut.
@@ -233,7 +462,7 @@ func TestReadWsHandshakeWithin(t *testing.T) {
 		var q structs.QueryOptions
 		if err := readWsHandshakeWithin(ws, limit, r, &q); err != nil {
 			ws.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(toWsCode(400), err.Error()))
+				websocket.FormatCloseMessage(toWsCode(400), wsCloseReason(err.Error())))
 			return
 		}
 		_, msg, err := ws.ReadMessage()
@@ -452,7 +681,7 @@ func TestReadWsHandshakeWithin_SizeLimit(t *testing.T) {
 			var q structs.QueryOptions
 			if err := readWsHandshakeWithin(ws, wsHandshakeTimeout, r, &q); err != nil {
 				closeErr := ws.WriteMessage(websocket.CloseMessage,
-					websocket.FormatCloseMessage(toWsCode(400), err.Error()))
+					websocket.FormatCloseMessage(toWsCode(400), wsCloseReason(err.Error())))
 				results <- handshakeResult{err: err, closeErr: closeErr}
 				return
 			}

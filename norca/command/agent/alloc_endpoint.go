@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -535,7 +536,7 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 
 	if err := readWsHandshakeWithin(conn, wsHandshakeTimeout, req, &args.QueryOptions); err != nil {
 		conn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(toWsCode(400), err.Error()))
+			websocket.FormatCloseMessage(toWsCode(400), wsCloseReason(err.Error())))
 		return nil, err
 	}
 
@@ -560,6 +561,33 @@ const wsHandshakeTimeout = 5 * time.Second
 // with the names of the job and the task in it, which have no length limit.
 // 16 KiB leaves room for a JWT of about 12000 bytes of claims.
 const wsHandshakeMaxBytes = 16 << 10
+
+// wsCloseReasonMaxBytes is the longest reason a websocket close frame can
+// carry (Norca): a control frame has at most 125 bytes of payload (RFC 6455,
+// section 5.5), and the close code takes the first two.
+const wsCloseReasonMaxBytes = 123
+
+// wsCloseReason makes a text fit to be the reason of a websocket close frame
+// (Norca). The exec handler sends the text of an error as the reason, and
+// the websocket refuses to write a close frame with a longer one: none went
+// out then, and the client saw the connection end with no close code and no
+// reason (1006) instead of the error. A longer text is cut between two
+// characters and ends in "...", which counts in the limit. The reason has to
+// be valid UTF-8 as well (RFC 6455, section 5.5.1), or the client fails the
+// connection: bytes that are not are replaced with U+FFFD.
+func wsCloseReason(text string) string {
+	const ellipsis = "..."
+
+	text = strings.ToValidUTF8(text, string(utf8.RuneError))
+	if len(text) <= wsCloseReasonMaxBytes {
+		return text
+	}
+	cut := wsCloseReasonMaxBytes - len(ellipsis)
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + ellipsis
+}
 
 // readWsHandshakeWithin is readWsHandshake with a time limit on the read of
 // the handshake message (Norca): without one a client that never sends it
@@ -732,7 +760,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 		// goroutine is still writing output, so this write must be serialized
 		// with it.
 		wsw.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(toWsCode(codedErr.Code()), codedErr.Error()))
+			websocket.FormatCloseMessage(toWsCode(codedErr.Code()), wsCloseReason(codedErr.Error())))
 	}
 	// Close may be called concurrently with writes; it must not wait for the
 	// write lock, so that it can unblock a write stuck on a stalled peer.
