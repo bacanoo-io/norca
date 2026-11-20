@@ -11,14 +11,14 @@ import (
 	"strconv"
 )
 
-// The checked writes of namespaces, quotas, ACL policies and network
-// policies: a check-and-set on the modify index the caller read. Index 0
-// creates a resource that must not exist yet; any other index writes only
-// while the stored resource still has it. A write that fails the check
+// The checked writes of namespaces, quotas, ACL policies, ACL roles and
+// network policies: a check-and-set on the modify index the caller read.
+// Index 0 creates a resource that must not exist yet; any other index writes
+// only while the stored resource still has it. A write that fails the check
 // writes nothing and returns an error wrapping ErrIndexConflict: read the
-// resource again and decide. Namespaces, quotas and ACL policies are written
-// in the authoritative region, so the index is the one it reports; network
-// policies are regional.
+// resource again and decide. Namespaces, quotas, ACL policies and ACL roles
+// are written in the authoritative region, so the index is the one it
+// reports; network policies are regional.
 
 // ErrIndexConflict is wrapped by the errors of checked writes that failed
 // because the resource was created or changed since it was read (409
@@ -76,6 +76,26 @@ func (a *ACLPolicies) CheckedUpsert(policy *ACLPolicy, index uint64, q *WriteOpt
 		return nil, checkedWriteError(err)
 	}
 	return wm, nil
+}
+
+// CheckedUpsert writes an ACL role only while its modify index is index: a
+// role with an ID is changed, and the index is checked against the stored
+// role of that ID; a role without an ID is created, with index 0, while no
+// role has its name.
+func (a *ACLRoles) CheckedUpsert(role *ACLRole, index uint64, w *WriteOptions) (*ACLRole, *WriteMeta, error) {
+	if role == nil || role.Name == "" {
+		return nil, nil, errors.New("missing ACL role name")
+	}
+	path := "/v1/acl/role"
+	if role.ID != "" {
+		path += "/" + url.PathEscape(role.ID)
+	}
+	var resp ACLRole
+	wm, err := a.client.put(path+checkedQuery(index), role, &resp, w)
+	if err != nil {
+		return nil, nil, checkedWriteError(err)
+	}
+	return &resp, wm, nil
 }
 
 // CheckedRegister writes a network policy only while its modify index is

@@ -614,6 +614,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			}
 			writes = append(writes, func() bool {
 				if liveRole == nil || !roleMatches(liveRole, role) {
+					o.beforeWrite(roleRef)
 					if !w.mayWrite(roleRef) {
 						return false
 					}
@@ -1261,14 +1262,23 @@ func (o *tenantOperator) upsertPolicy(pass *tenantPass, live, p *structs.ACLPoli
 	}, &resp)
 }
 
+// upsertRole writes an ACL role of a tenant and returns its ID. A role that
+// does not exist is created without an ID, which the endpoint and the state
+// store refuse while a role of the name exists; a change is made to the role
+// of the ID of live, only while it has the modify index of live (review
+// finding ATM-26).
 func (o *tenantOperator) upsertRole(p *tenantPass, live, desired *structs.ACLRole) (string, error) {
 	role := &structs.ACLRole{Name: desired.Name, Description: desired.Description, Policies: desired.Policies}
+	var expected map[string]uint64
 	if live != nil {
 		role.ID = live.ID
+		expected = map[string]uint64{role.Name: live.ModifyIndex}
 	}
 	var resp structs.ACLRolesUpsertResponse
 	err := o.write(p, structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
-		ACLRoles: []*structs.ACLRole{role}, WriteRequest: o.writeRequest(""),
+		ACLRoles:            []*structs.ACLRole{role},
+		ExpectedModifyIndex: expected,
+		WriteRequest:        o.writeRequest(""),
 	}, &resp)
 	if err != nil {
 		return "", err

@@ -1332,9 +1332,9 @@ func (x *ACLRolesUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(7)
+				r.WriteArrayStart(8)
 			} else {
-				r.WriteMapStart(7)
+				r.WriteMapStart(8)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -1380,6 +1380,33 @@ func (x *ACLRolesUpsertRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else {
 					r.EncodeBool(bool(x.AllowMissingPolicies))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ExpectedModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ExpectedModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if x.ExpectedModifyIndex == nil {
+					r.EncodeNil()
+				} else {
+					if false {
+					} else {
+						z.F.EncMapStringUint64V(x.ExpectedModifyIndex, e)
+					}
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -1581,6 +1608,15 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromMap(l int, d *codec1978.Decod
 			} else {
 				x.AllowMissingPolicies = (bool)(r.DecodeBool())
 			}
+		case "ExpectedModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.ExpectedModifyIndex = nil
+			} else {
+				if false {
+				} else {
+					z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+				}
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -1622,16 +1658,16 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj12 int
-	var yyb12 bool
-	var yyhl12 bool = l >= 0
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	var yyj14 int
+	var yyb14 bool
+	var yyhl14 bool = l >= 0
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1644,13 +1680,13 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 			h.decSlicePtrtoACLRole((*[]*ACLRole)(&x.ACLRoles), d)
 		}
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1660,13 +1696,32 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	} else {
 		x.AllowMissingPolicies = (bool)(r.DecodeBool())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ExpectedModifyIndex = nil
+	} else {
+		if false {
+		} else {
+			z.F.DecMapStringUint64X(&x.ExpectedModifyIndex, d)
+		}
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1676,13 +1731,13 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1692,13 +1747,13 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1708,13 +1763,13 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1724,13 +1779,13 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -1741,17 +1796,17 @@ func (x *ACLRolesUpsertRequest) codecDecodeSelfFromArray(l int, d *codec1978.Dec
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj12++
-		if yyhl12 {
-			yyb12 = yyj12 > l
+		yyj14++
+		if yyhl14 {
+			yyb14 = yyj14 > l
 		} else {
-			yyb12 = r.CheckBreak()
+			yyb14 = r.CheckBreak()
 		}
-		if yyb12 {
+		if yyb14 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj12-1, "")
+		z.DecStructFieldNotFound(yyj14-1, "")
 	}
 	r.ReadArrayEnd()
 }

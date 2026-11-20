@@ -44,6 +44,15 @@ func expiresIndexName(global bool) string {
 // no entries will be committed.
 func (s *StateStore) UpsertACLRoles(
 	msgType structs.MessageType, index uint64, roles []*structs.ACLRole, allowMissingPolicies bool) error {
+	return s.UpsertACLRolesExpected(msgType, index, roles, allowMissingPolicies, nil)
+}
+
+// UpsertACLRolesExpected is UpsertACLRoles with the check-and-set of
+// ACLRolesUpsertRequest.ExpectedModifyIndex: if one role fails it, nothing
+// is written (structs.IsIndexConflictError).
+func (s *StateStore) UpsertACLRolesExpected(
+	msgType structs.MessageType, index uint64, roles []*structs.ACLRole, allowMissingPolicies bool,
+	expected map[string]uint64) error {
 
 	// Grab a write transaction.
 	txn := s.db.WriteTxnMsgT(msgType, index)
@@ -56,6 +65,20 @@ func (s *StateStore) UpsertACLRoles(
 	// Iterate the array of roles. In the event of a single error, all inserts
 	// fail via the txn.Abort() defer.
 	for _, role := range roles {
+
+		if _, checked := expected[role.Name]; checked {
+			existing, err := aclRoleForIndexCheckTxn(txn, role)
+			if err != nil {
+				return err
+			}
+			var have uint64
+			if existing != nil {
+				have = existing.ModifyIndex
+			}
+			if err := structs.CheckModifyIndex(expected, "ACL role", role.Name, existing != nil, have); err != nil {
+				return err
+			}
+		}
 
 		roleUpdated, err := s.upsertACLRoleTxn(index, txn, role, allowMissingPolicies)
 		if err != nil {
@@ -77,6 +100,35 @@ func (s *StateStore) UpsertACLRoles(
 	}
 
 	return txn.Commit()
+}
+
+// ACLRoleForIndexCheck returns the stored role the check-and-set of an
+// upsert of role is made against (ACLRolesUpsertRequest.ExpectedModifyIndex),
+// nil when there is none: the role of its ID, which the upsert would change;
+// for a role without an ID, or with an ID no role has, the role of its name,
+// which stands in the way of its creation.
+func (s *StateStore) ACLRoleForIndexCheck(role *structs.ACLRole) (*structs.ACLRole, error) {
+	return aclRoleForIndexCheckTxn(s.db.ReadTxn(), role)
+}
+
+func aclRoleForIndexCheckTxn(txn ReadTxn, role *structs.ACLRole) (*structs.ACLRole, error) {
+	if role.ID != "" {
+		existing, err := txn.First(TableACLRoles, indexID, role.ID)
+		if err != nil {
+			return nil, fmt.Errorf("ACL role lookup failed: %v", err)
+		}
+		if existing != nil {
+			return existing.(*structs.ACLRole), nil
+		}
+	}
+	existing, err := txn.First(TableACLRoles, indexName, role.Name)
+	if err != nil {
+		return nil, fmt.Errorf("ACL role lookup failed: %v", err)
+	}
+	if existing != nil {
+		return existing.(*structs.ACLRole), nil
+	}
+	return nil, nil
 }
 
 // upsertACLRoleTxn inserts a single ACL role into the state store using the

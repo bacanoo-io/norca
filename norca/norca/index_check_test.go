@@ -20,11 +20,14 @@ type endpointIndexKind struct {
 	msgType structs.MessageType
 	key     func(name string) string
 	// request returns an upsert of the named resources with a
-	// description.
-	request func(names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any
+	// description, for the server s.
+	request func(s *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any
 	// read returns the description and the modify index of a resource,
 	// "" and 0 when it does not exist.
 	read func(t *testing.T, s *Server, name string) (string, uint64)
+	// reply returns the reply of the method, when it is not a
+	// structs.GenericResponse.
+	reply func() any
 }
 
 func endpointIndexKinds() []endpointIndexKind {
@@ -32,7 +35,7 @@ func endpointIndexKinds() []endpointIndexKind {
 	return []endpointIndexKind{
 		{
 			name: "namespace", method: "Namespace.UpsertNamespaces", msgType: structs.NamespaceUpsertRequestType, key: plainKey,
-			request: func(names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
+			request: func(_ *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
 				req := &structs.NamespaceUpsertRequest{ExpectedModifyIndex: expected, WriteRequest: wr}
 				for _, name := range names {
 					req.Namespaces = append(req.Namespaces, &structs.Namespace{Name: name, Description: desc})
@@ -50,7 +53,7 @@ func endpointIndexKinds() []endpointIndexKind {
 		},
 		{
 			name: "quota", method: "Quota.UpsertQuotaSpecs", msgType: structs.QuotaSpecUpsertRequestType | structs.IgnoreUnknownTypeFlag, key: plainKey,
-			request: func(names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
+			request: func(_ *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
 				req := &structs.QuotaSpecUpsertRequest{ExpectedModifyIndex: expected, WriteRequest: wr}
 				for _, name := range names {
 					req.Quotas = append(req.Quotas, &structs.QuotaSpec{Name: name, Description: desc, Limits: []*structs.QuotaLimit{
@@ -70,7 +73,7 @@ func endpointIndexKinds() []endpointIndexKind {
 		},
 		{
 			name: "ACL policy", method: "ACL.UpsertPolicies", msgType: structs.ACLPolicyUpsertRequestType, key: plainKey,
-			request: func(names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
+			request: func(_ *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
 				req := &structs.ACLPolicyUpsertRequest{ExpectedModifyIndex: expected, WriteRequest: wr}
 				for _, name := range names {
 					req.Policies = append(req.Policies, &structs.ACLPolicy{Name: name, Description: desc, Rules: `node { policy = "read" }`})
@@ -87,10 +90,35 @@ func endpointIndexKinds() []endpointIndexKind {
 			},
 		},
 		{
+			// A role is changed by its ID, which the request takes from
+			// the stored role of the name; without one it is created.
+			name: "ACL role", method: structs.ACLUpsertRolesRPCMethod, msgType: structs.ACLRolesUpsertRequestType, key: plainKey,
+			reply: func() any { return &structs.ACLRolesUpsertResponse{} },
+			request: func(s *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
+				req := &structs.ACLRolesUpsertRequest{AllowMissingPolicies: true, ExpectedModifyIndex: expected, WriteRequest: wr}
+				for _, name := range names {
+					role := &structs.ACLRole{Name: name, Description: desc, Policies: []*structs.ACLRolePolicyLink{{Name: "any"}}}
+					if stored, _ := s.State().GetACLRoleByName(nil, name); stored != nil {
+						role.ID = stored.ID
+					}
+					req.ACLRoles = append(req.ACLRoles, role)
+				}
+				return req
+			},
+			read: func(t *testing.T, s *Server, name string) (string, uint64) {
+				r, err := s.State().GetACLRoleByName(nil, name)
+				must.NoError(t, err)
+				if r == nil {
+					return "", 0
+				}
+				return r.Description, r.ModifyIndex
+			},
+		},
+		{
 			name: "network policy", method: "NetworkPolicy.UpsertNetworkPolicies",
 			msgType: structs.NetworkPolicyUpsertRequestType | structs.IgnoreUnknownTypeFlag,
 			key:     func(name string) string { return structs.NetworkPolicyIndexKey("default", name) },
-			request: func(names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
+			request: func(_ *Server, names []string, desc string, expected map[string]uint64, wr structs.WriteRequest) any {
 				req := &structs.NetworkPolicyUpsertRequest{ExpectedModifyIndex: expected, WriteRequest: wr}
 				for _, name := range names {
 					policy := testNetworkPolicy("default", name, nil)
@@ -111,13 +139,13 @@ func endpointIndexKinds() []endpointIndexKind {
 	}
 }
 
-// The upsert endpoints of namespaces, quotas, ACL policies and network
-// policies take an expected modify index per resource: 0 creates only what
-// does not exist, an index changes only what still has it, a resource
-// without an entry is written unchecked, and a refused check is a 409 that
-// names the resource. The FSM checks again, for a write that passed the
-// endpoint and found the state changed when it was applied (review finding
-// ATM-1).
+// The upsert endpoints of namespaces, quotas, ACL policies, ACL roles and
+// network policies take an expected modify index per resource: 0 creates
+// only what does not exist, an index changes only what still has it, a
+// resource without an entry is written unchecked, and a refused check is a
+// 409 that names the resource. The FSM checks again, for a write that passed
+// the endpoint and found the state changed when it was applied (review
+// findings ATM-1, ATM-26).
 func TestUpsertEndpoints_ExpectedModifyIndex(t *testing.T) {
 	ci.Parallel(t)
 	s, root, cleanup := TestACLServer(t, nil)
@@ -128,8 +156,11 @@ func TestUpsertEndpoints_ExpectedModifyIndex(t *testing.T) {
 	for _, kind := range endpointIndexKinds() {
 		t.Run(kind.name, func(t *testing.T) {
 			upsert := func(names []string, desc string, expected map[string]uint64) error {
-				var resp structs.GenericResponse
-				return s.RPC(kind.method, kind.request(names, desc, expected, wr), &resp)
+				var resp any = &structs.GenericResponse{}
+				if kind.reply != nil {
+					resp = kind.reply()
+				}
+				return s.RPC(kind.method, kind.request(s, names, desc, expected, wr), resp)
 			}
 			conflict := func(t *testing.T, err error, text string) {
 				t.Helper()
@@ -181,14 +212,77 @@ func TestUpsertEndpoints_ExpectedModifyIndex(t *testing.T) {
 			must.Eq(t, "five", desc)
 
 			// The FSM checks what reaches it past the endpoint.
-			_, _, err = s.raftApply(kind.msgType, kind.request([]string{"cas-b"}, "six", map[string]uint64{b: index - 1}, wr))
+			_, _, err = s.raftApply(kind.msgType, kind.request(s, []string{"cas-b"}, "six", map[string]uint64{b: index - 1}, wr))
 			conflict(t, err, "expected")
 			desc, _ = kind.read(t, s, "cas-b")
 			must.Eq(t, "five", desc)
-			_, _, err = s.raftApply(kind.msgType, kind.request([]string{"cas-b"}, "six", map[string]uint64{b: index}, wr))
+			_, _, err = s.raftApply(kind.msgType, kind.request(s, []string{"cas-b"}, "six", map[string]uint64{b: index}, wr))
 			must.NoError(t, err)
 			desc, _ = kind.read(t, s, "cas-b")
 			must.Eq(t, "six", desc)
 		})
 	}
+}
+
+// An ACL role is created without an ID and changed by its ID. A checked
+// create of a name that is taken is a conflict (unchecked it stays the bad
+// request it was), and a checked change of a role that was deleted or
+// replaced since the read is a conflict too (review finding ATM-26).
+func TestACLEndpoint_UpsertRoles_ExpectedModifyIndex(t *testing.T) {
+	ci.Parallel(t)
+	s, root, cleanup := TestACLServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+	wr := structs.WriteRequest{Region: "global", AuthToken: root.SecretID}
+	links := []*structs.ACLRolePolicyLink{{Name: "any"}}
+	upsert := func(role *structs.ACLRole, expected map[string]uint64) (*structs.ACLRole, error) {
+		var resp structs.ACLRolesUpsertResponse
+		err := s.RPC(structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
+			ACLRoles: []*structs.ACLRole{role}, AllowMissingPolicies: true, ExpectedModifyIndex: expected, WriteRequest: wr,
+		}, &resp)
+		if err != nil {
+			return nil, err
+		}
+		must.Len(t, 1, resp.ACLRoles)
+		return resp.ACLRoles[0], nil
+	}
+
+	created, err := upsert(&structs.ACLRole{Name: "cas-role", Description: "one", Policies: links}, map[string]uint64{"cas-role": 0})
+	must.NoError(t, err)
+
+	// A second create of the name.
+	_, err = upsert(&structs.ACLRole{Name: "cas-role", Description: "two", Policies: links}, map[string]uint64{"cas-role": 0})
+	must.True(t, structs.IsIndexConflictError(err), must.Sprintf("not a conflict: %v", err))
+	must.StrContains(t, err.Error(), `ACL role "cas-role" exists`)
+	_, err = upsert(&structs.ACLRole{Name: "cas-role", Description: "two", Policies: links}, nil)
+	must.ErrorContains(t, err, "role with name cas-role already exists")
+	must.False(t, structs.IsIndexConflictError(err))
+
+	// A rename is checked against the role of the ID.
+	_, err = upsert(&structs.ACLRole{ID: created.ID, Name: "cas-renamed", Description: "one", Policies: links},
+		map[string]uint64{"cas-renamed": created.ModifyIndex + 100})
+	must.True(t, structs.IsIndexConflictError(err), must.Sprintf("not a conflict: %v", err))
+	renamed, err := upsert(&structs.ACLRole{ID: created.ID, Name: "cas-renamed", Description: "one", Policies: links},
+		map[string]uint64{"cas-renamed": created.ModifyIndex})
+	must.NoError(t, err)
+	must.Eq(t, created.ID, renamed.ID)
+
+	// The role is deleted, and somebody creates one of its name: a change
+	// with the index read before is refused, the other role stays.
+	var del structs.ACLRolesDeleteByIDResponse
+	must.NoError(t, s.RPC(structs.ACLDeleteRolesByIDRPCMethod, &structs.ACLRolesDeleteByIDRequest{
+		ACLRoleIDs: []string{created.ID}, WriteRequest: wr}, &del))
+	_, err = upsert(&structs.ACLRole{ID: created.ID, Name: "cas-renamed", Description: "three", Policies: links},
+		map[string]uint64{"cas-renamed": renamed.ModifyIndex})
+	must.True(t, structs.IsIndexConflictError(err), must.Sprintf("not a conflict: %v", err))
+	must.StrContains(t, err.Error(), "does not exist")
+	other, err := upsert(&structs.ACLRole{Name: "cas-renamed", Description: "made by hand", Policies: links}, nil)
+	must.NoError(t, err)
+	_, err = upsert(&structs.ACLRole{ID: created.ID, Name: "cas-renamed", Description: "three", Policies: links},
+		map[string]uint64{"cas-renamed": renamed.ModifyIndex})
+	must.True(t, structs.IsIndexConflictError(err), must.Sprintf("not a conflict: %v", err))
+	stored, err := s.State().GetACLRoleByName(nil, "cas-renamed")
+	must.NoError(t, err)
+	must.Eq(t, other.ID, stored.ID)
+	must.Eq(t, "made by hand", stored.Description)
 }

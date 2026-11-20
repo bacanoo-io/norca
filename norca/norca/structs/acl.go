@@ -663,6 +663,12 @@ type ACLRolesUpsertRequest struct {
 	// are present before ACL Roles are replicated.
 	AllowMissingPolicies bool
 
+	// ExpectedModifyIndex, when set, makes the upsert a check-and-set,
+	// keyed by the name of the role in the request, against the stored
+	// role of its ID (of its name, for a role without an ID or with an ID
+	// no role has); 0: the role must not exist. See CheckModifyIndex.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
 }
 

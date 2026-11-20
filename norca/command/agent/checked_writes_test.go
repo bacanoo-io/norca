@@ -16,11 +16,11 @@ import (
 	"github.com/shoenig/test/must"
 )
 
-// The write endpoints of a namespace, a quota, an ACL policy and a network
-// policy take ?cas=<modify index>, through the checked writes of the api
-// client: 0 creates only what does not exist, an index changes only what
-// still has it, and a refused write is a 409 wrapping api.ErrIndexConflict
-// (review findings ATM-1, ATM-8).
+// The write endpoints of a namespace, a quota, an ACL policy, an ACL role
+// and a network policy take ?cas=<modify index>, through the checked writes
+// of the api client: 0 creates only what does not exist, an index changes
+// only what still has it, and a refused write is a 409 wrapping
+// api.ErrIndexConflict (review findings ATM-1, ATM-8, ATM-26).
 func TestHTTP_CheckedWrites(t *testing.T) {
 	ci.Parallel(t)
 	httpACLTest(t, nil, func(s *TestAgent) {
@@ -88,6 +88,27 @@ func TestHTTP_CheckedWrites(t *testing.T) {
 				p, _, err := client.ACLPolicies().Info("cas-policy", nil)
 				must.NoError(t, err)
 				return p.Description, p.ModifyIndex
+			})
+		})
+
+		t.Run("ACL role", func(t *testing.T) {
+			// A role is created without an ID and changed by the ID of
+			// the stored role.
+			_, err := client.ACLPolicies().Upsert(&api.ACLPolicy{Name: "cas-role-policy", Rules: `node { policy = "read" }`}, nil)
+			must.NoError(t, err)
+			var id string
+			checked(t, func(desc string, index uint64) error {
+				role := &api.ACLRole{Name: "cas-role", Description: desc, Policies: []*api.ACLRolePolicyLink{{Name: "cas-role-policy"}}}
+				if index != 0 {
+					role.ID = id
+				}
+				_, _, err := client.ACLRoles().CheckedUpsert(role, index, nil)
+				return err
+			}, func() (string, uint64) {
+				r, _, err := client.ACLRoles().GetByName("cas-role", nil)
+				must.NoError(t, err)
+				id = r.ID
+				return r.Description, r.ModifyIndex
 			})
 		})
 

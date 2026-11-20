@@ -503,6 +503,14 @@ func (s *HTTPServer) aclRoleUpsertRequest(
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
+	// Norca: ?cas=<modify index> makes the write a check-and-set; 0
+	// creates a role that must not exist yet.
+	if isCAS, index, err := parseCAS(req); err != nil {
+		return nil, err
+	} else if isCAS {
+		args.ExpectedModifyIndex = map[string]uint64{aclRole.Name: index}
+	}
+
 	var out structs.ACLRolesUpsertResponse
 	if err := s.agent.RPC(structs.ACLUpsertRolesRPCMethod, &args, &out); err != nil {
 		return nil, err
