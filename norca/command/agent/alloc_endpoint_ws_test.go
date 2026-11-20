@@ -171,3 +171,129 @@ func TestAllocExec_HandshakeErrorClosesConn(t *testing.T) {
 		must.ErrorIs(t, err, io.EOF, must.Sprintf("request %d", i))
 	}
 }
+
+// TestAllocExec_HandshakeTimeout: a client that asks for the websocket
+// handshake and never sends its message is not waited for longer than
+// wsHandshakeTimeout: the exec handler tells it so in a close frame and
+// closes the connection. The read had no time limit, so such a client, of
+// which no ACL token was checked yet, held the connection and its slot of
+// http_max_conns_per_client as long as it liked.
+//
+// The test waits for the real limit (5s); TestReadWsHandshakeWithin covers
+// the rest with a short one.
+func TestAllocExec_HandshakeTimeout(t *testing.T) {
+	ci.Parallel(t)
+
+	s := makeHTTPServer(t, func(c *Config) {
+		c.LogLevel = "ERROR"
+	})
+	defer s.Shutdown()
+
+	wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + uuid.Generate() +
+		"/exec?task=web&ws_handshake=true&command=" + url.QueryEscape(`["true"]`)
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	must.NoError(t, err)
+	defer conn.Close()
+
+	// nothing is sent; the server ends the wait
+	must.NoError(t, conn.SetReadDeadline(time.Now().Add(wsHandshakeTimeout+15*time.Second)))
+	_, _, err = conn.ReadMessage()
+	must.True(t, websocket.IsCloseError(err, websocket.ClosePolicyViolation),
+		must.Sprintf("unexpected error: %v", err))
+	must.StrContains(t, err.Error(), "no handshake message within")
+
+	// the server closes the connection after the close frame
+	raw := conn.NetConn()
+	must.NoError(t, raw.SetReadDeadline(time.Now().Add(10*time.Second)))
+	_, err = raw.Read(make([]byte, 1))
+	must.ErrorIs(t, err, io.EOF)
+}
+
+// TestReadWsHandshakeWithin: the time limit of the handshake message ends a
+// silent client, and it is over once the handshake is read: a session that
+// is idle for longer than the limit afterwards is not cut.
+func TestReadWsHandshakeWithin(t *testing.T) {
+	ci.Parallel(t)
+
+	const limit = 2 * time.Second
+
+	// the handler does what allocExec does around the handshake, then
+	// answers the first message of the session with the token it got
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+
+		var q structs.QueryOptions
+		if err := readWsHandshakeWithin(ws, limit, r, &q); err != nil {
+			ws.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(toWsCode(400), err.Error()))
+			return
+		}
+		_, msg, err := ws.ReadMessage()
+		if err != nil {
+			ws.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "session read failed"))
+			return
+		}
+		ws.WriteMessage(websocket.TextMessage, []byte(q.AuthToken+" "+string(msg)))
+	}))
+	t.Cleanup(srv.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+
+	t.Run("no handshake message", func(t *testing.T) {
+		ci.Parallel(t)
+
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL+"/?ws_handshake=true", nil)
+		must.NoError(t, err)
+		defer conn.Close()
+
+		start := time.Now()
+		must.NoError(t, conn.SetReadDeadline(start.Add(limit+15*time.Second)))
+		_, _, err = conn.ReadMessage()
+		must.True(t, websocket.IsCloseError(err, websocket.ClosePolicyViolation),
+			must.Sprintf("unexpected error: %v", err))
+		must.StrContains(t, err.Error(), "no handshake message within 2s")
+		// not before the limit either (the dial returned after the
+		// server set the deadline, or a moment before)
+		must.Greater(t, limit/2, time.Since(start))
+	})
+
+	t.Run("idle after the handshake", func(t *testing.T) {
+		ci.Parallel(t)
+
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL+"/?ws_handshake=true", nil)
+		must.NoError(t, err)
+		defer conn.Close()
+
+		must.NoError(t, conn.WriteJSON(map[string]any{"version": 1, "auth_token": "secret"}))
+		time.Sleep(2 * limit)
+		must.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte("late")))
+
+		must.NoError(t, conn.SetReadDeadline(time.Now().Add(15*time.Second)))
+		_, msg, err := conn.ReadMessage()
+		must.NoError(t, err)
+		must.Eq(t, "secret late", string(msg))
+	})
+
+	t.Run("no handshake asked", func(t *testing.T) {
+		ci.Parallel(t)
+
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		must.NoError(t, err)
+		defer conn.Close()
+
+		time.Sleep(2 * limit)
+		must.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte("late")))
+
+		must.NoError(t, conn.SetReadDeadline(time.Now().Add(15*time.Second)))
+		_, msg, err := conn.ReadMessage()
+		must.NoError(t, err)
+		must.Eq(t, " late", string(msg))
+	})
+}
