@@ -72709,9 +72709,9 @@ func (x *CertificateRevokeResponse) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(3)
+				r.WriteArrayStart(4)
 			} else {
-				r.WriteMapStart(3)
+				r.WriteMapStart(4)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -72757,6 +72757,25 @@ func (x *CertificateRevokeResponse) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else {
 					r.EncodeBool(bool(x.Earlier))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.Pending))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Pending\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Pending`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.Pending))
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -72847,6 +72866,12 @@ func (x *CertificateRevokeResponse) codecDecodeSelfFromMap(l int, d *codec1978.D
 			} else {
 				x.Earlier = (bool)(r.DecodeBool())
 			}
+		case "Pending":
+			if r.TryDecodeAsNil() {
+				x.Pending = false
+			} else {
+				x.Pending = (bool)(r.DecodeBool())
+			}
 		case "Index":
 			if r.TryDecodeAsNil() {
 				x.WriteMeta.Index = 0
@@ -72864,16 +72889,16 @@ func (x *CertificateRevokeResponse) codecDecodeSelfFromArray(l int, d *codec1978
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj7 int
-	var yyb7 bool
-	var yyhl7 bool = l >= 0
-	yyj7++
-	if yyhl7 {
-		yyb7 = yyj7 > l
+	var yyj8 int
+	var yyb8 bool
+	var yyhl8 bool = l >= 0
+	yyj8++
+	if yyhl8 {
+		yyb8 = yyj8 > l
 	} else {
-		yyb7 = r.CheckBreak()
+		yyb8 = r.CheckBreak()
 	}
-	if yyb7 {
+	if yyb8 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -72883,13 +72908,13 @@ func (x *CertificateRevokeResponse) codecDecodeSelfFromArray(l int, d *codec1978
 	} else {
 		x.Serial = (string)(r.DecodeString())
 	}
-	yyj7++
-	if yyhl7 {
-		yyb7 = yyj7 > l
+	yyj8++
+	if yyhl8 {
+		yyb8 = yyj8 > l
 	} else {
-		yyb7 = r.CheckBreak()
+		yyb8 = r.CheckBreak()
 	}
-	if yyb7 {
+	if yyb8 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -72899,13 +72924,29 @@ func (x *CertificateRevokeResponse) codecDecodeSelfFromArray(l int, d *codec1978
 	} else {
 		x.Earlier = (bool)(r.DecodeBool())
 	}
-	yyj7++
-	if yyhl7 {
-		yyb7 = yyj7 > l
+	yyj8++
+	if yyhl8 {
+		yyb8 = yyj8 > l
 	} else {
-		yyb7 = r.CheckBreak()
+		yyb8 = r.CheckBreak()
 	}
-	if yyb7 {
+	if yyb8 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Pending = false
+	} else {
+		x.Pending = (bool)(r.DecodeBool())
+	}
+	yyj8++
+	if yyhl8 {
+		yyb8 = yyj8 > l
+	} else {
+		yyb8 = r.CheckBreak()
+	}
+	if yyb8 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -72916,17 +72957,17 @@ func (x *CertificateRevokeResponse) codecDecodeSelfFromArray(l int, d *codec1978
 		x.Index = (uint64)(r.DecodeUint64())
 	}
 	for {
-		yyj7++
-		if yyhl7 {
-			yyb7 = yyj7 > l
+		yyj8++
+		if yyhl8 {
+			yyb8 = yyj8 > l
 		} else {
-			yyb7 = r.CheckBreak()
+			yyb8 = r.CheckBreak()
 		}
-		if yyb7 {
+		if yyb8 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj7-1, "")
+		z.DecStructFieldNotFound(yyj8-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -74454,9 +74495,9 @@ func (x *CertificateStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(15)
+				r.WriteArrayStart(18)
 			} else {
-				r.WriteMapStart(15)
+				r.WriteMapStart(18)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -74768,6 +74809,79 @@ func (x *CertificateStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.Revoked))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Revoked\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Revoked`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.Revoked))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RevokeReason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RevokeReason))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"RevokeReason\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `RevokeReason`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RevokeReason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RevokeReason))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Revoking)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Revoking))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Revoking\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Revoking`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Revoking)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Revoking))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
 				if x.Earlier == nil {
 					r.EncodeNil()
 				} else {
@@ -74968,6 +75082,24 @@ func (x *CertificateStatus) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) 
 			} else {
 				x.Revoke = (string)(r.DecodeString())
 			}
+		case "Revoked":
+			if r.TryDecodeAsNil() {
+				x.Revoked = false
+			} else {
+				x.Revoked = (bool)(r.DecodeBool())
+			}
+		case "RevokeReason":
+			if r.TryDecodeAsNil() {
+				x.RevokeReason = ""
+			} else {
+				x.RevokeReason = (string)(r.DecodeString())
+			}
+		case "Revoking":
+			if r.TryDecodeAsNil() {
+				x.Revoking = ""
+			} else {
+				x.Revoking = (string)(r.DecodeString())
+			}
 		case "Earlier":
 			if r.TryDecodeAsNil() {
 				x.Earlier = nil
@@ -75000,16 +75132,16 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj20 int
-	var yyb20 bool
-	var yyhl20 bool = l >= 0
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	var yyj23 int
+	var yyb23 bool
+	var yyhl23 bool = l >= 0
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75019,13 +75151,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Issuer = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75035,13 +75167,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Authority = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75051,13 +75183,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Serial = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75067,13 +75199,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.NotBefore = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75083,13 +75215,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.NotAfter = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75099,13 +75231,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.RenewAt = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75115,13 +75247,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.SecretVersion = (uint64)(r.DecodeUint64())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75131,13 +75263,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Request = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75147,13 +75279,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Order = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75163,13 +75295,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.OrderRequest = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75179,13 +75311,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Orders = (uint64)(r.DecodeUint64())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75195,13 +75327,61 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Revoke = (string)(r.DecodeString())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Revoked = false
+	} else {
+		x.Revoked = (bool)(r.DecodeBool())
+	}
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
+	} else {
+		yyb23 = r.CheckBreak()
+	}
+	if yyb23 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.RevokeReason = ""
+	} else {
+		x.RevokeReason = (string)(r.DecodeString())
+	}
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
+	} else {
+		yyb23 = r.CheckBreak()
+	}
+	if yyb23 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Revoking = ""
+	} else {
+		x.Revoking = (string)(r.DecodeString())
+	}
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
+	} else {
+		yyb23 = r.CheckBreak()
+	}
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75214,13 +75394,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 			h.decSlicePtrtoCertificateEarlier((*[]*CertificateEarlier)(&x.Earlier), d)
 		}
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75230,13 +75410,13 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 	} else {
 		x.Failures = (uint64)(r.DecodeUint64())
 	}
-	yyj20++
-	if yyhl20 {
-		yyb20 = yyj20 > l
+	yyj23++
+	if yyhl23 {
+		yyb23 = yyj23 > l
 	} else {
-		yyb20 = r.CheckBreak()
+		yyb23 = r.CheckBreak()
 	}
-	if yyb20 {
+	if yyb23 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75247,17 +75427,17 @@ func (x *CertificateStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder
 		x.RetryAt = (string)(r.DecodeString())
 	}
 	for {
-		yyj20++
-		if yyhl20 {
-			yyb20 = yyj20 > l
+		yyj23++
+		if yyhl23 {
+			yyb23 = yyj23 > l
 		} else {
-			yyb20 = r.CheckBreak()
+			yyb23 = r.CheckBreak()
 		}
-		if yyb20 {
+		if yyb23 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj20-1, "")
+		z.DecStructFieldNotFound(yyj23-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -75278,9 +75458,9 @@ func (x *CertificateEarlier) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(8)
+				r.WriteArrayStart(10)
 			} else {
-				r.WriteMapStart(8)
+				r.WriteMapStart(10)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -75407,6 +75587,60 @@ func (x *CertificateEarlier) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else {
 					r.EncodeBool(bool(x.Revoked))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RevokeReason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RevokeReason))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"RevokeReason\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `RevokeReason`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.RevokeReason)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.RevokeReason))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Revoking)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Revoking))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Revoking\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Revoking`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Revoking)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Revoking))
+					}
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -75569,6 +75803,18 @@ func (x *CertificateEarlier) codecDecodeSelfFromMap(l int, d *codec1978.Decoder)
 			} else {
 				x.Revoked = (bool)(r.DecodeBool())
 			}
+		case "RevokeReason":
+			if r.TryDecodeAsNil() {
+				x.RevokeReason = ""
+			} else {
+				x.RevokeReason = (string)(r.DecodeString())
+			}
+		case "Revoking":
+			if r.TryDecodeAsNil() {
+				x.Revoking = ""
+			} else {
+				x.Revoking = (string)(r.DecodeString())
+			}
 		case "Failures":
 			if r.TryDecodeAsNil() {
 				x.Failures = 0
@@ -75598,16 +75844,16 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj12 int
-	var yyb12 bool
-	var yyhl12 bool = l >= 0
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	var yyj14 int
+	var yyb14 bool
+	var yyhl14 bool = l >= 0
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75617,13 +75863,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Serial = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75633,13 +75879,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Issuer = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75649,13 +75895,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Authority = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75665,13 +75911,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.NotAfter = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75681,13 +75927,45 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Revoked = (bool)(r.DecodeBool())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.RevokeReason = ""
+	} else {
+		x.RevokeReason = (string)(r.DecodeString())
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Revoking = ""
+	} else {
+		x.Revoking = (string)(r.DecodeString())
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75697,13 +75975,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Failures = (uint64)(r.DecodeUint64())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75713,13 +75991,13 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.RetryAt = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -75730,17 +76008,17 @@ func (x *CertificateEarlier) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 		x.NotRevocable = (string)(r.DecodeString())
 	}
 	for {
-		yyj12++
-		if yyhl12 {
-			yyb12 = yyj12 > l
+		yyj14++
+		if yyhl14 {
+			yyb14 = yyj14 > l
 		} else {
-			yyb12 = r.CheckBreak()
+			yyb14 = r.CheckBreak()
 		}
-		if yyb12 {
+		if yyb14 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj12-1, "")
+		z.DecStructFieldNotFound(yyj14-1, "")
 	}
 	r.ReadArrayEnd()
 }
