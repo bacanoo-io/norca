@@ -23,8 +23,8 @@ const (
 	ReleaseRevisionKind = "ReleaseRevision"
 
 	// Resource types of releases, in application order.
-	ReleaseResourceNamespace       = "namespace"
 	ReleaseResourceQuota           = "quota"
+	ReleaseResourceNamespace       = "namespace"
 	ReleaseResourceACLPolicy       = "acl-policy"
 	ReleaseResourceVariable        = "variable"
 	ReleaseResourceObjectKind      = "object-kind"

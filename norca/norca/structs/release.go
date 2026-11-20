@@ -118,8 +118,8 @@ const (
 // Resource types of a release, in the order they are applied (deletion uses
 // the reverse order).
 const (
-	ReleaseResourceNamespace       = "namespace"
 	ReleaseResourceQuota           = "quota"
+	ReleaseResourceNamespace       = "namespace"
 	ReleaseResourceACLPolicy       = "acl-policy"
 	ReleaseResourceVariable        = "variable"
 	ReleaseResourceObjectKind      = "object-kind"
@@ -140,10 +140,14 @@ func IsGlobalReleaseResource(t string) bool {
 	return false
 }
 
-// releaseResourceOrder is the application order of the resource types.
+// releaseResourceOrder is the application order of the resource types;
+// deletion uses the reverse order. A quota comes before the namespaces, so
+// that a namespace is written with the quota it names in one write and is
+// deleted before that quota: a namespace never exists without its quota, and
+// no quota has to be taken off a namespace to be deleted.
 var releaseResourceOrder = map[string]int{
-	ReleaseResourceNamespace:       1,
-	ReleaseResourceQuota:           2,
+	ReleaseResourceQuota:           1,
+	ReleaseResourceNamespace:       2,
 	ReleaseResourceACLPolicy:       3,
 	ReleaseResourceVariable:        4,
 	ReleaseResourceObjectKind:      5,

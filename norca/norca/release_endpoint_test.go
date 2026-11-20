@@ -244,7 +244,7 @@ func TestRelease_InstallUpgradeUninstall(t *testing.T) {
 		must.Eq(t, "", ch.Error)
 		order = append(order, ch.Type)
 	}
-	must.Eq(t, []string{"job", "job", "object", "object-kind", "acl-policy", "quota", "namespace"}, order)
+	must.Eq(t, []string{"job", "job", "object", "object-kind", "acl-policy", "namespace", "quota"}, order)
 	ns, _ = store.NamespaceByName(nil, "app-ns")
 	must.Nil(t, ns)
 	job, _ = store.JobByID(nil, "default", "app-web")

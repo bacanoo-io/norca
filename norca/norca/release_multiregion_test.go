@@ -304,6 +304,67 @@ func TestRelease_Multiregion(t *testing.T) {
 	must.Nil(t, ns)
 }
 
+// The global region of a multi-region install applies a quota of the pack
+// before the namespace that names it, the namespace in one write; the other
+// region waits until both are replicated and then uses the namespace.
+func TestRelease_Multiregion_NamespaceWithQuota(t *testing.T) {
+	ci.Parallel(t)
+	f := newReleaseFederation(t)
+
+	web := testReleaseJob("mq-web")
+	web.Namespace = "mq-ns"
+	resp, err := f.apply("r2", "mq", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "mq-pack"},
+		Resources: []*structs.ReleaseResource{
+			{Type: structs.ReleaseResourceJob, Job: web},
+			releaseNamespaceWithQuota("mq-ns", "mq-quota"), releaseQuota("mq-quota"),
+		},
+		Regions: []string{"r2", "r1"},
+	})
+	must.NoError(t, err)
+	must.Len(t, 2, resp.Regions)
+	for _, r := range resp.Regions {
+		must.Eq(t, "", r.Error, must.Sprintf("region %s", r.Region))
+	}
+	for _, w := range resp.Warnings {
+		must.StrNotContains(t, w, "was not replicated")
+	}
+
+	// r1 applied the quota, then the namespace.
+	var order []string
+	for _, ch := range resp.Regions[0].Changes {
+		if ch.Type != structs.ReleaseResourceJob {
+			order = append(order, ch.Type+"/"+ch.Name+" "+ch.Action)
+		}
+	}
+	must.Eq(t, []string{"quota/mq-quota create", "namespace/mq-ns create"}, order)
+	must.Eq(t, []string{"job/mq-ns/mq-web", "namespace//mq-ns", "quota//mq-quota"}, ownedKeys(f.get("r1", "mq")))
+	must.Eq(t, []string{"job/mq-ns/mq-web"}, ownedKeys(f.get("r2", "mq")))
+
+	for _, s := range []*Server{f.s1, f.s2} {
+		ns, err := s.State().NamespaceByName(nil, "mq-ns")
+		must.NoError(t, err)
+		must.NotNil(t, ns, must.Sprintf("region %s", s.Region()))
+		must.Eq(t, "mq-quota", ns.Quota, must.Sprintf("region %s", s.Region()))
+		q, err := s.State().QuotaSpecByName(nil, "mq-quota")
+		must.NoError(t, err)
+		must.NotNil(t, q, must.Sprintf("region %s", s.Region()))
+	}
+	ns, err := f.s1.State().NamespaceByName(nil, "mq-ns")
+	must.NoError(t, err)
+	must.Eq(t, ns.CreateIndex, ns.ModifyIndex, must.Sprint("the namespace was written more than once"))
+
+	// The uninstall of r1 deletes the namespace, then the quota.
+	f.uninstall("r2", "mq")
+	f.uninstall("r1", "mq")
+	ns, err = f.s1.State().NamespaceByName(nil, "mq-ns")
+	must.NoError(t, err)
+	must.Nil(t, ns)
+	q, err := f.s1.State().QuotaSpecByName(nil, "mq-quota")
+	must.NoError(t, err)
+	must.Nil(t, q)
+}
+
 // A multi-region install of a pack a server rendered is recorded as rendered
 // by the server in the other region too, when the servers verify each
 // other's names: the other region takes the word of a server of the
