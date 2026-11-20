@@ -273,14 +273,23 @@ type CertificateCRLResponse struct {
 	QueryMeta
 }
 
-// CertificateRevokeRequest revokes the current certificate of a Certificate
-// object; a new one is issued. The namespace is that of the request.
+// CertificateRevokeRequest revokes a certificate of a Certificate object:
+// the current one, and a new one is issued, or the one with the serial
+// number. The namespace is that of the request.
 type CertificateRevokeRequest struct {
 	Name string
 
 	// Reason is the reason of the revocation, one of
 	// CertificateRevokeReasons; empty for none (unspecified).
 	Reason string
+
+	// Serial is the serial number of the certificate to revoke, in
+	// hexadecimal (NormalizeCertificateSerial); empty for the current one.
+	// It may be the current certificate, with the same effect as without
+	// it, or an earlier certificate of the object (CertificateStatus.Earlier,
+	// or one in the revocation list of the built-in issuer): that one is
+	// revoked, or its reason raised, and the current certificate stays.
+	Serial string
 
 	WriteRequest
 }
@@ -289,6 +298,11 @@ type CertificateRevokeRequest struct {
 type CertificateRevokeResponse struct {
 	// Serial is the serial number that was revoked, in hexadecimal.
 	Serial string
+
+	// Earlier says that the serial number is that of an earlier certificate
+	// of the object: the current one stays, and nothing new is issued.
+	Earlier bool
+
 	WriteMeta
 }
 
@@ -357,10 +371,69 @@ type CertificateStatus struct {
 	// certificate with it is replaced.
 	Revoke string `json:"revoke,omitempty"`
 
+	// Earlier are the certificates of the object that a newer one replaced
+	// (or that a withdrawal took back) while they were still valid, the
+	// oldest first: what a revocation by serial number may name (review
+	// finding ATM-24b). The operator drops an entry when its certificate has
+	// expired, and the oldest one beyond CertificateEarlierMax. Like the
+	// rest of the status it is written by the servers only; who may revoke
+	// what rests on that.
+	Earlier []*CertificateEarlier `json:"earlier,omitempty"`
+
 	// Failures counts the attempts that failed in a row, RetryAt is when the
 	// next one is made.
 	Failures uint64 `json:"failures,omitempty"`
 	RetryAt  string `json:"retryAt,omitempty"`
+}
+
+// CertificateEarlierMax is the number of earlier certificates the status of
+// a Certificate object keeps.
+const CertificateEarlierMax = 16
+
+// CertificateEarlier is an earlier certificate of a Certificate object, with
+// what its revocation needs: who signed it.
+type CertificateEarlier struct {
+	// Serial is the serial number, in hexadecimal.
+	Serial string `json:"serial"`
+
+	// Issuer is the name of the issuer that signed it, Authority the ID of
+	// the issuing CA if that was the built-in issuer.
+	Issuer    string `json:"issuer,omitempty"`
+	Authority string `json:"authority,omitempty"`
+
+	// NotAfter is the end of its validity (RFC 3339).
+	NotAfter string `json:"notAfter,omitempty"`
+
+	// Revoked says that its issuer was told to revoke it. Its reason may
+	// still be raised to keyCompromise.
+	Revoked bool `json:"revoked,omitempty"`
+}
+
+// NormalizeCertificateSerial returns a serial number a user gave in the form
+// the status of a certificate and the revocations hold it: lower case
+// hexadecimal digits, two for every octet, without leading zero octets. It
+// takes what tools print for the same number: upper case, colons between the
+// octets, a leading "0x", leading zeros. ok is false for anything else.
+func NormalizeCertificateSerial(serial string) (normalized string, ok bool) {
+	s := strings.ToLower(strings.TrimSpace(serial))
+	s = strings.ReplaceAll(strings.TrimPrefix(s, "0x"), ":", "")
+	// A serial number has at most 20 octets (RFC 5280, section 4.1.2.2).
+	if s == "" || len(s) > 64 {
+		return "", false
+	}
+	for _, r := range s {
+		if !(r >= '0' && r <= '9') && !(r >= 'a' && r <= 'f') {
+			return "", false
+		}
+	}
+	s = strings.TrimLeft(s, "0")
+	if s == "" {
+		return "", false
+	}
+	if len(s)%2 == 1 {
+		s = "0" + s
+	}
+	return s, true
 }
 
 // CertificateIssuerSpec is the spec of a CertificateIssuer object.

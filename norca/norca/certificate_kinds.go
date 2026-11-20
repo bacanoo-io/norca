@@ -91,6 +91,22 @@ const certificateKindSchema = `{
         "orderRequest": {"type": "string"},
         "orders": {"type": "integer", "minimum": 0},
         "revoke": {"type": "string"},
+        "earlier": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": ["serial"],
+            "properties": {
+              "serial": {"type": "string", "minLength": 1},
+              "issuer": {"type": "string"},
+              "authority": {"type": "string"},
+              "notAfter": {"type": "string"},
+              "revoked": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
         "failures": {"type": "integer", "minimum": 0},
         "retryAt": {"type": "string"},
         "conditions": ` + certificateConditions + `,

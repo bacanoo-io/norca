@@ -323,6 +323,9 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 
 	out := &certificateOutcome{ready: have && p.now.Before(notAfter)}
 	st := *status
+	// The earlier certificates that have expired need no revocation any
+	// more.
+	st.Earlier = certificateEarlierValid(status.Earlier, p.now)
 
 	issuerObj := p.issuers[spec.Issuer]
 	issuerSpec := &structs.CertificateIssuerSpec{}
@@ -505,7 +508,9 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 		return
 	}
 
-	*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke}
+	// What was held stays known as an earlier certificate, and so do the
+	// ones before it: the revocation by serial number finds them there.
+	*st = structs.CertificateStatus{Orders: st.Orders, Revoke: st.Revoke, Earlier: o.keepEarlier(p, obj, st)}
 	message := fmt.Sprintf("the namespace may no longer ask for this certificate (%s)", why)
 	switch {
 	case unrevocable != "":
@@ -682,7 +687,66 @@ func (o *certificateOperator) retryLater(p *certificatePass, st *structs.Certifi
 	return retryAt
 }
 
-// issued records a new certificate in the status.
+// certificateEarlierValid returns the earlier certificates that have not
+// expired at now, in a list of its own if any is left out. An entry without
+// a readable end counts as expired.
+func certificateEarlierValid(earlier []*structs.CertificateEarlier, now time.Time) []*structs.CertificateEarlier {
+	valid := func(e *structs.CertificateEarlier) bool {
+		if e == nil {
+			return false
+		}
+		notAfter, err := time.Parse(time.RFC3339, e.NotAfter)
+		return err == nil && now.Before(notAfter)
+	}
+	if !slices.ContainsFunc(earlier, func(e *structs.CertificateEarlier) bool { return !valid(e) }) {
+		return earlier
+	}
+	var out []*structs.CertificateEarlier
+	for _, e := range earlier {
+		if valid(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// keepEarlier returns the earlier certificates of a status whose current
+// certificate is about to leave it, with that certificate added if it is
+// still valid (review finding ATM-24b): replaced or taken back, it stays
+// valid until its end, and its revocation by serial number needs to know
+// who signed it. One that is revoked is kept too, marked: the built-in
+// issuer has it in the revocation list of its CA, but an external issuer has
+// no such list, and the reason of either may still be raised to
+// keyCompromise (review finding ATM-25b). The list is bounded: beyond
+// structs.CertificateEarlierMax the oldest entry goes, and an event names
+// its serial, which the status then no longer vouches for. The list of st
+// is not changed.
+func (o *certificateOperator) keepEarlier(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus) []*structs.CertificateEarlier {
+	notAfter, err := time.Parse(time.RFC3339, st.NotAfter)
+	if st.Serial == "" || err != nil || !p.now.Before(notAfter) ||
+		slices.ContainsFunc(st.Earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == st.Serial }) {
+		return st.Earlier
+	}
+	earlier := append(slices.Clone(st.Earlier), &structs.CertificateEarlier{
+		Serial:    st.Serial,
+		Issuer:    st.Issuer,
+		Authority: st.Authority,
+		NotAfter:  st.NotAfter,
+		Revoked:   st.Revoke == st.Serial,
+	})
+	for len(earlier) > structs.CertificateEarlierMax {
+		dropped := earlier[0]
+		earlier = earlier[1:]
+		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "EarlierCertificateDropped", fmt.Sprintf(
+			"the earlier certificate with the serial %s, valid until %s, is no longer kept in the status: "+
+				"more than %d earlier certificates are still valid; it can no longer be revoked by its serial number",
+			dropped.Serial, dropped.NotAfter, structs.CertificateEarlierMax))
+	}
+	return earlier
+}
+
+// issued records a new certificate in the status. The certificate it takes
+// the place of is kept as an earlier one (keepEarlier).
 func (o *certificateOperator) issued(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
 	st *structs.CertificateStatus, out *certificateOutcome, cert *x509.Certificate, authority, suggestedRenewal string, version uint64, renewal bool) {
 
@@ -702,6 +766,7 @@ func (o *certificateOperator) issued(p *certificatePass, obj *structs.CustomObje
 		SecretVersion: version,
 		Request:       spec.RequestHash(),
 		Orders:        st.Orders,
+		Earlier:       o.keepEarlier(p, obj, st),
 	}
 	out.ready = p.now.Before(cert.NotAfter)
 	out.progress, out.failedReason, out.failedMessage = "", "", ""
