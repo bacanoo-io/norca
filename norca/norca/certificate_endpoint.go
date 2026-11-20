@@ -272,11 +272,16 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		reply.Serial = status.Serial
 		external := status.Authority == ""
 		first := status.Revoke != status.Serial
-		if !first && reason != structs.CertificateRevokeReasonKeyCompromise {
+		// again: asked for before, and the order of the external issuer
+		// ended without the revocation (the event RevocationFailed told it):
+		// it may be asked for again, as an earlier certificate may (review
+		// finding ATM-24d). A new certificate is on its way already.
+		again := !first && external && !status.Revoked && status.Revoking == ""
+		if !first && !again && reason != structs.CertificateRevokeReasonKeyCompromise {
 			// Asked for already: nothing changes, except that the reason may
 			// still be raised to keyCompromise (review finding ATM-25b).
 			reply.Index = obj.ModifyIndex
-			reply.Pending = external && !status.Revoked && status.Revoking != ""
+			reply.Pending = external && !status.Revoked
 			return nil
 		}
 
@@ -287,6 +292,12 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		unrevocable := errors.Is(err, errCertificateNotRevocable)
 		if err != nil && !unrevocable {
 			return err
+		}
+		if unrevocable && again {
+			// The new certificate is on its way; the caller learns that
+			// this one stays valid.
+			return structs.NewErrRPCCodedf(http.StatusConflict,
+				"the certificate with the serial %s is not revoked, %v; it stays valid until %s", status.Serial, err, status.NotAfter)
 		}
 
 		// What the status says of it: that it was asked for (revoke), and how
@@ -305,9 +316,15 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			if err != nil {
 				return err
 			}
-			if state == structs.CertificateOrderPending {
+			switch {
+			case state == structs.CertificateOrderPending:
 				revoking = open
 				changed.Status["revoking"] = open
+			case again && state != structs.CertificateOrderValid:
+				// The operator has not removed the order that failed.
+				return structs.NewErrRPCCodedf(http.StatusConflict,
+					"the last revocation order of the certificate with the serial %s is over, and the certificate is not revoked; ask again",
+					status.Serial)
 			}
 		}
 		written := obj
@@ -328,7 +345,7 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 			because = " for the reason " + reason
 		}
 		switch {
-		case first && reply.Pending:
+		case (first || again) && reply.Pending:
 			// The reason is that of the order, which may have been open.
 			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "RevocationOrdered", fmt.Sprintf(
 				"revocation of the certificate with the serial %s ordered from the issuer %q by %s for the reason %s",
@@ -540,7 +557,7 @@ func (s *Server) revocationOrderState(obj *structs.CustomObject, serial string) 
 	if err != nil || order == nil {
 		return "", "", err
 	}
-	state, reason = certificateRevocationState(order)
+	state, reason, _ = certificateRevocationState(order)
 	return state, reason, nil
 }
 

@@ -640,27 +640,48 @@ func certificateOrderReason(spec *structs.CertificateOrderSpec) string {
 // stands in this pass: its state is "" if there is none, else
 // structs.CertificateOrderValid, structs.CertificateOrderFailed, or
 // structs.CertificateOrderPending for one its controller has not finished.
-// reason is the reason the order carries (certificateOrderReason).
-func (p *certificatePass) revocation(obj *structs.CustomObject, serial string) (state, reason string) {
+// reason is the reason the order carries (certificateOrderReason), problem
+// why it failed. An order its controller did not answer within
+// certificateRevokeOrderKeep has failed too (review finding ATM-24d):
+// cleanOrders removes it at the end of this pass.
+func (p *certificatePass) revocation(obj *structs.CustomObject, serial string) (state, reason, problem string) {
 	order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]
 	if order == nil {
-		return "", ""
+		return "", "", ""
 	}
-	return certificateRevocationState(order)
+	state, reason, problem = certificateRevocationState(order)
+	if state == structs.CertificateOrderPending && certificateRevokeOrderExpired(order, p.now) {
+		return structs.CertificateOrderFailed, reason, fmt.Sprintf(
+			"its controller did not answer within %s", certificateRevokeOrderKeep)
+	}
+	return state, reason, problem
+}
+
+// certificateRevokeOrderExpired reports whether a revocation order has
+// waited for the controller of its issuer for as long as it may.
+func certificateRevokeOrderExpired(order *structs.CustomObject, now time.Time) bool {
+	return !now.Before(time.Unix(0, order.CreateTime).Add(certificateRevokeOrderKeep))
 }
 
 // certificateRevocationState returns the state and the reason of a
-// revocation order, as certificatePass.revocation tells them.
-func certificateRevocationState(order *structs.CustomObject) (state, reason string) {
+// revocation order, and why it failed, as certificatePass.revocation tells
+// them, but for the time the order has waited.
+func certificateRevocationState(order *structs.CustomObject) (state, reason, problem string) {
 	spec := &structs.CertificateOrderSpec{}
 	status := &structs.CertificateOrderStatus{}
 	_ = structs.DecodeObjectPart(order.Spec, spec)
 	_ = structs.DecodeObjectPart(order.Status, status)
 	switch status.State {
-	case structs.CertificateOrderValid, structs.CertificateOrderFailed:
-		return status.State, certificateOrderReason(spec)
+	case structs.CertificateOrderValid:
+		return status.State, certificateOrderReason(spec), ""
+	case structs.CertificateOrderFailed:
+		problem = status.Problem
+		if problem == "" {
+			problem = "the issuer gave no reason"
+		}
+		return status.State, certificateOrderReason(spec), problem
 	}
-	return structs.CertificateOrderPending, certificateOrderReason(spec)
+	return structs.CertificateOrderPending, certificateOrderReason(spec), ""
 }
 
 // listed reports whether the revocation list of a CA of the built-in issuer
@@ -690,10 +711,19 @@ func (p *certificatePass) listed(obj *structs.CustomObject, authority, serial st
 // the revocation sets for the order of a user, follows the reason of the
 // order while it is open and ends with it: an order that failed, or that is
 // gone, leaves the certificate as it was, and nothing is placed again.
+//
+// The order of a user that the issuer failed, or did not answer in time, is
+// told by the event RevocationFailed (review finding ATM-24d), once: in the
+// pass that ends revoking, which is the pass in which cleanOrders removes
+// the order. As with the event of a withdrawal (revokeWithdrawn), a write of
+// the status that is lost does not repeat it, since the order is gone at the
+// next pass; only an order that could not be removed either is told again.
+// The conditions of the certificate are not touched: the certificate in use
+// is as good as it was, and nothing is being tried.
 func (o *certificateOperator) settleRevocation(p *certificatePass, obj *structs.CustomObject, what, serial, issuer string,
 	revoked *bool, reason, revoking *string) {
 
-	switch state, asked := p.revocation(obj, serial); state {
+	switch state, asked, problem := p.revocation(obj, serial); state {
 	case structs.CertificateOrderValid:
 		if !*revoked {
 			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
@@ -705,6 +735,23 @@ func (o *certificateOperator) settleRevocation(p *certificatePass, obj *structs.
 		if *revoking != "" {
 			*revoking = asked
 		}
+	case structs.CertificateOrderFailed:
+		switch {
+		case *revoking == "":
+			// Not the order of a user (a withdrawal the namespace got the
+			// names back from), or told before.
+		case *revoked:
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
+				"the issuer %q did not take the reason %s for the %s with the serial %s, revoked before: %s; "+
+					"it stays revoked for the reason %s, and nothing is tried again",
+				issuer, asked, what, serial, problem, *reason))
+		default:
+			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
+				"the issuer %q did not revoke the %s with the serial %s: %s; "+
+					"it is not revoked, and nothing is tried again: revoke it again to place a new order",
+				issuer, what, serial, problem))
+		}
+		*revoking = ""
 	default:
 		*revoking = ""
 	}
@@ -1482,13 +1529,17 @@ func (o *certificateOperator) cleanOrders(p *certificatePass, orders []*structs.
 		}
 		done := status.State == structs.CertificateOrderValid || status.State == structs.CertificateOrderFailed
 		expires := time.Unix(0, order.CreateTime).Add(certificateRevokeOrderKeep)
+		// The pass has seen the order as it is removed here, and has told
+		// on its certificate a failed one (revokeWithdrawn,
+		// settleRevocation) and one of a user that was not answered in time
+		// (settleRevocation; review finding ATM-24d).
 		switch {
 		case done:
 			if status.State == structs.CertificateOrderFailed {
 				o.logger.Warn("revocation order failed", "order", order.Name, "serial", spec.Revoke, "problem", status.Problem)
 			}
 			o.deleteOrder(order)
-		case !p.now.Before(expires):
+		case certificateRevokeOrderExpired(order, p.now):
 			o.logger.Warn("revocation order was not fulfilled in time", "order", order.Name, "serial", spec.Revoke)
 			o.deleteOrder(order)
 		default:
