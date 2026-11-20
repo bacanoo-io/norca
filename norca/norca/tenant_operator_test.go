@@ -7,12 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 // newTenantRaceTest returns a tenant test server whose tenant operator runs
@@ -294,4 +296,356 @@ func TestTenantOperator_RoleChangedBeforeGiveBack(t *testing.T) {
 	must.Eq(t, "made by hand", role.Description, must.Sprint("the role was not given back as the tenant found it"))
 	must.Len(t, 1, role.Policies)
 	must.Eq(t, "team-v-dev-other", role.Policies[0].Name)
+}
+
+// What a tenant gives back is what the resource held when the tenant first
+// wrote it, not what an earlier pass read: a change somebody else makes to a
+// resource a tenant took over, between the read of the adopting pass and the
+// tenant's first write, is refused by the check-and-set, and the status must
+// not keep the original of that first read. It did: the next pass wrote the
+// tenant's fields over the change, and the give-back restored what the first
+// pass had read, so the change was lost for good (review finding ATM-26b).
+func TestTenantOperator_AdoptedChangedBeforeFirstWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name   string
+		tenant string
+		spec   map[string]any
+		target tenantResourceRef
+		byHand func(h tenantByHand)
+		change func(t *testing.T, s *Server)
+		live   func(t *testing.T, store *state.StateStore) *tenantOriginal
+	}{
+		{
+			name:   "namespace",
+			tenant: "team-b1",
+			spec: map[string]any{
+				"namespace": map[string]any{"name": "shared-b1", "description": "Tenant B1"},
+				"adopt":     []any{"namespace"},
+			},
+			target: tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "shared-b1"},
+			byHand: func(h tenantByHand) { h.namespace("shared-b1", "", map[string]string{"team": "old"}) },
+			change: func(t *testing.T, s *Server) {
+				ns, err := s.State().NamespaceByName(nil, "shared-b1")
+				must.NoError(t, err)
+				changed := ns.Copy()
+				changed.Description, changed.Meta = "changed in between", map[string]string{"team": "new"}
+				changed.SetHash()
+				raftWrite(t, s, structs.NamespaceUpsertRequestType, &structs.NamespaceUpsertRequest{Namespaces: []*structs.Namespace{changed}})
+			},
+			live: func(t *testing.T, store *state.StateStore) *tenantOriginal {
+				ns, err := store.NamespaceByName(nil, "shared-b1")
+				must.NoError(t, err)
+				return namespaceOriginal(ns)
+			},
+		},
+		{
+			name:   "quota",
+			tenant: "team-b2",
+			spec: map[string]any{
+				"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+				"adopt": []any{"quota"},
+			},
+			target: tenantResourceRef{Type: structs.TenantResourceQuota, Name: "team-b2"},
+			byHand: func(h tenantByHand) { h.quota("team-b2") },
+			change: func(t *testing.T, s *Server) {
+				q, err := s.State().QuotaSpecByName(nil, "team-b2")
+				must.NoError(t, err)
+				changed := q.Copy()
+				changed.Description = "changed in between"
+				changed.Limits[0].RegionLimit.CPU = 300
+				changed.SetHash()
+				raftWrite(t, s, structs.QuotaSpecUpsertRequestType|structs.IgnoreUnknownTypeFlag,
+					&structs.QuotaSpecUpsertRequest{Quotas: []*structs.QuotaSpec{changed}})
+			},
+			live: func(t *testing.T, store *state.StateStore) *tenantOriginal {
+				q, err := store.QuotaSpecByName(nil, "team-b2")
+				must.NoError(t, err)
+				return quotaOriginal(q)
+			},
+		},
+		{
+			name:   "ACL policy",
+			tenant: "team-b3",
+			spec: map[string]any{
+				"roles": map[string]any{"dev": []any{"submit-job"}},
+				"adopt": []any{"acl-policy"},
+			},
+			target: tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: "team-b3-dev"},
+			byHand: func(h tenantByHand) { h.policy("team-b3-dev", `node { policy = "read" }`) },
+			change: func(t *testing.T, s *Server) {
+				pol, err := s.State().ACLPolicyByName(nil, "team-b3-dev")
+				must.NoError(t, err)
+				changed := *pol
+				changed.Description, changed.Rules = "changed in between", `agent { policy = "read" }`
+				changed.SetHash()
+				raftWrite(t, s, structs.ACLPolicyUpsertRequestType, &structs.ACLPolicyUpsertRequest{Policies: []*structs.ACLPolicy{&changed}})
+			},
+			live: func(t *testing.T, store *state.StateStore) *tenantOriginal {
+				pol, err := store.ACLPolicyByName(nil, "team-b3-dev")
+				must.NoError(t, err)
+				return policyOriginal(pol)
+			},
+		},
+		{
+			name:   "ACL role",
+			tenant: "team-b4",
+			spec: map[string]any{
+				"roles": map[string]any{"dev": []any{"submit-job"}},
+				"adopt": []any{"acl-policy", "acl-role"},
+			},
+			target: tenantResourceRef{Type: structs.TenantResourceACLRole, Name: "team-b4-dev"},
+			byHand: func(h tenantByHand) {
+				h.policyAndRole("team-b4-dev")
+				h.policy("team-b4-ops", `node { policy = "read" }`)
+			},
+			change: func(t *testing.T, s *Server) {
+				role, err := s.State().GetACLRoleByName(nil, "team-b4-dev")
+				must.NoError(t, err)
+				changed := role.Copy()
+				changed.Description = "changed in between"
+				changed.Policies = []*structs.ACLRolePolicyLink{{Name: "team-b4-ops"}}
+				changed.SetHash()
+				raftWrite(t, s, structs.ACLRolesUpsertRequestType, &structs.ACLRolesUpsertRequest{ACLRoles: []*structs.ACLRole{changed}})
+			},
+			live: func(t *testing.T, store *state.StateStore) *tenantOriginal {
+				role, err := store.GetACLRoleByName(nil, "team-b4-dev")
+				must.NoError(t, err)
+				return roleOriginal(role)
+			},
+		},
+		{
+			name:   "network policy",
+			tenant: "team-b5",
+			spec: map[string]any{
+				"namespace": map[string]any{"description": "Tenant B5"},
+				"network":   map[string]any{"isolation": "namespace"},
+				"adopt":     []any{"namespace", "network-policy"},
+			},
+			target: tenantResourceRef{Type: structs.TenantResourceNetworkPolicy, Namespace: "team-b5", Name: structs.TenantNetworkPolicyName},
+			byHand: func(h tenantByHand) {
+				h.namespace("team-b5", "", nil)
+				h.networkPolicy("team-b5")
+			},
+			change: func(t *testing.T, s *Server) {
+				np, err := s.State().NetworkPolicyByName(nil, "team-b5", structs.TenantNetworkPolicyName)
+				must.NoError(t, err)
+				changed := np.Copy()
+				changed.Description = "changed in between"
+				changed.Ingress[0].Peers[0].CIDR = []string{"198.51.100.0/24"}
+				raftWrite(t, s, structs.NetworkPolicyUpsertRequestType|structs.IgnoreUnknownTypeFlag,
+					&structs.NetworkPolicyUpsertRequest{NetworkPolicies: []*structs.NetworkPolicy{changed}})
+			},
+			live: func(t *testing.T, store *state.StateStore) *tenantOriginal {
+				np, err := store.NetworkPolicyByName(nil, "team-b5", structs.TenantNetworkPolicyName)
+				must.NoError(t, err)
+				return networkPolicyOriginal(np)
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ci.Parallel(t)
+			// What the resource holds after the change made in between.
+			var between atomic.Pointer[tenantOriginal]
+			c := newTenantRaceTest(t, tc.target, func(t *testing.T, s *Server) {
+				tc.change(t, s)
+				between.Store(tc.live(t, s.State()))
+			})
+			store := c.s.State()
+			tc.byHand(tenantByHand{c})
+			found := tc.live(t, store)
+			must.NotNil(t, found)
+
+			_, err := c.apply("", structs.TenantKind, tc.tenant, tc.spec)
+			must.NoError(t, err)
+			// The pass whose write is refused is not ready; the one after
+			// it is.
+			obj := waitTenant(c, tc.tenant, "ready", tenantReady)
+			changed := between.Load()
+			must.NotNil(t, changed, must.Sprint("the resource was not changed before the first write"))
+			must.NotEq(t, found.fingerprint(), changed.fingerprint())
+			must.NotEq(t, changed.fingerprint(), tc.live(t, store).fingerprint(), must.Sprint("the tenant did not write the resource"))
+
+			ref, ok := tenantRefs(obj)[tc.target.key()]
+			must.True(t, ok, must.Sprintf("the tenant does not list %s: %v", tc.target, obj.Status))
+			must.True(t, ref.Adopted)
+			must.NotNil(t, ref.Original)
+			must.Eq(t, changed.fingerprint(), ref.Original.fingerprint(), must.Sprintf(
+				"the status keeps what the first pass read, not what the tenant wrote over: %+v", ref.Original))
+			must.Eq(t, "", ref.Writing, must.Sprint("the tenant wrote the resource"))
+
+			must.NoError(t, c.delete("", structs.TenantKind, tc.tenant))
+			waitTenantGone(c, tc.tenant)
+			back := tc.live(t, store)
+			must.NotNil(t, back, must.Sprint("the resource the tenant took over is gone"))
+			must.Eq(t, changed.fingerprint(), back.fingerprint(), must.Sprintf(
+				"the change made between the read and the first write is lost: given back as %+v", back))
+		})
+	}
+}
+
+// The original of a resource a tenant took over is frozen by the tenant's
+// first write also when the status write that would have said so was lost:
+// the tenant knows its own write by what it wrote down, before the write, that
+// it was writing, and does not take what it wrote itself for the original
+// (review finding ATM-26b). With a quota of its own the tenant writes the
+// quota the namespace names; without one the namespace keeps what it names.
+func TestTenantOperator_AdoptedWrittenStatusLost(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, withQuota := range []bool{true, false} {
+		name := map[bool]string{true: "with a quota", false: "without a quota"}[withQuota]
+		t.Run(name, func(t *testing.T) {
+			ci.Parallel(t)
+			// The status as the pass wrote it before its first write: what
+			// the tenant took and what it is writing.
+			var srv atomic.Pointer[Server]
+			var intent atomic.Pointer[structs.CustomObject]
+			var once sync.Once
+			s, root, cleanup := TestACLServer(t, func(c *Config) {
+				c.tenantBeforeWrite = func(tenantResourceRef) {
+					once.Do(func() {
+						obj, err := srv.Load().State().CustomObjectByName(nil, structs.OperatorsGroup, structs.TenantKind, "", "team-ls")
+						if err == nil && obj != nil {
+							intent.Store(obj.Copy())
+						}
+					})
+				}
+			})
+			t.Cleanup(cleanup)
+			srv.Store(s)
+			testutil.WaitForLeader(t, s.RPC)
+			waitTenantKind(t, s)
+			c := &certTest{t: t, s: s, token: root.SecretID}
+			store := s.State()
+			hand := tenantByHand{c}
+
+			hand.quota("old-quota")
+			hand.namespace("kept-ls", "old-quota", map[string]string{"team": "old"})
+			hand.policyAndRole("team-ls-dev")
+			hand.networkPolicy("kept-ls")
+			spec := map[string]any{
+				"namespace": map[string]any{"name": "kept-ls", "description": "Team LS", "meta": map[string]any{"owner": "ls"}},
+				"roles":     map[string]any{"dev": []any{"submit-job"}},
+				"network":   map[string]any{"isolation": "namespace"},
+				"adopt":     []any{"namespace", "quota", "acl-policy", "acl-role", "network-policy"},
+			}
+			keys := []string{"acl-policy//team-ls-dev", "acl-role//team-ls-dev", "namespace//kept-ls", "network-policy/kept-ls/tenant-isolation"}
+			if withQuota {
+				hand.quota("team-ls")
+				spec["quota"] = map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000, "allocations": 5}}}
+				keys = append(keys, "quota//team-ls")
+			}
+			live := func() map[string]string {
+				ns, _ := store.NamespaceByName(nil, "kept-ls")
+				pol, _ := store.ACLPolicyByName(nil, "team-ls-dev")
+				role, _ := store.GetACLRoleByName(nil, "team-ls-dev")
+				np, _ := store.NetworkPolicyByName(nil, "kept-ls", structs.TenantNetworkPolicyName)
+				out := map[string]string{
+					"namespace//kept-ls":                      namespaceOriginal(ns).fingerprint(),
+					"acl-policy//team-ls-dev":                 policyOriginal(pol).fingerprint(),
+					"acl-role//team-ls-dev":                   roleOriginal(role).fingerprint(),
+					"network-policy/kept-ls/tenant-isolation": networkPolicyOriginal(np).fingerprint(),
+				}
+				if withQuota {
+					q, _ := store.QuotaSpecByName(nil, "team-ls")
+					out["quota//team-ls"] = quotaOriginal(q).fingerprint()
+				}
+				return out
+			}
+			found := live()
+
+			_, err := c.apply("", structs.TenantKind, "team-ls", spec)
+			must.NoError(t, err)
+			obj := waitTenant(c, "team-ls", "ready", tenantReady)
+			must.Eq(t, len(keys), len(tenantAdopted(obj)), must.Sprintf("status: %v", obj.Status))
+			written := live()
+			recorded := intent.Load()
+			must.NotNil(t, recorded, must.Sprint("the tenant wrote nothing"))
+			for _, key := range keys {
+				must.NotEq(t, found[key], written[key], must.Sprintf("the tenant did not write %s", key))
+				must.Eq(t, "", tenantRefs(obj)[key].Writing, must.Sprint(key))
+				// What the tenant wrote down that it was writing is what
+				// the resource holds after the write.
+				must.Eq(t, written[key], tenantRefs(recorded)[key].Writing, must.Sprint(key))
+			}
+
+			// The status as a lost write leaves it: everything written,
+			// nothing said to be; and the spec changed meanwhile.
+			must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+				changed := c.get("", structs.TenantKind, "team-ls").Copy()
+				changed.Status["resources"] = structs.CopyObjectMap(recorded.Status)["resources"]
+				changed.Spec = structs.CopyObjectMap(changed.Spec)
+				changed.Spec["namespace"] = map[string]any{"name": "kept-ls", "description": "Team LS, renamed", "meta": map[string]any{"owner": "ls"}}
+				changed.Generation++
+				_, err := c.s.writeOperatorObject(changed)
+				return err
+			}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+			obj = waitTenant(c, "team-ls", "ready with the new spec", func(o *structs.CustomObject) bool {
+				ns, _ := store.NamespaceByName(nil, "kept-ls")
+				return tenantReady(o) && ns != nil && ns.Description == "Team LS, renamed"
+			})
+			for _, key := range keys {
+				ref := tenantRefs(obj)[key]
+				must.True(t, ref.Adopted, must.Sprint(key))
+				must.Eq(t, "", ref.Writing, must.Sprint(key))
+				must.Eq(t, found[key], ref.Original.fingerprint(), must.Sprintf(
+					"%s: the tenant took what it wrote itself for what it found: %+v", key, ref.Original))
+			}
+
+			must.NoError(t, c.delete("", structs.TenantKind, "team-ls"))
+			waitTenantGone(c, "team-ls")
+			must.Eq(t, found, live(), must.Sprint("the resources were not given back as the tenant found them"))
+		})
+	}
+}
+
+// A resource a tenant took over and has not written holds nothing of the
+// tenant: a tenant deleted before its first write gives it back as it is,
+// and does not write what an earlier pass read over a change made since
+// (review finding ATM-26b). One that holds what the tenant was writing was
+// written by the tenant, and is restored.
+func TestTenantOperator_GiveBackBeforeFirstWrite(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	hand := tenantByHand{c}
+
+	_, err := c.apply("", structs.TenantKind, "team-gb", map[string]any{"namespace": map[string]any{"description": "GB"}})
+	must.NoError(t, err)
+	stored := waitGeneration(c, "team-gb")
+
+	hand.namespace("changed-gb", "", map[string]string{"team": "new"})
+	hand.namespace("written-gb", "", map[string]string{"owner": "gb"})
+	ns, err := store.NamespaceByName(nil, "written-gb")
+	must.NoError(t, err)
+	original := map[string]any{"description": "as the first pass read it", "meta": map[string]any{"team": "old"}}
+
+	deleting := stored.Copy()
+	deleting.DeletionTime = time.Now().UnixNano()
+	deleting.Finalizers = []string{structs.OperatorsFinalizer}
+	deleting.Status = map[string]any{"resources": []any{
+		map[string]any{"type": structs.TenantResourceNamespace, "name": "changed-gb", "adopted": true, "original": original,
+			"writing": namespaceOriginal(&structs.Namespace{Description: "GB"}).fingerprint()},
+		map[string]any{"type": structs.TenantResourceNamespace, "name": "written-gb", "adopted": true, "original": original,
+			"writing": namespaceOriginal(ns).fingerprint()},
+	}}
+	o := newTenantOperator(c.s, c.s.logger)
+	o.finishDeletion(newTenantPass(t, c.s), deleting)
+
+	ns, err = store.NamespaceByName(nil, "changed-gb")
+	must.NoError(t, err)
+	must.NotNil(t, ns)
+	must.Eq(t, "made by hand", ns.Description, must.Sprint("the deleted tenant wrote what it had read over a namespace it never wrote"))
+	must.Eq(t, map[string]string{"team": "new"}, ns.Meta)
+	mustHaveEvent(t, c, stored, "Released", "changed-gb: the tenant had not written it")
+
+	ns, err = store.NamespaceByName(nil, "written-gb")
+	must.NoError(t, err)
+	must.NotNil(t, ns)
+	must.Eq(t, "as the first pass read it", ns.Description, must.Sprint("the namespace the tenant wrote was not given back as found"))
+	must.Eq(t, map[string]string{"team": "old"}, ns.Meta)
 }

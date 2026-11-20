@@ -100,7 +100,8 @@ const tenantKindSchema = `{
               "pending": {"type": "boolean"},
               "creating": {"type": "string"},
               "adopted": {"type": "boolean"},
-              "original": {"type": "object"}
+              "original": {"type": "object"},
+              "writing": {"type": "string"}
             },
             "additionalProperties": false
           }
@@ -231,6 +232,15 @@ type tenantResourceRef struct {
 	// both.
 	Adopted  bool            `json:"adopted,omitempty"`
 	Original *tenantOriginal `json:"original,omitempty"`
+
+	// Writing is, for an adopted resource the tenant has not written yet,
+	// the fingerprint of what the resource will hold once the tenant wrote
+	// it. Until then nothing of the tenant is in the resource, and Original
+	// follows what the tenant reads; the tenant's first write freezes
+	// Original and clears Writing. A resource that holds what Writing says
+	// was written by the tenant, though the status write that would have
+	// cleared Writing was lost (review finding ATM-26b).
+	Writing string `json:"writing,omitempty"`
 }
 
 func (r tenantResourceRef) key() string { return r.Type + "/" + r.Namespace + "/" + r.Name }
