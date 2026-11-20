@@ -188,7 +188,9 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 			if http2CipherSuites(tlsConfig.CipherSuites) {
 				tlsConfig.NextProtos = []string{"h2", "http/1.1"}
 			}
-			ln = tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, tlsConfig)
+			ln = tls.NewListener(trackHijacked(tcpKeepAliveListener{ln.(*net.TCPListener)}, maxConns), tlsConfig)
+		} else {
+			ln = trackHijacked(ln, maxConns)
 		}
 
 		// Create the server
@@ -376,6 +378,16 @@ func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state htt
 		}
 		conn.Close()
 	}))
+}
+
+// trackHijacked returns ln so that, with a connection limit, a connection a
+// handler hijacked (an exec websocket) counts in the limit until it is
+// closed (Norca).
+func trackHijacked(ln net.Listener, connLimit int) net.Listener {
+	if connLimit > 0 {
+		return connprefix.TrackListener(ln)
+	}
+	return ln
 }
 
 // tcpKeepAliveListener sets TCP keep-alive timeouts on accepted
