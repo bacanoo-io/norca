@@ -1041,7 +1041,7 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 				return nil, "", structs.NewErrRPCCodedf(http.StatusBadRequest,
 					"object namespace %q does not match the request namespace %q", in.Namespace, ns)
 			}
-			owners, err := resolveObjectOwners(snap, ns, in.Owners)
+			owners, err := resolveObjectOwners(snap, aclObj, ns, in.Owners)
 			if err != nil {
 				return nil, "", err
 			}
@@ -1050,7 +1050,7 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 					return nil, "", structs.NewErrRPCCodedf(http.StatusBadRequest, "an object can't be its own owner")
 				}
 			}
-			if err := checkObjectOwnerAccess(aclObj, ns, existing, owners); err != nil {
+			if err := checkObjectOwnerAccess(aclObj, existing, owners); err != nil {
 				return nil, "", err
 			}
 			now := time.Now().UnixNano()

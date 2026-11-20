@@ -117,6 +117,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobScalingHook{srv: s},
 			jobNetworkPolicyHook{srv: s},
 			jobSecretsHook{srv: s},
+			jobReservedMetaHook{},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},
@@ -296,6 +297,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		return err
 	}
 	if err := checkJobParent(args.Job, existingJob); err != nil {
+		return err
+	}
+	if err := checkJobOwnerMark(aclObj, existingJob, args.Job); err != nil {
 		return err
 	}
 
@@ -2157,6 +2161,9 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 	}
 
 	// Validate the arguments
+	if err := checkDispatchReservedMeta(args.Meta); err != nil {
+		return err
+	}
 	if err := validateDispatchRequest(args, parameterizedJob); err != nil {
 		return err
 	}

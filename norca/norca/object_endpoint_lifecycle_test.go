@@ -129,9 +129,11 @@ func TestCustomObjectEndpoint_Finalizers(t *testing.T) {
 	must.True(t, stored.Deleting())
 	must.Eq(t, structs.ObjectPropagationBackground, stored.DeletionPropagation)
 
-	// Deleting again changes nothing; finalizers can't be added anymore,
-	// but the spec and the status can still be written.
-	del, err = c.deleteWith("default", "billing", structs.ObjectPropagationOrphan, "")
+	// Deleting again changes nothing (but in the orphan mode, which lets go
+	// of the dependents: TestObjectDelete_OrphanLetsGoOfABackgroundDeletion);
+	// finalizers can't be added anymore, but the spec and the status can
+	// still be written.
+	del, err = c.deleteWith("default", "billing", structs.ObjectPropagationForeground, "")
 	must.NoError(t, err)
 	must.True(t, del.Unchanged)
 	_, err = c.finalizers("default", "billing", []string{"example.com/other"}, nil, "")

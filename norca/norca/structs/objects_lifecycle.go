@@ -507,6 +507,55 @@ func ObjectOwnerMetaValue(group, kind, namespace, name string) string {
 	return namespace + "/crd/" + ObjectPathGroup(group) + "/" + kind + "/" + name
 }
 
+// ParseObjectPathGroup returns the group of a path form (ObjectPathGroup):
+// a single dash is a dot, and a run of an even number of dashes is half as
+// many dashes. Any other run of dashes is no path form of a group.
+func ParseObjectPathGroup(path string) (string, bool) {
+	var b strings.Builder
+	for i := 0; i < len(path); {
+		if path[i] != '-' {
+			b.WriteByte(path[i])
+			i++
+			continue
+		}
+		n := 1
+		for i+n < len(path) && path[i+n] == '-' {
+			n++
+		}
+		switch {
+		case n == 1:
+			b.WriteByte('.')
+		case n%2 == 0:
+			b.WriteString(strings.Repeat("-", n/2))
+		default:
+			return "", false
+		}
+		i += n
+	}
+	group := b.String()
+	return group, group != "" && ObjectPathGroup(group) == path
+}
+
+// ParseObjectOwnerMetaValue splits a JobMetaOwner value
+// (ObjectOwnerMetaValue) into the group, the kind, the namespace and the
+// name of the owner it names. The namespace is empty for an owner of a
+// cluster-scoped kind. Whether such a kind or object exists is not looked
+// at.
+func ParseObjectOwnerMetaValue(value string) (group, kind, namespace, name string, err error) {
+	parts := strings.Split(value, "/")
+	if len(parts) != 5 || parts[1] != "crd" || parts[3] == "" || parts[4] == "" {
+		return "", "", "", "", fmt.Errorf("must be <namespace>/crd/<path form of the group>/<Kind>/<name>")
+	}
+	if parts[0] != "" && !validNamespaceName.MatchString(parts[0]) {
+		return "", "", "", "", fmt.Errorf("invalid namespace, must match regex %s", validNamespaceName)
+	}
+	group, ok := ParseObjectPathGroup(parts[2])
+	if !ok {
+		return "", "", "", "", fmt.Errorf("%q is not the path form of a group", parts[2])
+	}
+	return group, parts[3], parts[0], parts[4], nil
+}
+
 // objectApprovedJobPrefix starts the entry of a job in a list of approved
 // dependents. The other entries are IDs of objects, which are UUIDs.
 const objectApprovedJobPrefix = "job:"

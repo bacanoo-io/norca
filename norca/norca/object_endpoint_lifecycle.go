@@ -71,8 +71,9 @@ func checkObjectManagedBy(aclObj *acl.ACL, args structs.RequestWithIdentity, obj
 // resolveObjectOwners fills in the defaults of owner references: the
 // namespace of a namespaced owner defaults to the object's namespace, the
 // namespace of a cluster-scoped owner is empty, and the ID of an existing
-// owner object is filled in.
-func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*structs.ObjectOwnerReference) ([]*structs.ObjectOwnerReference, error) {
+// owner object is filled in for a writer who may read that owner: to anyone
+// else it would tell whether the owner exists.
+func resolveObjectOwners(snap *state.StateSnapshot, aclObj *acl.ACL, namespace string, owners []*structs.ObjectOwnerReference) ([]*structs.ObjectOwnerReference, error) {
 	if owners == nil {
 		return nil, nil
 	}
@@ -100,7 +101,8 @@ func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*
 		case ref.Namespace == "":
 			ref.Namespace = namespace
 		}
-		if ref.ID == "" && ownerKind != nil {
+		if ref.ID == "" && ownerKind != nil &&
+			aclObj.AllowObjectOperation(objectOwnerACLNamespace(ref.Namespace), ref.Kind, acl.ObjectCapabilityRead) {
 			owner, err := snap.CustomObjectByName(nil, group, kind, ref.Namespace, ref.Name)
 			if err != nil {
 				return nil, err
@@ -114,17 +116,52 @@ func resolveObjectOwners(snap *state.StateSnapshot, namespace string, owners []*
 	return out, nil
 }
 
-// checkObjectOwnerAccess refuses a new reference to an owner object outside
-// the namespace of the object (another namespace, a cluster-scoped owner,
-// or a namespaced owner of a cluster-scoped object) unless the writer has
-// "write" or "manage-finalizers" on the owner. A dependent holds back the
-// foreground deletion of its owner like a finalizer does, so the right to
-// write objects in one namespace must not be enough to hold back an object
-// of another one. owners are resolved (resolveObjectOwners); the references
-// the stored object already has are kept without the check.
-func checkObjectOwnerAccess(aclObj *acl.ACL, namespace string, existing *structs.CustomObject, owners []*structs.ObjectOwnerReference) error {
+// objectOwnerACLNamespace returns the namespace whose object rules decide on
+// an owner: its namespace, or that of the cluster-scoped objects for an owner
+// without one.
+func objectOwnerACLNamespace(namespace string) string {
+	if namespace == "" {
+		return acl.ObjectClusterNamespace
+	}
+	return namespace
+}
+
+// allowObjectOwner reports whether the ACL allows naming the object of a
+// kind ("group/Kind") in a namespace ("": cluster-scoped) as an owner: with
+// "write" or "manage-finalizers" on it. The owners of objects
+// (checkObjectOwnerAccess) and of jobs (checkJobOwnerMark) are checked with
+// it. It reads no state: the answer does not tell whether the owner exists.
+func allowObjectOwner(aclObj *acl.ACL, kindRef, namespace string) bool {
+	aclNamespace := objectOwnerACLNamespace(namespace)
+	return aclObj.AllowObjectOperation(aclNamespace, kindRef, acl.ObjectCapabilityWrite) ||
+		aclObj.AllowObjectOperation(aclNamespace, kindRef, acl.ObjectCapabilityManageFinalizers)
+}
+
+// errObjectOwnerAccess is the error of naming an owner without the right on
+// it (allowObjectOwner). It is the same whether the owner exists or not.
+func errObjectOwnerAccess(kindRef, namespace, name string) error {
+	where := "cluster-scoped"
+	if namespace != "" {
+		where = fmt.Sprintf("in namespace %q", namespace)
+	}
+	return structs.NewErrRPCCodedf(http.StatusForbidden,
+		"owner %s %q %s: naming an owner requires the write or manage-finalizers capability on the owner",
+		kindRef, name, where)
+}
+
+// checkObjectOwnerAccess refuses a new reference to an owner object unless
+// the writer has "write" or "manage-finalizers" on the owner, wherever the
+// owner is: in another namespace, cluster-scoped, or in the namespace of the
+// object, of another kind or of its own. A dependent holds back the
+// foreground deletion of its owner like a finalizer does, and the deletion
+// of an owner is refused to a caller without the rights on its dependents,
+// so the right to write the objects of one kind must not be enough to make
+// them dependents of any other object. The owner need not exist. owners are
+// resolved (resolveObjectOwners); the references the stored object already
+// has are kept without the check.
+func checkObjectOwnerAccess(aclObj *acl.ACL, existing *structs.CustomObject, owners []*structs.ObjectOwnerReference) error {
 	for _, ref := range owners {
-		if !ref.IsObject() || ref.Namespace == namespace {
+		if !ref.IsObject() {
 			continue
 		}
 		if existing != nil && slices.ContainsFunc(existing.Owners, func(o *structs.ObjectOwnerReference) bool {
@@ -132,21 +169,9 @@ func checkObjectOwnerAccess(aclObj *acl.ACL, namespace string, existing *structs
 		}) {
 			continue
 		}
-		aclNamespace := ref.Namespace
-		if aclNamespace == "" {
-			aclNamespace = acl.ObjectClusterNamespace
+		if !allowObjectOwner(aclObj, ref.Kind, ref.Namespace) {
+			return errObjectOwnerAccess(ref.Kind, ref.Namespace, ref.Name)
 		}
-		if aclObj.AllowObjectOperation(aclNamespace, ref.Kind, acl.ObjectCapabilityWrite) ||
-			aclObj.AllowObjectOperation(aclNamespace, ref.Kind, acl.ObjectCapabilityManageFinalizers) {
-			continue
-		}
-		where := "cluster-scoped"
-		if ref.Namespace != "" {
-			where = fmt.Sprintf("in namespace %q", ref.Namespace)
-		}
-		return structs.NewErrRPCCodedf(http.StatusForbidden,
-			"owner %s %q %s: an owner outside the namespace of the object requires the write or manage-finalizers capability on the owner",
-			ref.Kind, ref.Name, where)
 	}
 	return nil
 }
@@ -234,12 +259,50 @@ func (s *Server) recordObjectEvents(obj *structs.CustomObject, events []*structs
 	return index, err
 }
 
+// objectDeletionLetsGo reports whether a deletion in the propagation mode
+// given changes the deletion that is under way of the object: only a
+// deletion in the orphan mode does, of an object that is being deleted in
+// the background or the foreground mode. The mode of a deletion is not
+// changed in any other direction: the dependents of an object deleted in the
+// orphan mode were promised to stay, and the deleter of an object is checked
+// for its dependents when the deletion starts
+// (checkObjectDependentsDelete), not later.
+//
+// The change is one write of the object (or its removal, if nothing holds it
+// any more), with check-and-set on its modify index. What it means for the
+// dependents follows from what the garbage collector (objectgc) does for an
+// object that is being deleted:
+//
+//   - from then on the collector takes no dependent for the object: it
+//     collects for an object marked in the foreground mode, and for the
+//     tombstone of the background and the foreground mode, and the object is
+//     neither any more; its tombstone will be one of the orphan mode;
+//   - the object no longer waits for its dependents: it is removed when its
+//     own finalizers are gone, at once if it has none;
+//   - the dependents that were not deleted yet stay as they are, with their
+//     reference to the owner, as after any deletion in the orphan mode;
+//   - what the collector did before is not taken back: a dependent it
+//     removed is gone, one it marked for deletion (it has finalizers) stays
+//     marked and is removed when its finalizers are gone, with its own
+//     dependents, and a job it stopped stays stopped. A pass of the
+//     collector that runs at the time of the change may still take the
+//     dependents it had read.
+//
+// The caller needs what the deletion of the object needs; the check of the
+// dependents is not made for the orphan mode, as in a first deletion.
+func objectDeletionLetsGo(existing *structs.CustomObject, propagation string) bool {
+	return existing.Deleting() && propagation == structs.ObjectPropagationOrphan &&
+		existing.DeletionPropagation != structs.ObjectPropagationOrphan
+}
+
 // Delete deletes an object. An object without finalizers is removed at
 // once, unless the foreground mode is requested; otherwise it is marked for
 // deletion (DeletionTime) and removed when its finalizers are gone and, in
 // the foreground mode, the garbage collector has deleted its dependents.
 // The reply is the object as marked, or as it was before it was removed
-// (DeletionTime 0).
+// (DeletionTime 0). A deletion in the orphan mode of an object that is being
+// deleted in another mode lets go of its dependents (objectDeletionLetsGo);
+// any other repeated deletion changes nothing.
 func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *structs.CustomObjectWriteResponse) error {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("CustomObject.Delete", args, args, reply); done {
@@ -326,12 +389,18 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			}
 		}
 
-		// A repeated deletion of an object being deleted changes nothing.
+		// A repeated deletion of an object being deleted changes nothing,
+		// except that it may let go of the dependents (review finding
+		// JOG-21): see objectDeletionLetsGo.
+		lettingGo := false
 		if existing.Deleting() {
-			reply.Object = existing
-			reply.Unchanged = true
-			reply.Index = existing.ModifyIndex
-			return nil
+			if !objectDeletionLetsGo(existing, propagation) {
+				reply.Object = existing
+				reply.Unchanged = true
+				reply.Index = existing.ModifyIndex
+				return nil
+			}
+			lettingGo = true
 		}
 
 		// What the deletion takes with it: the garbage collector deletes
@@ -363,11 +432,16 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 		removeNow := len(existing.Finalizers) == 0 && propagation != structs.ObjectPropagationForeground
 		var marked *structs.CustomObject
 		if !removeNow {
+			now := time.Now().UnixNano()
 			marked = existing.Copy()
-			marked.DeletionTime = time.Now().UnixNano()
+			// The deletion that lets go of the dependents is the one
+			// that was started: its time stays.
+			if !lettingGo {
+				marked.DeletionTime = now
+			}
 			marked.DeletionPropagation = propagation
 			marked.DeletionApproved = approved
-			marked.ModifyTime = marked.DeletionTime
+			marked.ModifyTime = now
 		}
 		if args.DryRun {
 			reply.Object = existing

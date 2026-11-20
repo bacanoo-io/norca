@@ -31,6 +31,50 @@ func TestObjectOwnerMetaValue_GroupsDoNotCollide(t *testing.T) {
 	must.False(t, JobOwnedBy(meta, "db.example.com", "Cluster", "prod", "a"))
 }
 
+// The owner value of a job is split back into what it names: the check of the
+// owner mark of a job (review finding JOG-20) needs the kind and the
+// namespace of the owner.
+func TestParseObjectOwnerMetaValue(t *testing.T) {
+	for _, group := range []string{"example.com", "db.example.com", "db-example-com", "db-example.com", "db.example-com", "a-b.c", "a.b-c", "a--b", "a---b.c", "norca.io"} {
+		must.NoError(t, ValidateObjectKindName(group, "Cluster"))
+		for _, namespace := range []string{"prod", ""} {
+			g, kind, ns, name, err := ParseObjectOwnerMetaValue(ObjectOwnerMetaValue(group, "Cluster", namespace, "a.b_c-d"))
+			must.NoError(t, err, must.Sprintf("group %q", group))
+			must.Eq(t, group, g)
+			must.Eq(t, "Cluster", kind)
+			must.Eq(t, namespace, ns)
+			must.Eq(t, "a.b_c-d", name)
+		}
+	}
+
+	for _, value := range []string{
+		"",
+		"a",
+		"prod/crd/db-example-com/Cluster",
+		"prod/crd/db-example-com/Cluster/a/b",
+		"prod/crd/db-example-com/Cluster/",
+		"prod/crd/db-example-com//a",
+		"prod/crd//Cluster/a",
+		"prod/other/db-example-com/Cluster/a",
+		"prod/crd/db---example/Cluster/a",
+		"pr od/crd/db-example-com/Cluster/a",
+		"*/crd/db-example-com/Cluster/a",
+	} {
+		_, _, _, _, err := ParseObjectOwnerMetaValue(value)
+		must.Error(t, err, must.Sprintf("value %q", value))
+	}
+
+	for path, group := range map[string]string{"a-b": "a.b", "a--b": "a-b", "a----b-c": "a--b.c"} {
+		got, ok := ParseObjectPathGroup(path)
+		must.True(t, ok)
+		must.Eq(t, group, got)
+	}
+	for _, path := range []string{"", "a---b", "a-----b"} {
+		_, ok := ParseObjectPathGroup(path)
+		must.False(t, ok, must.Sprintf("path %q", path))
+	}
+}
+
 // The fields of an owner reference are bounded (review finding SRV-11): they
 // are stored with the object and are not part of its size limit.
 func TestObjectOwnerReference_Validate(t *testing.T) {
