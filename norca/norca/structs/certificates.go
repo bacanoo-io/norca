@@ -404,9 +404,22 @@ type CertificateEarlier struct {
 	// NotAfter is the end of its validity (RFC 3339).
 	NotAfter string `json:"notAfter,omitempty"`
 
-	// Revoked says that its issuer was told to revoke it. Its reason may
-	// still be raised to keyCompromise.
+	// Revoked says that it is revoked as far as the servers know: a
+	// revocation by a user marks it when its issuer is told, a withdrawal
+	// (review finding ATM-24e) when its issuer has revoked it. Its reason
+	// may still be raised to keyCompromise.
 	Revoked bool `json:"revoked,omitempty"`
+
+	// Failures, RetryAt and NotRevocable belong to its revocation by a
+	// withdrawal, which takes back every valid certificate of a namespace
+	// that may no longer ask for the names (review finding ATM-24e), and
+	// are empty otherwise. Failures counts the revocation orders of an
+	// external issuer that failed in a row, RetryAt is when the next one is
+	// placed. NotRevocable says why no issuer is left to revoke it; it
+	// stays unrevoked until it expires, or until there is such an issuer.
+	Failures     uint64 `json:"failures,omitempty"`
+	RetryAt      string `json:"retryAt,omitempty"`
+	NotRevocable string `json:"notRevocable,omitempty"`
 }
 
 // NormalizeCertificateSerial returns a serial number a user gave in the form
