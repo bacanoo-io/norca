@@ -2956,3 +2956,155 @@ func TestCertificate_ExternalIssuerRevocationFailed(t *testing.T) {
 	must.StrContains(t, messages[3], "earlier certificate with the serial "+second.Serial)
 	must.StrContains(t, messages[3], "the issuer gave no reason")
 }
+
+// The current certificate that no issuer is left to revoke is not revoked by
+// a request, and nothing says that it was (review finding ATM-24k): the first
+// request is refused with a conflict that says why and until when the
+// certificate is valid, as a repeated one and that for an earlier certificate
+// are. It writes nothing: the status does not say revoke, there is no event
+// Revoked and no revocation order, and no new certificate is issued in the
+// place of the one that stays in use. The reason keyCompromise changes
+// nothing in that. Checked with the external issuer gone, and with the issuer
+// recreated as a built-in one.
+func TestCertificate_ExternalIssuerRevokeNoIssuer(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	held := a.issue("")
+	inUse := c.secretItems("default", "certs/web")[structs.CertificateSecretItemCert]
+	must.NotEq(t, "", inUse)
+	failed := func(reason string) func(*structs.CustomObject, *structs.CertificateStatus) bool {
+		return func(obj *structs.CustomObject, _ *structs.CertificateStatus) bool {
+			got, _ := certificateFailure(obj.Status)
+			return got == reason
+		}
+	}
+	// refused asks for the revocation of the current certificate, and checks
+	// that it is refused and that nothing has changed.
+	refused := func(reason, why string) {
+		t.Helper()
+		_, err := c.revokeSerial("default", "web-tls", "", reason)
+		must.Error(t, err, must.Sprint("a certificate nobody can revoke is not answered as revoked"))
+		code, msg, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok, must.Sprint(err))
+		must.Eq(t, 409, code)
+		must.StrContains(t, msg, "the certificate with the serial "+held.Serial+" is not revoked")
+		must.StrContains(t, msg, why)
+		must.StrContains(t, msg, "it stays valid until "+held.NotAfter)
+
+		_, st := c.certificate("default", "web-tls")
+		must.Eq(t, held.Serial, st.Serial, must.Sprint("the certificate stays the current one"))
+		must.Eq(t, "", st.Revoke, must.Sprint("the status does not say that a revocation was asked for"))
+		must.False(t, st.Revoked)
+		must.Eq(t, "", st.Revoking)
+		must.Eq(t, "", st.Order)
+		must.Eq(t, held.Orders, st.Orders, must.Sprint("nothing is ordered in its place"))
+		must.SliceEmpty(t, st.Earlier)
+		must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked"),
+			must.Sprint("no event says that the certificate was revoked"))
+		must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationOrdered"))
+		must.Eq(t, 0, certificateOrderCount(t, c.s))
+	}
+
+	// The external issuer is gone.
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "acme"))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get("", structs.CertificateIssuerKind, "acme") == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	c.waitFor("default", "web-tls", "IssuerNotFound", failed("IssuerNotFound"))
+	for _, reason := range []string{"", structs.CertificateRevokeReasonKeyCompromise, structs.CertificateRevokeReasonSuperseded} {
+		refused(reason, `the issuer "acme" is gone`)
+	}
+	must.Eq(t, inUse, c.secretItems("default", "certs/web")[structs.CertificateSecretItemCert],
+		must.Sprint("the certificate stays in use"))
+
+	// The issuer is recreated as a built-in one. That alone has a new
+	// certificate issued, after which the one of the external issuer is an
+	// earlier certificate; a secret at the path that is not the certificate's
+	// own keeps it the current one here.
+	c.secretVersions(structs.SecretOpDestroy, "default", "certs/web")
+	var w structs.SecretWriteResponse
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("certs/web", "", structs.SecretItems{"cert": "mine"}), &w))
+	_, err := c.apply("", structs.CertificateIssuerKind, "acme", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	c.waitFor("default", "web-tls", "SecretConflict", failed("SecretConflict"))
+	for _, reason := range []string{"", structs.CertificateRevokeReasonKeyCompromise} {
+		refused(reason, `the issuer "acme" is no longer the external issuer that signed it`)
+	}
+	must.Eq(t, "mine", c.secretItems("default", "certs/web")["cert"])
+}
+
+// A first request for the revocation of the current certificate that finds a
+// revocation order of its serial which is over without the revocation (a
+// withdrawal placed it, the issuer failed it, and the namespace got the names
+// back before the operator removed it) places no order, so it revokes
+// nothing and says nothing else (review finding ATM-24k): it is refused with
+// a conflict, as a repeated request is, and writes nothing. Asked again when
+// the operator has removed the order, a new order is placed.
+func TestCertificate_ExternalIssuerRevokeLeftoverOrder(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	held := a.issue("")
+
+	// The operator removes a finished order in its next pass, which begins
+	// operatorsSettle after the order is written at the earliest. A request
+	// that comes after that pass all the same places an order of its own:
+	// the next certificate is taken then.
+	for attempt := 1; ; attempt++ {
+		spec, err := structs.EncodeObjectPart(&structs.CertificateOrderSpec{
+			Issuer: "acme", Certificate: "default/web-tls", Revoke: held.Serial,
+			Reason: structs.CertificateRevokeReasonCessationOfOperation,
+		})
+		must.NoError(t, err)
+		_, err = c.s.writeOperatorObject(&structs.CustomObject{
+			Group:     structs.OperatorsGroup,
+			Kind:      structs.CertificateOrderKind,
+			Name:      certificateRevokeOrderName("default", "web-tls", held.Serial),
+			ManagedBy: structs.OperatorsManagedBy,
+			Spec:      spec,
+			Status:    map[string]any{"state": structs.CertificateOrderFailed, "problem": "the CA is down"},
+		})
+		must.NoError(t, err)
+		resp, err := c.revokeSerial("default", "web-tls", "", "")
+		if err == nil && resp.Pending && attempt < 5 {
+			held = a.issue(held.Serial)
+			continue
+		}
+		must.Error(t, err, must.Sprint("an order that failed has revoked nothing"))
+		code, msg, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok, must.Sprint(err))
+		must.Eq(t, 409, code)
+		must.StrContains(t, msg, "the last revocation order of the certificate with the serial "+held.Serial+" is over")
+		must.StrContains(t, msg, "the certificate is not revoked")
+		break
+	}
+
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Serial, must.Sprint("the certificate stays the current one"))
+	must.Eq(t, "", st.Revoke, must.Sprint("the status does not say that a revocation was asked for"))
+	must.False(t, st.Revoked)
+	must.Eq(t, "", st.Revoking)
+	must.Eq(t, "", st.Order, must.Sprint("nothing is ordered in its place"))
+	must.SliceEmpty(t, c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked"),
+		must.Sprint("no event says that the certificate was revoked"))
+	must.SliceEmpty(t, containing(c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationOrdered"), held.Serial))
+
+	// The operator removes the order; asked again, a new one is placed.
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return a.revocation(held.Serial) == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the order that failed is removed"))
+	resp, err := c.revokeSerial("default", "web-tls", "", "")
+	must.NoError(t, err)
+	must.True(t, resp.Pending)
+	must.NotNil(t, a.revocation(held.Serial))
+	_, st = c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Revoke)
+	must.Eq(t, structs.CertificateRevokeReasonUnspecified, st.Revoking)
+}
