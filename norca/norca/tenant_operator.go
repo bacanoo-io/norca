@@ -43,7 +43,11 @@ import (
 // it adopted and keeps what the tenant found (tenant_restore.go). While the
 // tenant lives it is kept like one the tenant created. It is never deleted
 // by the tenant: when it leaves the spec or the tenant is deleted, what the
-// tenant found is written back and the resource is released.
+// tenant found is written back and the resource is released. What the tenant
+// found is what the resource held when the tenant first wrote it: until that
+// write the status says what the tenant is writing (Writing), and a resource
+// that changed since the tenant read it, and does not hold that, is taken
+// over again as it is now (review finding ATM-26b).
 //
 // A resource of a tenant's name that the tenant did not create is left
 // alone (condition Conflict), unless spec.adopt names its type; a resource
@@ -256,6 +260,16 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // else is not the tenant's creation: the entry is dropped and the resource
 // is treated as any resource the tenant finds. take writes nothing: the
 // pass records what was taken (recordClaims) before it writes a resource.
+//
+// A resource the tenant took over and has not written yet (Writing) holds
+// nothing of the tenant: its check-and-set write was refused, or never sent.
+// What it holds now is then what the tenant finds, so one that changed since
+// the tenant read it is taken over again, as it is now, and the original of
+// the earlier read is forgotten (review finding ATM-26b). The exception is
+// the tenant's own write whose status write was lost: the resource holds
+// what the status says the tenant was writing, which the tenant wrote down
+// before the write, as it does for a creation. For an existing resource
+// creating is what it will hold once the tenant wrote it.
 func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOriginal) bool {
 	exists := original != nil
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
@@ -283,13 +297,31 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 				w.claimsChanged = true
 			}
 			mine.Pending, mine.Creating = true, want
-			mine.Adopted, mine.Original = false, nil
+			mine.Adopted, mine.Original, mine.Writing = false, nil, ""
 		case mine.Pending && (mine.Creating == "" || mine.Creating != original.fingerprint()):
 			// Not what the tenant was creating: somebody else made it.
 			delete(w.owned, ref.key())
 			ok = false
+		case mine.Adopted && mine.Writing != "" && mine.Writing != original.fingerprint() &&
+			mine.Original.fingerprint() != original.fingerprint():
+			// Not written by the tenant, and not what the tenant read:
+			// taken over again below, as it is now.
+			delete(w.owned, ref.key())
+			ok = false
 		default:
 			mine.Pending, mine.Creating = false, ""
+			if mine.Adopted && mine.Writing != "" {
+				switch want := creating.fingerprint(); {
+				case mine.Writing == original.fingerprint():
+					// The tenant's own write: the original is frozen, and
+					// the status says so before the tenant writes again.
+					mine.Writing = ""
+					w.claimsChanged = true
+				case mine.Writing != want:
+					mine.Writing = want
+					w.claimsChanged = true
+				}
+			}
 		}
 		if ok {
 			w.owned[ref.key()] = mine
@@ -318,7 +350,7 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 			return false
 		}
 		w.adopted = append(w.adopted, ref)
-		ref.Original = original
+		ref.Original, ref.Writing = original, creating.fingerprint()
 	} else {
 		ref.Creating = creating.fingerprint()
 	}
@@ -409,8 +441,10 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 	if existed {
 		reason, what = "Updated", "set back "
 	}
-	if mine, ok := w.owned[ref.key()]; ok && mine.Pending {
-		mine.Pending, mine.Creating = false, ""
+	if mine, ok := w.owned[ref.key()]; ok && (mine.Pending || mine.Writing != "") {
+		// Created, or written for the first time since the tenant took it
+		// over: from now on the original of an adopted resource is frozen.
+		mine.Pending, mine.Creating, mine.Writing = false, "", ""
 		w.owned[ref.key()] = mine
 	}
 	w.changed = append(w.changed, ref.String())
@@ -502,7 +536,17 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		stop()
 		return
 	}
-	if !w.take(nsRef, namespaceOriginal(liveNS), namespaceOriginal(desired.namespace)) {
+	// The quota the namespace names is the tenant's to write only when the
+	// tenant has a quota: without one the namespace keeps what it names. A
+	// tenant whose quota left its spec takes it off the namespace again
+	// (below). What an existing namespace will hold once the tenant wrote it
+	// is therefore the quota it names now, unless the tenant writes that.
+	manageQuota := desired.quota != nil || liveNS != nil && liveNS.Quota == quotaRef.Name && listed[quotaRef.key()]
+	nsWriting := namespaceOriginal(desired.namespace)
+	if liveNS != nil && !manageQuota {
+		nsWriting.Quota = liveNS.Quota
+	}
+	if !w.take(nsRef, namespaceOriginal(liveNS), nsWriting) {
 		stop()
 		return
 	}
@@ -538,14 +582,11 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		})
 	}
 
-	// The quota the namespace names is the tenant's to write only when the
-	// tenant has a quota: without one the namespace keeps what it names. A
-	// tenant whose quota left its spec takes it off the namespace again:
+	// A tenant whose quota left its spec takes it off the namespace again:
 	// the namespace gets back what it named when the tenant took it over,
-	// or nothing.
-	manageQuota := desired.quota != nil
-	if !manageQuota && liveNS != nil && liveNS.Quota == quotaRef.Name && listed[quotaRef.key()] {
-		manageQuota = true
+	// or nothing. (A namespace the tenant has not written named the quota
+	// when the tenant took it over: it gets nothing, as nsWriting says.)
+	if desired.quota == nil && manageQuota {
 		if mine := w.owned[nsRef.key()]; mine.Adopted && mine.Original != nil && mine.Original.Quota != quotaRef.Name {
 			desired.namespace.Quota = mine.Original.Quota
 			if q, err := p.store.QuotaSpecByName(p.ws, mine.Original.Quota); err == nil && q == nil && spec.ReleaseWithoutRestore {
@@ -603,8 +644,26 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			// recorded is not the tenant's: its role was deleted, and
 			// somebody else created this one (review finding ATM-7). The
 			// tenant no longer lists it and treats it as any role it finds.
-			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && liveRole != nil && liveRole.ID != mine.ID {
-				delete(w.owned, roleRef.key())
+			//
+			// A role the tenant took over that no longer has the name (it
+			// was renamed by hand, or deleted) is given back first, by the
+			// ID the tenant recorded and under the name it has now: only
+			// then does the tenant forget it, and make a role of its own or
+			// take the one that has the name (review finding ATM-26c). One
+			// that can't be given back keeps its entry, and the tenant
+			// makes no role of the name until it can be (RestoreFailed).
+			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && (liveRole == nil || liveRole.ID != mine.ID) {
+				if mine.Adopted {
+					if _, err := o.giveBack(p, obj, mine, spec.ReleaseWithoutRestore); err != nil {
+						w.restoreFailures = append(w.restoreFailures, err.Error())
+						o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
+							fmt.Sprintf("giving %s back failed: %v", mine, err))
+						continue
+					}
+					delete(w.owned, roleRef.key())
+				} else if liveRole != nil {
+					delete(w.owned, roleRef.key())
+				}
 			}
 			if !w.take(roleRef, roleOriginal(liveRole), roleOriginal(role)) {
 				continue
@@ -800,6 +859,9 @@ func statusRefs(owned map[string]tenantResourceRef) []any {
 			if original, err := structs.EncodeObjectPart(ref.Original); err == nil {
 				m["original"] = original
 			}
+		}
+		if ref.Writing != "" {
+			m["writing"] = ref.Writing
 		}
 		refs = append(refs, m)
 	}

@@ -193,6 +193,10 @@ const (
 	tenantGivenBackRestored = "restored"
 	tenantGivenBackAsIs     = "as it is"
 	tenantGivenBackGone     = "gone"
+
+	// tenantGivenBackUnwritten is a resource the tenant never wrote: there
+	// is nothing of the tenant in it to take out.
+	tenantGivenBackUnwritten = "not written"
 )
 
 // giveBack gives a resource the tenant took over back: it writes what the
@@ -212,6 +216,9 @@ func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref 
 	case tenantGivenBackAsIs:
 		o.event(p, obj, structs.ObjectEventTypeNormal, "Released",
 			"released "+ref.String()+" as it is, without restoring what the tenant found")
+	case tenantGivenBackUnwritten:
+		o.event(p, obj, structs.ObjectEventTypeNormal, "Released",
+			"released "+ref.String()+": the tenant had not written it")
 	default:
 		o.event(p, obj, structs.ObjectEventTypeNormal, "Released",
 			"released "+ref.String()+": it no longer exists")
@@ -224,6 +231,20 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 	orig := ref.Original
 	// Without a saved original there is nothing to write back.
 	asIs = asIs || orig == nil
+
+	// Nor is there when the tenant has not written the resource (Writing):
+	// what the tenant read may be older than what the resource holds, and
+	// is not written over it (review finding ATM-26b). A resource that
+	// holds what the tenant was writing was written by the tenant.
+	if ref.Writing != "" {
+		live, err := o.liveOriginal(ref)
+		if err != nil {
+			return "", err
+		}
+		if live != nil && live.fingerprint() != ref.Writing {
+			return tenantGivenBackUnwritten, nil
+		}
+	}
 
 	switch ref.Type {
 	case structs.TenantResourceNamespace:
@@ -374,6 +395,35 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		return "", fmt.Errorf("unknown resource type %q", ref.Type)
 	}
 	return tenantGivenBackRestored, nil
+}
+
+// liveOriginal returns what a resource of a tenant holds now in the fields a
+// tenant writes, nil when it does not exist. The ACL role is the one of the
+// ID the tenant recorded (tenantRoleID).
+func (o *tenantOperator) liveOriginal(ref tenantResourceRef) (*tenantOriginal, error) {
+	store := o.srv.State()
+	switch ref.Type {
+	case structs.TenantResourceNamespace:
+		live, err := store.NamespaceByName(nil, ref.Name)
+		return namespaceOriginal(live), err
+	case structs.TenantResourceQuota:
+		live, err := store.QuotaSpecByName(nil, ref.Name)
+		return quotaOriginal(live), err
+	case structs.TenantResourceACLPolicy:
+		live, err := store.ACLPolicyByName(nil, ref.Name)
+		return policyOriginal(live), err
+	case structs.TenantResourceACLRole:
+		id, err := o.tenantRoleID(ref)
+		if err != nil || id == "" {
+			return nil, err
+		}
+		live, err := store.GetACLRoleByID(nil, id)
+		return roleOriginal(live), err
+	case structs.TenantResourceNetworkPolicy:
+		live, err := store.NetworkPolicyByName(nil, ref.Namespace, ref.Name)
+		return networkPolicyOriginal(live), err
+	}
+	return nil, fmt.Errorf("unknown resource type %q", ref.Type)
 }
 
 // conditionsWith returns the conditions of a status with one of them set,
