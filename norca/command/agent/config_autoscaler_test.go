@@ -155,6 +155,16 @@ func TestConfig_Autoscaler_Invalid(t *testing.T) {
 		_, err := c.toServerConfig()
 		must.Error(t, err)
 	}
+
+	// A built-in strategy reads its options from the check only: a config
+	// block of it is refused, not dropped without a word (review finding
+	// ASP-13).
+	_, err := (&AutoscalerConfig{Strategies: []*AutoscalerPluginConfig{
+		{Name: "tv", Driver: "target-value", Config: map[string]interface{}{"target": "50"}},
+	}}).toServerConfig()
+	must.ErrorContains(t, err, "takes no config block")
+	_, err = (&AutoscalerConfig{Strategies: []*AutoscalerPluginConfig{{Name: "tv", Driver: "target-value"}}}).toServerConfig()
+	must.NoError(t, err)
 }
 
 // TestConfig_Autoscaler_NoAdvice checks that the advice mode is gone: its

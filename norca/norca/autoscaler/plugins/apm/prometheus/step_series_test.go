@@ -4,6 +4,8 @@
 package prometheus
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,4 +44,17 @@ func TestParseVector_SeriesAreStreams(t *testing.T) {
 	must.NoError(t, err)
 	must.Len(t, 1, one)
 	must.Eq(t, 10.0, one[0][0].Value)
+}
+
+// A CA file without a certificate is an error of the configuration, not an
+// empty pool that fails every query later (review finding ASP-13).
+func TestGenerateTLSConfig_CAWithoutCertificate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ca.pem")
+	key := "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIBu7O2Wr2tWfxPPVl7UdIovAo/PoIQZVSCFVDGvVxbwt\n-----END PRIVATE KEY-----\n"
+	must.NoError(t, os.WriteFile(path, []byte(key), 0o600))
+	_, err := generateTLSConfig(map[string]string{configKeyCACert: path})
+	must.ErrorContains(t, err, "no certificate in the CA certificate file")
+
+	_, err = generateTLSConfig(map[string]string{configKeyCACert: "./test-fixtures/ca.crt"})
+	must.NoError(t, err)
 }

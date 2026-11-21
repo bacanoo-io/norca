@@ -197,7 +197,12 @@ func generateTLSConfig(config map[string]string) (*tls.Config, error) {
 		}
 
 		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			// (Norca) A file without a certificate left an empty pool, and
+			// every query failed later with an unclear TLS error (review
+			// finding ASP-13).
+			return nil, fmt.Errorf("no certificate in the CA certificate file %s", caCertPath)
+		}
 		tlsConfig.RootCAs = caCertPool
 	}
 

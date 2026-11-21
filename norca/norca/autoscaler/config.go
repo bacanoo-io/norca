@@ -319,6 +319,14 @@ func (c *Config) Validate() error {
 			mErr = multierror.Append(mErr, fmt.Errorf(
 				"strategy %q: driver %q is not a built-in plugin and plugin_dir is not set", s.Name, s.Driver))
 		}
+		// The built-in strategies read their options from the strategy
+		// block of a check only: a config block here had no effect, without
+		// a word (review finding ASP-13).
+		if isBuiltinStrategyDriver(s.Driver) && len(s.Config) > 0 {
+			mErr = multierror.Append(mErr, fmt.Errorf(
+				"strategy %q: the built-in strategy %q takes no config block; set its options in the strategy block of the check",
+				s.Name, s.Driver))
+		}
 	}
 
 	return mErr.ErrorOrNil()
