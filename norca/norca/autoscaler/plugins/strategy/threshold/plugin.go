@@ -162,6 +162,11 @@ func parseConfig(config map[string]string) (*thresholdPluginRunConfig, error) {
 		return nil, err
 	}
 	c.lowerBound = lower
+	// (Norca) A range that holds no value never fires (review finding
+	// ASP-9).
+	if upperStr != "" && lowerStr != "" && lower >= upper {
+		return nil, fmt.Errorf("%q %v must be below %q %v", runConfigKeyLowerBound, lowerStr, runConfigKeyUpperBound, upperStr)
+	}
 
 	// Read and parse within bounds trigger from check config.
 	triggerStr := config[runConfigKeyWithinBoundsTrigger]
@@ -173,6 +178,10 @@ func parseConfig(config map[string]string) (*thresholdPluginRunConfig, error) {
 			return nil, fmt.Errorf("invalid value for %q: %v (%T)", runConfigKeyWithinBoundsTrigger, triggerStr, triggerStr)
 		}
 		trigger = int(t)
+	}
+	// (Norca) A trigger below 1 fires with no point within the bounds.
+	if trigger < 1 {
+		return nil, fmt.Errorf("invalid value for %q: %v must be 1 or more", runConfigKeyWithinBoundsTrigger, triggerStr)
 	}
 	c.withinboundsTrigger = trigger
 
@@ -210,6 +219,9 @@ func parseConfig(config map[string]string) (*thresholdPluginRunConfig, error) {
 		p, err := strconv.ParseFloat(percentageStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("%q value %v is not a number", runConfigKeyPercentage, percentageStr)
+		}
+		if math.IsNaN(p) || math.IsInf(p, 0) {
+			return nil, fmt.Errorf("%q value %v is not a finite number", runConfigKeyPercentage, percentageStr)
 		}
 
 		c.actionType = runConfigKeyPercentage
@@ -251,6 +263,9 @@ func parseBound(bound string, input string) (float64, error) {
 	value, err := strconv.ParseFloat(input, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid value for %q: %v (%T)", bound, input, input)
+	}
+	if math.IsNaN(value) {
+		return 0, fmt.Errorf("invalid value for %q: %v is not a number", bound, input)
 	}
 
 	return value, nil

@@ -19,6 +19,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/strategy/fixedvalue"
+	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/strategy/passthrough"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/strategy/targetvalue"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/strategy/threshold"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
@@ -66,6 +67,7 @@ var strategyValidators = map[string]func(map[string]string) error{
 	plugins.InternalStrategyTargetValue: targetvalue.ValidateConfig,
 	plugins.InternalStrategyThreshold:   threshold.ValidateConfig,
 	plugins.InternalStrategyFixedValue:  fixedvalue.ValidateConfig,
+	plugins.InternalStrategyPassThrough: passthrough.ValidateConfig,
 }
 
 // TypedPolicy returns the policy with its typed fields filled from the

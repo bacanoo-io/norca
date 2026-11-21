@@ -94,6 +94,12 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 		maxScaleDownStr = "-Inf"
 	}
 
+	// (Norca) What admission refuses beyond the parsing above holds for a
+	// policy stored before it too (review finding ASP-9).
+	if err := ValidateConfig(eval.Check.Strategy.Config); err != nil {
+		return nil, err
+	}
+
 	if len(eval.Metrics) == 0 {
 		return nil, nil
 	}
