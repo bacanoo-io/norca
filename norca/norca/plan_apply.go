@@ -13,6 +13,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/scheduler"
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	metrics "github.com/hashicorp/go-metrics"
@@ -528,6 +529,24 @@ func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.P
 		}
 
 		logger.Debug("plan for evaluation exceeds quota limit. Forcing state refresh", "eval_id", plan.EvalID, "refresh_index", index)
+		return &structs.PlanResult{RefreshIndex: index}, nil
+	}
+
+	// (Norca) The required colocate and separate rules are between jobs:
+	// two evaluations run in parallel did not see each other's placements.
+	// Reject the plan and let the scheduler plan again on the state that
+	// holds them (review finding SCH-6).
+	violations, err := scheduler.AllocAffinityViolations(snap, plan, logger)
+	if err != nil {
+		return nil, err
+	}
+	if len(violations) > 0 {
+		index, err := refreshIndex(snap)
+		if err != nil {
+			return nil, err
+		}
+		logger.Debug("plan for evaluation breaks a required colocate or separate rule. Forcing state refresh",
+			"eval_id", plan.EvalID, "refresh_index", index, "placements", violations)
 		return &structs.PlanResult{RefreshIndex: index}, nil
 	}
 
