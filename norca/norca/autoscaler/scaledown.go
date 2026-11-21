@@ -170,7 +170,9 @@ func (d *demandRun) scaleDown() {
 	byPool := map[string][]*demandGroup{}
 	reasons := map[*demandGroup]string{}
 	for _, g := range d.groups {
-		if g.veto && g.statusReplicas && g.spec < g.ready {
+		// A veto whose retryAfter is past does not set the scale back: the
+		// scale down it held may go on (review finding ASC-2).
+		if g.vetoed(now) && g.statusReplicas && g.spec < g.ready {
 			reason := "the operator vetoed the scale down: " + g.vetoMsg
 			if err := r.scaleGroup(g, g.ready, sdk.ScaleDirectionUp, reason, checkScaleDownVeto); err != nil {
 				r.logger.Warn("failed to set the scale of a node group back", "group", g.name, "error", err)
