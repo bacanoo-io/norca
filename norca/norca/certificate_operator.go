@@ -109,6 +109,40 @@ type certificatePass struct {
 
 	// wish is the earliest time a certificate wants the next pass.
 	wish time.Time
+
+	// after is what the pass tells of the certificate it is at only when the
+	// status of that certificate is written (tell, settled): the events of
+	// its revocation orders that are over.
+	after []func()
+
+	// unsettled names the certificates (namespace/name) whose status the
+	// pass did not write as it found it: their revocation orders that are
+	// over are kept for the next pass (cleanOrders; review finding ATM-24j).
+	unsettled map[string]bool
+}
+
+// tell records something to tell of the certificate the pass is at once its
+// status is written.
+func (p *certificatePass) tell(event func()) { p.after = append(p.after, event) }
+
+// settled ends the work of the pass on a certificate. ok says that the
+// status is stored as the pass left it: what waited for that is told. If it
+// is not, nothing is told, and the revocation orders of the certificate
+// that are over stay (cleanOrders), so the next pass finds them as this one
+// did, and tells then (review finding ATM-24j).
+func (p *certificatePass) settled(obj *structs.CustomObject, ok bool) {
+	after := p.after
+	p.after = nil
+	if !ok {
+		if p.unsettled == nil {
+			p.unsettled = map[string]bool{}
+		}
+		p.unsettled[obj.Namespace+"/"+obj.Name] = true
+		return
+	}
+	for _, event := range after {
+		event()
+	}
 }
 
 func (p *certificatePass) want(t time.Time) {
@@ -267,30 +301,31 @@ func (o *certificateOperator) reconcileIssuer(p *certificatePass, issuer *struct
 
 // writeStatus writes a changed status (and, if finalizers is not nil, the
 // finalizers) of an object. It returns the written object, or the given one
-// if nothing changed or the write failed: the next pass tries again.
-func (o *certificateOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) *structs.CustomObject {
+// if nothing changed or the write failed: the next pass tries again. ok says
+// that the object is stored with the status: false for a write that failed.
+func (o *certificateOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) (written *structs.CustomObject, ok bool) {
 	normalized, err := structs.NormalizeObjectMap(status)
 	if err != nil {
 		o.logger.Warn("status of an object can't be encoded", "object", obj.KindRef()+"/"+obj.Name, "error", err)
-		return obj
+		return obj, false
 	}
 	if structs.ObjectMapsEqual(obj.Status, normalized) && (finalizers == nil || slices.Equal(obj.Finalizers, *finalizers)) {
-		return obj
+		return obj, true
 	}
 	changed := obj.Copy()
 	changed.Status = normalized
 	if finalizers != nil {
 		changed.Finalizers = slices.Clone(*finalizers)
 	}
-	written, err := o.writeObject(changed)
+	written, err = o.writeObject(changed)
 	if err != nil {
 		if !structs.IsObjectConflictError(err) {
 			o.logger.Warn("failed to write the status of an object", "object", obj.KindRef()+"/"+obj.Name,
 				"namespace", obj.Namespace, "error", err)
 		}
-		return obj
+		return obj, false
 	}
-	return written
+	return written, true
 }
 
 // certificateOutcome is what a pass found out about a certificate, for its
@@ -323,6 +358,7 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		status = &structs.CertificateStatus{}
 	}
 
+	p.after = nil
 	if obj.Deleting() {
 		o.finishDeletion(p, obj, spec, status)
 		return ""
@@ -331,6 +367,7 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	secret, err := p.store.SecretByPath(p.ws, obj.Namespace, spec.SecretPath)
 	if err != nil {
 		o.logger.Warn("secret lookup failed", "namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
+		p.settled(obj, false)
 		return status.Order
 	}
 	ours := secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name
@@ -351,6 +388,8 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	// name its serial.
 	if found := o.unrecorded(p, obj, spec, status, secret, ours); found != nil {
 		if o.recordUnrecorded(p, obj, spec, status, found) {
+			// The pass has not looked at the revocation orders.
+			p.settled(obj, false)
 			return status.Order
 		}
 		// Known by now, as an earlier certificate: the secret does not hold
@@ -432,9 +471,11 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	encoded, err := o.encodeStatus(p, obj, &st, out)
 	if err != nil {
 		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
+		p.settled(obj, false)
 		return st.Order
 	}
-	o.writeStatus(obj, encoded, &finalizers)
+	_, ok := o.writeStatus(obj, encoded, &finalizers)
+	p.settled(obj, ok)
 	return st.Order
 }
 
@@ -915,20 +956,22 @@ func (p *certificatePass) listed(obj *structs.CustomObject, authority, serial st
 // The order of a user that the issuer failed, or did not answer in time, is
 // told by the event RevocationFailed (review finding ATM-24d), once: in the
 // pass that ends revoking, which is the pass in which cleanOrders removes
-// the order. As with the event of a withdrawal (revokeWithdrawn), a write of
-// the status that is lost does not repeat it, since the order is gone at the
-// next pass; only an order that could not be removed either is told again.
-// The conditions of the certificate are not touched: the certificate in use
-// is as good as it was, and nothing is being tried.
+// the order. The events of an order that is over are told when the status
+// that says the same is written (certificatePass.tell), and the order is
+// removed only then (review finding ATM-24j): after a write of the status
+// that is lost, the next pass finds the order as this one did, and neither
+// the mark nor the event is lost or told twice. The conditions of the
+// certificate are not touched: the certificate in use is as good as it was,
+// and nothing is being tried.
 func (o *certificateOperator) settleRevocation(p *certificatePass, obj *structs.CustomObject, what, serial, issuer string,
 	revoked *bool, reason, revoking *string) {
 
 	switch state, asked, problem := p.revocation(obj, serial); state {
 	case structs.CertificateOrderValid:
 		if !*revoked {
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
-				"%s with the serial %s revoked by the issuer %q for the reason %s: its revocation order is done",
-				what, serial, issuer, asked))
+			message := fmt.Sprintf("%s with the serial %s revoked by the issuer %q for the reason %s: its revocation order is done",
+				what, serial, issuer, asked)
+			p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Revoked", message) })
 		}
 		*revoked, *reason, *revoking = true, asked, ""
 	case structs.CertificateOrderPending:
@@ -941,15 +984,15 @@ func (o *certificateOperator) settleRevocation(p *certificatePass, obj *structs.
 			// Not the order of a user (a withdrawal the namespace got the
 			// names back from), or told before.
 		case *revoked:
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
-				"the issuer %q did not take the reason %s for the %s with the serial %s, revoked before: %s; "+
-					"it stays revoked for the reason %s, and nothing is tried again",
-				issuer, asked, what, serial, problem, *reason))
+			message := fmt.Sprintf("the issuer %q did not take the reason %s for the %s with the serial %s, revoked before: %s; "+
+				"it stays revoked for the reason %s, and nothing is tried again",
+				issuer, asked, what, serial, problem, *reason)
+			p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", message) })
 		default:
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
-				"the issuer %q did not revoke the %s with the serial %s: %s; "+
-					"it is not revoked, and nothing is tried again: revoke it again to place a new order",
-				issuer, what, serial, problem))
+			message := fmt.Sprintf("the issuer %q did not revoke the %s with the serial %s: %s; "+
+				"it is not revoked, and nothing is tried again: revoke it again to place a new order",
+				issuer, what, serial, problem)
+			p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", message) })
 		}
 		*revoking = ""
 	default:
@@ -1062,9 +1105,11 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 				if !p.now.Before(retryAt) {
 					// Not counted yet.
 					retryAt = o.retryLater(p, st)
-					o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", fmt.Sprintf(
-						"the issuer %q did not revoke the %s with the serial %s: %s; tried again at %s",
-						st.Issuer, what, serial, problem, st.RetryAt))
+					// Told when the status with the count is written: the
+					// order stays until then (review finding ATM-24j).
+					message := fmt.Sprintf("the issuer %q did not revoke the %s with the serial %s: %s; tried again at %s",
+						st.Issuer, what, serial, problem, st.RetryAt)
+					p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", message) })
 				}
 				out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed (%s), tried again at %s",
 					what, serial, problem, st.RetryAt)
@@ -1732,10 +1777,12 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 	encoded, err := o.encodeStatus(p, obj, &st, out)
 	if err != nil {
 		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
+		p.settled(obj, false)
 		return
 	}
 	if !closed || !secretGone {
-		o.writeStatus(obj, encoded, nil)
+		_, ok := o.writeStatus(obj, encoded, nil)
+		p.settled(obj, ok)
 		return
 	}
 
@@ -1747,8 +1794,10 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 		if !structs.IsObjectConflictError(err) {
 			o.logger.Warn("failed to remove the finalizer of a deleted certificate", "certificate", obj.Name, "error", err)
 		}
+		p.settled(obj, false)
 		return
 	}
+	p.settled(obj, true)
 	if len(unrevoked) > 0 {
 		// The events of the object go with it: the log keeps what nobody
 		// could revoke.
@@ -1859,7 +1908,10 @@ func (o *certificateOperator) deleteSecret(p *certificatePass, obj *structs.Cust
 
 // cleanOrders deletes orders nobody waits for: issuance orders that are not
 // the open order of their certificate, and revocation orders that are done
-// or too old.
+// or too old. A revocation order that is over stays while the status of its
+// certificate is not written as the pass left it (certificatePass.settled;
+// review finding ATM-24j): the status is the only record of what the order
+// came to, and the next pass must find the order to write it.
 func (o *certificateOperator) cleanOrders(p *certificatePass, orders []*structs.CustomObject, open map[string]bool) {
 	for _, order := range orders {
 		spec := &structs.CertificateOrderSpec{}
@@ -1875,6 +1927,10 @@ func (o *certificateOperator) cleanOrders(p *certificatePass, orders []*structs.
 		}
 		done := status.State == structs.CertificateOrderValid || status.State == structs.CertificateOrderFailed
 		expires := time.Unix(0, order.CreateTime).Add(certificateRevokeOrderKeep)
+		if p.unsettled[spec.Certificate] && (done || certificateRevokeOrderExpired(order, p.now)) {
+			p.want(p.now.Add(operatorsRetry))
+			continue
+		}
 		// The pass has seen the order as it is removed here, and has told
 		// on its certificate a failed one (revokeWithdrawn,
 		// settleRevocation) and one of a user that was not answered in time

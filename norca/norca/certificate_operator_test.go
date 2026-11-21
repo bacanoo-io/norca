@@ -227,3 +227,52 @@ func TestCertificate_SecretForeignCertificate(t *testing.T) {
 	must.ErrorContains(t, err, "has no certificate with the serial "+other.Serial)
 	must.SliceEmpty(t, c.crlSerials())
 }
+
+// A revocation order that is over is removed only when the status of its
+// certificate says what it came to (review finding ATM-24j): when the write
+// of the status is lost in the pass that sees the order done, the order
+// stays, and the next pass marks the certificate revoked and tells it, once.
+func TestCertificate_ExternalIssuerRevocationLostWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	first := a.issue("")
+	a.replaced(first)
+	resp, err := c.revokeSerial("default", "web-tls", first.Serial, structs.CertificateRevokeReasonSuperseded)
+	must.NoError(t, err)
+	must.True(t, resp.Pending)
+
+	// The issuer does the order while the status can't be written.
+	lost, stop := c.loseWrites(func(*structs.CustomObject) bool { return true })
+	defer stop()
+	must.NoError(t, a.status("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", first.Serial),
+		map[string]any{"state": "valid"}))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return lost.count() >= 1 }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+	), must.Sprint("the pass that sees the order done"))
+	time.Sleep(time.Second)
+	must.NotNil(t, a.revocation(first.Serial), must.Sprint("the order stays while the status does not say what it came to"))
+	_, st := c.certificate("default", "web-tls")
+	must.False(t, earlierCertificate(st, first.Serial).Revoked)
+	must.SliceEmpty(t, containing(c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked"), first.Serial),
+		must.Sprint("nothing is told before the status is written"))
+
+	// The status can be written again: the next pass finds the order.
+	stop()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com", "poke": "1"})
+	st = c.waitFor("default", "web-tls", "the earlier certificate revoked", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		e := earlierCertificate(st, first.Serial)
+		return e != nil && e.Revoked
+	})
+	must.Eq(t, &structs.CertificateEarlier{Serial: first.Serial, Issuer: "acme", NotAfter: first.NotAfter,
+		Revoked: true, RevokeReason: structs.CertificateRevokeReasonSuperseded}, earlierCertificate(st, first.Serial))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return a.revocation(first.Serial) == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+	), must.Sprint("the order is removed once the status is written"))
+	must.Len(t, 1, containing(c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked"), first.Serial))
+}
