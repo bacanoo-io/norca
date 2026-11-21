@@ -4,6 +4,8 @@
 package norca
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -13,6 +15,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
+	"github.com/bacanoo-io/norca/norca/norca/stream"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/hashicorp/go-memdb"
@@ -379,4 +384,115 @@ func TestWriteOperatorObject_DeletingPastItsKind(t *testing.T) {
 	must.NoError(t, err)
 	c.s.finalizeObjectIfReady(written)
 	c.goneObject("", structs.CertificateIssuerKind, "going")
+}
+
+// What is stored or shown of a message that is too long is cut where its
+// reader sees it (review finding MUK-37), as the messages of the operators
+// are (ATM-24i): it ends with a mark, stays within its limit, and is not cut
+// inside a character. Checked where such messages were cut without a sign.
+func TestMessageCuts_Marked(t *testing.T) {
+	ci.Parallel(t)
+
+	const mark = " ... (truncated)"
+	// Two-byte characters after an odd number of bytes: a cut at an even
+	// limit falls inside one.
+	long := "x" + strings.Repeat("é", 2000)
+	marked := func(t *testing.T, got string, limit int) {
+		t.Helper()
+		must.LessEq(t, limit, len(got))
+		must.True(t, utf8.ValidString(got), must.Sprint("the cut is not inside a character"))
+		must.True(t, strings.HasSuffix(got, mark), must.Sprintf("the cut is marked: %q", got[max(0, len(got)-40):]))
+		must.True(t, strings.HasPrefix(long, strings.TrimSuffix(got, mark)))
+		must.Greater(t, limit-len(mark)-utf8.UTFMax, len(got)-len(mark), must.Sprint("nothing more is cut than the mark needs"))
+	}
+
+	t.Run("the event of a release", func(t *testing.T) {
+		c, cleanup := newReleaseTestClient(t)
+		defer cleanup()
+		_, err := c.apply("default", "app", &structs.ReleaseApplyRequest{
+			Pack: &structs.ReleasePack{Name: "app"}, Atomic: pointer.Of(false),
+			Resources: []*structs.ReleaseResource{releaseNamespace("muk-ns", "v1")},
+		})
+		must.NoError(t, err)
+		c.srv.releases.recordEvent("default", "app", structs.ObjectEventTypeNormal, "Long", long, nil)
+		c.srv.releases.recordEvent("default", "app", structs.ObjectEventTypeNormal, "Short", "short", nil)
+		log, err := c.srv.State().ObjectEventLog(nil, structs.ReleaseObjectGroup, structs.ReleaseKind, "default", "app")
+		must.NoError(t, err)
+		must.NotNil(t, log)
+		found := map[string]string{}
+		for _, e := range log.Events {
+			found[e.Reason] = e.Message
+		}
+		must.Eq(t, "short", found["Short"])
+		marked(t, found["Long"], 1000)
+	})
+
+	t.Run("the error of a secret access record", func(t *testing.T) {
+		s, _, cleanup := secretTestServer(t, true, nil)
+		defer cleanup()
+		store := s.fsm.State()
+		alloc := mock.Alloc()
+		alloc.ClientStatus = structs.AllocClientStatusRunning
+		must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 1001, []*structs.Allocation{alloc}))
+		token, _, err := s.encrypter.SignClaims(alloc.ToTaskIdentityClaims(alloc.Job, "web"))
+		must.NoError(t, err)
+		broker, err := store.EventBroker()
+		must.NoError(t, err)
+		sub, err := broker.Subscribe(&stream.SubscribeRequest{
+			Topics:    map[structs.Topic][]string{structs.TopicSecretAccess: {"*"}},
+			Namespace: "*",
+		})
+		must.NoError(t, err)
+		defer sub.Unsubscribe()
+
+		for _, text := range []string{"permission denied", long} {
+			var reply structs.GenericResponse
+			must.NoError(t, s.RPC(structs.SecretRecordAccessRPCMethod, &structs.SecretRecordAccessRequest{
+				Record: &structs.SecretAccessEvent{Path: "kv/data/app", Provider: "vault",
+					Result: structs.SecretAccessResultDenied, Error: text},
+				WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: token},
+			}, &reply))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		var got []string
+		for len(got) < 2 {
+			events, err := sub.Next(ctx)
+			must.NoError(t, err)
+			for _, e := range events.Events {
+				got = append(got, e.Payload.(*structs.SecretAccessEvent).Error)
+			}
+		}
+		must.Eq(t, "permission denied", got[0])
+		marked(t, got[1], 1024)
+	})
+
+	t.Run("the condition a tenant restore sets", func(t *testing.T) {
+		message := func(text string) string {
+			list := conditionsWith(nil, "2026-11-21T10:00:00Z", structs.TenantConditionRestoreFailed, true, "RestoreFailed", text)
+			must.Len(t, 1, list)
+			got, _ := list[0].(map[string]any)["message"].(string)
+			return got
+		}
+		must.Eq(t, "short", message("short"))
+		marked(t, message(long), 1000)
+	})
+
+	t.Run("the error of a snapshot deletion", func(t *testing.T) {
+		must.Eq(t, "short", snapshotErrorText(errors.New("short")))
+		marked(t, snapshotErrorText(errors.New(long)), snapshotDeleteErrorMax)
+	})
+
+	t.Run("the last failure of a volume request", func(t *testing.T) {
+		c, fake, cleanup := volumeRequestTestServer(t, false)
+		defer cleanup()
+		fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New(long) })
+		_, err := c.apply("default", csiVolumeRequestKind, "data", volumeSpec(nil))
+		must.NoError(t, err)
+		st := c.waitRequest("data", "failed", func(_ *structs.CustomObject, st *volumeRequestStatus) bool { return st.Failures > 0 })
+		must.StrContains(t, st.LastFailure, "xéé")
+		must.LessEq(t, 1000, len(st.LastFailure))
+		must.True(t, utf8.ValidString(st.LastFailure), must.Sprint("the cut is not inside a character"))
+		must.True(t, strings.HasSuffix(st.LastFailure, mark), must.Sprintf("the cut is marked: %q", st.LastFailure[len(st.LastFailure)-40:]))
+	})
 }

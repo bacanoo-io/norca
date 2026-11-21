@@ -471,10 +471,7 @@ func (o *volumeRequestOperator) failure(p *volumeRequestPass, obj *structs.Custo
 	retryAt := p.now.Add(wait)
 	st.RetryAt = retryAt.Format(time.RFC3339)
 	out.failed = fmt.Sprintf("%s: %v", what, err)
-	st.LastFailure = out.failed
-	if len(st.LastFailure) > 1000 {
-		st.LastFailure = st.LastFailure[:1000]
-	}
+	st.LastFailure = operatorMessage(out.failed)
 	p.want(retryAt)
 	operatorCount(csiVolumeRequestKind, "failures")
 	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Failed",

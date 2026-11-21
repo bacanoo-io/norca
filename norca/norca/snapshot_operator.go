@@ -89,13 +89,10 @@ const (
 )
 
 // snapshotErrorText returns the error of a failed deletion as the status
-// keeps it.
+// keeps it: one that is too long is cut where its reader sees it (review
+// finding MUK-37).
 func snapshotErrorText(err error) string {
-	text := err.Error()
-	if len(text) > snapshotDeleteErrorMax {
-		text = strings.ToValidUTF8(text[:snapshotDeleteErrorMax], "")
-	}
-	return text
+	return cutMessage(err.Error(), snapshotDeleteErrorMax)
 }
 
 // snapshotStatusSize returns the size of the spec of a schedule with a

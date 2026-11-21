@@ -425,10 +425,18 @@ const (
 // many serial numbers or resources would else end somewhere, and nothing
 // would tell its reader that a part is missing.
 func operatorMessage(message string) string {
-	if len(message) <= operatorMessageMax {
+	return cutMessage(message, operatorMessageMax)
+}
+
+// cutMessage returns a message that is stored or shown with a limit of its
+// length in bytes: one that is longer is cut, at a character boundary, and
+// ends with operatorMessageCut, within the limit (review findings ATM-24i
+// and MUK-37). The limit is longer than the mark.
+func cutMessage(message string, limit int) string {
+	if len(message) <= limit {
 		return message
 	}
-	cut := operatorMessageMax - len(operatorMessageCut)
+	cut := max(limit-len(operatorMessageCut), 0)
 	for cut > 0 && !utf8.RuneStart(message[cut]) {
 		cut--
 	}
