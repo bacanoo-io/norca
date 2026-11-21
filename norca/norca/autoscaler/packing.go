@@ -18,6 +18,17 @@ type Unplaced struct {
 	Group     string
 	Count     int
 
+	// JobIndex is the JobModifyIndex of the job the work is of: a change of
+	// the job is new work for node scaling (stuck work, review finding
+	// ASC-1).
+	JobIndex uint64
+
+	// IneligibleGroups are the node groups every node of which the
+	// scheduler found ineligible for the work (its computed class failed a
+	// check): a new node of such a group would fail it too, so the work does
+	// not grow them (review finding ASC-1).
+	IneligibleGroups []string
+
 	// EvalID is the blocked evaluation the demand comes from.
 	EvalID string
 

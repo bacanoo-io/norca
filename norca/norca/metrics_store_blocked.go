@@ -30,8 +30,16 @@ type blockedDemand struct {
 // unplaced allocations of a task group are the one that failed and those
 // coalesced into it. The demand of a job that can use several datacenters is
 // counted in each of them.
+//
+// The scheduler blocks an evaluation for any placement that failed, whatever
+// the reason. Work that every node was filtered out for by a check a new node
+// of a group would fail too (a constraint on an attribute or meta, a driver,
+// a device, a volume) is reported as unverifiable, so it does not grow a group
+// (review finding ASC-1); and the node groups whose nodes the scheduler found
+// ineligible for the work are named, so it does not grow them.
 func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[[2]string]*blockedDemand {
 	demand := map[[2]string]*blockedDemand{}
+	groupClasses := nodeGroupClasses(snap)
 	for _, eval := range evals {
 		if eval.QuotaLimitReached != "" {
 			continue
@@ -53,6 +61,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 			u := autoscaler.Unplaced{
 				Namespace: job.Namespace,
 				Job:       job.ID,
+				JobIndex:  job.JobModifyIndex,
 				Group:     name,
 				EvalID:    eval.ID,
 				Count:     1 + metric.CoalescedFailures,
@@ -65,6 +74,10 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 			u.PreferredDatacenters = preferredDatacenters(job, tg)
 			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
 			u.Classes = classConstraints(job, tg, &u)
+			if u.Unverifiable == "" {
+				u.Unverifiable = filteredForNewNodes(job, tg, metric)
+			}
+			u.IneligibleGroups = ineligibleNodeGroups(eval, groupClasses)
 			for _, task := range tg.Tasks {
 				if task.Resources != nil {
 					u.CPU += float64(task.Resources.CPU)
@@ -342,5 +355,107 @@ func classConstraints(job *structs.Job, tg *structs.TaskGroup, u *autoscaler.Unp
 		}
 		out = append(out, autoscaler.ClassConstraint{Operand: c.Operand, Value: c.RTarget})
 	}
+	return out
+}
+
+// computedClassIneligible is the reason the scheduler records for a node it
+// skips because an earlier node of the same computed class failed a check:
+// that check is recorded too, on the earlier node.
+const computedClassIneligible = "computed class ineligible"
+
+// filteredForNewNodes returns the reason a node that a node group adds would
+// not take the work either, or "" when a new node could take it (review
+// finding ASC-1).
+//
+// A new node can take the work when the datacenter had no node to try, or
+// when a node passed every check and only its free resources were short
+// (NodesExhausted). When every node was filtered out, each reason must be one
+// a new node of a group passes: distinct_hosts (it runs nothing of the job
+// yet), a distinct_property (counted by the demand), a constraint on
+// ${node.class} that the demand checks against the class of each group, and
+// the computed class of a node skipped after another of its class failed. Any
+// other reason (an attribute or meta, a driver, a device, a host volume, a CSI
+// volume or plugin, a network, a colocate or separate rule, a quota) would
+// stop a new node the same way.
+func filteredForNewNodes(job *structs.Job, tg *structs.TaskGroup, metric *structs.AllocMetric) string {
+	if metric.NodesEvaluated == 0 || metric.NodesExhausted > 0 {
+		return ""
+	}
+	classes := map[string]bool{}
+	for _, cs := range [][]*structs.Constraint{job.Constraints, tg.Constraints} {
+		for _, c := range cs {
+			if c.LTarget == "${node.class}" {
+				classes[c.String()] = true
+			}
+		}
+	}
+	for _, task := range tg.Tasks {
+		for _, c := range task.Constraints {
+			if c.LTarget == "${node.class}" {
+				classes[c.String()] = true
+			}
+		}
+	}
+	reasons := make([]string, 0, len(metric.ConstraintFiltered))
+	for reason := range metric.ConstraintFiltered {
+		reasons = append(reasons, reason)
+	}
+	slices.Sort(reasons)
+	for _, reason := range reasons {
+		switch {
+		case reason == structs.ConstraintDistinctHosts,
+			reason == computedClassIneligible,
+			strings.HasPrefix(reason, structs.ConstraintDistinctProperty+":"),
+			classes[reason]:
+			continue
+		}
+		return "every node was filtered out for a reason a new node would have too: " + reason
+	}
+	return ""
+}
+
+// nodeGroupClasses returns the computed classes of the nodes of each node
+// group, by the name the nodes carry in their meta.
+func nodeGroupClasses(snap *state.StateSnapshot) map[string][]string {
+	iter, err := snap.Nodes(nil)
+	if err != nil {
+		return nil
+	}
+	out := map[string][]string{}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		node := raw.(*structs.Node)
+		group := node.Meta[structs.NodeMetaNodeGroup]
+		if group == "" || node.ComputedClass == "" || slices.Contains(out[group], node.ComputedClass) {
+			continue
+		}
+		out[group] = append(out[group], node.ComputedClass)
+	}
+	return out
+}
+
+// ineligibleNodeGroups returns the node groups every node of which is of a
+// computed class the scheduler found ineligible for the evaluation: a new
+// node of such a group is of the same class, and the evaluation would not
+// even be unblocked by it (review finding ASC-1). An evaluation that escaped
+// the class tracking (a constraint on something a class does not stand for)
+// names none.
+func ineligibleNodeGroups(eval *structs.Evaluation, groupClasses map[string][]string) []string {
+	if eval.EscapedComputedClass || len(eval.ClassEligibility) == 0 {
+		return nil
+	}
+	var out []string
+	for group, classes := range groupClasses {
+		ineligible := len(classes) > 0
+		for _, class := range classes {
+			if eligible, known := eval.ClassEligibility[class]; !known || eligible {
+				ineligible = false
+				break
+			}
+		}
+		if ineligible {
+			out = append(out, group)
+		}
+	}
+	slices.Sort(out)
 	return out
 }

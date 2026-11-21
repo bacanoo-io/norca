@@ -562,6 +562,88 @@ type demandRun struct {
 	// unhelped is the work this look found that more nodes will not help,
 	// by task group, with the reason (capacity.go).
 	unhelped map[targetKey]string
+
+	// seenWork is the blocked work this look found, by workKey.
+	seenWork map[string]bool
+}
+
+// stuckAfter is how long blocked work may stay blocked after the nodes a node
+// group was raised for it joined, before it counts as stuck: the scheduler
+// tries it again when a node joins, which takes a moment.
+const stuckAfter = 2 * time.Minute
+
+// raisedRecord is what blocked work last raised a node group to.
+type raisedRecord struct {
+	group    string
+	want     int64  // the scale the group was raised to
+	jobIndex uint64 // the JobModifyIndex of the job then
+	// joinedAt is when the group was first seen with the nodes it was
+	// raised to ready; stuck is set once the work was still blocked
+	// stuckAfter later.
+	joinedAt time.Time
+	stuck    bool
+}
+
+// workKey is the key of blocked work in raisedFor.
+func workKey(u Unplaced) string {
+	return u.Namespace + "\x00" + u.Job + "\x00" + u.Group
+}
+
+// stuck tells whether blocked work is stuck (review finding ASC-1): a node
+// group was raised for it, the nodes it was raised to joined, and the work is
+// still blocked stuckAfter later. A check of the scheduler that a node of the
+// group fails as well (one the blocked evaluation does not show) is then the
+// likely reason, and more nodes would not help: the work does not grow a
+// group again, nor keep one from scaling down, until its job changes. It
+// returns the group to keep while the nodes have just joined, or the reason
+// the work is stuck.
+func (d *demandRun) stuck(item *demandItem) (waiting *demandGroup, reason string) {
+	r := d.r
+	key := workKey(item.Unplaced)
+	d.seenWork[key] = true
+	rec := r.raisedFor[key]
+	if rec == nil {
+		return nil, ""
+	}
+	if rec.jobIndex != item.JobIndex {
+		delete(r.raisedFor, key)
+		return nil, ""
+	}
+	stuckReason := fmt.Sprintf("the node group %s was raised to %d nodes for it, they joined, and the scheduler still "+
+		"cannot place it: a check that the new nodes fail as well is likely, so no node is added for it until its job changes",
+		rec.group, rec.want)
+	if rec.stuck {
+		return nil, stuckReason
+	}
+	var g *demandGroup
+	for _, cand := range d.groups {
+		if cand.name == rec.group {
+			g = cand
+			break
+		}
+	}
+	if g == nil || g.ready < rec.want || g.pending > 0 {
+		rec.joinedAt = time.Time{}
+		return nil, ""
+	}
+	if rec.joinedAt.IsZero() {
+		rec.joinedAt = d.now
+	}
+	if d.now.Sub(rec.joinedAt) < stuckAfter {
+		return g, ""
+	}
+	rec.stuck = true
+	return nil, stuckReason
+}
+
+// forgetWork drops what is remembered of blocked work that is not blocked
+// any more.
+func (d *demandRun) forgetWork() {
+	for key := range d.r.raisedFor {
+		if !d.seenWork[key] {
+			delete(d.r.raisedFor, key)
+		}
+	}
 }
 
 // noHelp notes that more nodes will not help the work of a task group.
@@ -607,7 +689,8 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling, unhelped: map[targetKey]string{}}
+	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling, unhelped: map[targetKey]string{},
+		seenWork: map[string]bool{}}
 	d.setReserves()
 	var items []*demandItem
 	if r.deps.BlockedDemand != nil {
@@ -636,7 +719,19 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 	for _, item := range items {
 		if item.Unverifiable != "" {
 			blocked["unverifiable/"+item.Namespace+"/"+item.Job+"/"+item.Group] = item.Unverifiable
-			d.noHelp(item.Unplaced, "a constraint cannot be checked against a node that does not exist yet: "+item.Unverifiable)
+			d.noHelp(item.Unplaced, "a node that does not exist yet cannot be shown to pass "+item.Unverifiable)
+			continue
+		}
+		// Work that the nodes asked for it did not take is not asked for
+		// again until its job changes (review finding ASC-1).
+		if waiting, stuck := d.stuck(item); stuck != "" {
+			blocked["stuck/"+item.Namespace+"/"+item.Job+"/"+item.Group] = stuck
+			d.noHelp(item.Unplaced, stuck)
+			continue
+		} else if waiting != nil {
+			// The nodes joined a moment ago: the scheduler is still to try
+			// the work on them. The group keeps them meanwhile.
+			waiting.demanded = true
 			continue
 		}
 		var candidates []*demandGroup
@@ -657,6 +752,10 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			inPool++
 			if !classAllowed(item.Classes, g.class) {
 				classOut++
+				continue
+			}
+			if slices.Contains(item.IneligibleGroups, g.name) {
+				rejected = append(rejected, g.name+": the scheduler found its nodes ineligible for the work, and a new node would be of the same class")
 				continue
 			}
 			if g.unable != "" {
@@ -762,6 +861,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		}
 	}
 
+	d.forgetWork()
 	d.apply(ctx, blocked)
 	d.scaleDown()
 	return nil
@@ -877,6 +977,14 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		}
 		r.recordDecision(g, desired, check, reason)
 		r.lastDemand[g.name] = desired
+		if blockedAdd > 0 {
+			for _, u := range g.bucket {
+				key := workKey(u)
+				if rec := r.raisedFor[key]; rec == nil || rec.jobIndex != u.JobIndex || !rec.stuck {
+					r.raisedFor[key] = &raisedRecord{group: g.name, want: desired, jobIndex: u.JobIndex}
+				}
+			}
+		}
 	}
 	for name := range r.lastDemand {
 		if !touched[name] {
@@ -913,7 +1021,7 @@ func (d *demandRun) event(id, reason string) (string, *structs.ScalingDecisionEv
 	switch kind {
 	case "unverifiable":
 		typ = structs.TypeScalingNodeUnverifiable
-		ev.Reason = "the constraint " + reason + " cannot be checked against a node that does not exist yet, so no node is added for it"
+		ev.Reason = "a node that does not exist yet cannot be shown to pass " + reason + ", so no node is added for it"
 		fillWork(ev, rest)
 	case "toolarge":
 		typ = structs.TypeScalingNodeAllocationTooLarge
@@ -921,7 +1029,7 @@ func (d *demandRun) event(id, reason string) (string, *structs.ScalingDecisionEv
 		if len(parts) == 2 {
 			fillWork(ev, parts[1])
 		}
-	case "nogroup":
+	case "nogroup", "stuck":
 		fillWork(ev, rest)
 	case "atmax":
 		parts := strings.SplitN(rest, "/", 2)

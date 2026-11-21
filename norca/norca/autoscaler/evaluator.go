@@ -134,6 +134,10 @@ type runner struct {
 	balanceLowered  map[string]balanceMark
 	balanceOffUntil map[string]time.Time
 
+	// raisedFor is what blocked work last raised a node group to, by the
+	// work (demand.go, stuck work); it belongs to the demand loop.
+	raisedFor map[string]*raisedRecord
+
 	workCh   chan *compiledPolicy
 	resultCh chan evalResult
 }
@@ -159,6 +163,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 		handles:  map[string]*policyHandle{},
 
 		lastDemand: map[string]int64{},
+		raisedFor:  map[string]*raisedRecord{},
 		told:       map[string]string{},
 		badWindows: map[string]string{},
 		readySeen:  map[string]int64{},
