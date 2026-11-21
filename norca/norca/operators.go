@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -372,12 +373,36 @@ func (s *Server) writeOperatorObject(obj *structs.CustomObject) (*structs.Custom
 	return written, nil
 }
 
-// operatorEvent records an event of a built-in operator in the log of an
-// object. It is best effort.
-func (s *Server) operatorEvent(obj *structs.CustomObject, eventType, reason, message string) {
-	if len(message) > 1000 {
-		message = message[:1000]
+// operatorMessageMax is the length in bytes of the longest message of an
+// event or of a condition of a built-in operator; operatorMessageCut ends
+// one that was longer.
+const (
+	operatorMessageMax = 1000
+	operatorMessageCut = " ... (truncated)"
+)
+
+// operatorMessage returns a message as an event or a condition of a built-in
+// operator carries it. One that is longer than operatorMessageMax is cut,
+// and says so (review finding ATM-24i): it ends with operatorMessageCut,
+// within the limit, and is not cut inside a character. A message that lists
+// many serial numbers or resources would else end somewhere, and nothing
+// would tell its reader that a part is missing.
+func operatorMessage(message string) string {
+	if len(message) <= operatorMessageMax {
+		return message
 	}
+	cut := operatorMessageMax - len(operatorMessageCut)
+	for cut > 0 && !utf8.RuneStart(message[cut]) {
+		cut--
+	}
+	return message[:cut] + operatorMessageCut
+}
+
+// operatorEvent records an event of a built-in operator in the log of an
+// object. It is best effort. A message that is too long is cut
+// (operatorMessage).
+func (s *Server) operatorEvent(obj *structs.CustomObject, eventType, reason, message string) {
+	message = operatorMessage(message)
 	ev := &structs.ObjectEvent{Type: eventType, Reason: reason, Message: message}
 	if _, err := s.recordObjectEvents(obj, []*structs.ObjectEvent{ev}, structs.OperatorsManagedBy); err != nil {
 		s.logger.Named("operators").Debug("failed to record an object event", "object", obj.KindRef()+"/"+obj.Name, "error", err)
@@ -435,7 +460,7 @@ func newConditionSet(status map[string]any, now time.Time) *conditionSet {
 	return &conditionSet{previous: operatorConditions(status), now: now}
 }
 
-// set adds a condition.
+// set adds a condition. A message that is too long is cut (operatorMessage).
 func (s *conditionSet) set(conditionType string, on bool, reason, message string) {
 	status := "False"
 	if on {
@@ -452,10 +477,7 @@ func (s *conditionSet) set(conditionType string, on bool, reason, message string
 		c["reason"] = reason
 	}
 	if message != "" {
-		if len(message) > 1000 {
-			message = message[:1000]
-		}
-		c["message"] = message
+		c["message"] = operatorMessage(message)
 	}
 	s.out = append(s.out, c)
 }

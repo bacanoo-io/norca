@@ -4,9 +4,11 @@
 package norca
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -199,4 +201,63 @@ func TestOperators_Turns(t *testing.T) {
 	goOn, again = turns.next(time.Now(), 0, objs[0])
 	must.False(t, goOn)
 	must.False(t, again)
+}
+
+// A message of an event or of a condition that is longer than the limit is
+// cut where a reader sees it (review finding ATM-24i): it ends with a mark,
+// stays within the limit, and is not cut inside a character.
+func TestOperatorMessage_MarkedCut(t *testing.T) {
+	ci.Parallel(t)
+
+	const limit, mark = 1000, " ... (truncated)"
+	tests := []struct {
+		name    string
+		message string
+		cut     bool
+	}{
+		{name: "short", message: "the certificate is revoked"},
+		{name: "at the limit", message: strings.Repeat("a", limit)},
+		{name: "one byte over", message: strings.Repeat("a", limit+1), cut: true},
+		{name: "long", message: strings.Repeat("serial 0a1b2c3d, ", 200), cut: true},
+		{name: "characters of two bytes", message: "x" + strings.Repeat("\u00e9", limit), cut: true},
+		{name: "characters of four bytes", message: "xyz" + strings.Repeat("\U0001F512", limit), cut: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set := newConditionSet(nil, time.Now())
+			set.set("Failed", true, "Reason", tt.message)
+			got, _ := set.list()[0].(map[string]any)["message"].(string)
+			if !tt.cut {
+				must.Eq(t, tt.message, got)
+				return
+			}
+			must.LessEq(t, limit, len(got))
+			must.True(t, utf8.ValidString(got))
+			must.True(t, strings.HasSuffix(got, mark), must.Sprintf("the cut is marked: %q", got[len(got)-40:]))
+			body := strings.TrimSuffix(got, mark)
+			must.True(t, strings.HasPrefix(tt.message, body))
+			must.Greater(t, limit-len(mark)-utf8.UTFMax, len(body), must.Sprint("nothing more is cut than the mark needs"))
+		})
+	}
+}
+
+// The event of an operator is cut the same way.
+func TestOperatorEvent_MarkedCut(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	issuer := c.get("", structs.CertificateIssuerKind, "internal")
+	must.NotNil(t, issuer)
+
+	long := strings.Repeat("the earlier certificate with the serial 0a1b2c3d is revoked; ", 40)
+	c.s.operatorEvent(issuer, structs.ObjectEventTypeNormal, "Long", long)
+	c.s.operatorEvent(issuer, structs.ObjectEventTypeNormal, "Short", "short")
+	messages := c.eventMessages("", structs.CertificateIssuerKind, "internal", "Long")
+	must.Len(t, 1, messages)
+	must.Eq(t, 1000, len(messages[0]))
+	must.True(t, strings.HasSuffix(messages[0], " ... (truncated)"), must.Sprintf("the cut is marked: %q", messages[0][960:]))
+	must.Eq(t, []string{"short"}, c.eventMessages("", structs.CertificateIssuerKind, "internal", "Short"))
 }

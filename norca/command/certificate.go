@@ -244,6 +244,11 @@ Usage: norca certificate revoke [options] <name>
   certificate, and "revoked" after; a revocation the issuer fails ends
   without either, and can be asked for again.
 
+  A Certificate object that is being deleted can be revoked too, for
+  example to give the reason keyCompromise while its deletion waits for an
+  external issuer. No new certificate is issued for it, and the command
+  says so.
+
   If ACLs are enabled, this command requires a token with the 'write'
   capability for objects of the kind norca.io/Certificate in the namespace.
 
@@ -313,17 +318,27 @@ func (c *CertificateRevokeCommand) Run(args []string) int {
 	}
 	// An external issuer is only asked: it has revoked nothing yet.
 	const asked = "it is revoked when the issuer has done so: the status of the object says revoking until then, and revoked after"
+	// What follows the revocation. Nothing is issued for an object that is
+	// being deleted, and its current certificate does not stay (review
+	// finding ATM-24m).
+	after := "a new one is being issued"
+	if resp.Earlier {
+		after = "the current certificate stays"
+	}
+	if resp.Deleting {
+		after = "the object is being deleted, and no new certificate is issued"
+	}
 	switch {
 	case resp.Earlier && resp.Pending:
-		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the earlier certificate with the serial %s of %q; %s; the current certificate stays", resp.Serial, name, asked))
+		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the earlier certificate with the serial %s of %q; %s; %s", resp.Serial, name, asked, after))
 		return 0
 	case resp.Pending:
-		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the certificate with the serial %s of %q; %s; a new one is being issued", resp.Serial, name, asked))
+		c.Ui.Output(fmt.Sprintf("Asked the issuer to revoke the certificate with the serial %s of %q; %s; %s", resp.Serial, name, asked, after))
 		return 0
 	case resp.Earlier:
-		c.Ui.Output(fmt.Sprintf("Revoked the earlier certificate with the serial %s of %q; the current certificate stays", resp.Serial, name))
+		c.Ui.Output(fmt.Sprintf("Revoked the earlier certificate with the serial %s of %q; %s", resp.Serial, name, after))
 		return 0
 	}
-	c.Ui.Output(fmt.Sprintf("Revoked the certificate with the serial %s of %q; a new one is being issued", resp.Serial, name))
+	c.Ui.Output(fmt.Sprintf("Revoked the certificate with the serial %s of %q; %s", resp.Serial, name, after))
 	return 0
 }

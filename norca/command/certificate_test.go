@@ -186,3 +186,43 @@ func TestFormatObject_CertificateEarlier(t *testing.T) {
 	must.StrContains(t, out, `"notAfter": "2027-02-01T00:00:00Z"`)
 	must.StrContains(t, out, `"revoked": true`)
 }
+
+// TestCertificateRevokeCommand_Deleting checks that the output does not
+// promise a new certificate, or that the current one stays, for a
+// Certificate object that is being deleted (review finding ATM-24m).
+func TestCertificateRevokeCommand_Deleting(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name   string
+		answer string
+		args   []string
+		says   string
+	}{
+		{name: "the current certificate", answer: `{"Serial":"0a1b","Deleting":true}`,
+			args: []string{"web-tls"}, says: "Revoked the certificate with the serial 0a1b"},
+		{name: "the current certificate, asked for", answer: `{"Serial":"0a1b","Pending":true,"Deleting":true}`,
+			args: []string{"-reason=keyCompromise", "web-tls"}, says: "Asked the issuer to revoke the certificate with the serial 0a1b"},
+		{name: "an earlier certificate", answer: `{"Serial":"0a1b","Earlier":true,"Deleting":true}`,
+			args: []string{"-serial=0a1b", "web-tls"}, says: "Revoked the earlier certificate with the serial 0a1b"},
+		{name: "an earlier certificate, asked for", answer: `{"Serial":"0a1b","Earlier":true,"Pending":true,"Deleting":true}`,
+			args: []string{"-serial=0a1b", "web-tls"}, says: "Asked the issuer to revoke the earlier certificate with the serial 0a1b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.answer))
+			}))
+			t.Cleanup(srv.Close)
+			ui := cli.NewMockUi()
+			code := (&CertificateRevokeCommand{Meta: Meta{Ui: ui}}).Run(append([]string{"-address=" + srv.URL}, tt.args...))
+			must.Zero(t, code, must.Sprint(ui.ErrorWriter.String()))
+			out := ui.OutputWriter.String()
+			must.StrContains(t, out, tt.says)
+			must.StrNotContains(t, out, "a new one is being issued")
+			must.StrNotContains(t, out, "the current certificate stays")
+			must.StrContains(t, out, "the object is being deleted, and no new certificate is issued")
+		})
+	}
+}

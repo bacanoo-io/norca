@@ -96,6 +96,11 @@ type CertificateRevokeResponse struct {
 	// revokes at once.
 	Pending bool
 
+	// Deleting says that the Certificate object is being deleted: the
+	// revocation is made, but no new certificate is issued in the place of
+	// the revoked one, and the current one does not stay.
+	Deleting bool
+
 	WriteMeta
 }
 

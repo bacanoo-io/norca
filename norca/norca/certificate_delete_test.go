@@ -288,3 +288,126 @@ func TestCertificate_RecreatedObjectOldSerials(t *testing.T) {
 	compromise, _ := structs.CertificateRevokeReasonCode(structs.CertificateRevokeReasonKeyCompromise)
 	must.Eq(t, map[string]int{old.Serial: cessation, again.Serial: compromise}, c.crlReasons())
 }
+
+// A certificate whose spec the kind refuses can still be deleted (review
+// finding ATM-24n): the finalizer of the servers is taken off although the
+// object does not pass its kind. With a spec that can't be decoded the
+// status still lists its certificates, and they are revoked without the
+// spec; the secret is left alone then.
+func TestCertificate_DeleteInvalidSpec(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name       string
+		spoil      func(spec map[string]any)
+		decodes    bool
+		secretGone bool
+	}{
+		{name: "a spec that can't be decoded", spoil: func(spec map[string]any) { spec["dns_names"] = "web.example.com" }},
+		{name: "a spec with a field the kind does not know", spoil: func(spec map[string]any) { spec["unknown"] = true },
+			decodes: true, secretGone: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, cleanup := newCertTest(t)
+			defer cleanup()
+			c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+			_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+			must.NoError(t, err)
+			_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+				"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web", "delete_secret": true})
+			must.NoError(t, err)
+			held := c.waitFor("default", "web-tls", "issued", certReady)
+
+			// A spec the schema of the kind refuses, written past it.
+			must.Wait(t, wait.InitialSuccess(
+				wait.ErrorFunc(func() error {
+					broken := c.get("default", structs.CertificateKind, "web-tls").Copy()
+					tt.spoil(broken.Spec)
+					_, _, err := c.s.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, &structs.CustomObjectUpsertStateRequest{
+						Object:              broken,
+						ExpectedModifyIndex: broken.ModifyIndex,
+						WriteRequest:        structs.WriteRequest{Region: c.s.Region()},
+					})
+					return err
+				}),
+				wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+			obj := c.get("default", structs.CertificateKind, "web-tls")
+			must.Eq(t, tt.decodes, structs.DecodeObjectPart(obj.Spec, &structs.CertificateSpec{}) == nil)
+			must.SliceContains(t, obj.Finalizers, structs.OperatorsFinalizer)
+			_, err = c.s.writeOperatorObject(obj.Copy())
+			must.ErrorContains(t, err, "is invalid", must.Sprint("the object does not pass its kind"))
+
+			must.NoError(t, c.delete("default", structs.CertificateKind, "web-tls"))
+			c.gone("default", "web-tls", "its spec does not hold it")
+			must.Eq(t, []string{held.Serial}, c.crlSerials(), must.Sprint("the certificate the status lists is revoked"))
+			secret, err := c.s.State().SecretByPath(nil, "default", "certs/web")
+			must.NoError(t, err)
+			must.Eq(t, tt.secretGone, secret == nil,
+				must.Sprint("delete_secret of a spec that can be read is done; nothing is deleted on the word of one that can't"))
+		})
+	}
+}
+
+// A revocation of a certificate of an object that is being deleted is made
+// like any other, and its answer says that the object is being deleted
+// (review finding ATM-24m): nothing is issued in the place of what is
+// revoked. The reason of the revocation order the deletion waits for can be
+// raised that way.
+func TestCertificate_ExternalIssuerRevokeDeleting(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	first := a.issue("")
+	second := a.replaced(first)
+
+	resp, err := c.revokeSerial("default", "web-tls", first.Serial, "")
+	must.NoError(t, err)
+	must.True(t, resp.Earlier)
+	must.True(t, resp.Pending)
+	must.False(t, resp.Deleting)
+	a.revocationDone(first.Serial, map[string]any{"state": "failed", "problem": "the CA is down"})
+	c.waitFor("default", "web-tls", "the end of the pending revocation", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		e := earlierCertificate(st, first.Serial)
+		return e != nil && e.Revoking == ""
+	})
+
+	must.NoError(t, c.delete("default", structs.CertificateKind, "web-tls"))
+	a.revocationPlaced(second.Serial)
+	a.revocationPlaced(first.Serial)
+
+	// The current certificate, with a stronger reason than the deletion's.
+	resp, err = c.revokeSerial("default", "web-tls", "", structs.CertificateRevokeReasonKeyCompromise)
+	must.NoError(t, err)
+	must.Eq(t, second.Serial, resp.Serial)
+	must.False(t, resp.Earlier)
+	must.True(t, resp.Pending)
+	must.True(t, resp.Deleting, must.Sprint("the answer says that the object is being deleted"))
+	spec := &structs.CertificateOrderSpec{}
+	must.NoError(t, structs.DecodeObjectPart(a.revocation(second.Serial).Spec, spec))
+	must.Eq(t, structs.CertificateRevokeReasonKeyCompromise, spec.Reason)
+
+	// An earlier one.
+	resp, err = c.revokeSerial("default", "web-tls", first.Serial, "")
+	must.NoError(t, err)
+	must.True(t, resp.Earlier)
+	must.True(t, resp.Pending)
+	must.True(t, resp.Deleting)
+
+	// The deletion goes on: nothing is issued, and the object goes when its
+	// certificates are revoked.
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, "", st.Order)
+	for _, serial := range []string{first.Serial, second.Serial} {
+		must.NoError(t, a.status("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", serial),
+			map[string]any{"state": "valid"}))
+	}
+	c.gone("default", "web-tls", "every revocation is done")
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return certificateOrderCount(t, c.s) == 0 }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+	), must.Sprint("no order is left, and none was placed for a new certificate"))
+}

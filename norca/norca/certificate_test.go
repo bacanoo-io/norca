@@ -2670,7 +2670,13 @@ func TestCertificate_ExternalIssuerNamesBackHeld(t *testing.T) {
 	})
 	must.Nil(t, a.revocation(second.Serial))
 	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
-	c.cutRetryWait("default", "web-tls")
+	// The failure and its wait were those of the revocation of the
+	// withdrawal: they do not hold up the issuance that follows it (review
+	// finding ATM-24h).
+	ordered := c.waitFor("default", "web-tls", "the order of the next certificate, without the wait of the failed revocation",
+		func(_ *structs.CustomObject, st *structs.CertificateStatus) bool { return st.Order != "" })
+	must.Eq(t, uint64(0), ordered.Failures)
+	must.Eq(t, "", ordered.RetryAt)
 	third := a.issue(second.Serial)
 	must.Nil(t, a.revocation(second.Serial))
 	must.Eq(t, &structs.CertificateEarlier{Serial: second.Serial, Issuer: "acme", NotAfter: second.NotAfter},

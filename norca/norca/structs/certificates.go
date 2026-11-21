@@ -56,6 +56,13 @@ const (
 	// Certificate object: the name of the object.
 	SecretLabelCertificate = "norca.io/certificate"
 
+	// SecretLabelCertificateID is the label the certificate operator gives
+	// the secret when it writes a certificate into it: the ID of the
+	// Certificate object the certificate was issued for. An object created
+	// again under the name of a deleted one has another ID (review finding
+	// ATM-24c).
+	SecretLabelCertificateID = "norca.io/certificate-id"
+
 	// Items of the secret of a certificate.
 	CertificateSecretItemCert    = "cert"
 	CertificateSecretItemKey     = "key"
@@ -313,6 +320,11 @@ type CertificateRevokeResponse struct {
 	// which its controller has not done. The status of the object says how
 	// that stands (revoking, then revoked).
 	Pending bool
+
+	// Deleting says that the Certificate object is being deleted (review
+	// finding ATM-24m): the revocation is made as for any other object, but
+	// no new certificate is issued, and the current one does not stay.
+	Deleting bool
 
 	WriteMeta
 }
