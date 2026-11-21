@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -370,7 +371,9 @@ func TestCollector_ForegroundWaitsForFinalizers(t *testing.T) {
 	marked.DeletionPropagation = structs.ObjectPropagationForeground
 	must.NoError(t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), marked, owner.ModifyIndex))
 
-	must.True(t, h.collect())
+	// The owner waits; that is not pending work, the removal of the
+	// finalizer wakes the collector (review finding MUK-29).
+	must.False(t, h.collect())
 	must.NotNil(t, h.get("owner"))
 
 	cur := h.get("owner").Copy()
@@ -378,6 +381,137 @@ func TestCollector_ForegroundWaitsForFinalizers(t *testing.T) {
 	must.NoError(t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), cur, h.get("owner").ModifyIndex))
 	h.collect()
 	must.Nil(t, h.get("owner"))
+}
+
+// A dependent that a finalizer holds is marked for deletion, and with that
+// the collector has done what the deletion of the owner asks for it: the
+// dependent is removed when its finalizer is gone, as any object that is
+// being deleted, and its own tombstone takes its dependents. So the tombstone
+// of the owner does not wait for it, and goes after its retention; and a
+// finalizer that holds is not pending work: its removal is a change of the
+// objects, which wakes the collector (review finding MUK-29). Before the fix
+// the tombstone stayed for as long as the finalizer, with a pass on the short
+// interval all that time.
+func TestCollector_DependentHeldByFinalizer(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+	retention := DefaultConfig().TombstoneRetention + time.Second
+
+	owner := h.object("owner")
+	h.object("child", "owner")
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = []string{"example.com/cleanup"} })
+	h.object("grandchild", "child")
+
+	must.NoError(t, h.remove(owner, structs.ObjectPropagationBackground))
+	must.True(t, h.collect())
+	must.True(t, h.get("child").Deleting())
+
+	// While the finalizer holds there is nothing to do, and nothing is done.
+	for range 3 {
+		must.False(t, h.collect(), must.Sprint("a dependent that a finalizer holds is pending work"))
+	}
+	must.Eq(t, []string{"child"}, h.deleted)
+	must.Eq(t, []string{"id-owner"}, h.tombstones())
+
+	// The tombstone of the owner goes after its retention, the held
+	// dependent stays as it is, and what depends on it too.
+	h.now = h.now.Add(retention)
+	must.False(t, h.collect())
+	must.SliceEmpty(t, h.tombstones(), must.Sprint("the tombstone of the owner waits for the finalizer of a dependent"))
+	must.True(t, h.get("child").Deleting())
+	must.NotNil(t, h.get("grandchild"))
+	must.False(t, h.collect())
+
+	// The finalizer is removed: the dependent goes, then its dependents,
+	// and its tombstone after the retention.
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = nil })
+	h.collect()
+	must.Nil(t, h.get("child"))
+	must.Eq(t, []string{"id-child"}, h.tombstones())
+	h.collect()
+	must.Nil(t, h.get("grandchild"))
+	h.now = h.now.Add(retention)
+	h.collect()
+	must.False(t, h.collect())
+	must.SliceEmpty(t, h.tombstones())
+}
+
+// An object deleted in the foreground mode waits for a dependent that a
+// finalizer holds, but that is not pending work either: the removal of the
+// dependent wakes the collector (review finding MUK-29).
+func TestCollector_ForegroundDependentHeldByFinalizer(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+
+	owner := h.object("owner")
+	h.object("child", "owner")
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = []string{"example.com/cleanup"} })
+	marked := owner.Copy()
+	marked.DeletionTime = h.now.UnixNano()
+	marked.DeletionPropagation = structs.ObjectPropagationForeground
+	must.NoError(t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), marked, owner.ModifyIndex))
+
+	must.True(t, h.collect())
+	must.True(t, h.get("child").Deleting())
+	for range 3 {
+		must.False(t, h.collect(), must.Sprint("a dependent that a finalizer holds is pending work"))
+	}
+	must.Eq(t, []string{"child"}, h.deleted)
+	must.NotNil(t, h.get("owner"), must.Sprint("the owner did not wait for its dependent"))
+
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = nil })
+	h.collect()
+	h.collect()
+	must.Nil(t, h.get("child"))
+	must.Nil(t, h.get("owner"))
+}
+
+// While a finalizer holds a dependent of a deleted owner, the collector that
+// runs goes idle: it makes no pass on its short interval, and the removal of
+// the finalizer wakes it at once (review finding MUK-29).
+func TestCollector_RunIdlesWhileAFinalizerHolds(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+	cfg := DefaultConfig()
+	cfg.Interval = 10 * time.Millisecond
+	cfg.IdleInterval = time.Hour
+	h.gc.SetConfig(cfg)
+	h.gc.deps.Now = time.Now
+	h.gc.now = time.Now
+	h.now = time.Now()
+
+	// Every pass asks for the state once.
+	var passes atomic.Int64
+	getState := h.gc.deps.State
+	h.gc.deps.State = func() *state.StateStore {
+		passes.Add(1)
+		return getState()
+	}
+
+	owner := h.object("owner")
+	h.object("child", "owner")
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = []string{"example.com/cleanup"} })
+	must.NoError(t, h.remove(owner, structs.ObjectPropagationBackground))
+	h.gc.SetEnabled(true)
+	defer h.gc.SetEnabled(false)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return h.get("child").Deleting() }),
+		wait.Timeout(10*time.Second),
+		wait.Gap(10*time.Millisecond),
+	))
+
+	// The passes that follow the marking settle; then none is made.
+	time.Sleep(200 * time.Millisecond)
+	before := passes.Load()
+	time.Sleep(500 * time.Millisecond)
+	must.Less(t, int64(3), passes.Load()-before, must.Sprint("the collector makes passes on its short interval while a finalizer holds"))
+
+	h.update("child", func(obj *structs.CustomObject) { obj.Finalizers = nil })
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return h.get("child") == nil }),
+		wait.Timeout(10*time.Second),
+		wait.Gap(10*time.Millisecond),
+	))
 }
 
 func TestCollector_OrphanAndAdoption(t *testing.T) {
@@ -577,7 +711,7 @@ func TestCollector_GuardedDependents(t *testing.T) {
 		obj.DeletionPropagation = structs.ObjectPropagationBackground
 		obj.DeletionApproved = []string{"id-with-waiting"}
 	})
-	must.True(t, h.collect())
+	must.False(t, h.collect())
 	must.NotNil(t, h.get("with-waiting"))
 	h.update("waiting", func(obj *structs.CustomObject) { obj.Finalizers = nil })
 	h.collect()

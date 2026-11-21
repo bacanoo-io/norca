@@ -11,9 +11,12 @@
 //     finalizers endpoint usually does this itself).
 //   - Tombstones of objects deleted in the background or foreground mode:
 //     the objects and jobs the deleted object owned are deleted. A tombstone
-//     is kept for a retention period after its dependents are gone, so
-//     dependents created late (by a controller racing the deletion) are
-//     collected too. The event log of the deleted object is kept with it.
+//     is kept for a retention period, and until its dependents are gone or
+//     marked for deletion, so dependents created late (by a controller
+//     racing the deletion) are collected too. It does not wait for a
+//     dependent that a finalizer holds: that one is marked, and goes as any
+//     object that is being deleted. The event log of the deleted object is
+//     kept with it.
 //
 // An object depends on an owner when its Owners reference the owner (kind,
 // namespace and name); it is deleted only when all its custom object owners
@@ -58,9 +61,10 @@ import (
 
 // Config configures the garbage collector.
 type Config struct {
-	// Interval is how often pending work (dependents being deleted, jobs
-	// stopping) is checked again. Changes of objects and tombstones wake the
-	// collector up at once.
+	// Interval is how often pending work (what a pass deleted or stopped,
+	// jobs stopping, a failed step) is checked again. Changes of objects and
+	// tombstones wake the collector up at once, so an object that only waits
+	// for a finalizer is not pending work.
 	Interval time.Duration
 
 	// IdleInterval is how often the collector checks without changes.
@@ -259,6 +263,10 @@ type owner struct {
 	group, kind, namespace, name string
 	foreground                   bool
 
+	// tombstone is set for the tombstone of a deleted object, which waits
+	// for nothing that is under way already.
+	tombstone bool
+
 	// approved are the IDs of the guarded dependents that the deletion of
 	// the owner may take with it.
 	approved []string
@@ -342,14 +350,20 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 		o := owner{group: obj.Group, kind: obj.Kind, namespace: obj.Namespace, name: obj.Name,
 			foreground: obj.DeletionPropagation == structs.ObjectPropagationForeground,
 			approved:   obj.DeletionApproved}
-		remaining := 0
+		remaining, poll := 0, false
 		if o.foreground {
-			if remaining, err = c.collectDependents(w, o); err != nil {
+			if remaining, poll, err = c.collectDependents(w, o); err != nil {
 				return true, err
 			}
 		}
-		if remaining > 0 || len(obj.Finalizers) > 0 {
+		if poll {
 			pending = true
+		}
+		// An object that waits for its finalizers, or for a dependent that
+		// waits for its own, is not pending work: the removal of a
+		// finalizer and of an object are changes of the objects, which wake
+		// the collector (review finding MUK-29).
+		if remaining > 0 || len(obj.Finalizers) > 0 {
 			continue
 		}
 		if err := c.deps.RemoveObject(obj, obj.DeletionPropagation); err != nil {
@@ -369,8 +383,9 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 	for _, t := range tombstones {
 		o := owner{group: t.Group, kind: t.Kind, namespace: t.Namespace, name: t.Name,
 			foreground: t.Propagation == structs.ObjectPropagationForeground,
+			tombstone:  true,
 			approved:   t.ApprovedDependents}
-		remaining := 0
+		remaining, poll := 0, false
 		// A re-created owner adopts the dependents. The tombstone of an
 		// orphan deletion takes none: it only keeps the event log of the
 		// object for the retention.
@@ -379,12 +394,14 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 			return true, err
 		}
 		if again == nil && t.Propagation != structs.ObjectPropagationOrphan {
-			if remaining, err = c.collectDependents(w, o); err != nil {
+			if remaining, poll, err = c.collectDependents(w, o); err != nil {
 				return true, err
 			}
 		}
-		if remaining > 0 {
+		if poll {
 			pending = true
+		}
+		if remaining > 0 {
 			continue
 		}
 		// A tombstone that only waits for its retention is not pending
@@ -404,13 +421,27 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 }
 
 // collectDependents deletes the objects and stops the jobs owned by o, and
-// returns how many of them are not gone yet. In the foreground mode a job
+// returns how many of them o still waits for. In the foreground mode a job
 // counts until it is stopped and dead, otherwise until it is stopped.
-func (c *Collector) collectDependents(w *world, o owner) (int, error) {
-	remaining := 0
+//
+// A dependent object that is marked for deletion already (a finalizer holds
+// it) counts for an object that is being deleted in the foreground mode,
+// which is removed after its dependents. It does not count for a tombstone
+// (review finding MUK-29): the mark is all the deletion of the owner asks for
+// that dependent. The collector removes it when its finalizers are gone, as
+// any object that is being deleted, and its own tombstone takes its
+// dependents, with the approved list of its mark. A tombstone that waited for
+// it would stay for as long as the finalizer does.
+//
+// poll reports that the next pass should come on the short interval: the
+// pass did something (the next one sees what came of it), something failed,
+// or o waits for a job, and jobs are not watched. Waiting for a dependent
+// that a finalizer holds is not such a reason: the removal of the finalizer
+// and of the dependent are changes of the objects, which wake the collector.
+func (c *Collector) collectDependents(w *world, o owner) (remaining int, poll bool, err error) {
 	deps, err := w.snap.CustomObjectsByOwner(nil, structs.ObjectKindRef(o.group, o.kind), o.namespace, o.name)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	for raw := deps.Next(); raw != nil; raw = deps.Next() {
 		dep := raw.(*structs.CustomObject)
@@ -418,7 +449,7 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 			continue
 		}
 		if gone, err := c.ownersGone(w, dep, o); err != nil {
-			return 0, err
+			return 0, false, err
 		} else if !gone {
 			continue
 		}
@@ -430,13 +461,15 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 		}
 		if o.foreground {
 			if waits, err := waitsFor(w, dep, o); err != nil {
-				return 0, err
+				return 0, false, err
 			} else if waits {
 				continue
 			}
 		}
 		if dep.Deleting() {
-			remaining++
+			if !o.tombstone {
+				remaining++
+			}
 			continue
 		}
 		// Nobody was checked for the right to delete this dependent with
@@ -453,9 +486,11 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 					"namespace", dep.Namespace, "error", err)
 				remaining++
 			}
+			poll = true
 			continue
 		}
 		remaining++
+		poll = true
 		c.logger.Debug("deleting dependent object", "owner", o.name, "object", dep.KindRef()+"/"+dep.Name,
 			"namespace", dep.Namespace)
 		if err := c.deps.DeleteObject(dep, o.approved); err != nil {
@@ -466,7 +501,7 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 
 	jobs, err := w.snap.JobsByOwner(nil, structs.ObjectOwnerMetaValue(o.group, o.kind, o.namespace, o.name))
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	for raw := jobs.Next(); raw != nil; raw = jobs.Next() {
 		job := raw.(*structs.Job)
@@ -476,6 +511,7 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 		if job.Stop {
 			if o.foreground && job.Status != structs.JobStatusDead {
 				remaining++
+				poll = true
 			}
 			continue
 		}
@@ -486,12 +522,13 @@ func (c *Collector) collectDependents(w *world, o owner) (int, error) {
 			continue
 		}
 		remaining++
+		poll = true
 		c.logger.Debug("stopping dependent job", "owner", o.name, "job", job.ID, "namespace", job.Namespace)
 		if err := c.deps.StopJob(job.Namespace, job.ID); err != nil {
 			c.logger.Warn("failed to stop dependent job", "job", job.ID, "namespace", job.Namespace, "error", err)
 		}
 	}
-	return remaining, nil
+	return remaining, poll, nil
 }
 
 // keepJob notes a dependent job that is not stopped with its owner, and
