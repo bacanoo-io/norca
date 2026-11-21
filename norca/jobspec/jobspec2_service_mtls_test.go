@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package jobspec2
+package jobspec_test
 
 import (
 	"strings"
@@ -10,6 +10,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/jobspec"
+	"github.com/bacanoo-io/norca/norca/jobspec2"
 	"github.com/shoenig/test/must"
 )
 
@@ -110,7 +111,7 @@ func TestParse_ServiceMTLS(t *testing.T) {
 	}
 
 	t.Run("hcl2", func(t *testing.T) {
-		job, err := ParseWithConfig(&ParseConfig{
+		job, err := jobspec2.ParseWithConfig(&jobspec2.ParseConfig{
 			Path: "input.hcl",
 			Body: []byte(serviceMTLSJob),
 		})

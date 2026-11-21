@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/ci"
-	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
 func TestParse_SecretDelivery(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "web" {
@@ -103,10 +101,10 @@ job "web" {
 		Files:      []*api.TaskSecretFile{{Destination: "secrets/cert.pem", Format: "template", Template: "{{ .cert }}"}},
 		ChangeMode: "script",
 		ChangeScript: &api.ChangeScript{
-			Command:     pointer.Of("/bin/reload"),
+			Command:     pointerOf("/bin/reload"),
 			Args:        []string{"-a"},
-			Timeout:     pointer.Of(5 * time.Second),
-			FailOnError: pointer.Of(false),
+			Timeout:     pointerOf(5 * time.Second),
+			FailOnError: pointerOf(false),
 		},
 	}, task.Secrets[1])
 }

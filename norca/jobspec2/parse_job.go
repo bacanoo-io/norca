@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/helper/pointer"
 )
 
 func normalizeJob(jc *jobConfig) {
@@ -69,13 +68,13 @@ func normalizeVault(v *api.Vault) {
 	}
 
 	if v.Env == nil {
-		v.Env = pointer.Of(true)
+		v.Env = pointerOf(true)
 	}
 	if v.DisableFile == nil {
-		v.DisableFile = pointer.Of(false)
+		v.DisableFile = pointerOf(false)
 	}
 	if v.ChangeMode == nil {
-		v.ChangeMode = pointer.Of("restart")
+		v.ChangeMode = pointerOf("restart")
 	}
 }
 
@@ -115,16 +114,16 @@ func normalizeTemplates(templates []*api.Template) {
 
 	for _, t := range templates {
 		if t.ChangeMode == nil {
-			t.ChangeMode = pointer.Of("restart")
+			t.ChangeMode = pointerOf("restart")
 		}
 		if t.Perms == nil {
-			t.Perms = pointer.Of("0644")
+			t.Perms = pointerOf("0644")
 		}
 		if t.Splay == nil {
-			t.Splay = pointer.Of(5 * time.Second)
+			t.Splay = pointerOf(5 * time.Second)
 		}
 		if t.ErrMissingKey == nil {
-			t.ErrMissingKey = pointer.Of(false)
+			t.ErrMissingKey = pointerOf(false)
 		}
 		normalizeChangeScript(t.ChangeScript)
 	}
@@ -140,10 +139,10 @@ func normalizeChangeScript(ch *api.ChangeScript) {
 	}
 
 	if ch.Timeout == nil {
-		ch.Timeout = pointer.Of(5 * time.Second)
+		ch.Timeout = pointerOf(5 * time.Second)
 	}
 
 	if ch.FailOnError == nil {
-		ch.FailOnError = pointer.Of(false)
+		ch.FailOnError = pointerOf(false)
 	}
 }

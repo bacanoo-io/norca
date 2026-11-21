@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -122,7 +121,7 @@ func decodeAffinity(body hcl.Body, ctx *hcl.EvalContext, val interface{}) hcl.Di
 	weight := v.GetAttr("weight")
 	if !weight.IsNull() {
 		w, _ := weight.AsBigFloat().Int64()
-		a.Weight = pointer.Of(int8(w))
+		a.Weight = pointerOf(int8(w))
 	}
 
 	// If "version" is provided, set the operand

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package jobspec2
+package jobspec_test
 
 import (
 	"strings"
@@ -10,6 +10,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/jobspec"
+	"github.com/bacanoo-io/norca/norca/jobspec2"
 	"github.com/shoenig/test/must"
 )
 
@@ -52,7 +53,7 @@ func TestParse_ServiceExpose(t *testing.T) {
 	}
 
 	t.Run("hcl2", func(t *testing.T) {
-		job, err := ParseWithConfig(&ParseConfig{Path: "input.hcl", Body: []byte(serviceExposeJob)})
+		job, err := jobspec2.ParseWithConfig(&jobspec2.ParseConfig{Path: "input.hcl", Body: []byte(serviceExposeJob)})
 		must.NoError(t, err)
 		check(t, job)
 	})
@@ -67,7 +68,7 @@ func TestParse_ServiceExpose(t *testing.T) {
 		bad := strings.Replace(serviceExposeJob, "internal = true", "intern = true", 1)
 		_, err := jobspec.Parse(strings.NewReader(bad))
 		must.ErrorContains(t, err, "intern")
-		_, err = ParseWithConfig(&ParseConfig{Path: "input.hcl", Body: []byte(bad)})
+		_, err = jobspec2.ParseWithConfig(&jobspec2.ParseConfig{Path: "input.hcl", Body: []byte(bad)})
 		must.Error(t, err)
 	})
 }

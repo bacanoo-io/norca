@@ -5,6 +5,7 @@ go 1.27
 require (
 	github.com/bacanoo-io/norca/norca v0.0.0
 	github.com/bacanoo-io/norca/norca/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/norca/jobspec2 v0.0.0
 	github.com/bacanoo-io/norca/rigger v0.0.0
 	github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840
 	github.com/hashicorp/hcl/v2 v2.20.2-0.20240517235513-55d9c02d147d
@@ -51,6 +52,7 @@ replace (
 	github.com/armon/go-metrics => github.com/armon/go-metrics v0.0.0-20230509193637-d9ca9af9f1f9
 	github.com/bacanoo-io/norca/norca => ../../norca
 	github.com/bacanoo-io/norca/norca/api => ../../norca/api
+	github.com/bacanoo-io/norca/norca/jobspec2 => ../../norca/jobspec2
 	github.com/hashicorp/hcl => github.com/hashicorp/hcl v1.0.1-0.20201016140508-a07e7d50bbee
 	github.com/hashicorp/nomad/api => ../../norca/compat/upstreamapi
 	github.com/hashicorp/raft => github.com/bacanoo-io/raft v1.8.0-norca.1

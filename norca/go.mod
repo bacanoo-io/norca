@@ -23,6 +23,10 @@ replace github.com/armon/go-metrics => github.com/armon/go-metrics v0.0.0-202305
 // Nomad is built using the current source of the API module
 replace github.com/bacanoo-io/norca/norca/api => ./api
 
+// The decoders are modules of their own, so that other modules (rigger/cli)
+// use them without the program module (design/rig-integration.md, 4.1).
+replace github.com/bacanoo-io/norca/norca/jobspec2 => ./jobspec2
+
 // consul-template imports the API module by its upstream path; the stand-in
 // aliases the Norca API types, so no upstream version comes from the proxy
 replace github.com/hashicorp/nomad/api => ./compat/upstreamapi
@@ -35,6 +39,7 @@ require (
 	github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e
 	github.com/aws/aws-sdk-go v1.44.184
 	github.com/bacanoo-io/norca/norca/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/norca/jobspec2 v0.0.0
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/brianvoe/gofakeit/v6 v6.20.1
@@ -129,7 +134,6 @@ require (
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mitchellh/pointerstructure v1.2.1
-	github.com/mitchellh/reflectwalk v1.0.2
 	github.com/moby/sys/devices v0.1.0
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.7.2
@@ -165,7 +169,6 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/zclconf/go-cty v1.13.0
-	github.com/zclconf/go-cty-yaml v1.0.3
 	go.etcd.io/bbolt v1.3.10
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.58.0
@@ -312,6 +315,7 @@ require (
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/capability v0.4.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
@@ -365,6 +369,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/y0ssar1an/q v1.0.7 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+	github.com/zclconf/go-cty-yaml v1.0.3 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect

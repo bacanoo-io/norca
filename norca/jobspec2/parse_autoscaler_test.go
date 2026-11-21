@@ -6,12 +6,11 @@ package jobspec2
 import (
 	"testing"
 
-	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/shoenig/test/must"
 )
 
 func TestParse_ScalingEngine(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "example" {
@@ -46,7 +45,7 @@ job "example" {
 }
 
 func TestParse_ScalingTypedPolicy(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "example" {
@@ -107,7 +106,7 @@ job "example" {
 }
 
 func TestParse_ScalingTypedPolicy_Invalid(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	cases := []struct {
 		name   string

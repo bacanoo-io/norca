@@ -7,13 +7,11 @@ import (
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/ci"
-	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
 func TestParse_ColocateSeparate(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "cache" {
@@ -51,7 +49,7 @@ job "cache" {
 		{
 			Selector: map[string]string{"app": "api"},
 			Scope:    "${node.unique.id}",
-			Weight:   pointer.Of(int8(50)),
+			Weight:   pointerOf(int8(50)),
 		},
 		{
 			Selector:  map[string]string{"app.kubernetes.io/name": "api"},
@@ -74,7 +72,7 @@ job "cache" {
 }
 
 func TestParse_ColocateSeparate_Invalid(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "cache" {

@@ -7,13 +7,11 @@ import (
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/ci"
-	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
 func TestParse_Disruption(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "web" {
@@ -49,13 +47,13 @@ job "web" {
 	job, err := ParseWithConfig(&ParseConfig{Path: "input.hcl", Body: []byte(hcl)})
 	must.NoError(t, err)
 
-	must.Eq(t, &api.DisruptionBudget{MinHealthy: pointer.Of("4")}, job.TaskGroups[0].Disruption)
-	must.Eq(t, &api.DisruptionBudget{MaxUnavailable: pointer.Of("25%")}, job.TaskGroups[1].Disruption)
+	must.Eq(t, &api.DisruptionBudget{MinHealthy: pointerOf("4")}, job.TaskGroups[0].Disruption)
+	must.Eq(t, &api.DisruptionBudget{MaxUnavailable: pointerOf("25%")}, job.TaskGroups[1].Disruption)
 	must.Nil(t, job.TaskGroups[2].Disruption)
 }
 
 func TestParse_Disruption_UnknownAttribute(t *testing.T) {
-	ci.Parallel(t)
+	t.Parallel()
 
 	hcl := `
 job "web" {
