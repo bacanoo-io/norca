@@ -488,7 +488,7 @@ func TestHTTP_FS_Stream_Follow(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, path, nil)
 		require.Nil(err)
-		respW := httptest.NewRecorder()
+		respW := testutil.NewResponseRecorder()
 		doneCh := make(chan struct{})
 		go func() {
 			_, err = s.Server.Stream(respW, req)
@@ -498,7 +498,7 @@ func TestHTTP_FS_Stream_Follow(t *testing.T) {
 
 		out := ""
 		testutil.WaitForResult(func() (bool, error) {
-			output, err := io.ReadAll(respW.Body)
+			output, err := io.ReadAll(respW)
 			if err != nil {
 				return false, err
 			}
