@@ -865,19 +865,30 @@ func (a *allocReconciler) computeReplacements(deploymentPlaceReady bool, desired
 
 	// If allocs have been lost, determine the number of replacements that are needed
 	// and add placements to the result for the lost allocs.
-	allowed := 0
+	//
+	// (Norca) They are the placements marked lost. The list starts with the
+	// reschedulings, which the loop below places: a slice of its head placed
+	// a rescheduling twice and a lost allocation not at all (review finding
+	// SCH-3).
 	if len(lost) != 0 {
-		allowed = min(len(lost), len(place))
-		desiredChanges.Place += uint64(allowed)
-		a.result.place = append(a.result.place, place[:allowed]...)
+		for _, p := range place {
+			if p.lost {
+				desiredChanges.Place++
+				a.result.place = append(a.result.place, p)
+			}
+		}
 	}
 
 	// (Norca) A deployment that failed does not hold the allocations a scale
-	// up added to the group (reconcile_scale.go).
+	// up added to the group (reconcile_scale.go). The lost ones are placed
+	// above already.
 	if a.deploymentFailed {
-		added := outsideDeployment(place, allowed)
-		desiredChanges.Place += uint64(len(added))
-		a.result.place = append(a.result.place, added...)
+		for _, p := range outsideDeployment(place, 0) {
+			if !p.lost {
+				desiredChanges.Place++
+				a.result.place = append(a.result.place, p)
+			}
+		}
 	}
 
 	// if no failures or there are no pending placements return.
