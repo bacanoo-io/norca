@@ -72,7 +72,8 @@ const certificateKindSchema = `{
         "validity": {"type": "string"},
         "renew_before": {"type": "string"},
         "key_type": {"type": "string", "enum": ["ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-4096", "ed25519"], "default": "ecdsa-p256"},
-        "delete_secret": {"type": "boolean", "default": false}
+        "delete_secret": {"type": "boolean", "default": false},
+        "keep_certificates": {"type": "boolean", "default": false}
       },
       "additionalProperties": false
     },

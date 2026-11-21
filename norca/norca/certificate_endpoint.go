@@ -533,7 +533,8 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 	}
 
 	// A revoked certificate of the object that the status does not list:
-	// the revocation list of the CA that signed it names the object.
+	// the revocation list of the CA that signed it names the object, by
+	// its namespace and name and by its ID.
 	all, err := snap.CertificateAuthorities(nil)
 	if err != nil {
 		return 0, false, err
@@ -543,7 +544,10 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 			continue
 		}
 		for _, rev := range ca.Revoked {
-			if rev.Serial != serial || rev.Certificate != obj.Namespace+"/"+obj.Name {
+			// The entry of this very object: one of an object that was
+			// deleted, and created again under the same name, is not this
+			// object's to change (review finding ATM-24f).
+			if rev.Serial != serial || rev.Certificate != obj.Namespace+"/"+obj.Name || rev.Object != obj.ID {
 				continue
 			}
 			if !raise {
@@ -552,6 +556,7 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 			_, changed, err := c.srv.certificateCA.revoke(ca.ID, &structs.CertificateRevocation{
 				Serial:      rev.Serial,
 				Certificate: rev.Certificate,
+				Object:      rev.Object,
 				RevokedAt:   rev.RevokedAt,
 				NotAfter:    rev.NotAfter,
 				Reason:      reason,
@@ -629,6 +634,7 @@ func (s *Server) revokeWithIssuer(store *state.StateStore, obj *structs.CustomOb
 		found, changed, err := s.certificateCA.revoke(status.Authority, &structs.CertificateRevocation{
 			Serial:      status.Serial,
 			Certificate: obj.Namespace + "/" + obj.Name,
+			Object:      obj.ID,
 			RevokedAt:   time.Now().UTC().Truncate(time.Second),
 			NotAfter:    notAfter,
 			Reason:      reason,

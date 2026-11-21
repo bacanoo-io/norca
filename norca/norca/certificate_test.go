@@ -263,9 +263,11 @@ func TestCertificate_BuiltinIssuer(t *testing.T) {
 	must.SliceContains(t, reasons, "Renewed")
 	must.SliceContains(t, reasons, "Revoked")
 
-	// Without delete_secret the secret stays when the certificate goes.
+	// Without delete_secret the secret stays when the certificate goes,
+	// which it does when the operator has revoked its certificates (review
+	// finding ATM-24f).
 	must.NoError(t, c.delete("default", structs.CertificateKind, "web-tls"))
-	must.Nil(t, c.get("default", structs.CertificateKind, "web-tls"))
+	c.gone("default", "web-tls", "its certificates are revoked")
 	secret, err = c.s.State().SecretByPath(nil, "default", "certs/web")
 	must.NoError(t, err)
 	must.NotNil(t, secret)
@@ -1929,9 +1931,11 @@ func TestCertificate_RevokeEarlier(t *testing.T) {
 	must.Eq(t, third.Serial, st.Serial)
 
 	// A revoked certificate of the object that the status no longer lists
-	// is found in the list of its CA: only its reason can still change.
+	// is found in the list of its CA: only its reason can still change. The
+	// entry names the object by its ID too (review finding ATM-24f).
 	_, changed, err = c.s.certificateCA.revoke(third.Authority, &structs.CertificateRevocation{
-		Serial: "0102ab", Certificate: "default/web-tls", RevokedAt: time.Now().UTC(), NotAfter: time.Now().Add(time.Hour).UTC()})
+		Serial: "0102ab", Certificate: "default/web-tls", Object: c.get("default", structs.CertificateKind, "web-tls").ID,
+		RevokedAt: time.Now().UTC(), NotAfter: time.Now().Add(time.Hour).UTC()})
 	must.NoError(t, err)
 	must.True(t, changed)
 	_, err = c.revokeSerial("default", "web-tls", "0102ab", structs.CertificateRevokeReasonSuperseded)

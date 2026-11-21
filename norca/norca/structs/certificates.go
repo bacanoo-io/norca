@@ -192,6 +192,11 @@ type CertificateRevocation struct {
 	// Certificate is "namespace/name" of the Certificate object.
 	Certificate string
 
+	// Object is the ID of that Certificate object. An object created again
+	// under the name of a deleted one has another ID, and no right on the
+	// entries of that one (review finding ATM-24f).
+	Object string
+
 	// RevokedAt is the time of the revocation, NotAfter the end of the
 	// validity of the certificate: after it the entry is dropped.
 	RevokedAt time.Time
@@ -349,6 +354,22 @@ type CertificateSpec struct {
 	RenewBefore  string   `json:"renew_before"`
 	KeyType      string   `json:"key_type"`
 	DeleteSecret bool     `json:"delete_secret"`
+
+	// KeepCertificates says that the certificates of the object stay valid
+	// when the object is deleted (review finding ATM-24f). Without it the
+	// servers revoke the certificate that is held and the earlier ones that
+	// are still valid before the object goes: its status is the only record
+	// of who signed them, and nothing can revoke them by their serial
+	// number afterwards.
+	KeepCertificates bool `json:"keep_certificates"`
+}
+
+// NeedsOperatorAtDeletion reports whether the deletion of a certificate with
+// the spec has work for the servers, which the finalizer OperatorsFinalizer
+// holds the object for: the revocation of its certificates, unless they are
+// kept, and the deletion of its secret, if that is asked for.
+func (s *CertificateSpec) NeedsOperatorAtDeletion() bool {
+	return s.DeleteSecret || !s.KeepCertificates
 }
 
 // CertificateStatus is what the operator records in the status of a
