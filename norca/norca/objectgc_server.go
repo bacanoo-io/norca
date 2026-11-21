@@ -62,10 +62,11 @@ func (s *Server) gcDeleteObject(obj *structs.CustomObject, approved []string) er
 }
 
 // gcReleaseObject lets go of a dependent that is not deleted with its owner:
-// its deletion destroys data in the storage, and nobody who deleted the
-// owner was checked for the right to do that. The references to the owner
-// are removed, so the object stays as one without that owner, and an event
-// says why.
+// its deletion takes more than the object with it (objectDeletionGuard: data
+// in the storage, the resources of a tenant, a certificate), and nobody who
+// deleted the owner was checked for the right to do that. The references to
+// the owner are removed, so the object stays as one without that owner, and
+// an event says why.
 func (s *Server) gcReleaseObject(obj *structs.CustomObject, ownerKindRef, ownerNamespace, ownerName string) error {
 	released := obj.Copy()
 	released.Owners = slices.DeleteFunc(released.Owners, func(r *structs.ObjectOwnerReference) bool {
@@ -80,10 +81,14 @@ func (s *Server) gcReleaseObject(obj *structs.CustomObject, ownerKindRef, ownerN
 	if _, _, err := s.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, req); err != nil {
 		return err
 	}
+	takes := "more than the object"
+	if guard := objectDeletionGuard(obj); guard != nil {
+		takes = guard.takes
+	}
 	s.operatorEvent(released, structs.ObjectEventTypeWarning, objectEventDependentKept, fmt.Sprintf(
-		"the owner %s %q was deleted, and this object was not deleted with it: its deletion deletes data in the storage "+
-			"(its volume or its snapshots), and the deletion of the owner was not checked for the right to do that for this object. "+
-			"Its reference to the owner was removed; delete the object itself if it is to go.", ownerKindRef, ownerName))
+		"the owner %s %q was deleted, and this object was not deleted with it: its deletion deletes %s, "+
+			"and the deletion of the owner was not checked for the right to do that for this object. "+
+			"Its reference to the owner was removed; delete the object itself if it is to go.", ownerKindRef, ownerName, takes))
 	return nil
 }
 
