@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -177,11 +178,15 @@ func TestAllocExec_HandshakeErrorClosesConn(t *testing.T) {
 		must.True(t, websocket.IsCloseError(err, websocket.ClosePolicyViolation),
 			must.Sprintf("request %d: unexpected error: %v", i, err))
 
-		// the server closes the connection after the close frame
+		// the server closes the connection after the close frame. A reset
+		// is a close too: the close frame the client answers with may reach
+		// the server before it closes, and a socket closed with unread data
+		// is reset by the kernel.
 		raw := conn.NetConn()
 		must.NoError(t, raw.SetReadDeadline(time.Now().Add(10*time.Second)))
 		_, err = raw.Read(make([]byte, 1))
-		must.ErrorIs(t, err, io.EOF, must.Sprintf("request %d", i))
+		must.True(t, errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET),
+			must.Sprintf("request %d: the connection is not closed: %v", i, err))
 	}
 }
 
