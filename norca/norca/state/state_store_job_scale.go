@@ -30,6 +30,16 @@ import (
 // and nil is returned, when the job or the group is gone.
 func (s *StateStore) ScaleJob(msgType structs.MessageType, index uint64, namespace, jobID, group string,
 	count int, submitTime int64) (*structs.Job, error) {
+	return s.ScaleJobWithEval(msgType, index, namespace, jobID, group, count, submitTime, nil, nil)
+}
+
+// ScaleJobWithEval is ScaleJob that also writes the evaluation and the scaling
+// event of the scaling, in the same transaction (review finding ASC-9): a
+// scaling is one Raft message, the count, its evaluation and its event are
+// written together or not at all. Neither is written when the job or the
+// group is gone.
+func (s *StateStore) ScaleJobWithEval(msgType structs.MessageType, index uint64, namespace, jobID, group string,
+	count int, submitTime int64, eval *structs.Evaluation, event *structs.ScalingEventRequest) (*structs.Job, error) {
 
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
@@ -55,6 +65,17 @@ func (s *StateStore) ScaleJob(msgType structs.MessageType, index uint64, namespa
 	}
 	if err := s.recordScaleAdded(index, job, group, delta, txn); err != nil {
 		return nil, err
+	}
+	if eval != nil {
+		eval.JobModifyIndex = index
+		if err := s.nestedUpsertEval(txn, index, eval); err != nil {
+			return nil, err
+		}
+	}
+	if event != nil {
+		if err := s.upsertScalingEventImpl(index, event, txn); err != nil {
+			return nil, err
+		}
 	}
 	if err := txn.Commit(); err != nil {
 		return nil, err

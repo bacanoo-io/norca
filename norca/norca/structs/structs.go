@@ -833,6 +833,12 @@ type JobRegisterRequest struct {
 	// (state.ScaleJob). Set by Job.Scale only.
 	ScaleGroup string
 
+	// ScalingEvent (Norca) is the scaling event of a scaling (ScaleGroup),
+	// written in the same transaction as the count and Eval: a scaling is
+	// one Raft message, so a failure between writes can't leave a count
+	// without its evaluation or its event (review finding ASC-9).
+	ScalingEvent *ScalingEventRequest
+
 	// DryRunCapacity (Norca) asks the server that receives the request for
 	// a dry run of the placements on its copy of the state before the job
 	// goes to the leader (JobRegisterResponse.CapacityCheck).

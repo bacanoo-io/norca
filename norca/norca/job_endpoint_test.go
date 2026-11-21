@@ -7577,7 +7577,8 @@ func TestJobEndpoint_Scale(t *testing.T) {
 	err = msgpackrpc.CallWithCodec(codec, "Job.Scale", scale, &resp)
 	require.NoError(err)
 	require.NotEmpty(resp.EvalID)
-	require.Greater(resp.EvalCreateIndex, resp.JobModifyIndex)
+	// (Norca) The count and its evaluation are one Raft message.
+	require.Equal(resp.EvalCreateIndex, resp.JobModifyIndex)
 
 	events, _, _ := state.ScalingEventsByJob(nil, job.Namespace, job.ID)
 	require.Equal(1, len(events[groupName]))
@@ -7658,7 +7659,8 @@ func TestJobEndpoint_Scale_DeploymentBlocking(t *testing.T) {
 		} else {
 			require.NoError(err, "test case %q", tc)
 			require.NotEmpty(resp.EvalID)
-			require.Greater(resp.EvalCreateIndex, resp.JobModifyIndex)
+			// (Norca) The count and its evaluation are one Raft message.
+			require.Equal(resp.EvalCreateIndex, resp.JobModifyIndex)
 		}
 	}
 }
@@ -8189,7 +8191,8 @@ func TestJobEndpoint_Scale_Priority(t *testing.T) {
 	err = msgpackrpc.CallWithCodec(codec, "Job.Scale", scale, &resp)
 	requireAssertion.NoError(err)
 	requireAssertion.NotEmpty(resp.EvalID)
-	requireAssertion.Greater(resp.EvalCreateIndex, resp.JobModifyIndex)
+	// (Norca) The count and its evaluation are one Raft message.
+	requireAssertion.Equal(resp.EvalCreateIndex, resp.JobModifyIndex)
 
 	// Check the evaluation priority matches the job priority.
 	eval, err := fsmState.EvalByID(nil, resp.EvalID)

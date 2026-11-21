@@ -650,7 +650,35 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 	if tg == nil {
 		return fmt.Errorf("task group %q to scale is not in the job %q of the request", req.ScaleGroup, req.Job.ID)
 	}
-	job, err := n.state.ScaleJob(msgType, index, req.Job.Namespace, req.Job.ID, req.ScaleGroup, tg.Count, req.Job.SubmitTime)
+
+	// Norca: the scaling was checked on the endpoint's snapshot (the bounds
+	// of the policy, the deployment, the previous count of the event): it
+	// holds for that job only, not for one registered or scaled meanwhile
+	// (review finding ASC-8).
+	if req.EnforceIndex {
+		existing, err := n.state.JobByID(nil, req.Job.Namespace, req.Job.ID)
+		if err != nil {
+			n.logger.Error("JobByID lookup failed", "error", err)
+			return err
+		}
+		if err := checkJobEnforceIndex(existing, true, req.JobModifyIndex); err != nil {
+			n.logger.Debug("job scaling refused", "job", req.Job.NamespacedID(), "error", err)
+			return err
+		}
+		// A scaling keeps the job modify index: another scaling since is
+		// told by the count the event was made from.
+		if ev := req.ScalingEvent; ev != nil && ev.ScalingEvent != nil && existing != nil {
+			if old := existing.LookupTaskGroup(req.ScaleGroup); old != nil && int64(old.Count) != ev.ScalingEvent.PreviousCount {
+				err := fmt.Errorf("%s %d: the count of the group %q is %d, not %d", RegisterEnforceIndexErrPrefix,
+					req.JobModifyIndex, req.ScaleGroup, old.Count, ev.ScalingEvent.PreviousCount)
+				n.logger.Debug("job scaling refused", "job", req.Job.NamespacedID(), "error", err)
+				return err
+			}
+		}
+	}
+
+	job, err := n.state.ScaleJobWithEval(msgType, index, req.Job.Namespace, req.Job.ID, req.ScaleGroup, tg.Count,
+		req.Job.SubmitTime, req.Eval, req.ScalingEvent)
 	if err != nil {
 		n.logger.Error("ScaleJob failed", "error", err)
 		return err
@@ -659,6 +687,7 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 		// The job or the group was removed since the request was made.
 		return nil
 	}
+	n.handleUpsertedEval(req.Eval)
 
 	// The periodic dispatcher holds the job it launches from.
 	if err := n.periodicDispatcher.Add(job); err != nil {

@@ -1272,9 +1272,12 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			if err != nil {
 				return err
 			}
-			if err := j.registerScaledJob(args, job, groupName, now, reply, event.ScalingEvent); err != nil {
+			if err := j.registerScaledJob(args, job, groupName, now, reply, event); err != nil {
 				return err
 			}
+			// The event was written with the count (review finding
+			// ASC-9).
+			event = nil
 			if admissionWarnings != nil {
 				warnings := []error{admissionWarnings}
 				if reply.Warnings != "" {
@@ -1287,75 +1290,77 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 		reply.JobModifyIndex = job.ModifyIndex
 	}
 
-	_, eventIndex, err := j.srv.raftApply(structs.ScalingEventRegisterRequestType, event)
-	if err != nil {
-		j.logger.Error("scaling event create failed", "error", err)
-		return err
+	if event != nil {
+		_, eventIndex, err := j.srv.raftApply(structs.ScalingEventRegisterRequestType, event)
+		if err != nil {
+			j.logger.Error("scaling event create failed", "error", err)
+			return err
+		}
+		reply.Index = eventIndex
+	} else {
+		reply.Index = reply.JobModifyIndex
 	}
-
-	reply.Index = eventIndex
 
 	j.srv.setQueryMeta(&reply.QueryMeta)
 
 	return nil
 }
 
-// registerScaledJob commits the new count of a group of the job and creates
-// the evaluation that makes the scheduler act on it (none for periodic and
-// parameterized jobs). The count is set on the stored job: scaling is not a
-// new version of the job (state.ScaleJob). It fills in the indexes of the
-// reply and the evaluation of the scaling event.
+// registerScaledJob commits the new count of a group of the job, the
+// evaluation that makes the scheduler act on it (none for periodic and
+// parameterized jobs) and the scaling event, in one Raft message (review
+// finding ASC-9: they were three, and a failure between them left a count
+// without its evaluation or its event). The count is set on the stored job:
+// scaling is not a new version of the job (state.ScaleJob).
+//
+// The scaling holds for the job it was checked on: the bounds of the policy,
+// the deployment and the previous count of the event were read from the
+// snapshot. A job registered or scaled since is refused with 409, and the
+// caller scales again on what is stored then (review finding ASC-8).
 func (j *Job) registerScaledJob(args *structs.JobScaleRequest, job *structs.Job, group string, now int64,
-	reply *structs.JobRegisterResponse, event *structs.ScalingEvent) error {
+	reply *structs.JobRegisterResponse, event *structs.ScalingEventRequest) error {
 
-	// Commit the job update
-	_, jobModifyIndex, err := j.srv.raftApply(
+	var eval *structs.Evaluation
+	if !(job.IsPeriodic() || job.IsParameterized()) {
+		eval = &structs.Evaluation{
+			ID:          uuid.Generate(),
+			Namespace:   job.Namespace,
+			Priority:    job.Priority, // Safe as nil check performed above.
+			Type:        job.Type,
+			TriggeredBy: structs.EvalTriggerScaling,
+			JobID:       args.JobID,
+			Status:      structs.EvalStatusPending,
+			CreateTime:  now,
+			ModifyTime:  now,
+		}
+		event.ScalingEvent.EvalID = &eval.ID
+	}
+
+	_, index, err := j.srv.raftApply(
 		structs.JobRegisterRequestType,
 		structs.JobRegisterRequest{
 			Job:            job,
 			ScaleGroup:     group,
 			EnforceIndex:   true,
-			JobModifyIndex: job.ModifyIndex,
+			JobModifyIndex: job.JobModifyIndex,
+			Eval:           eval,
+			ScalingEvent:   event,
 			PolicyOverride: args.PolicyOverride,
 			WriteRequest:   args.WriteRequest,
 		},
 	)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), RegisterEnforceIndexErrPrefix) {
+			return structs.NewErrRPCCoded(http.StatusConflict,
+				fmt.Sprintf("job %q changed while it was scaled; scale it again: %v", job.ID, err))
+		}
 		j.logger.Error("job register for scale failed", "error", err)
 		return err
 	}
-	reply.JobModifyIndex = jobModifyIndex
-
-	// Create an eval for non-dispatch jobs
-	if !(job.IsPeriodic() || job.IsParameterized()) {
-		eval := &structs.Evaluation{
-			ID:             uuid.Generate(),
-			Namespace:      job.Namespace,
-			Priority:       job.Priority, // Safe as nil check performed above.
-			Type:           job.Type,
-			TriggeredBy:    structs.EvalTriggerScaling,
-			JobID:          args.JobID,
-			JobModifyIndex: reply.JobModifyIndex,
-			Status:         structs.EvalStatusPending,
-			CreateTime:     now,
-			ModifyTime:     now,
-		}
-
-		_, evalIndex, err := j.srv.raftApply(
-			structs.EvalUpdateRequestType,
-			&structs.EvalUpdateRequest{
-				Evals:        []*structs.Evaluation{eval},
-				WriteRequest: structs.WriteRequest{Region: args.Region},
-			},
-		)
-		if err != nil {
-			j.logger.Error("eval create failed", "error", err, "method", "scale")
-			return err
-		}
-
+	reply.JobModifyIndex = index
+	if eval != nil {
 		reply.EvalID = eval.ID
-		reply.EvalCreateIndex = evalIndex
-		event.EvalID = &reply.EvalID
+		reply.EvalCreateIndex = index
 	}
 	return nil
 }

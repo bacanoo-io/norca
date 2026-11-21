@@ -83,12 +83,22 @@ func TestFSM_RegisterJob_EnforceIndex(t *testing.T) {
 	must.Nil(t, apply(15, register(other, true, 0)))
 	must.Eq(t, 15, stored(other.ID).JobModifyIndex)
 
-	// A scaling sets the count on the stored job whatever its index: its
-	// EnforceIndex is not a check of the stored job's JobModifyIndex.
+	// A scaling holds for the job it was checked on (review finding
+	// ASC-8): one read at an index that changed since is refused, one read
+	// at the stored index is applied.
 	scaled := stored(job.ID).Copy()
 	scaled.TaskGroups[0].Count = 3
+	// The evaluation goes with the scaling (review finding ASC-9).
 	scale := register(scaled, true, 1)
-	scale.ScaleGroup, scale.Eval = scaled.TaskGroups[0].Name, nil
-	must.Nil(t, apply(16, scale))
+	scale.ScaleGroup = scaled.TaskGroups[0].Name
+	refused(16, scale)
+	must.NotEq(t, 3, stored(job.ID).TaskGroups[0].Count)
+	scale = register(scaled, true, stored(job.ID).JobModifyIndex)
+	scale.ScaleGroup = scaled.TaskGroups[0].Name
+	must.Nil(t, apply(17, scale))
 	must.Eq(t, 3, stored(job.ID).TaskGroups[0].Count)
+	eval, err := fsm.State().EvalByID(nil, scale.Eval.ID)
+	must.NoError(t, err)
+	must.NotNil(t, eval)
+	must.Eq(t, uint64(17), eval.JobModifyIndex)
 }

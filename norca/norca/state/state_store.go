@@ -852,6 +852,15 @@ func (s *StateStore) UpsertScalingEvent(index uint64, req *structs.ScalingEventR
 	txn := s.db.WriteTxn(index)
 	defer txn.Abort()
 
+	if err := s.upsertScalingEventImpl(index, req, txn); err != nil {
+		return err
+	}
+	return txn.Commit()
+}
+
+// upsertScalingEventImpl writes a scaling event in a transaction (Norca: the
+// event of a scaling goes with it, state.ScaleJobWithEval).
+func (s *StateStore) upsertScalingEventImpl(index uint64, req *structs.ScalingEventRequest, txn *txn) error {
 	// Get the existing events
 	existing, err := txn.First("scaling_event", "id", req.Namespace, req.JobID)
 	if err != nil {
@@ -893,8 +902,7 @@ func (s *StateStore) UpsertScalingEvent(index uint64, req *structs.ScalingEventR
 	if err := txn.Insert("index", &IndexEntry{"scaling_event", index}); err != nil {
 		return fmt.Errorf("index update failed: %v", err)
 	}
-
-	return txn.Commit()
+	return nil
 }
 
 // ScalingEvents returns an iterator over all the job scaling events
