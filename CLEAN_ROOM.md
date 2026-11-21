@@ -555,6 +555,7 @@ each names the failing test and its output before the change.
 | `98f418c82` | `plugins/drivers/client.go` | The exec stream is half-closed at the end of the caller's input only in a session without a TTY |
 | `71707201f` | `plugins/drivers/server.go` | `Capabilities` sends the mount configuration support and the log collection switch of the driver |
 | `6705f2e45` | `plugins/csi/client.go`, `plugins/csi/plugin.go` | `ControllerGetVolume` keeps the content source of the volume; `NodeGetVolumeStats` refuses a nil request and wraps the error of the plugin with `%w`; the comment of its response says that a unit the plugin did not report is nil |
+| `44366ad32` | `norca/job_endpoint.go` | `Job.Register` takes the Norca check of the release marks of a job (`pack.release`, `pack.release_namespace`) with that of the owner mark (`checkJobMarks`, `job_endpoint_hook_owner.go`): a new or changed release mark takes the `write` capability on `packs.norca.io/Release` in the namespace it names, a dispatch can't set it (anyone with `submit-job` could pass a job of their own for a hook of a release; review finding JOG-23) |
 
 One defect of the v1.6.5 code that the review met was left as it is:
 `UpsertCSIVolume` writes a volume as given (`norca/state/state_store.go`;
