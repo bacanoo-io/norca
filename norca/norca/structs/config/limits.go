@@ -4,7 +4,11 @@
 
 package config
 
-import "github.com/bacanoo-io/norca/norca/helper/pointer"
+import (
+	"fmt"
+
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
+)
 
 const (
 	// LimitsNonStreamingConnsPerClient is the number of connections per
@@ -15,6 +19,16 @@ const (
 	//
 	// TODO Remove limit once MultiplexV2 is used.
 	LimitsNonStreamingConnsPerClient = 20
+
+	// DefaultExecMaxFrameBytes is the default of exec_max_frame_bytes: 1 MiB
+	// (Norca).
+	DefaultExecMaxFrameBytes = 1 << 20
+
+	// MinExecMaxFrameBytes is the smallest limit exec_max_frame_bytes takes
+	// (Norca). The command line client sends the input of a session in
+	// frames of up to 2754 bytes (2048 bytes of input, base64 in JSON); a
+	// smaller limit would end its sessions at the first full read.
+	MinExecMaxFrameBytes = 4096
 )
 
 // Limits configures timeout limits similar to Consul's limits configuration
@@ -57,6 +71,36 @@ type Limits struct {
 	TokenReadBurst              *int `hcl:"token_read_burst"`
 	TokenWriteRequestsPerSecond *int `hcl:"token_write_requests_per_second"`
 	TokenWriteBurst             *int `hcl:"token_write_burst"`
+
+	// ExecMaxFrameBytes is the largest input frame of an alloc exec session
+	// that an agent reads from the client, in bytes (Norca): one message of
+	// the websocket, which is a JSON object with the input in base64, so
+	// about three quarters of it are input. A session that sends a larger
+	// one is closed with the websocket status 1009 (message too big). The
+	// frames are read before the exec RPC has checked the ACL token, so
+	// this is what a client without a valid token can make the agent
+	// buffer. The output of the task is not limited by it.
+	//
+	// nil means DefaultExecMaxFrameBytes, 0 means no limit. A value under
+	// MinExecMaxFrameBytes is refused (ExecMaxFrame).
+	ExecMaxFrameBytes *int `hcl:"exec_max_frame_bytes"`
+}
+
+// ExecMaxFrame returns the limit that exec_max_frame_bytes sets, in bytes;
+// 0 is no limit. It returns an error for a value that is negative or under
+// MinExecMaxFrameBytes.
+func (l *Limits) ExecMaxFrame() (int64, error) {
+	if l.ExecMaxFrameBytes == nil {
+		return DefaultExecMaxFrameBytes, nil
+	}
+	switch v := *l.ExecMaxFrameBytes; {
+	case v < 0:
+		return 0, fmt.Errorf("exec_max_frame_bytes must be >= 0")
+	case v > 0 && v < MinExecMaxFrameBytes:
+		return 0, fmt.Errorf("exec_max_frame_bytes must be 0 (no limit) or at least %d", MinExecMaxFrameBytes)
+	default:
+		return int64(v), nil
+	}
 }
 
 // DefaultLimits returns the default limits values. User settings should be
@@ -67,6 +111,7 @@ func DefaultLimits() Limits {
 		HTTPMaxConnsPerClient: pointer.Of(100),
 		RPCHandshakeTimeout:   "5s",
 		RPCMaxConnsPerClient:  pointer.Of(100),
+		ExecMaxFrameBytes:     pointer.Of(DefaultExecMaxFrameBytes),
 	}
 }
 
@@ -99,6 +144,9 @@ func (l *Limits) Merge(o Limits) Limits {
 	if o.TokenWriteBurst != nil {
 		m.TokenWriteBurst = pointer.Of(*o.TokenWriteBurst)
 	}
+	if o.ExecMaxFrameBytes != nil {
+		m.ExecMaxFrameBytes = pointer.Of(*o.ExecMaxFrameBytes)
+	}
 
 	return m
 }
@@ -116,5 +164,6 @@ func (l *Limits) Copy() Limits {
 	c.TokenReadBurst = pointer.Copy(l.TokenReadBurst)
 	c.TokenWriteRequestsPerSecond = pointer.Copy(l.TokenWriteRequestsPerSecond)
 	c.TokenWriteBurst = pointer.Copy(l.TokenWriteBurst)
+	c.ExecMaxFrameBytes = pointer.Copy(l.ExecMaxFrameBytes)
 	return c
 }
