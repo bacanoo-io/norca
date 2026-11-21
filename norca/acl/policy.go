@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// The following levels are the only valid values for the `policy = "read"` block.
+	// PolicyDeny The following levels are the only valid values for the `policy = "read"` block.
 	// When policies are merged together, the most privilege is granted, except for deny
 	// which always takes precedence and supersedes.
 	PolicyDeny  = "deny"
@@ -85,7 +85,7 @@ const (
 	// The following are the fine-grained capabilities that can be granted for
 	// node volume management.
 	//
-	// The Policy field is a short hand for granting several of these. When
+	// The Policy field is a shorthand for granting several of these. When
 	// capabilities are combined we take the union of all capabilities. If the
 	// deny capability is present, it takes precedence and overwrites all other
 	// capabilities.
@@ -102,7 +102,7 @@ var (
 
 const (
 	// The following are the fine-grained capabilities that can be granted for a volume set.
-	// The Policy field is a short hand for granting several of these. When capabilities are
+	// The Policy field is a shorthand for granting several of these. When capabilities are
 	// combined we take the union of all capabilities. If the deny capability is present, it
 	// takes precedence and overwrites all other capabilities.
 
@@ -116,8 +116,8 @@ var (
 )
 
 const (
-	// The following are the fine-grained capabilities that can be
-	// granted for a variables path. When capabilities are
+	// VariablesCapabilityList The following are the fine-grained capabilities that can be
+	// granted for a variables' path. When capabilities are
 	// combined we take the union of all capabilities.
 	VariablesCapabilityList    = "list"
 	VariablesCapabilityRead    = "read"
@@ -175,7 +175,7 @@ type NamespacePolicy struct {
 	Secrets []*SecretPathPolicy `hcl:"secret,expand"`
 }
 
-// NodePoolPolicy is the policfy for a specific node pool.
+// NodePoolPolicy is the policy for a specific node pool.
 type NodePoolPolicy struct {
 	Name         string `hcl:",key"`
 	Policy       string
