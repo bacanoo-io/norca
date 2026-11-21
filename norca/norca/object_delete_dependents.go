@@ -34,14 +34,18 @@ import (
 // refusal, IssuerNotFound). The collector also stops the jobs that depend on
 // a deleted object, which needs the right to stop a job in the same way.
 //
+// For every guarded kind the deleter of an owner needs "write" on the kind
+// of the dependent, which is what the object API asks first of all for the
+// deletion of the dependent itself; for a volume request and a snapshot
+// schedule besides the rights of the volume API (review finding JOG-27).
+//
 // Not guarded on purpose (decision of the maintainer with JOG-26): the kinds
 // of operators outside this tree whose objects are typically the dependents
 // of an application, norca.io/LoadBalancer and norca.io/DNSRecord. They go
 // with the application they were made for, by whoever may delete that.
 
 // deletionGuard is what the deletion of an object takes with it beyond the
-// object, and the right the deletion needs for that, besides the right to
-// write the kind where the object is deleted itself.
+// object, and the rights the deletion of the object needs.
 type deletionGuard struct {
 	// unnamed is the object as a dependent, to a caller who may not read
 	// it.
@@ -50,12 +54,10 @@ type deletionGuard struct {
 	// takes is what the servers delete, or let go of, with the object.
 	takes string
 
-	// needs is the right as an error names it; "that namespace" is the
-	// namespace of the object.
-	needs string
-
-	// allowed reports whether the ACL has that right for the object.
-	allowed func(aclObj *acl.ACL, obj *structs.CustomObject) bool
+	// missing returns the right the ACL lacks for the deletion of the
+	// object, as an error names it ("that namespace" is the namespace of
+	// the object), or "" if it lacks none.
+	missing func(aclObj *acl.ACL, obj *structs.CustomObject) string
 }
 
 // allowVolumeDeletion is the right of the volume API to delete volumes and
@@ -71,26 +73,45 @@ func allowObjectDeletion(aclObj *acl.ACL, obj *structs.CustomObject) bool {
 	return aclObj.AllowObjectOperation(objectOwnerACLNamespace(obj.Namespace), obj.KindRef(), acl.ObjectCapabilityWrite)
 }
 
+// missingObjectDeletion names the right to delete the object itself
+// (allowObjectDeletion) if the ACL lacks it.
+func missingObjectDeletion(aclObj *acl.ACL, obj *structs.CustomObject) string {
+	if allowObjectDeletion(aclObj, obj) {
+		return ""
+	}
+	needs := "the object capability " + acl.ObjectCapabilityWrite + " on the kind " + obj.KindRef()
+	if obj.Namespace != "" {
+		needs += " in that namespace"
+	}
+	return needs
+}
+
+// missingStorageDeletion names what the ACL lacks for the deletion of a
+// volume request or a snapshot schedule that takes its storage with it: the
+// rights of the volume API (allowVolumeDeletion), then the right to delete
+// the object itself.
+func missingStorageDeletion(aclObj *acl.ACL, obj *structs.CustomObject) string {
+	if !allowVolumeDeletion(aclObj, obj) {
+		return "the right " + acl.NamespaceCapabilityCSIWriteVolume + " in that namespace and to read CSI plugins"
+	}
+	return missingObjectDeletion(aclObj, obj)
+}
+
 var (
 	storageDeletionGuard = &deletionGuard{
 		unnamed: "a volume request or a snapshot schedule that depends on it",
 		takes:   "data in the storage (its volume or its snapshots)",
-		needs:   "the right " + acl.NamespaceCapabilityCSIWriteVolume + " in that namespace and to read CSI plugins",
-		allowed: allowVolumeDeletion,
+		missing: missingStorageDeletion,
 	}
 	tenantDeletionGuard = &deletionGuard{
 		unnamed: "a tenant that depends on it",
 		takes:   "what the tenant keeps (its namespace, quota, ACL policies and roles, and network rule)",
-		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
-			structs.OperatorsGroup + "/" + structs.TenantKind,
-		allowed: allowObjectDeletion,
+		missing: missingObjectDeletion,
 	}
 	certificateDeletionGuard = &deletionGuard{
 		unnamed: "a certificate that depends on it",
 		takes:   "the certificate the servers keep issued (its renewal, its valid certificates, which are revoked unless keep_certificates is set, and its secret with delete_secret)",
-		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
-			structs.OperatorsGroup + "/" + structs.CertificateKind + " in that namespace",
-		allowed: allowObjectDeletion,
+		missing: missingObjectDeletion,
 	}
 	// What the operator of the group does with the machines is not in this
 	// tree: the text says what the kind says (spec.deletion.policy of
@@ -98,9 +119,7 @@ var (
 	nodeGroupDeletionGuard = &deletionGuard{
 		unnamed: "a node group that depends on it",
 		takes:   "the nodes of the group (its operator acts on the machines of the group as the deletion policy of the group says: drain, the default, terminate or orphan)",
-		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
-			structs.NodeScalingGroup + "/" + structs.NodeGroupKind,
-		allowed: allowObjectDeletion,
+		missing: missingObjectDeletion,
 	}
 	// The issuing CA of the region is not deleted with the last built-in
 	// issuer: it stays and is still rotated, only none is created where
@@ -108,9 +127,7 @@ var (
 	certificateIssuerDeletionGuard = &deletionGuard{
 		unnamed: "a certificate issuer that depends on it",
 		takes:   "the issuing of the certificates that name it (nothing is issued or renewed for them any more; what they have stays until it expires)",
-		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
-			structs.OperatorsGroup + "/" + structs.CertificateIssuerKind,
-		allowed: allowObjectDeletion,
+		missing: missingObjectDeletion,
 	}
 )
 
@@ -188,20 +205,6 @@ func objectDependents(snap *state.StateSnapshot, owner *structs.CustomObject) ([
 	return out, nil
 }
 
-// destroyingDependents returns the dependents of owner, direct or through
-// other objects, whose deletion takes more than the object with it
-// (objectDeletionDestroys). deps are the dependents of owner
-// (objectDependents).
-func destroyingDependents(deps []*structs.CustomObject) []*structs.CustomObject {
-	var out []*structs.CustomObject
-	for _, dep := range deps {
-		if objectDeletionDestroys(dep) {
-			out = append(out, dep)
-		}
-	}
-	return out
-}
-
 // dependentJobs returns the running jobs that the deletion of owner may
 // stop: the jobs whose meta names owner, or an object that depends on owner,
 // sorted by namespace and ID. deps are the dependents of owner
@@ -239,21 +242,37 @@ func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject, deps 
 
 // checkObjectDependentsDelete checks the deletion of an object that takes
 // its dependents with it (the background and the foreground mode). The
-// caller needs, for every dependent object whose deletion takes more than
-// the object with it (objectDeletionGuard: data in the storage, the resources
-// of a tenant, a certificate), what deleting that dependent itself needs for
-// that: the right of the guard, and, for a dependent that is managed
-// (managed_by), to be its manager (checkObjectManagedBy; review finding
-// JOG-25): the collector deletes the dependent with the rights of the
-// servers, so otherwise an owner would be the way around the protection that
-// a direct deletion of the dependent meets. For every dependent job the
-// caller needs the right to stop it (submit-job in its namespace, as
-// Job.Deregister asks). The protection of a managed job (norca.managed-by)
-// is not asked for: it keeps others from changing the job behind its
-// manager, and the object that owns the job is the way they are meant to
-// take. args is the request of the caller, for its identity. It returns the
-// list of the dependents the caller was checked for, as it is recorded with
-// the deletion (CustomObject.DeletionApproved).
+// collector deletes the dependents with the rights of the servers, so the
+// caller is asked here for what deleting each of them itself would ask
+// beyond the plain right on its kind:
+//
+//   - for every dependent object whose deletion takes more than the object
+//     with it (objectDeletionGuard: data in the storage, the resources of a
+//     tenant, a certificate, the certificates of an issuer, the nodes of a
+//     node group), the rights of its guard: "write" on its kind, and the
+//     rights of the volume API where storage goes;
+//   - for every dependent object that is managed (managed_by), guarded or
+//     not, to be its manager (checkObjectManagedBy; review findings JOG-25
+//     and JOG-27): otherwise an owner would be the way around the
+//     protection that a direct deletion of the dependent meets;
+//   - for every dependent job the right to stop it (submit-job in its
+//     namespace, as Job.Deregister asks). The protection of a managed job
+//     (norca.managed-by) is not asked for: it keeps others from changing
+//     the job behind its manager, and the object that owns the job is the
+//     way they are meant to take.
+//
+// "write" on the kind of a dependent that is not guarded is not asked: such
+// a dependent goes with its owner, that is what an owner is for.
+//
+// The check sees the dependents that exist now. The collector takes a
+// guarded dependent only if this check named it (the list returned); a
+// managed dependent that is not guarded and is written after the check, or
+// whose owner the servers delete, is collected like any other dependent.
+//
+// args is the request of the caller, for its identity. It returns the list
+// of the dependents the caller was checked for whose deletion needs that:
+// the guarded objects and the jobs, as it is recorded with the deletion
+// (CustomObject.DeletionApproved).
 func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, args structs.RequestWithIdentity, owner *structs.CustomObject) ([]string, error) {
 	var approved []string
 
@@ -282,25 +301,33 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, arg
 			owner.KindRef(), owner.Name, which, job.Namespace, acl.NamespaceCapabilitySubmitJob, structs.ObjectPropagationOrphan)
 	}
 
-	deps := destroyingDependents(dependents)
-	for _, dep := range deps {
+	for _, dep := range dependents {
 		guard := objectDeletionGuard(dep)
+		var refused string
+		if guard != nil {
+			if needs := guard.missing(aclObj, dep); needs != "" {
+				refused = "that needs " + needs
+			}
+		}
 		// The dependent, and its manager, are named only to a caller who
 		// may read it.
 		readable := aclObj.AllowObjectOperation(objectOwnerACLNamespace(dep.Namespace), dep.KindRef(), acl.ObjectCapabilityRead)
-		var refused string
-		switch {
-		case !guard.allowed(aclObj, dep):
-			refused = "that needs " + guard.needs
-		case checkObjectManagedBy(aclObj, args, dep) != nil:
+		if refused == "" && checkObjectManagedBy(aclObj, args, dep) != nil {
 			refused = "it is managed by another identity, and only that identity may delete it"
 			if readable {
 				refused = fmt.Sprintf("it is managed by %q, and only that identity may delete it", dep.ManagedBy)
 			}
-		default:
+		}
+		if refused == "" {
+			if guard != nil {
+				approved = append(approved, dep.ID)
+			}
 			continue
 		}
-		which := guard.unnamed
+		which, with := "an object that depends on it", ""
+		if guard != nil {
+			which, with = guard.unnamed, ", and with it "+guard.takes
+		}
 		if readable {
 			which = "its dependent " + dep.KindRef() + " \"" + dep.Name + "\""
 		}
@@ -309,12 +336,9 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, arg
 			where = fmt.Sprintf(" in the namespace %q", dep.Namespace)
 		}
 		return nil, structs.NewErrRPCCodedf(http.StatusForbidden,
-			"deleting %s %q would delete %s%s, and with it %s: %s; "+
+			"deleting %s %q would delete %s%s%s: %s; "+
 				"the propagation mode %q deletes the object and keeps its dependents",
-			owner.KindRef(), owner.Name, which, where, guard.takes, refused, structs.ObjectPropagationOrphan)
-	}
-	for _, dep := range deps {
-		approved = append(approved, dep.ID)
+			owner.KindRef(), owner.Name, which, where, with, refused, structs.ObjectPropagationOrphan)
 	}
 	slices.Sort(approved)
 	return approved, nil

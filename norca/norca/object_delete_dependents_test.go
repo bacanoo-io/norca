@@ -184,8 +184,11 @@ func TestObjectDelete_DependentsThatDestroyStorage(t *testing.T) {
   object "norca.io/CSIVolumeRequest" { capabilities = ["read", "write"] }
   object "example.com/Database" { capabilities = ["read", "write"] }
 }`)
+	// The schedule goes with its volume request only for a caller who may
+	// delete the schedule itself (review finding JOG-27).
 	volumeRight := mock.CreatePolicyAndToken(t, c.s.State(), 1003, "volumes", `namespace "default" {
   object "norca.io/CSIVolumeRequest" { capabilities = ["read", "write"] }
+  object "norca.io/VolumeSnapshotSchedule" { capabilities = ["write"] }
   object "example.com/Database" { capabilities = ["read", "write"] }
   capabilities = ["csi-write-volume"]
 }
@@ -825,6 +828,175 @@ namespace "*" {
 		must.NotNil(t, kept)
 		must.False(t, kept.Deleting())
 	}
+}
+
+// A volume request that takes its volume away, or a snapshot schedule that
+// deletes its snapshots, is deleted with its owner only for a caller who may
+// delete it itself: with the rights of the volume API and with "write" on its
+// kind, which a direct deletion asks first (review finding JOG-27). Before
+// the fix the rights of the volume API were enough for an owner.
+func TestObjectDelete_StorageDependentNeedsWriteOnItsKind(t *testing.T) {
+	ci.Parallel(t)
+	c, _, snapshots, cleanup := dependentsTestServer(t)
+	defer cleanup()
+	c.s.objectGC.SetConfig(&objectgc.Config{Interval: 50 * time.Millisecond, IdleInterval: time.Second, TombstoneRetention: time.Second})
+
+	database := func(name string) *structs.ObjectOwnerReference {
+		return ownedBy(testOwnerGroup, testOwnerKind, name)
+	}
+	for _, name := range []string{"shop", "site"} {
+		must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
+	}
+	c.volumeRequestOwnedBy("shop-data", "delete", database("shop"))
+	c.scheduleOwnedBy(snapshots, "site-nightly", database("site"))
+
+	rules := func(objects string) string {
+		return `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+` + objects + `  capabilities = ["csi-write-volume"]
+}
+plugin { policy = "read" }`
+	}
+	volumes := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "volumes", rules("")))
+	reader := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "reader", rules(`  object "norca.io/*" { capabilities = ["read"] }
+`)))
+	writer := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "writer", rules(`  object "norca.io/*" { capabilities = ["write"] }
+`)))
+
+	// The direct deletion needs "write" on the kind.
+	must.ErrorContains(t, volumes.delete("default", csiVolumeRequestKind, "shop-data"), structs.ErrPermissionDenied.Error())
+	must.ErrorContains(t, volumes.delete("default", volumeSnapshotScheduleKind, "site-nightly"), structs.ErrPermissionDenied.Error())
+
+	// So does the deletion of an owner, in both modes that take the
+	// dependents, and nothing is marked.
+	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
+		for _, tt := range []struct{ owner, kind, dependent string }{
+			{"shop", "norca.io/" + csiVolumeRequestKind, "shop-data"},
+			{"site", "norca.io/" + volumeSnapshotScheduleKind, "site-nightly"},
+		} {
+			err := volumes.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Error(t, err, must.Sprintf("%s was deleted without the right to write its dependent %s %q, mode %q",
+				tt.owner, tt.kind, tt.dependent, mode))
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, "that needs the object capability write on the kind "+tt.kind+" in that namespace")
+			must.ErrorContains(t, err, "data in the storage (its volume or its snapshots)")
+			must.StrNotContains(t, err.Error(), tt.dependent)
+
+			err = reader.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, fmt.Sprintf("its dependent %s %q", tt.kind, tt.dependent))
+		}
+	}
+	for _, obj := range []*structs.CustomObject{
+		c.object(testOwnerGroup, testOwnerKind, "shop"),
+		c.object(structs.OperatorsGroup, csiVolumeRequestKind, "shop-data"),
+		c.object(testOwnerGroup, testOwnerKind, "site"),
+		c.object(structs.OperatorsGroup, volumeSnapshotScheduleKind, "site-nightly"),
+	} {
+		must.NotNil(t, obj)
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", obj.Name))
+	}
+
+	// With both rights the dependents go with their owners.
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "shop", ""))
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "site", structs.ObjectPropagationForeground))
+	c.waitGone(structs.OperatorsGroup, csiVolumeRequestKind, "shop-data")
+	c.waitGone(structs.OperatorsGroup, volumeSnapshotScheduleKind, "site-nightly")
+	c.waitGone(testOwnerGroup, testOwnerKind, "site")
+}
+
+// The protection of a managed object (managed_by) is asked for every
+// dependent object, also for one whose deletion removes the object and
+// nothing else: an owner is no way around the manager of its dependents
+// (review finding JOG-27). Before the fix only the guarded kinds were asked.
+func TestObjectDelete_AnyDependentManagedByAnother(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := ownerMarkServer(t)
+	defer cleanup()
+
+	const managedBy = structs.ManagedByPolicyPrefix + "site-controller"
+	hookRef := structs.ObjectKindRef(testOwnerGroup, testOwnerMarkHookKind)
+	hook := func(name, owner string) {
+		t.Helper()
+		_, err := c.applyObject(&structs.CustomObject{Group: testOwnerGroup, Kind: testOwnerMarkHookKind, Name: name,
+			Spec: map[string]any{}, ManagedBy: managedBy,
+			Owners: []*structs.ObjectOwnerReference{ownedBy(testOwnerGroup, testOwnerKind, owner)}})
+		must.NoError(t, err)
+	}
+	for _, name := range []string{"site", "app", "loose", "root-owned"} {
+		must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
+	}
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "app-part", map[string]any{}, ownedBy(testOwnerGroup, testOwnerKind, "app")))
+	hook("site-hook", "site")
+	hook("app-hook", "app-part")
+	hook("loose-hook", "loose")
+	hook("root-hook", "root-owned")
+
+	const databases = `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+`
+	writer := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "writer", databases+`}`))
+	reader := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "reader", databases+`  object "example.com/Hook" { capabilities = ["read", "write"] }
+}`))
+	manager := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "site-controller", databases+`}`))
+
+	// The direct deletion of the managed object is refused to all but its
+	// manager, whatever right on its kind the caller has.
+	err := reader.deleteWith(testOwnerGroup, testOwnerMarkHookKind, "site-hook", "")
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, "is managed by")
+
+	// So is the deletion of an owner of it, direct or through an object in
+	// between, in both modes that take the dependents.
+	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
+		for _, tt := range []struct{ owner, dependent string }{
+			{"site", "site-hook"},
+			{"app", "app-hook"},
+		} {
+			err := writer.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Error(t, err, must.Sprintf("%s was deleted by a caller who is not the manager of its dependent %q, mode %q",
+				tt.owner, tt.dependent, mode))
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, `would delete an object that depends on it in the namespace "default": `+
+				`it is managed by another identity, and only that identity may delete it`)
+			must.ErrorContains(t, err, `the propagation mode "orphan" deletes the object and keeps its dependents`)
+			// The caller may not read the dependent: neither it, its kind
+			// nor its manager is named.
+			must.StrNotContains(t, err.Error(), tt.dependent)
+			must.StrNotContains(t, err.Error(), testOwnerMarkHookKind)
+			must.StrNotContains(t, err.Error(), "site-controller")
+
+			err = reader.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, fmt.Sprintf("would delete its dependent %s %q in the namespace \"default\": it is managed by %q",
+				hookRef, tt.dependent, managedBy))
+		}
+	}
+	for _, name := range []string{"site", "app", "app-part"} {
+		obj := c.object(testOwnerGroup, testOwnerKind, name)
+		must.NotNil(t, obj)
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", name))
+	}
+	must.NotNil(t, c.object(testOwnerGroup, testOwnerMarkHookKind, "site-hook"))
+
+	// The orphan mode takes no dependent, and asks nothing.
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "loose", structs.ObjectPropagationOrphan))
+	c.waitGone(testOwnerGroup, testOwnerKind, "loose")
+
+	// The manager, with no right on the kind of the dependent (its deletion
+	// takes nothing else), and a management token delete the owners, and the
+	// dependents go with them.
+	must.NoError(t, manager.deleteWith(testOwnerGroup, testOwnerKind, "site", ""))
+	must.NoError(t, manager.deleteWith(testOwnerGroup, testOwnerKind, "app", structs.ObjectPropagationForeground))
+	must.NoError(t, c.deleteWith(testOwnerGroup, testOwnerKind, "root-owned", ""))
+	for _, name := range []string{"site-hook", "app-hook", "root-hook"} {
+		c.waitGone(testOwnerGroup, testOwnerMarkHookKind, name)
+	}
+	c.waitGone(testOwnerGroup, testOwnerKind, "app")
+
+	kept := c.object(testOwnerGroup, testOwnerMarkHookKind, "loose-hook")
+	must.NotNil(t, kept)
+	must.False(t, kept.Deleting())
 }
 
 // ownedJob registers a job of the default namespace whose meta names an
