@@ -431,6 +431,13 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		}
 
 	default:
+		// A withdrawal ends when the namespace has the names back. The
+		// failures and the wait it left were those of its revocation, which
+		// is not carried on (settleEarlier): they must not hold up the
+		// issuance that follows (review finding ATM-24h).
+		if prev, _ := certificateFailure(obj.Status); prev == "NamesNotAllowed" {
+			st.Failures, st.RetryAt = 0, ""
+		}
 		o.settleHeld(p, obj, &st)
 		o.settleEarlier(p, obj, &st)
 		why := o.issuanceNeeded(p, spec, &st, have, issuerSpec)
