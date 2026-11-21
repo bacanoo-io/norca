@@ -823,9 +823,13 @@ func TestTenantOperator_OwnRoleRenamed(t *testing.T) {
 		own := create(t, c, "team-o1")
 		renameRole(t, c.s, "team-o1-dev", "ops-dev")
 
-		obj := waitTenant(c, "team-o1", "ready with a role of its name", func(o *structs.CustomObject) bool {
+		// The tenant renames the role back and records the event in two
+		// writes: the role has its name before the event is there, so the
+		// wait takes the event too.
+		obj := waitTenant(c, "team-o1", "ready with a role of its name, the rename recorded", func(o *structs.CustomObject) bool {
 			role, err := c.s.State().GetACLRoleByName(nil, "team-o1-dev")
-			return err == nil && role != nil && tenantReady(o) && !tenantRefs(o)["acl-role//team-o1-dev"].Pending
+			return err == nil && role != nil && tenantReady(o) && !tenantRefs(o)["acl-role//team-o1-dev"].Pending &&
+				hasObjectEvent(c, o, "Renamed", "renamed acl-role team-o1-dev back: it had the name ops-dev")
 		})
 		role, err := c.s.State().GetACLRoleByName(nil, "team-o1-dev")
 		must.NoError(t, err)

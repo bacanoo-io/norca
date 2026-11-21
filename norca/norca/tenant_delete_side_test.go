@@ -545,6 +545,21 @@ func TestTenant_DeleteLeavesReleaseResource(t *testing.T) {
 
 // mustHaveEvent checks that the event log of the object has an event of the
 // reason whose message holds what.
+// hasObjectEvent reports whether the event log of the object has an event
+// of the reason whose message contains what.
+func hasObjectEvent(c *certTest, obj *structs.CustomObject, reason, what string) bool {
+	log, err := c.s.State().ObjectEventLog(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
+	if err != nil || log == nil {
+		return false
+	}
+	for _, e := range log.Events {
+		if e.Reason == reason && strings.Contains(e.Message, what) {
+			return true
+		}
+	}
+	return false
+}
+
 func mustHaveEvent(t *testing.T, c *certTest, obj *structs.CustomObject, reason, what string) {
 	t.Helper()
 	log, err := c.s.State().ObjectEventLog(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
