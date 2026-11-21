@@ -67,6 +67,12 @@ type BlockedEvals struct {
 	// time they are being blocked.
 	unblockIndexes map[string]uint64
 
+	// affinityIndexes maps a namespace to the index of the last plan that
+	// placed allocations in it (Norca): an evaluation that waits for a
+	// required colocate rule on that namespace and was in the scheduler
+	// before is unblocked when it blocks (blocked_evals_affinity.go).
+	affinityIndexes map[string]uint64
+
 	// duplicates is the set of evaluations for jobs that had pre-existing
 	// blocked evaluations. These should be marked as cancelled since only one
 	// blocked eval is needed per job.
@@ -109,6 +115,7 @@ func NewBlockedEvals(evalBroker *EvalBroker, logger hclog.Logger) *BlockedEvals 
 		system:           newSystemEvals(),
 		jobs:             make(map[structs.NamespacedID]string),
 		unblockIndexes:   make(map[string]uint64),
+		affinityIndexes:  make(map[string]uint64),
 		capacityChangeCh: make(chan *capacityUpdate, unblockBuffer),
 		duplicateCh:      make(chan struct{}, 1),
 		stopCh:           make(chan struct{}),
@@ -303,6 +310,10 @@ func latestEvalIndex(eval *structs.Evaluation) uint64 {
 // complete. This method returns if that is the case and should be called with
 // the lock held.
 func (b *BlockedEvals) missedUnblock(eval *structs.Evaluation) bool {
+	if b.missedAffinityUnblock(eval) {
+		return true
+	}
+
 	var max uint64 = 0
 	for id, index := range b.unblockIndexes {
 		// Calculate the max unblock index
@@ -719,6 +730,7 @@ func (b *BlockedEvals) Flush() {
 	b.escaped = make(map[string]wrappedEval)
 	b.jobs = make(map[structs.NamespacedID]string)
 	b.unblockIndexes = make(map[string]uint64)
+	b.affinityIndexes = make(map[string]uint64)
 	b.timetable = nil
 	b.duplicates = nil
 	b.capacityChangeCh = make(chan *capacityUpdate, unblockBuffer)

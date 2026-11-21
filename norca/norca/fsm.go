@@ -1225,6 +1225,10 @@ func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, ind
 
 	// Unblock evals waiting on quota released by stopped allocations
 	n.unblockQuotasForPlanResults(&req, index)
+
+	// (Norca) Unblock evals waiting for a required colocate rule on the
+	// namespaces the plan placed allocations in.
+	n.unblockAllocAffinityForPlanResults(&req, index)
 	return nil
 }
 
