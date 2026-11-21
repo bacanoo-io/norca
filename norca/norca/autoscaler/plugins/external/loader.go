@@ -122,6 +122,8 @@ func (l *Loader) load(name, driver, pluginType string, args []string, config map
 	if driver == "" {
 		driver = name
 	}
+	// The name the plugin identifies itself with (review finding ASP-12).
+	driver = driverName(driver)
 	if _, err := resolve(l.dir, driver); err != nil {
 		// The binary may be installed later; it is looked up again on every
 		// start attempt.
