@@ -4,11 +4,11 @@
 // Command testplugin is a minimal external autoscaler plugin used by the
 // tests of the external package. With -type=apm (default) it is an APM whose
 // queries are numbers returned as the metric value; the query "crash" makes
-// the process exit. With -type=strategy it is a strategy that sets the count
-// to the latest metric value. With -nomadkey it serves with the key of the
-// magic cookie of the Nomad Autoscaler SDK, as a plugin built with that SDK
-// does. The plugin name is the binary name, as the host expects the plugin
-// name to match its driver.
+// the process exit, and the query "hang" never answers. With -type=strategy
+// it is a strategy that sets the count to the latest metric value. With
+// -nomadkey it serves with the key of the magic cookie of the Nomad
+// Autoscaler SDK, as a plugin built with that SDK does. The plugin name is
+// the binary name, as the host expects the plugin name to match its driver.
 package main
 
 import (
@@ -81,6 +81,9 @@ func (a *apm) SetConfig(config map[string]string) error {
 func (a *apm) Query(q string, r sdk.TimeRange) (sdk.TimestampedMetrics, error) {
 	if q == "crash" {
 		os.Exit(3)
+	}
+	if q == "hang" {
+		select {} // a deadlock: the process lives and never answers
 	}
 	v, err := strconv.ParseFloat(q, 64)
 	if err != nil {

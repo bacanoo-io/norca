@@ -4,6 +4,7 @@
 package external
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -17,6 +18,8 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	metrics "github.com/hashicorp/go-metrics"
 	plugin "github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -168,7 +171,18 @@ type instance struct {
 	failures int
 	retryAt  time.Time
 	closed   bool
+
+	// timeouts counts the calls in a row that ran out of CallTimeout on the
+	// running process (Norca, hungAfter).
+	timeouts int
 }
+
+// hungAfter is the number of calls in a row that run out of CallTimeout after
+// which a plugin process that has not exited counts as hung: it is stopped and
+// started again like one that exited (review finding ASP-7). Before, only an
+// exited process was restarted, and a deadlocked one held every call for the
+// whole timeout, for good.
+const hungAfter = 3
 
 // get returns the running plugin, restarting it if it has exited and the
 // restart backoff allows it.
@@ -325,8 +339,39 @@ func (i *instance) call(fn func(raw plugins.Base) error) (err error) {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("external plugin %q: %v", i.name, r)
 		}
+		i.noteCall(raw, err)
 	}()
 	return fn(raw)
+}
+
+// noteCall counts the calls to the process of raw that ran out of the call
+// timeout, and stops the process once hungAfter of them came in a row.
+func (i *instance) noteCall(raw plugins.Base, err error) {
+	i.l.Lock()
+	defer i.l.Unlock()
+	if i.raw != raw || i.client == nil {
+		return // the process was replaced meanwhile
+	}
+	if !isCallTimeout(err) {
+		i.timeouts = 0
+		return
+	}
+	i.timeouts++
+	if i.timeouts < hungAfter {
+		return
+	}
+	i.logger.Warn("external plugin does not answer, stopping it to start it again",
+		"timeouts", i.timeouts, "call_timeout", CallTimeout)
+	metrics.IncrCounterWithLabels([]string{"nomad", "autoscaler", "plugin", "hung"}, 1,
+		[]metrics.Label{{Name: "plugin_name", Value: i.name}})
+	i.client.Kill()
+	i.client, i.raw, i.timeouts = nil, nil, 0
+	i.failedLocked(i.loader.now(), false)
+}
+
+// isCallTimeout reports whether a call ran out of CallTimeout.
+func isCallTimeout(err error) bool {
+	return err != nil && (errors.Is(err, context.DeadlineExceeded) || status.Code(err) == codes.DeadlineExceeded)
 }
 
 func (i *instance) PluginInfo() (*plugins.PluginInfo, error) {

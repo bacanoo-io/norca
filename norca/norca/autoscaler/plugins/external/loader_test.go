@@ -264,3 +264,37 @@ func TestLoader_PluginOfTheNomadSDKStarts(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, 3.0, ms[0].Value)
 }
+
+// A plugin process that lives but does not answer (a deadlock) is stopped
+// after hungAfter calls in a row ran out of the call timeout, and started
+// again like one that exited (review finding ASP-7: it was kept for good,
+// and every call waited out the timeout).
+//
+// Not parallel: it lowers CallTimeout.
+func TestLoader_HungPluginIsRestarted(t *testing.T) {
+	old := CallTimeout
+	CallTimeout = 300 * time.Millisecond
+	defer func() { CallTimeout = old }()
+
+	dir := t.TempDir()
+	externaltest.InstallPlugin(t, dir, "test-apm")
+	l, clock := newTestLoader(t, dir)
+	l.RestartBackoff = time.Minute
+
+	apm, err := l.APM("my-apm", "test-apm", nil, nil)
+	must.NoError(t, err)
+	_, err = apm.Query("1", testRange())
+	must.NoError(t, err)
+
+	for n := 1; n <= hungAfter; n++ {
+		_, err = apm.Query("hang", testRange())
+		must.Error(t, err, must.Sprintf("call %d", n))
+	}
+	// The hung process was stopped; after the backoff a new one answers.
+	_, err = apm.Query("2", testRange())
+	must.ErrorContains(t, err, "next start attempt")
+	clock.Advance(time.Minute)
+	ms, err := apm.Query("2", testRange())
+	must.NoError(t, err)
+	must.Eq(t, 2.0, ms[0].Value)
+}
