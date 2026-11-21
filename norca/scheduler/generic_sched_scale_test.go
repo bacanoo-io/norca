@@ -229,6 +229,7 @@ func TestMarkOutsideDeployment(t *testing.T) {
 	name := func(i uint) string { return structs.AllocName("shop", "web", i) }
 	place := []allocPlaceResult{
 		{name: name(1), taskGroup: tg, previousAlloc: &structs.Allocation{}, reschedule: true},
+		// The replacement of an added allocation is outside too (SCH-1).
 		{name: name(4), taskGroup: tg, previousAlloc: &structs.Allocation{}, lost: true},
 		{name: name(2), taskGroup: tg},
 		{name: name(3), taskGroup: tg},
@@ -243,10 +244,17 @@ func TestMarkOutsideDeployment(t *testing.T) {
 			outside = append(outside, i)
 		}
 	}
-	must.Eq(t, []int{3, 4}, outside)
-	must.Eq(t, 4, insideDeployment(place))
-	must.Len(t, 2, outsideDeployment(place, 0))
+	must.Eq(t, []int{1, 3, 4}, outside)
+	must.Eq(t, 3, insideDeployment(place))
+	must.Len(t, 3, outsideDeployment(place, 0))
 	must.Len(t, 1, outsideDeployment(place, 4))
+
+	// A rescheduling outside the deployment is placed with the stop of
+	// the allocation it replaces, not by outsideDeployment.
+	resched := []allocPlaceResult{{name: name(4), taskGroup: tg, previousAlloc: &structs.Allocation{}, reschedule: true}}
+	markOutsideDeployment("shop", resched, 3)
+	must.True(t, resched[0].OutsideDeployment())
+	must.SliceEmpty(t, outsideDeployment(resched, 0))
 	must.Eq(t, "", placementDeploymentID(place[3], "d1"))
 	must.Eq(t, "d1", placementDeploymentID(place[2], "d1"))
 }

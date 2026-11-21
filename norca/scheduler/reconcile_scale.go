@@ -34,17 +34,20 @@ import "github.com/bacanoo-io/norca/norca/norca/structs"
 // they are is read from their names: the allocations of a group are named by
 // an index below its count, new ones take the free indexes and a scale down
 // stops the highest ones, so the added allocations are those with the
-// highest indexes of the group. Replacements (of lost and of failed
+// highest indexes of the group. Replacements (of lost, failed and migrated
 // allocations) keep the name, and with it the place in the deployment, of
-// the allocation they replace.
+// the allocation they replace: the replacement of an added allocation is
+// outside the deployment too (review finding SCH-1), and it does not take a
+// place of the deployment's max_parallel (SCH-2).
 
-// markOutsideDeployment marks the placements of new allocations that a scale
-// up added to a group after its deployment started: those whose index is
-// first or above.
+// markOutsideDeployment marks the placements that a scale up added to a
+// group after its deployment started, new allocations and replacements of
+// them alike: those whose index is first or above. Canaries are the
+// deployment's own.
 func markOutsideDeployment(jobID string, place []allocPlaceResult, first int) {
 	for i := range place {
 		p := &place[i]
-		if p.previousAlloc != nil || p.reschedule || p.lost || p.canary {
+		if p.canary {
 			continue
 		}
 		if int(structs.AllocIndexFromName(p.name, jobID, p.taskGroup.Name)) >= first {
@@ -66,11 +69,12 @@ func insideDeployment(place []allocPlaceResult) int {
 }
 
 // outsideDeployment returns the placements, from the index first on, that a
-// scale up added to the group after its deployment started.
+// scale up added to the group after its deployment started. A rescheduling is
+// left out: the caller places it with the stop of the allocation it replaces.
 func outsideDeployment(place []allocPlaceResult, first int) []allocPlaceResult {
 	var res []allocPlaceResult
 	for i := first; i < len(place); i++ {
-		if place[i].outsideDeployment {
+		if place[i].outsideDeployment && !place[i].IsRescheduling() {
 			res = append(res, place[i])
 		}
 	}

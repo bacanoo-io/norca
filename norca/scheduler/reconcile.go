@@ -571,7 +571,13 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 		desiredChanges.Ignore += uint64(len(destructive))
 	}
 
-	a.computeMigrations(desiredChanges, migrate, tg, isCanarying)
+	// (Norca) The migrations of the allocations a scale up added are outside
+	// the deployment, like their other replacements (reconcile_scale.go).
+	scaleFirst := -1
+	if existingDeployment && dstate.ScaleAdded > 0 {
+		scaleFirst = tg.Count - dstate.ScaleAdded
+	}
+	a.computeMigrations(desiredChanges, migrate, tg, isCanarying, scaleFirst)
 	a.createDeployment(tg.Name, tg.Update, existingDeployment, dstate, all, destructive)
 
 	// Deployments that are still initializing need to be sent in full in the
@@ -845,7 +851,10 @@ func (a *allocReconciler) computeReplacements(deploymentPlaceReady bool, desired
 		a.markStop(failed, "", allocRescheduled)
 		desiredChanges.Stop += uint64(len(failed))
 
-		minimum := min(len(place), underProvisionedBy)
+		// (Norca) Only the placements of the deployment take places of its
+		// max_parallel: one a scale up added, which may wait for capacity
+		// for long, would else stop the rollout (review finding SCH-2).
+		minimum := min(insideDeployment(place), underProvisionedBy)
 		underProvisionedBy -= minimum
 		return underProvisionedBy
 	}
@@ -920,14 +929,18 @@ func (a *allocReconciler) computeDestructiveUpdates(destructive allocSet, underP
 	}
 }
 
-func (a *allocReconciler) computeMigrations(desiredChanges *structs.DesiredUpdates, migrate allocSet, tg *structs.TaskGroup, isCanarying bool) {
+// computeMigrations stops the allocations to migrate and places their
+// replacements. scaleFirst is the first index of the allocations a scale up
+// added to the group after its deployment started (Norca), -1 for none.
+func (a *allocReconciler) computeMigrations(desiredChanges *structs.DesiredUpdates, migrate allocSet, tg *structs.TaskGroup, isCanarying bool, scaleFirst int) {
 	desiredChanges.Migrate += uint64(len(migrate))
+	var places []allocPlaceResult
 	for _, alloc := range migrate.nameOrder() {
 		a.result.stop = append(a.result.stop, allocStopResult{
 			alloc:             alloc,
 			statusDescription: allocMigrating,
 		})
-		a.result.place = append(a.result.place, allocPlaceResult{
+		places = append(places, allocPlaceResult{
 			name:          alloc.Name,
 			canary:        alloc.DeploymentStatus.IsCanary(),
 			taskGroup:     tg,
@@ -937,6 +950,10 @@ func (a *allocReconciler) computeMigrations(desiredChanges *structs.DesiredUpdat
 			minJobVersion:      alloc.Job.Version,
 		})
 	}
+	if scaleFirst >= 0 {
+		markOutsideDeployment(a.jobID, places, scaleFirst)
+	}
+	a.result.place = append(a.result.place, places...)
 }
 
 func (a *allocReconciler) createDeployment(groupName string, strategy *structs.UpdateStrategy,
