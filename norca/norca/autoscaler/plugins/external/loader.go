@@ -57,6 +57,10 @@ type Loader struct {
 	// now returns the current time; replaced in tests.
 	now func() time.Time
 
+	// beforeLaunch, set by tests, is called when a start of a process
+	// begins, without the lock of the instance.
+	beforeLaunch func()
+
 	l         sync.Mutex
 	instances []*instance
 	shutdown  bool
@@ -172,6 +176,11 @@ type instance struct {
 	retryAt  time.Time
 	closed   bool
 
+	// starting is closed when the start in progress ends; nil when none is
+	// (Norca, review finding ASP-8: the start ran under the lock, and every
+	// call, setConfig and close waited for it, up to about three minutes).
+	starting chan struct{}
+
 	// timeouts counts the calls in a row that ran out of CallTimeout on the
 	// running process (Norca, hungAfter).
 	timeouts int
@@ -185,19 +194,27 @@ type instance struct {
 const hungAfter = 3
 
 // get returns the running plugin, restarting it if it has exited and the
-// restart backoff allows it.
+// restart backoff allows it. The process is started without the lock held,
+// once for all the callers that need it meanwhile: they wait for that start.
 func (i *instance) get() (plugins.Base, error) {
 	i.l.Lock()
-	defer i.l.Unlock()
-
+	for i.starting != nil && !i.closed {
+		starting := i.starting
+		i.l.Unlock()
+		<-starting
+		i.l.Lock()
+	}
 	if i.closed {
+		i.l.Unlock()
 		return nil, ErrShutdown
 	}
 
 	now := i.loader.now()
 	if i.client != nil {
 		if !i.client.Exited() {
-			return i.raw, nil
+			raw := i.raw
+			i.l.Unlock()
+			return raw, nil
 		}
 		i.logger.Warn("external plugin exited unexpectedly")
 		metrics.IncrCounterWithLabels([]string{"nomad", "autoscaler", "plugin", "exited"}, 1,
@@ -208,11 +225,32 @@ func (i *instance) get() (plugins.Base, error) {
 	}
 
 	if now.Before(i.retryAt) {
+		i.l.Unlock()
 		return nil, fmt.Errorf("external plugin %q is not running, next start attempt in %s",
 			i.name, i.retryAt.Sub(now).Round(time.Millisecond))
 	}
 
-	client, raw, err := i.launch()
+	starting := make(chan struct{})
+	i.starting = starting
+	config := maps.Clone(i.config)
+	i.l.Unlock()
+
+	if hook := i.loader.beforeLaunch; hook != nil {
+		hook()
+	}
+	client, raw, err := i.launch(config)
+
+	i.l.Lock()
+	defer i.l.Unlock()
+	i.starting = nil
+	close(starting)
+	if i.closed {
+		// Closed while it started: the process does not outlive the loader.
+		if client != nil {
+			client.Kill()
+		}
+		return nil, ErrShutdown
+	}
 	if err != nil {
 		i.failedLocked(now, false)
 		return nil, err
@@ -243,8 +281,8 @@ func (i *instance) failedLocked(now time.Time, wasStable bool) {
 }
 
 // launch starts the plugin process, dispenses the plugin, checks that it is
-// the expected plugin and configures it.
-func (i *instance) launch() (*plugin.Client, plugins.Base, error) {
+// the expected plugin and configures it with config. It runs without the lock.
+func (i *instance) launch(config map[string]string) (*plugin.Client, plugins.Base, error) {
 	path, err := resolve(i.loader.dir, i.driver)
 	if err != nil {
 		return nil, nil, err
@@ -292,7 +330,7 @@ func (i *instance) launch() (*plugin.Client, plugins.Base, error) {
 			i.name, info.Name, info.PluginType, i.driver, i.pluginType))
 	}
 
-	if err := base.SetConfig(i.config); err != nil {
+	if err := base.SetConfig(config); err != nil {
 		return fail(fmt.Errorf("failed to set config on plugin %q: %w", i.name, err))
 	}
 
