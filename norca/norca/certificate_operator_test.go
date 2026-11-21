@@ -276,3 +276,81 @@ func TestCertificate_ExternalIssuerRevocationLostWrite(t *testing.T) {
 	), must.Sprint("the order is removed once the status is written"))
 	must.Len(t, 1, containing(c.eventMessages("default", structs.CertificateKind, "web-tls", "Revoked"), first.Serial))
 }
+
+// ageRevocation makes the revocation order of a serial as old as an order
+// may get without an answer of its controller.
+func (a *acmeTest) ageRevocation(serial string) {
+	a.t.Helper()
+	must.Wait(a.t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			order := a.revocation(serial)
+			if order == nil {
+				return errors.New("no revocation order")
+			}
+			aged := order.Copy()
+			aged.CreateTime = time.Now().Add(-certificateRevokeOrderKeep - time.Minute).UnixNano()
+			_, err := a.s.writeOperatorObject(aged)
+			return err
+		}),
+		wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+}
+
+// A revocation order of a withdrawal or of a deletion that its controller
+// does not answer in time has failed, like one the issuer fails (review
+// finding ATM-24l): it is counted, told by the event RevocationFailed, and
+// placed again only after the wait.
+func TestCertificate_ExternalIssuerRevocationTimeout(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name  string
+		start func(c *certTest)
+	}{
+		{name: "withdrawal", start: func(c *certTest) {
+			c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+		}},
+		{name: "deletion", start: func(c *certTest) {
+			must.NoError(c.t, c.delete("default", structs.CertificateKind, "web-tls"))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, cleanup := newCertTest(t)
+			defer cleanup()
+			c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+			a := newAcmeTest(t, c)
+			held := a.issue("")
+
+			tt.start(c)
+			a.revocationPlaced(held.Serial)
+			a.ageRevocation(held.Serial)
+			st := c.waitFor("default", "web-tls", "the revocation that was not answered counted", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+				return st.Failures == 1 && st.RetryAt != ""
+			})
+			must.Eq(t, held.Serial, st.Serial)
+			must.False(t, st.Revoked)
+			must.Wait(t, wait.InitialSuccess(
+				wait.BoolFunc(func() bool {
+					return len(c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationFailed")) == 1
+				}),
+				wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+			), must.Sprint("an order that is not answered in time is told by an event"))
+			messages := c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationFailed")
+			must.StrContains(t, messages[0], held.Serial)
+			must.StrContains(t, messages[0], "did not answer within "+certificateRevokeOrderKeep.String())
+
+			// The order is removed, and none is placed before the wait is over.
+			must.Wait(t, wait.InitialSuccess(
+				wait.BoolFunc(func() bool { return a.revocation(held.Serial) == nil }),
+				wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+			), must.Sprint("the order that was not answered is removed"))
+			time.Sleep(2 * time.Second)
+			must.Nil(t, a.revocation(held.Serial), must.Sprint("no new order before the wait is over"))
+			must.Len(t, 1, c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationFailed"))
+
+			// After the wait a new order is placed.
+			c.cutRetryWait("default", "web-tls")
+			a.revocationPlaced(held.Serial)
+		})
+	}
+}

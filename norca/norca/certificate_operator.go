@@ -1065,7 +1065,9 @@ func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.Cus
 // issuer revokes through a revocation order the withdrawal waits for: one
 // that failed is counted (Failures, RetryAt), told in the event
 // RevocationFailed, and placed again after a wait that doubles every time;
-// cleanOrders removes the failed order after this pass has seen it. A
+// cleanOrders removes the failed order after this pass has seen it. An order
+// its controller did not answer in time has failed too
+// (certificatePass.revocation; review finding ATM-24l). A
 // revocation order of the serial that the user placed is waited for the
 // same way. What is done is recorded in st (Revoked, and RevokeReason with
 // an external issuer; review finding ATM-24g), which is what marks the
@@ -1083,42 +1085,32 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 	retryAt, _ := time.Parse(time.RFC3339, st.RetryAt)
 	waiting := fmt.Sprintf("; waiting for the issuer %q to revoke the %s with the serial %s", st.Issuer, what, serial)
 	if st.Authority == "" {
-		order := p.orders[certificateRevokeOrderName(obj.Namespace, obj.Name, serial)]
-		if order == nil {
+		switch state, asked, problem := p.revocation(obj, serial); state {
+		case "":
 			// An order of a user is over; the withdrawal sees to the rest.
 			st.Revoking = ""
-		} else {
-			spec := &structs.CertificateOrderSpec{}
-			status := &structs.CertificateOrderStatus{}
-			_ = structs.DecodeObjectPart(order.Spec, spec)
-			_ = structs.DecodeObjectPart(order.Status, status)
-			switch status.State {
-			case structs.CertificateOrderValid:
-				st.Revoked, st.RevokeReason, st.Revoking = true, certificateOrderReason(spec), ""
-				return true, ""
-			case structs.CertificateOrderFailed:
-				st.Revoking = ""
-				problem := status.Problem
-				if problem == "" {
-					problem = "the issuer gave no reason"
-				}
-				if !p.now.Before(retryAt) {
-					// Not counted yet.
-					retryAt = o.retryLater(p, st)
-					// Told when the status with the count is written: the
-					// order stays until then (review finding ATM-24j).
-					message := fmt.Sprintf("the issuer %q did not revoke the %s with the serial %s: %s; tried again at %s",
-						st.Issuer, what, serial, problem, st.RetryAt)
-					p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", message) })
-				}
-				out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed (%s), tried again at %s",
-					what, serial, problem, st.RetryAt)
-				p.want(retryAt)
-				return false, ""
-			default:
-				out.failedMessage += waiting
-				return false, ""
+		case structs.CertificateOrderValid:
+			st.Revoked, st.RevokeReason, st.Revoking = true, asked, ""
+			return true, ""
+		case structs.CertificateOrderFailed:
+			// Failed by the issuer, or not answered in time.
+			st.Revoking = ""
+			if !p.now.Before(retryAt) {
+				// Not counted yet.
+				retryAt = o.retryLater(p, st)
+				// Told when the status with the count is written: the
+				// order stays until then (review finding ATM-24j).
+				message := fmt.Sprintf("the issuer %q did not revoke the %s with the serial %s: %s; tried again at %s",
+					st.Issuer, what, serial, problem, st.RetryAt)
+				p.tell(func() { o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "RevocationFailed", message) })
 			}
+			out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed (%s), tried again at %s",
+				what, serial, problem, st.RetryAt)
+			p.want(retryAt)
+			return false, ""
+		default:
+			out.failedMessage += waiting
+			return false, ""
 		}
 	}
 	if p.now.Before(retryAt) {
@@ -1932,9 +1924,10 @@ func (o *certificateOperator) cleanOrders(p *certificatePass, orders []*structs.
 			continue
 		}
 		// The pass has seen the order as it is removed here, and has told
-		// on its certificate a failed one (revokeWithdrawn,
-		// settleRevocation) and one of a user that was not answered in time
-		// (settleRevocation; review finding ATM-24d).
+		// on its certificate a failed one and one that was not answered in
+		// time (settleRevocation for the order of a user, review finding
+		// ATM-24d; revokeWithdrawn for that of a withdrawal or a deletion,
+		// review finding ATM-24l).
 		switch {
 		case done:
 			if status.State == structs.CertificateOrderFailed {
