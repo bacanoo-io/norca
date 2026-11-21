@@ -109,6 +109,11 @@ type HTTPServer struct {
 	// rateLimiter limits the requests per ACL token on a server (limits
 	// token_*); nil without limits.
 	rateLimiter *tokenRateLimiter
+
+	// execMaxFrameBytes is the largest input frame of an alloc exec session
+	// that the server reads (limits exec_max_frame_bytes, Norca); 0 is no
+	// limit.
+	execMaxFrameBytes int64
 }
 
 // NewHTTPServers starts an HTTP server for every address.http configured in
@@ -132,6 +137,12 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 	}
 	if maxConns < 0 {
 		return srvs, fmt.Errorf("http_max_conns_per_client must be >= 0")
+	}
+
+	// The largest input frame of an exec session (Norca).
+	execMaxFrameBytes, err := config.Limits.ExecMaxFrame()
+	if err != nil {
+		return srvs, err
 	}
 
 	// Requests per ACL token, on servers only (Norca).
@@ -206,6 +217,8 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 			Addr:         ln.Addr().String(),
 			wsUpgrader:   wsUpgrader,
 			rateLimiter:  limiter,
+
+			execMaxFrameBytes: execMaxFrameBytes,
 		}
 		srv.registerHandlers(config.EnableDebug)
 
@@ -246,6 +259,8 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 			logger:       agent.httpLogger,
 			Addr:         "builtin",
 			wsUpgrader:   wsUpgrader,
+
+			execMaxFrameBytes: execMaxFrameBytes,
 		}
 
 		srv.registerHandlers(config.EnableDebug)

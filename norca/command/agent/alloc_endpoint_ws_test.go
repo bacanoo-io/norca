@@ -4,6 +4,9 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +14,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,10 +23,13 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/go-msgpack/codec"
@@ -775,4 +783,199 @@ func TestReadWsHandshakeWithin_SizeLimit(t *testing.T) {
 			must.NoError(t, (<-results).err)
 		})
 	}
+}
+
+// The parts of an input frame of an exec session around its data.
+const (
+	execTestFrameHead = `{"stdin":{"data":"`
+	execTestFrameTail = `}}`
+)
+
+// execTestFrame is an input frame of an exec session of exactly size bytes,
+// and the input it carries: as much as fits in base64, and JSON whitespace
+// for the rest of the size.
+func execTestFrame(t *testing.T, size int) (frame, input []byte) {
+	t.Helper()
+	room := size - len(execTestFrameHead) - len(`"`) - len(execTestFrameTail)
+	must.Positive(t, room)
+	input = bytes.Repeat([]byte("i"), room/4*3)
+	data := base64.StdEncoding.EncodeToString(input)
+	frame = []byte(execTestFrameHead + data + `"` + strings.Repeat(" ", room-len(data)) + execTestFrameTail)
+	must.Eq(t, size, len(frame))
+	return frame, input
+}
+
+// TestAllocExec_FrameLimit: an input frame of an exec session that is larger
+// than limits.exec_max_frame_bytes is not read: the session ends with the
+// close frame "message too big" (1009), the connection is closed and the
+// input does not reach the task. A frame as large as the limit goes through.
+// The frames of a session had no limit; they are read before the exec RPC
+// has checked the ACL token (review finding SEC-11g).
+func TestAllocExec_FrameLimit(t *testing.T) {
+	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
+
+	const limit = 8192
+
+	httpTest(t, func(c *Config) {
+		c.Limits.ExecMaxFrameBytes = pointer.Of(limit)
+		c.LogLevel = "ERROR"
+	}, func(s *TestAgent) {
+		// showinput of the mock driver prints the input of the session
+		// when the input ends
+		alloc := mockFSAlloc(s.client.NodeID(), map[string]interface{}{
+			"run_for":      "5m",
+			"exec_command": map[string]interface{}{"run_for": "1ms"},
+		})
+		addAllocToClient(s, alloc, runningClientAlloc)
+
+		wsURL := "ws://" + s.Server.Addr + "/v1/client/allocation/" + alloc.ID +
+			"/exec?task=web&tty=false&command=" + url.QueryEscape(`["showinput"]`)
+		endOfInput := []byte(`{"stdin":{"close":true}}`)
+
+		t.Run("a frame as large as the limit", func(t *testing.T) {
+			frame, input := execTestFrame(t, limit)
+			conn := wsDialOneFrame(t, wsURL, len(frame))
+			defer conn.Close()
+
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, frame))
+			// the small frames of a session: a heartbeat of the web UI, a
+			// terminal size, the end of the input
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(`{}`)))
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(`{"tty_size":{"width":80,"height":24}}`)))
+			must.NoError(t, conn.WriteMessage(websocket.TextMessage, endOfInput))
+
+			var stdout bytes.Buffer
+			must.NoError(t, conn.SetReadDeadline(time.Now().Add(30*time.Second)))
+			for {
+				_, msg, err := conn.ReadMessage()
+				if err != nil {
+					must.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure),
+						must.Sprintf("unexpected end of the session: %v", err))
+					break
+				}
+				var out struct {
+					Stdout *struct {
+						Data []byte `json:"data"`
+					} `json:"stdout"`
+				}
+				must.NoError(t, json.Unmarshal(msg, &out))
+				if out.Stdout != nil {
+					stdout.Write(out.Stdout.Data)
+				}
+			}
+			must.StrContains(t, stdout.String(), "Stdin:\n"+string(input)+"\n")
+		})
+
+		for _, tc := range []struct {
+			name     string
+			oneFrame bool
+		}{
+			{name: "a frame one byte over the limit, one frame", oneFrame: true},
+			// the limit is that of the message, in however many frames
+			// of the websocket it comes
+			{name: "a frame one byte over the limit, in frames"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				frame, _ := execTestFrame(t, limit+1)
+				var conn *websocket.Conn
+				if tc.oneFrame {
+					conn = wsDialOneFrame(t, wsURL, len(frame))
+				} else {
+					var err error
+					conn, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+					must.NoError(t, err)
+				}
+				defer conn.Close()
+
+				// the server may end the connection before the end of
+				// the input is written
+				must.NoError(t, conn.SetWriteDeadline(time.Now().Add(20*time.Second)))
+				_ = conn.WriteMessage(websocket.TextMessage, frame)
+				_ = conn.WriteMessage(websocket.TextMessage, endOfInput)
+
+				// no output of the task with the input in it, but the
+				// refusal, and then the session is over
+				mustWsTooBig(t, conn)
+				mustWsConnClosed(t, conn)
+			})
+		}
+	})
+}
+
+// TestAllocExec_ClientFrameSize: the largest input frame of the command line
+// client fits under the smallest limit exec_max_frame_bytes takes. The
+// client reads its input 2048 bytes at a time (api.Allocations.Exec) and
+// sends every read as one frame with WriteJSON.
+func TestAllocExec_ClientFrameSize(t *testing.T) {
+	ci.Parallel(t)
+
+	const clientReadBytes = 2048
+
+	var frame bytes.Buffer
+	must.NoError(t, json.NewEncoder(&frame).Encode(api.ExecStreamingInput{
+		Stdin: &api.ExecStreamingIOOperation{Data: bytes.Repeat([]byte{0xff}, clientReadBytes)},
+	}))
+	must.Eq(t, 2754, frame.Len())
+	must.Less(t, config.MinExecMaxFrameBytes, frame.Len())
+}
+
+// TestHTTPServer_Limits_ExecMaxFrameBytes: the agent does not start its HTTP
+// servers with an exec_max_frame_bytes that is negative or too small.
+func TestHTTPServer_Limits_ExecMaxFrameBytes(t *testing.T) {
+	ci.Parallel(t)
+
+	for value, wantErr := range map[int]string{
+		-1:   "exec_max_frame_bytes must be >= 0",
+		4095: "exec_max_frame_bytes must be 0 (no limit) or at least 4096",
+	} {
+		limits := config.DefaultLimits()
+		limits.ExecMaxFrameBytes = pointer.Of(value)
+		conf := &Config{
+			normalizedAddrs: &NormalizedAddrs{
+				HTTP: []string{"localhost:0"}, // port is never used
+			},
+			TLSConfig: &config.TLSConfig{},
+			Limits:    limits,
+		}
+		// a fake agent: the HTTP server never starts
+		agent := &Agent{
+			logger:     testlog.HCLogger(t),
+			httpLogger: testlog.HCLogger(t),
+			config:     conf,
+		}
+		srvs, err := NewHTTPServers(agent, conf)
+		must.ErrorContains(t, err, wantErr)
+		must.SliceEmpty(t, srvs)
+	}
+}
+
+// TestConfig_Limits_ExecMaxFrameBytes: exec_max_frame_bytes is read from the
+// limits block of a configuration file and wins over the default of 1 MiB
+// when the file is merged into the default configuration; without it the
+// default stays.
+func TestConfig_Limits_ExecMaxFrameBytes(t *testing.T) {
+	ci.Parallel(t)
+
+	parse := func(text string) *Config {
+		path := filepath.Join(t.TempDir(), "agent.hcl")
+		must.NoError(t, os.WriteFile(path, []byte(text), 0o600))
+		c, err := ParseConfigFile(path)
+		must.NoError(t, err)
+		return c
+	}
+
+	set := parse("limits {\n  exec_max_frame_bytes = 65536\n}\n")
+	must.NotNil(t, set.Limits.ExecMaxFrameBytes)
+	must.Eq(t, 65536, *set.Limits.ExecMaxFrameBytes)
+	must.Eq(t, 65536, *DefaultConfig().Merge(set).Limits.ExecMaxFrameBytes)
+
+	off := parse("limits {\n  exec_max_frame_bytes = 0\n}\n")
+	must.Eq(t, 0, *DefaultConfig().Merge(off).Limits.ExecMaxFrameBytes)
+
+	unset := parse("limits {\n  http_max_conns_per_client = 7\n}\n")
+	must.Nil(t, unset.Limits.ExecMaxFrameBytes)
+	merged := DefaultConfig().Merge(unset)
+	must.Eq(t, 1<<20, *merged.Limits.ExecMaxFrameBytes)
+	must.Eq(t, 1<<20, *merged.Copy().Limits.ExecMaxFrameBytes)
 }

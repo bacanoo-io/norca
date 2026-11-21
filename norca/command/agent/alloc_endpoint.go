@@ -540,6 +540,15 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 		return nil, err
 	}
 
+	// The input frames of the session have a size limit, limits
+	// exec_max_frame_bytes (Norca); 0 is no limit, for the websocket too.
+	// They are read while the exec RPC checks the ACL token, so without a
+	// limit a client that has no valid token could have the agent take in
+	// a frame of any size before the RPC refuses it. The websocket refuses
+	// a larger frame itself, as it does a handshake message that is too
+	// large (readWsHandshakeWithin); forwardExecInput ends the session then.
+	conn.SetReadLimit(s.execMaxFrameBytes)
+
 	return s.execStreamImpl(conn, &args)
 }
 
@@ -706,7 +715,13 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 			return
 		}
 
-		go forwardExecInput(encoder, ws, errCh)
+		go func() {
+			if tooBig := forwardExecInput(encoder, ws, errCh); tooBig {
+				// Norca: the client was refused, and the websocket reads
+				// no more input: the exec does not go on without it.
+				cancel()
+			}
+		}()
 
 		for {
 			var res cstructs.StreamErrWrapper
@@ -817,17 +832,27 @@ func isClosedError(err error) bool {
 
 // forwardExecInput forwards exec input (e.g. stdin) from websocket connection
 // to the streaming RPC connection to client
-func forwardExecInput(encoder *codec.Encoder, ws *websocket.Conn, errCh chan<- HTTPCodedError) {
+//
+// It reports whether it stopped at an input frame over the read limit of ws
+// (limits exec_max_frame_bytes, Norca). The websocket has told the client
+// "message too big" (1009) in a close frame by then and reads nothing more,
+// so the caller has to end the session.
+func forwardExecInput(encoder *codec.Encoder, ws *websocket.Conn, errCh chan<- HTTPCodedError) (tooBig bool) {
 	for {
 		sf := &drivers.ExecTaskStreamingRequestMsg{}
 		err := ws.ReadJSON(sf)
 		if err == io.EOF {
-			return
+			return false
 		}
 
+		if errors.Is(err, websocket.ErrReadLimit) {
+			errCh <- CodedError(http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("exec input frame over the limit (limits exec_max_frame_bytes): %v", err))
+			return true
+		}
 		if err != nil {
 			errCh <- CodedError(500, err.Error())
-			return
+			return false
 		}
 
 		err = encoder.Encode(sf)
@@ -835,11 +860,11 @@ func forwardExecInput(encoder *codec.Encoder, ws *websocket.Conn, errCh chan<- H
 			// The stream has ended: the streaming goroutine reports how
 			// (normally, or with the error of the RPC, e.g. an unknown
 			// allocation), which this error must not replace.
-			return
+			return false
 		}
 		if err != nil {
 			errCh <- CodedError(500, err.Error())
-			return
+			return false
 		}
 	}
 }
