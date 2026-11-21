@@ -149,7 +149,7 @@ func (a *APMPlugin) QueryMultiple(q string, r sdk.TimeRange) ([]sdk.TimestampedM
 	if r.From.Equal(r.To) {
 		result, warnings, err = v1api.Query(ctx, q, r.To)
 	} else {
-		promRange := v1.Range{Start: r.From, End: r.To, Step: time.Second}
+		promRange := v1.Range{Start: r.From, End: r.To, Step: queryStep(r)}
 		result, warnings, err = v1api.QueryRange(ctx, q, promRange)
 	}
 	if err != nil {
@@ -227,18 +227,36 @@ func parseScalar(s *model.Scalar) ([]sdk.TimestampedMetrics, error) {
 	return []sdk.TimestampedMetrics{{tm}}, nil
 }
 
+// parseVector returns a stream for each series of an instant vector (Norca):
+// the samples of several series were one stream, so Query took a query that
+// returns several series for one, and a strategy used the value that sorted
+// last (review finding ASP-5).
 func parseVector(v model.Vector) ([]sdk.TimestampedMetrics, error) {
-	var result sdk.TimestampedMetrics
+	result := make([]sdk.TimestampedMetrics, 0, len(v))
 	for _, s := range v {
 		tm, err := parseSample(*s)
 		if err != nil {
 			return nil, err
 		}
 
-		result = append(result, tm)
+		result = append(result, sdk.TimestampedMetrics{tm})
 	}
 
-	return []sdk.TimestampedMetrics{result}, nil
+	return result, nil
+}
+
+// maxQueryPoints is the largest number of points of a range query that
+// Prometheus answers (Norca): it refuses a query of more than 11000 points
+// a series.
+const maxQueryPoints = 11000
+
+// queryStep returns the step of a range query: one second, as before, while
+// the window has fewer points than Prometheus answers, and a wider step, in
+// whole seconds, for a longer window (Norca, review finding ASP-6: a window
+// over about 3 hours failed with a step of 1 second).
+func queryStep(r sdk.TimeRange) time.Duration {
+	seconds := math.Ceil(r.To.Sub(r.From).Seconds() / (maxQueryPoints - 1))
+	return time.Duration(max(seconds, 1)) * time.Second
 }
 
 func parseMatrix(m model.Matrix) ([]sdk.TimestampedMetrics, error) {
