@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -223,10 +224,25 @@ func openStore(p string) (Store, error) {
 		}
 		return s, nil
 	}
+	// (Norca) Windows has no read-only Badger: opening the store there
+	// writes to it, so a copy is read (raftutil/copy.go).
+	if runtime.GOOS == "windows" {
+		if badgerLockHeld(p) {
+			return nil, errAlreadyOpen
+		}
+		return openBadgerCopy(p, "Badger has no read-only mode on Windows")
+	}
 	s, err := raftbadger.Open(raftbadger.Options{Path: p, ReadOnly: true})
 	if err != nil {
 		if strings.Contains(err.Error(), "Cannot acquire directory lock") || strings.Contains(err.Error(), "Cannot create lock file") {
 			return nil, errAlreadyOpen
+		}
+		// (Norca) A store whose server did not stop cleanly can only be
+		// opened by truncating its memtable log, which a read-only open
+		// refuses: the commands that are needed most after a crash read
+		// a copy instead (review finding HLP-7).
+		if strings.Contains(err.Error(), "Log truncate required") {
+			return openBadgerCopy(p, "the server did not stop cleanly")
 		}
 		return nil, fmt.Errorf("failed to open raft logs: %v", err)
 	}
