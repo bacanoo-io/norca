@@ -472,7 +472,12 @@ func (d *driverPluginClient) ExecTaskStreamingRaw(ctx context.Context,
 				// clean room bugfix: the end of the caller's input was not
 				// passed on, so the plugin side never saw its stream end and
 				// the command's stdin stayed open. Half-close our side.
-				stream.CloseSend()
+				// Not in a TTY session: the plugin side closes the stdin of
+				// the command at the end of the stream, which would end the
+				// terminal before the command (review finding PLG-1).
+				if !tty {
+					stream.CloseSend()
+				}
 				return
 			} else if err != nil {
 				errCh <- err
