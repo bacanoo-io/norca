@@ -1723,3 +1723,39 @@ func TestTenant_RefusedNamespaceDeletesNothing(t *testing.T) {
 	pol, _ = store.ACLPolicyByName(nil, "planted-dev")
 	must.Nil(t, pol)
 }
+
+// A tenant whose spec its kind refuses can still be deleted (review finding
+// ATM-24o): the status lists what the tenant created, and the deletion goes
+// by it.
+func TestTenant_DeleteInvalidSpec(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name  string
+		spoil func(spec map[string]any)
+	}{
+		{name: "a spec that can't be decoded", spoil: func(spec map[string]any) { spec["roles"] = "developer" }},
+		{name: "a spec with a field the kind does not know", spoil: func(spec map[string]any) { spec["unknown"] = true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, cleanup := newTenantTest(t)
+			defer cleanup()
+			_, err := c.apply("", structs.TenantKind, "team-x", map[string]any{
+				"roles": map[string]any{"developer": []any{"submit-job"}},
+			})
+			must.NoError(t, err)
+			waitTenant(c, "team-x", "ready", tenantReady)
+			ns, err := c.s.State().NamespaceByName(nil, "team-x")
+			must.NoError(t, err)
+			must.NotNil(t, ns)
+
+			c.spoilSpec("", structs.TenantKind, "team-x", tt.spoil)
+			must.NoError(t, c.delete("", structs.TenantKind, "team-x"))
+			c.goneObject("", structs.TenantKind, "team-x")
+			ns, err = c.s.State().NamespaceByName(nil, "team-x")
+			must.NoError(t, err)
+			must.Nil(t, ns, must.Sprint("what the status lists as created by the tenant is deleted"))
+		})
+	}
+}

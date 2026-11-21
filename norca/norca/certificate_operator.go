@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -82,42 +81,15 @@ type certificateOperator struct {
 }
 
 // writeObject writes a Certificate object as the operator changed it
-// (Server.writeOperatorObject).
-//
-// An object that is being deleted is written also when it does not pass its
-// kind (review finding ATM-24n): with a spec the kind refuses, stored before
-// the kind said so or past it, no write of the object gets through, and it
-// would keep the finalizer of the servers for good. The operator changes the
-// status and the finalizers only, so the write stores nothing of the spec
-// that is not stored already.
+// (Server.writeOperatorObject, which writes an object that is being deleted
+// also when its kind refuses it: review findings ATM-24n and ATM-24o).
 func (o *certificateOperator) writeObject(obj *structs.CustomObject) (*structs.CustomObject, error) {
 	if fault := o.writeFault.Load(); fault != nil {
 		if err := (*fault)(obj); err != nil {
 			return nil, err
 		}
 	}
-	written, err := o.srv.writeOperatorObject(obj)
-	if err == nil || !obj.Deleting() || obj.ModifyIndex == 0 {
-		return written, err
-	}
-	if code, _, ok := structs.CodeFromRPCCodedErr(err); !ok || code != http.StatusBadRequest {
-		return nil, err
-	}
-	o.logger.Warn("a certificate that is being deleted does not pass its kind; its status and finalizers are written all the same",
-		"namespace", obj.Namespace, "certificate", obj.Name, "error", err)
-	obj.ModifyTime = time.Now().UnixNano()
-	req := &structs.CustomObjectUpsertStateRequest{
-		Object:              obj,
-		ExpectedModifyIndex: obj.ModifyIndex,
-		WriteRequest:        structs.WriteRequest{Region: o.srv.Region()},
-	}
-	_, index, err := o.srv.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, req)
-	if err != nil {
-		return nil, err
-	}
-	written = obj.Copy()
-	written.ModifyIndex = index
-	return written, nil
+	return o.srv.writeOperatorObject(obj)
 }
 
 func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperator {
@@ -141,7 +113,8 @@ type certificatePass struct {
 
 	// after is what the pass tells of the certificate it is at only when the
 	// status of that certificate is written (tell, settled): the events of
-	// its revocation orders that are over.
+	// its revocation orders that are over, of its withdrawal and of what its
+	// deletion revoked.
 	after []func()
 
 	// unsettled names the certificates (namespace/name) whose status the
@@ -768,7 +741,9 @@ func (o *certificateOperator) refusal(p *certificatePass, obj *structs.CustomObj
 // none waits for another, nor does the certificate that is held. The event
 // Withdrawn names the ones a pass has revoked or found without an issuer; it
 // is recorded when the held certificate is given up, and again whenever a
-// later pass has such news of an earlier one.
+// later pass has such news of an earlier one. It is told when the status
+// that says the same is written (certificatePass.tell; review finding
+// ATM-24p): a pass whose write is lost is repeated, and would tell it again.
 func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
 	st *structs.CertificateStatus, secret *structs.Secret, ours bool, why string, out *certificateOutcome) {
 
@@ -834,12 +809,16 @@ func (o *certificateOperator) withdraw(p *certificatePass, obj *structs.CustomOb
 		if removed {
 			message += fmt.Sprintf("; what the secret %q held for it is destroyed", spec.SecretPath)
 		}
-		operatorCount(structs.CertificateKind, "withdrawn")
 	}
 	for _, text := range news {
 		message += "; " + text
 	}
-	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Withdrawn", message)
+	p.tell(func() {
+		if given {
+			operatorCount(structs.CertificateKind, "withdrawn")
+		}
+		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Withdrawn", message)
+	})
 }
 
 // withdrawEarlier has the earlier certificates of a certificate under
@@ -1874,7 +1853,8 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 // fails is never given up while its certificate is valid and its issuer is
 // there. The event RevokedOnDelete tells what a pass has revoked, and what it
 // found without an issuer: an earlier certificate once, the held one when
-// the object goes.
+// the object goes. It is told when the status is written
+// (certificatePass.tell; review finding ATM-24p).
 func (o *certificateOperator) revokeDeleted(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus,
 	out *certificateOutcome) (closed bool, unrevoked []string) {
 
@@ -1921,7 +1901,8 @@ func (o *certificateOperator) revokeDeleted(p *certificatePass, obj *structs.Cus
 		if slices.ContainsFunc(news, func(text string) bool { return strings.Contains(text, "is not revoked") }) {
 			eventType = structs.ObjectEventTypeWarning
 		}
-		o.srv.operatorEvent(obj, eventType, "RevokedOnDelete", "the certificate is being deleted: "+strings.Join(news, "; "))
+		message := "the certificate is being deleted: " + strings.Join(news, "; ")
+		p.tell(func() { o.srv.operatorEvent(obj, eventType, "RevokedOnDelete", message) })
 	}
 	return closed, unrevoked
 }

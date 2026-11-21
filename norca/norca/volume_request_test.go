@@ -1398,3 +1398,38 @@ func TestVolumeRequest_UndecodableStatusIsKept(t *testing.T) {
 	must.NotNil(t, c.volume("held"))
 	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 0, f.deletes) })
 }
+
+// A volume request whose spec its kind refuses can still be deleted (review
+// finding ATM-24o). With a spec that can't be decoded the volume stays,
+// whatever the deletion policy was: nothing is deleted on the word of a spec
+// that can't be read. A spec that can be read is followed.
+func TestVolumeRequest_DeleteInvalidSpec(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name  string
+		spoil func(spec map[string]any)
+		stays bool
+	}{
+		{name: "a spec that can't be decoded", spoil: func(spec map[string]any) { spec["capacity_min"] = 5 }, stays: true},
+		{name: "a spec with a field the kind does not know", spoil: func(spec map[string]any) { spec["unknown"] = true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, fake, cleanup := volumeRequestTestServer(t, false)
+			defer cleanup()
+			_, err := c.apply("default", csiVolumeRequestKind, "data", volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }))
+			must.NoError(t, err)
+			c.waitRequest("data", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+				return readyReason(obj) == "True" && st.VolumeCreateIndex > 0
+			})
+			must.NotNil(t, c.volume("data"))
+
+			c.spoilSpec("default", csiVolumeRequestKind, "data", tt.spoil)
+			must.NoError(t, c.delete("default", csiVolumeRequestKind, "data"))
+			c.goneObject("default", csiVolumeRequestKind, "data")
+			must.Eq(t, tt.stays, c.volume("data") != nil)
+			fake.set(func(f *fakeVolumeCSI) { must.Eq(t, tt.stays, len(f.deletes) == 0) })
+		})
+	}
+}

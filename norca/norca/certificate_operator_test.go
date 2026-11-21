@@ -354,3 +354,106 @@ func TestCertificate_ExternalIssuerRevocationTimeout(t *testing.T) {
 		})
 	}
 }
+
+// lostAtLeast waits until the certificate operator has lost n writes.
+func (c *certTest) lostAtLeast(lost *lostWrites, n int) {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return lost.count() >= n }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+	), must.Sprintf("the operator lost %d of %d writes", lost.count(), n))
+}
+
+// The event of a withdrawal is told when the status that says the same is
+// written (review finding ATM-24p): a pass whose write of the status is lost
+// tells nothing, and the pass that repeats it tells it once.
+func TestCertificate_LostNamesLostWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	held := c.waitFor("default", "web-tls", "issued", certReady)
+	events := func() []string {
+		t.Helper()
+		return c.eventMessages("default", structs.CertificateKind, "web-tls", "Withdrawn")
+	}
+
+	// Two passes of the withdrawal, neither of which can write the status.
+	lost, stop := c.loseWrites(func(*structs.CustomObject) bool { return true })
+	defer stop()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	c.lostAtLeast(lost, 1)
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.net"})
+	c.lostAtLeast(lost, 2)
+	time.Sleep(time.Second)
+	_, st := c.certificate("default", "web-tls")
+	must.Eq(t, held.Serial, st.Serial, must.Sprint("the status still holds the certificate"))
+	must.SliceEmpty(t, events(), must.Sprint("nothing is told before the status is written"))
+
+	// The status can be written again: told once.
+	stop()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.org"})
+	c.waitFor("default", "web-tls", "withdrawn", withdrawn)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return len(events()) > 0 }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	time.Sleep(time.Second)
+	messages := events()
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], held.Serial+" is revoked")
+	must.SliceContains(t, c.crlSerials(), held.Serial)
+}
+
+// The event of what a deletion revoked is told when the status is written
+// too (review finding ATM-24p).
+func TestCertificate_ExternalIssuerDeleteLostWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	a := newAcmeTest(t, c)
+	first := a.issue("")
+	second := a.replaced(first)
+	events := func() []string {
+		t.Helper()
+		return c.eventMessages("default", structs.CertificateKind, "web-tls", "RevokedOnDelete")
+	}
+
+	must.NoError(t, c.delete("default", structs.CertificateKind, "web-tls"))
+	a.revocationPlaced(second.Serial)
+	a.revocationPlaced(first.Serial)
+
+	// The issuer revokes the earlier certificate while the status can't be
+	// written: two passes see the order done.
+	lost, stop := c.loseWrites(func(*structs.CustomObject) bool { return true })
+	defer stop()
+	must.NoError(t, a.status("", structs.CertificateOrderKind, certificateRevokeOrderName("default", "web-tls", first.Serial),
+		map[string]any{"state": "valid"}))
+	c.lostAtLeast(lost, 1)
+	a.issuer()
+	c.lostAtLeast(lost, 2)
+	time.Sleep(time.Second)
+	must.SliceEmpty(t, events(), must.Sprint("nothing is told before the status is written"))
+
+	// Written again: told once, while the object waits for the other order.
+	stop()
+	a.issuer()
+	c.waitFor("default", "web-tls", "the earlier certificate revoked", func(_ *structs.CustomObject, st *structs.CertificateStatus) bool {
+		e := earlierCertificate(st, first.Serial)
+		return e != nil && e.Revoked
+	})
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return len(events()) > 0 }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	time.Sleep(time.Second)
+	messages := events()
+	must.Len(t, 1, messages)
+	must.StrContains(t, messages[0], first.Serial+" is revoked")
+}

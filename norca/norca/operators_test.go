@@ -4,6 +4,8 @@
 package norca
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -260,4 +262,121 @@ func TestOperatorEvent_MarkedCut(t *testing.T) {
 	must.Eq(t, 1000, len(messages[0]))
 	must.True(t, strings.HasSuffix(messages[0], " ... (truncated)"), must.Sprintf("the cut is marked: %q", messages[0][960:]))
 	must.Eq(t, []string{"short"}, c.eventMessages("", structs.CertificateIssuerKind, "internal", "Short"))
+}
+
+// spoilSpec changes the spec of a stored object past the check of its kind,
+// as that of an object its kind came to refuse after it was stored, and
+// returns the object. It checks that the object does not pass its kind any
+// more.
+func (c *certTest) spoilSpec(ns, kind, name string, change func(spec map[string]any)) *structs.CustomObject {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			spoiled := c.get(ns, kind, name).Copy()
+			change(spoiled.Spec)
+			resp, _, err := c.s.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, &structs.CustomObjectUpsertStateRequest{
+				Object:              spoiled,
+				ExpectedModifyIndex: spoiled.ModifyIndex,
+				WriteRequest:        structs.WriteRequest{Region: c.s.Region()},
+			})
+			if respErr, ok := resp.(error); ok && err == nil {
+				err = respErr
+			}
+			return err
+		}),
+		wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+	obj := c.get(ns, kind, name)
+	kindObj, err := c.s.State().ObjectKindByName(nil, obj.Group, obj.Kind)
+	must.NoError(c.t, err)
+	err = (&CustomObject{srv: c.s}).validateObject(kindObj, obj.Copy(), nil, objectOperationStatus, &objectWrite{args: &structs.GenericRequest{}})
+	must.ErrorContains(c.t, err, "is invalid", must.Sprint("the object does not pass its kind"))
+	return obj
+}
+
+// goneObject waits until an object is removed.
+func (c *certTest) goneObject(ns, kind, name string) {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return c.get(ns, kind, name) == nil }),
+		wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond),
+	), must.Func(func() string {
+		return fmt.Sprintf("waiting for %s %s/%s to go; object: %v", kind, ns, name, c.get(ns, kind, name))
+	}))
+}
+
+// An object that is being deleted can have its status and its finalizers
+// written by the operators also when it does not pass its kind (review
+// finding ATM-24o): the deletion would never end otherwise. Nothing else of
+// it can be written that way, and an object that is not being deleted is
+// refused as before.
+func TestWriteOperatorObject_DeletingPastItsKind(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	const hold = "example.com/hold"
+	for _, name := range []string{"going", "staying"} {
+		_, err := c.apply("", structs.CertificateIssuerKind, name, map[string]any{"external": map[string]any{"controller": "test"}})
+		must.NoError(t, err)
+		withFinalizer := c.get("", structs.CertificateIssuerKind, name).Copy()
+		withFinalizer.Finalizers = append(withFinalizer.Finalizers, hold)
+		_, err = c.s.writeOperatorObject(withFinalizer)
+		must.NoError(t, err)
+		c.spoilSpec("", structs.CertificateIssuerKind, name, func(spec map[string]any) { spec["unknown"] = true })
+	}
+	must.NoError(t, c.delete("", structs.CertificateIssuerKind, "going"))
+	going := c.get("", structs.CertificateIssuerKind, "going")
+	must.NotNil(t, going)
+	must.True(t, going.Deleting())
+
+	// Not being deleted: refused as before.
+	staying := c.get("", structs.CertificateIssuerKind, "staying").Copy()
+	staying.Status = map[string]any{"heartbeat": "2026-11-21T10:00:00Z"}
+	_, err := c.s.writeOperatorObject(staying)
+	must.ErrorContains(t, err, "is invalid")
+
+	// Being deleted: the status is written past the kind.
+	changed := going.Copy()
+	changed.Status = map[string]any{"heartbeat": "2026-11-21T10:00:00Z"}
+	written, err := c.s.writeOperatorObject(changed)
+	must.NoError(t, err, must.Sprint("the status of an object that is being deleted is written past its kind"))
+	stored := c.get("", structs.CertificateIssuerKind, "going")
+	must.Eq(t, written.ModifyIndex, stored.ModifyIndex)
+	must.Eq(t, "2026-11-21T10:00:00Z", stored.Status["heartbeat"])
+	must.Eq(t, true, stored.Spec["unknown"])
+
+	// Nothing but the status and the finalizers.
+	refused := map[string]func(obj *structs.CustomObject){
+		"the spec":   func(obj *structs.CustomObject) { obj.Spec["external"] = map[string]any{"controller": "other"} },
+		"the labels": func(obj *structs.CustomObject) { obj.Labels = map[string]string{"a": "b"} },
+		"the owners": func(obj *structs.CustomObject) {
+			obj.Owners = []*structs.ObjectOwnerReference{{Kind: "Job", Name: "x"}}
+		},
+		"the deletion":   func(obj *structs.CustomObject) { obj.DeletionPropagation = structs.ObjectPropagationOrphan },
+		"the manager":    func(obj *structs.CustomObject) { obj.ManagedBy = "somebody" },
+		"the generation": func(obj *structs.CustomObject) { obj.Generation++ },
+	}
+	for what, change := range refused {
+		other := stored.Copy()
+		other.Status = map[string]any{"heartbeat": "2026-11-21T11:00:00Z"}
+		change(other)
+		_, err := c.s.writeOperatorObject(other)
+		must.ErrorContains(t, err, "is invalid", must.Sprint(what))
+		must.Eq(t, stored.ModifyIndex, c.get("", structs.CertificateIssuerKind, "going").ModifyIndex, must.Sprint(what))
+	}
+
+	// A write of the object as it was read before is a conflict still.
+	stale := going.Copy()
+	stale.Status = map[string]any{"heartbeat": "2026-11-21T11:00:00Z"}
+	_, err = c.s.writeOperatorObject(stale)
+	must.Error(t, err)
+	must.Eq(t, "2026-11-21T10:00:00Z", c.get("", structs.CertificateIssuerKind, "going").Status["heartbeat"])
+
+	// The finalizer goes, and with it the object.
+	last := stored.Copy()
+	last.Finalizers = slices.DeleteFunc(last.Finalizers, func(f string) bool { return f == hold })
+	written, err = c.s.writeOperatorObject(last)
+	must.NoError(t, err)
+	c.s.finalizeObjectIfReady(written)
+	c.goneObject("", structs.CertificateIssuerKind, "going")
 }

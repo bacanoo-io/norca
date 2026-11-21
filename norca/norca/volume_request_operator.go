@@ -234,6 +234,17 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("volume request with a spec that can't be decoded", "namespace", obj.Namespace,
 			"request", obj.Name, "error", err)
+		if !obj.Deleting() {
+			return
+		}
+		// The deletion does not wait for a spec nobody can read (review
+		// finding ATM-24o): the request would keep its finalizer for good.
+		// The volume stays as it is, registered and in the storage,
+		// whatever the spec holds of deletion_policy: nothing is deregistered
+		// or deleted on the word of a spec that can't be read.
+		o.logger.Warn("a volume request with a spec that can't be decoded is being deleted: its volume is left as it is",
+			"namespace", obj.Namespace, "request", obj.Name)
+		o.finishDeletion(p, obj, &volumeRequestSpec{}, &volumeRequestStatus{}, nil, nil, false)
 		return
 	}
 	st := &volumeRequestStatus{}

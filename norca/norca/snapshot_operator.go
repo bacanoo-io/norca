@@ -414,6 +414,22 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("snapshot schedule with a spec that can't be decoded", "namespace", obj.Namespace,
 			"schedule", obj.Name, "error", err)
+		if !obj.Deleting() {
+			return
+		}
+		// The deletion does not wait for a spec nobody can read (review
+		// finding ATM-24o): the schedule would keep its finalizer for good.
+		// Its snapshots stay, whatever the spec holds of delete_snapshots:
+		// nothing is deleted on the word of a spec that can't be read.
+		left := &snapshotScheduleStatus{}
+		_ = structs.DecodeObjectPart(obj.Status, left)
+		names := make([]string, 0, len(left.Snapshots))
+		for _, s := range left.Snapshots {
+			names = append(names, s.Name)
+		}
+		o.logger.Warn("a snapshot schedule with a spec that can't be decoded is being deleted: its snapshots are left in the storage",
+			"namespace", obj.Namespace, "schedule", obj.Name, "snapshots", strings.Join(names, ", "))
+		o.finishDeletion(p, obj, &snapshotScheduleSpec{}, left)
 		return
 	}
 	st := &snapshotScheduleStatus{}

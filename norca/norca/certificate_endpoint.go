@@ -521,11 +521,18 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 		if reason != "" {
 			because = " for the reason " + reason
 		}
+		// What follows for the object: nothing is issued for one that is
+		// being deleted, and its current certificate does not stay (review
+		// finding ATM-24p), as the command says it (ATM-24m).
+		after := "the current certificate stays"
+		if obj.Deleting() {
+			after = "the object is being deleted, and no new certificate is issued"
+		}
 		switch {
 		case !external:
 			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "Revoked", fmt.Sprintf(
-				"earlier certificate with the serial %s revoked by %s%s; the current certificate stays",
-				serial, objectReporter(args), because))
+				"earlier certificate with the serial %s revoked by %s%s; %s",
+				serial, objectReporter(args), because, after))
 			operatorCount(structs.CertificateKind, "revoked")
 		case entry.Revoked:
 			raised("revoked before")
@@ -534,8 +541,8 @@ func (c *Certificate) revokeEarlier(snap *state.StateSnapshot, obj *structs.Cust
 		default:
 			// The reason is that of the order, which may have been open.
 			c.srv.operatorEvent(written, structs.ObjectEventTypeNormal, "RevocationOrdered", fmt.Sprintf(
-				"revocation of the earlier certificate with the serial %s ordered from the issuer %q by %s for the reason %s; the current certificate stays",
-				serial, entry.Issuer, objectReporter(args), updated.Revoking))
+				"revocation of the earlier certificate with the serial %s ordered from the issuer %q by %s for the reason %s; %s",
+				serial, entry.Issuer, objectReporter(args), updated.Revoking, after))
 			operatorCount(structs.CertificateKind, "revoked")
 		}
 		return written.ModifyIndex, pending, nil
