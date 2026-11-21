@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/runref"
+	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
 // namespaces are the roots of the references Rig resolves at install time

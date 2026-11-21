@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
 // checker checks a value against the constraints of a variable.

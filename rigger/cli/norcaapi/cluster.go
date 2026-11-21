@@ -8,7 +8,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // Cluster is a Norca cluster (host.Cluster).

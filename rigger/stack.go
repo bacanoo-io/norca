@@ -19,13 +19,13 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/internal/eval"
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/module"
-	"github.com/bacanoo-io/norca-rig/oplog"
-	"github.com/bacanoo-io/norca-rig/resource"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/resource"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // Stack is a loaded stack (design 6.4).

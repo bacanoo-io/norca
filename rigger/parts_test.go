@@ -10,8 +10,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/source"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // repoFetcher serves one tagged version of a repository tree: every git

@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/fetch"
-	"github.com/bacanoo-io/norca-rig/index"
-	"github.com/bacanoo-io/norca-rig/module"
-	"github.com/bacanoo-io/norca-rig/sign"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
+	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
 // Update adds to the entries of the namespaces the versions their

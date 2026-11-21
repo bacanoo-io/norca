@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // genericJobs decodes a job as the value of its block, with no schema: the

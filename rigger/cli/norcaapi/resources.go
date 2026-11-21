@@ -13,8 +13,8 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // defaultName sets the first of Name, Path and ID that the spec left out

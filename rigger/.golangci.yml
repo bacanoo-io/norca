@@ -161,7 +161,7 @@ formatters:
         clothe-returns: true
     goimports:
       local-prefixes:
-        - github.com/bacanoo-io/norca-rig
+        - github.com/bacanoo-io/norca/rigger
   exclusions:
     generated: lax
     paths:

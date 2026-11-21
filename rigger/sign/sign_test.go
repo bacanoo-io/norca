@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/bacanoo-io/norca-rig/sign"
+	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
 const digest = "sha256:5e7a9c1b3d5f7e9a1c3b5d7f9e1a3c5b7d9f1e3a1c3e5a7b9d1f3e5c7a9b1d3f"

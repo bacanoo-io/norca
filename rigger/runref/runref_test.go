@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/runref"
+	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
 func TestReplace(t *testing.T) {

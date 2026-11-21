@@ -10,7 +10,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/bacanoo-io/norca-rig/runref"
+	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
 // template resolves the runtime references of s as a task template does.

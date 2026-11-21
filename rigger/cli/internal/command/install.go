@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
-	"github.com/bacanoo-io/norca-rig/host"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // installFlags are the flags of rig install.

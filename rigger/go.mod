@@ -1,4 +1,4 @@
-module github.com/bacanoo-io/norca-rig
+module github.com/bacanoo-io/norca/rigger
 
 go 1.27
 

@@ -13,10 +13,10 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/internal/eval"
-	"github.com/bacanoo-io/norca-rig/oplog"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // Install is what an evaluation installs: the release, where, and the values

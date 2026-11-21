@@ -13,7 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/bacanoo-io/norca-rig/runref"
+	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
 // moduleFunctions returns the functions of a module: the standard set, the

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 var errReleaseName = errors.New("the command needs the name of a release")

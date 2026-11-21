@@ -12,9 +12,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/oplog"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // Fakes of the ports. They do nothing; they show that each port can be

@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	rig "github.com/bacanoo-io/norca-rig"
+	rig "github.com/bacanoo-io/norca/rigger"
 )
 
 // A host builds the engine from the adapters it has. The rig program passes

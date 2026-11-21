@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/module"
+	"github.com/bacanoo-io/norca/rigger/module"
 )
 
 // Digest returns the tree digest of m (design 8.1): sha256 over one line

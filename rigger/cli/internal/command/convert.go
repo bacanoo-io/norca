@@ -11,7 +11,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/convert"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/convert"
 )
 
 var errConvertUsage = errors.New("usage: rig convert pack <dir> -out <dir> [-examples <dir>]")

@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/host"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // fakeCluster is a release API and a secret store in memory.

@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/command"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/command"
 )
 
 func main() {

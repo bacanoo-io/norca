@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // The operations of a stack apply form a tree. The example leaves out the

@@ -20,8 +20,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // errOneDirectory is the error of a render given more than one directory.

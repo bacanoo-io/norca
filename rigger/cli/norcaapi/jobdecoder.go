@@ -13,10 +13,10 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/jobspec2"
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/resource"
-	"github.com/bacanoo-io/norca-rig/runref"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/jobspec2"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/resource"
+	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
 // JobDecoder decodes job blocks with the job decoder of Norca. The job it

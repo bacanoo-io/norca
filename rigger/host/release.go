@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/bacanoo-io/norca-rig/module"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // ReleaseRef names a release. Releases live in a namespace.

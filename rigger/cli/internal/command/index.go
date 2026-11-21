@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/internal/indexer"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/indexer"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 const (

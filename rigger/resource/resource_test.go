@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 func TestBuiltin(t *testing.T) {

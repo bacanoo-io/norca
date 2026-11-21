@@ -11,7 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
 // RecordedValues returns the values of an object a revision records: every

@@ -13,9 +13,9 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // The meta-arguments Rig adds to a resource (design 5).

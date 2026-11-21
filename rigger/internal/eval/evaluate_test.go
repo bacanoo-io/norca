@@ -13,7 +13,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
 )
 
 var facts = eval.Facts{Release: "cache", Namespace: "apps", Region: "eu", ModuleName: "redis", ModuleVersion: "0.3.0"}

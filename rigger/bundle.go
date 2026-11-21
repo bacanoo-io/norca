@@ -8,8 +8,8 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // SourcedModule is a module of a stack from a git source, as the lock file

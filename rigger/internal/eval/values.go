@@ -17,7 +17,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
 // Sensitive is the mark of a sensitive value (design 6.3). It goes with the

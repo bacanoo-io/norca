@@ -10,8 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/internal/eval"
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // TestResult is the result of a test of a module.

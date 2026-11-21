@@ -9,9 +9,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/internal/eval"
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // resolveLockedParts loads the parts of a stack (design 7.5) as its lock

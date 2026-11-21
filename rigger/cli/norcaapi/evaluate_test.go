@@ -14,8 +14,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // The files of the modules of the tests.

@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/sign"
+	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
 var (

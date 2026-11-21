@@ -16,8 +16,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // errReported is the error of a command that has written its diagnostics

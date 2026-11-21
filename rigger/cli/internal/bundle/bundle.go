@@ -21,7 +21,7 @@ import (
 	"slices"
 	"strings"
 
-	rig "github.com/bacanoo-io/norca-rig"
+	rig "github.com/bacanoo-io/norca/rigger"
 )
 
 // manifestName is the name of the manifest in a bundle.

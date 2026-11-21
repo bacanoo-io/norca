@@ -19,8 +19,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/source"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // stackFlags are the flags of rig stack <command>.

@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
 // Test is a test block of a tests/*.rigtest.hcl file (design 7.4): the

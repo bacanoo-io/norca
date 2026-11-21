@@ -10,7 +10,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // Secrets is the secret store of Norca (host.Secrets) in one namespace.

@@ -12,11 +12,11 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/internal/eval"
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/oplog"
-	"github.com/bacanoo-io/norca-rig/sign"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/sign"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // ErrNotStackSource is the error of an address that names no published

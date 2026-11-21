@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 
-	"github.com/bacanoo-io/norca-rig/module"
+	"github.com/bacanoo-io/norca/rigger/module"
 )
 
 // moduleName is the name of a module or of a release: the rule of the

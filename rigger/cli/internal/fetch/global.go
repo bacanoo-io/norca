@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/index"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // DefaultGlobalRegistry is the address of the global registry (design

@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
 // The roots of the references a module evaluates (design 4.2), and the

@@ -4,14 +4,14 @@
 #
 # Compares the copy of norca's jobspec2 (cli/internal/jobspec2, SOURCE.md)
 # and of a file of its resourcespec (cli/internal/resourcespec) with the
-# norca checkout next to this repository. It fails when a copied
+# norca module of this repository (../norca). It fails when a copied
 # file differs, or when norca's jobspec2 has a non-test file the copy lacks.
-# NORCA_DIR overrides the place of norca/norca.
+# NORCA_DIR overrides the place of the norca module.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 copy="$root/cli/internal/jobspec2"
-norca="${NORCA_DIR:-$root/../norca/norca}/jobspec2"
+norca="${NORCA_DIR:-$root/../norca}/jobspec2"
 
 if [ ! -d "$norca" ]; then
   echo "check-copy: no norca checkout at $norca (set NORCA_DIR)" >&2
@@ -45,7 +45,7 @@ done
 
 # The copied files of norca's resourcespec (cli/internal/resourcespec,
 # SOURCE.md).
-specs="${NORCA_DIR:-$root/../norca/norca}/helper/resourcespec"
+specs="${NORCA_DIR:-$root/../norca}/helper/resourcespec"
 for name in object.go; do
   if ! cmp -s "$specs/$name" "$root/cli/internal/resourcespec/$name"; then
     echo "check-copy: resourcespec/$name differs from norca's" >&2

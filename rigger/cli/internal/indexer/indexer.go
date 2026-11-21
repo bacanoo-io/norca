@@ -20,13 +20,13 @@ import (
 	"slices"
 	"strings"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/internal/fetch"
-	"github.com/bacanoo-io/norca-rig/index"
-	"github.com/bacanoo-io/norca-rig/module"
-	"github.com/bacanoo-io/norca-rig/sign"
-	"github.com/bacanoo-io/norca-rig/source"
-	"github.com/bacanoo-io/norca-rig/version"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
+	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/sign"
+	"github.com/bacanoo-io/norca/rigger/source"
+	"github.com/bacanoo-io/norca/rigger/version"
 )
 
 // Indexer works on a checkout of a registry of the shape of the global

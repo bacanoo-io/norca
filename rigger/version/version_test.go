@@ -6,7 +6,7 @@ package version_test
 import (
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/version"
+	"github.com/bacanoo-io/norca/rigger/version"
 )
 
 // Versions the tests use more than once.

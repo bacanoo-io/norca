@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // newLogger returns a logger whose JSON lines go to buf, with the IDs of

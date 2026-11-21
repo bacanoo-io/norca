@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/oci/ocitest"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/oci/ocitest"
 )
 
 func TestRun_OCI(t *testing.T) {

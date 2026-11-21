@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // timeFormat is the time of a tree line: the day is the day of the run.

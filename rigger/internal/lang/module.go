@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/module"
+	"github.com/bacanoo-io/norca/rigger/module"
 )
 
 // labelName is the name of the label of a block that has one.

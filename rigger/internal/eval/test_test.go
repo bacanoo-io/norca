@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
 )
 
 // testModule is a module for the tests of the test runner.

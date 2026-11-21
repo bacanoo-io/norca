@@ -26,10 +26,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bacanoo-io/norca-rig/cli/builtin"
-	"github.com/bacanoo-io/norca-rig/cli/internal/oci"
-	"github.com/bacanoo-io/norca-rig/source"
-	"github.com/bacanoo-io/norca-rig/version"
+	"github.com/bacanoo-io/norca/rigger/cli/builtin"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/oci"
+	"github.com/bacanoo-io/norca/rigger/source"
+	"github.com/bacanoo-io/norca/rigger/version"
 )
 
 // Fetcher fetches modules into a cache directory.

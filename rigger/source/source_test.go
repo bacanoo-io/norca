@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 func TestParse(t *testing.T) {

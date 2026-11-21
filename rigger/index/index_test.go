@@ -10,7 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/bacanoo-io/norca-rig/index"
+	"github.com/bacanoo-io/norca/rigger/index"
 )
 
 const (

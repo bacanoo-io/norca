@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // TestEngine_ValidateModule_Examples renders the value files of the

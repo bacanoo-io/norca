@@ -13,7 +13,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	rig "github.com/bacanoo-io/norca-rig"
+	rig "github.com/bacanoo-io/norca/rigger"
 )
 
 func engine(t *testing.T) *rig.Engine {

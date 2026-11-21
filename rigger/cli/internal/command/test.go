@@ -9,8 +9,8 @@ import (
 	"io"
 	"log/slog"
 
-	rig "github.com/bacanoo-io/norca-rig"
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	rig "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // testModule runs the tests of the module in dir with the job decoder of

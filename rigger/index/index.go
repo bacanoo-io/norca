@@ -25,7 +25,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/version"
+	"github.com/bacanoo-io/norca/rigger/version"
 )
 
 // Kind is what an entry lists: a module or a stack.

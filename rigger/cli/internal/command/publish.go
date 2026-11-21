@@ -12,7 +12,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/oci"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/oci"
 )
 
 var (

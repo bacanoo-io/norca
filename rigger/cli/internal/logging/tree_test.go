@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // withoutTime cuts the time from the lines of buf.

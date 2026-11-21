@@ -28,7 +28,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 const (

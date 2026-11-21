@@ -15,8 +15,8 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 	ctygocty "github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/bacanoo-io/norca-rig/internal/lang"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // hookBlock returns the hook block of a resource: one at most, on a job

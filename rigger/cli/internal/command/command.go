@@ -16,8 +16,8 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/bacanoo-io/norca-rig/cli/internal/logging"
-	"github.com/bacanoo-io/norca-rig/oplog"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/logging"
+	"github.com/bacanoo-io/norca/rigger/oplog"
 )
 
 // Exit codes. A plan exits with 2 when it has changes (design 9.2), so every

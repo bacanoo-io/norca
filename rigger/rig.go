@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/oplog"
-	"github.com/bacanoo-io/norca-rig/source"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // ErrInvalidOption is matched (with errors.Is) by the error of [New] when an

@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // JobSpec is a job block of a module, ready to be decoded.

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // FileKind is what a file of a module holds, by its name (design 4.5).

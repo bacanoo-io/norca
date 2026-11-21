@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 const secretText = "s3cr3t-value"

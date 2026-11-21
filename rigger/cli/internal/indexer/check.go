@@ -15,8 +15,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bacanoo-io/norca-rig/index"
-	"github.com/bacanoo-io/norca-rig/sign"
+	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
 // listedEntry is an entry of the registry and its kind.

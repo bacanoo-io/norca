@@ -15,9 +15,9 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	"github.com/bacanoo-io/norca-rig/host"
-	"github.com/bacanoo-io/norca-rig/module"
-	"github.com/bacanoo-io/norca-rig/resource"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // ownerPrefix marks the stack that owns a release in its description (the

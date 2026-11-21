@@ -14,8 +14,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca-rig/cli/norcaapi"
-	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // spec parses src, the job file of a module, and returns its job block
