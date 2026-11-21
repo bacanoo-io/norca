@@ -270,6 +270,13 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // what the status says the tenant was writing, which the tenant wrote down
 // before the write, as it does for a creation. For an existing resource
 // creating is what it will hold once the tenant wrote it.
+//
+// A resource the tenant took over that was deleted, and whose name another
+// resource has now (another create index than the tenant recorded at the
+// adoption), is not the one the tenant took over: what the tenant found in
+// the deleted one is forgotten, never written onto this one, and the
+// resource is treated as any resource the tenant finds, a conflict or with
+// spec.adopt an adoption as it is now (review finding ATM-26e).
 func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOriginal) bool {
 	exists := original != nil
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
@@ -297,7 +304,12 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 				w.claimsChanged = true
 			}
 			mine.Pending, mine.Creating = true, want
-			mine.Adopted, mine.Original, mine.Writing = false, nil, ""
+			mine.Adopted, mine.Original, mine.Writing, mine.CreateIndex = false, nil, "", 0
+		case mine.replaced(original.CreateIndex):
+			// Not the resource the tenant took over: that one was deleted,
+			// and somebody else made this one under its name.
+			delete(w.owned, ref.key())
+			ok = false
 		case mine.Pending && (mine.Creating == "" || mine.Creating != original.fingerprint()):
 			// Not what the tenant was creating: somebody else made it.
 			delete(w.owned, ref.key())
@@ -351,6 +363,7 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 		}
 		w.adopted = append(w.adopted, ref)
 		ref.Original, ref.Writing = original, creating.fingerprint()
+		ref.CreateIndex = original.CreateIndex
 	} else {
 		ref.Creating = creating.fingerprint()
 	}
@@ -862,6 +875,9 @@ func statusRefs(owned map[string]tenantResourceRef) []any {
 		}
 		if ref.Writing != "" {
 			m["writing"] = ref.Writing
+		}
+		if ref.CreateIndex != 0 {
+			m["create_index"] = ref.CreateIndex
 		}
 		refs = append(refs, m)
 	}

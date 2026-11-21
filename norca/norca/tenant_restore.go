@@ -58,6 +58,12 @@ type tenantOriginal struct {
 
 	// NetworkPolicy is a network policy as it was, without its indexes.
 	NetworkPolicy *structs.NetworkPolicy `json:"network_policy,omitempty"`
+
+	// CreateIndex is the create index of the resource this was read from, 0
+	// for what a tenant wants to create. It is not what the resource held
+	// and is not kept with it (nor in the fingerprint and the size): an
+	// adoption records it beside the original (tenantResourceRef).
+	CreateIndex uint64 `json:"-"`
 }
 
 // size returns the size of the original in the status.
@@ -97,14 +103,15 @@ func namespaceOriginal(ns *structs.Namespace) *tenantOriginal {
 	if ns == nil {
 		return nil
 	}
-	return &tenantOriginal{Description: ns.Description, Meta: maps.Clone(nilIfEmpty(ns.Meta)), Quota: ns.Quota}
+	return &tenantOriginal{Description: ns.Description, Meta: maps.Clone(nilIfEmpty(ns.Meta)), Quota: ns.Quota,
+		CreateIndex: ns.CreateIndex}
 }
 
 func quotaOriginal(q *structs.QuotaSpec) *tenantOriginal {
 	if q == nil {
 		return nil
 	}
-	out := &tenantOriginal{Description: q.Description, Enforce: q.Enforce}
+	out := &tenantOriginal{Description: q.Description, Enforce: q.Enforce, CreateIndex: q.CreateIndex}
 	for _, l := range q.Limits {
 		if l == nil {
 			continue
@@ -133,14 +140,14 @@ func policyOriginal(p *structs.ACLPolicy) *tenantOriginal {
 	if p == nil {
 		return nil
 	}
-	return &tenantOriginal{Description: p.Description, Rules: p.Rules}
+	return &tenantOriginal{Description: p.Description, Rules: p.Rules, CreateIndex: p.CreateIndex}
 }
 
 func roleOriginal(r *structs.ACLRole) *tenantOriginal {
 	if r == nil {
 		return nil
 	}
-	out := &tenantOriginal{Description: r.Description}
+	out := &tenantOriginal{Description: r.Description, CreateIndex: r.CreateIndex}
 	for _, link := range r.Policies {
 		if link != nil {
 			out.Policies = append(out.Policies, link.Name)
@@ -155,7 +162,7 @@ func networkPolicyOriginal(np *structs.NetworkPolicy) *tenantOriginal {
 	}
 	saved := np.Copy()
 	saved.CreateIndex, saved.ModifyIndex = 0, 0
-	return &tenantOriginal{Description: np.Description, NetworkPolicy: saved}
+	return &tenantOriginal{Description: np.Description, NetworkPolicy: saved, CreateIndex: np.CreateIndex}
 }
 
 // quotaLimits returns the limits of a quota from the limits by region.
@@ -241,18 +248,23 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live != nil && live.fingerprint() != ref.Writing {
+		if live != nil && !ref.replaced(live.CreateIndex) && live.fingerprint() != ref.Writing {
 			return tenantGivenBackUnwritten, nil
 		}
 	}
 
+	// The resource is the one the tenant took over: a namespace, a quota,
+	// an ACL policy or a network policy that has its name now with another
+	// create index was created by somebody else after the tenant's was
+	// deleted. The tenant's is gone, and what it found in it is not written
+	// onto the other one (review finding ATM-26e).
 	switch ref.Type {
 	case structs.TenantResourceNamespace:
 		live, err := store.NamespaceByName(nil, ref.Name)
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -285,7 +297,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -304,7 +316,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -368,7 +380,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs || orig.NetworkPolicy == nil {
