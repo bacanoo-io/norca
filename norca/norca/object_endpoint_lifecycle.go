@@ -414,7 +414,7 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 		// the collector takes no other one of those.
 		var approved []string
 		if propagation != structs.ObjectPropagationOrphan {
-			if approved, err = checkObjectDependentsDelete(snap, aclObj, existing); err != nil {
+			if approved, err = checkObjectDependentsDelete(snap, aclObj, args, existing); err != nil {
 				return err
 			}
 		}
