@@ -1,0 +1,103 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package eval
+
+import (
+	"fmt"
+	"slices"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/hashicorp/hcl/v2/hclwrite"
+)
+
+// renderBlock writes a block as it evaluates, as HCL for a decoder of the
+// host (host.ResourceDecoder): its attributes as values in the order of the
+// module (a null one left out), its blocks in their order, dynamic blocks
+// expanded, without the names of skip at the top. A sensitive value is
+// refused: the text goes to the host.
+func renderBlock(block *hcl.Block, label string, ctx *hcl.EvalContext, skip map[string]bool) ([]byte, hcl.Diagnostics) {
+	f := hclwrite.NewEmptyFile()
+
+	out := f.Body().AppendNewBlock(block.Type, []string{label})
+
+	if diags := renderBody(out.Body(), block.Body, ctx, skip); diags.HasErrors() {
+		return nil, diags
+	}
+
+	return f.Bytes(), nil
+}
+
+func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip map[string]bool) hcl.Diagnostics {
+	syntax, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return unsupportedSyntax()
+	}
+
+	attrs := make([]*hclsyntax.Attribute, 0, len(syntax.Attributes))
+
+	for name, a := range syntax.Attributes {
+		if !skip[name] {
+			attrs = append(attrs, a)
+		}
+	}
+
+	slices.SortFunc(attrs, func(a, b *hclsyntax.Attribute) int { return a.SrcRange.Start.Byte - b.SrcRange.Start.Byte })
+
+	var diags hcl.Diagnostics
+
+	for _, a := range attrs {
+		v, moreDiags := a.Expr.Value(ctx)
+		diags = append(diags, moreDiags...)
+
+		if moreDiags.HasErrors() || v.IsNull() {
+			continue
+		}
+
+		if v.ContainsMarked() {
+			diags = append(diags, sensitiveDiag("this resource", a.Expr.Range()))
+
+			continue
+		}
+
+		if !v.IsWhollyKnown() {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Unknown value",
+				Detail: fmt.Sprintf("The value of %s is not known at install time.", a.Name), Subject: a.Expr.Range().Ptr(),
+			})
+
+			continue
+		}
+
+		out.SetAttributeValue(a.Name, v)
+	}
+
+	for _, b := range syntax.Blocks {
+		if b.Type == "dynamic" {
+			diags = append(diags, renderDynamic(out, b, ctx)...)
+
+			continue
+		}
+
+		nb := out.AppendNewBlock(b.Type, b.Labels)
+		diags = append(diags, renderBody(nb.Body(), b.Body, ctx, nil)...)
+	}
+
+	return diags
+}
+
+// renderDynamic writes the blocks a dynamic block makes.
+func renderDynamic(out *hclwrite.Body, b *hclsyntax.Block, ctx *hcl.EvalContext) hcl.Diagnostics {
+	typ, content, items, diags := expandDynamic(b, ctx)
+	if diags.HasErrors() {
+		return diags
+	}
+
+	for _, item := range items {
+		nb := out.AppendNewBlock(typ, item.labels)
+		diags = append(diags, renderBody(nb.Body(), content, item.ctx, nil)...)
+	}
+
+	return diags
+}

@@ -1,0 +1,171 @@
+# golangci-lint v2. The recommended configuration of the golang-lint skill
+# (samber/cc-skills-golang), with the settings of Rig at the end.
+version: "2"
+
+run:
+  concurrency: 4
+  timeout: 5m
+  tests: true
+  # The integration tests (against a running agent) are linted too.
+  build-tags:
+    - integration
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 50
+
+linters:
+  enable:
+    # correctness
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - errorlint
+    - nilerr
+    - forcetypeassert
+    - copyloopvar
+    - durationcheck
+    - reassign
+    # style
+    - gocritic
+    - revive
+    - wsl_v5
+    - whitespace
+    - godot
+    - misspell
+    - dupword
+    - predeclared
+    - errname
+    - asciicheck
+    # complexity
+    - gocyclo
+    - nestif
+    - funlen
+    - dupl
+    # performance
+    - perfsprint
+    - unconvert
+    - ineffassign
+    - goconst
+    # security and resources
+    - gosec
+    - bidichk
+    - bodyclose
+    - noctx
+    - containedctx
+    - fatcontext
+    - sqlclosecheck
+    - rowserrcheck
+    # logging
+    - sloglint
+    - loggercheck
+    # testing
+    - testifylint
+    - thelper
+    - usetesting
+    - paralleltest
+    # modernization and meta
+    - modernize
+    - exptostd
+    - intrange
+    - usestdlibvars
+    - exhaustive
+    - nolintlint
+
+  disable:
+    - lll
+    - prealloc
+    - wrapcheck
+    - err113
+    - mnd
+    - iface
+    - nakedret
+    - noinlineerr
+    - gocognit
+    - cyclop
+    - depguard
+    - goheader
+    - importas
+    - funcorder
+    - godoclint
+    - varnamelen
+    - exhaustruct
+    - gochecknoglobals
+    - gochecknoinits
+    - unparam
+    - makezero
+    - testpackage
+    - embeddedstructfieldcheck
+    - iotamixing
+    - unqueryvet
+    - recvcheck
+    - mirror
+    - protogetter
+    - spancheck
+    - zerologlint
+
+  exclusions:
+    paths:
+      - vendor$
+      - third_party$
+      - examples$
+      # The copy of norca's jobspec2 stays as norca has it (SOURCE.md);
+      # Rig's own files there (rig_*.go) are linted.
+      - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
+      - internal/resourcespec/object\.go$
+      # The copy of a file of norca's resourcespec, likewise.
+      - internal/resourcespec/object\.go$
+    rules:
+      # Tests read and write the files of their own temporary directories,
+      # and run git there.
+      - path: _test\.go
+        linters: [gosec]
+        text: "G204|G304|G703"
+
+  settings:
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+    funlen:
+      lines: 120
+      statements: 80
+    goconst:
+      min-len: 3
+      min-occurrences: 4
+    gocyclo:
+      min-complexity: 13
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    # Rig: log messages are constant; what varies goes into attributes.
+    # Every line is logged with a context, so that it carries the operation
+    # it belongs to (package oplog).
+    sloglint:
+      static-msg: true
+      context: all
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+        clothe-returns: true
+    goimports:
+      local-prefixes:
+        - github.com/bacanoo-io/norca-rig
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - examples$
+      - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
+      - internal/resourcespec/object\.go$

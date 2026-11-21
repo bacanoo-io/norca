@@ -1,0 +1,27 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries (go test -c) and coverage
+*.test
+*.out
+coverage.html
+
+# Go workspace checksums
+go.work.sum
+
+# Local data of a stack (design 12.6)
+.rig/
+
+# Editors and systems
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

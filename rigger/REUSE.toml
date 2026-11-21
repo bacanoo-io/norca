@@ -1,0 +1,10 @@
+version = 1
+
+# Files without a header of their own (go.mod, go.sum, the design, the
+# documentation, the examples, test data, images) are Norca's own, under
+# MPL 2.0 like the code. A header in a file takes precedence.
+[[annotations]]
+path = ["**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"

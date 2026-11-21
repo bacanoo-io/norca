@@ -1,0 +1,76 @@
+# Example registry
+
+The layout of a registry repository: a git repository that holds modules
+and stacks, each with its own version.
+
+```
+registry/
+  modules/
+    lib/placement/     a child module other modules use (no resources, only outputs)
+    nats/              a NATS cluster: users in accounts, TLS, the changes of the region
+    postgres/          a PostgreSQL server: databases, an init hook, periodic backups
+  stacks/
+    data-platform/     postgres + nats of this registry, with their secrets
+    observability/     modules of another registry (norca), wired and sized,
+                       plus a module of the stack's own
+  .gitattributes       LF line ends: the digest of a module is over file contents
+```
+
+## Stacks
+
+A stack of a registry is a tested composition others install as one thing.
+
+- It names its modules **by address and version**, never by a path into the
+  repository, also when they are in the same registry (`data-platform`).
+- It may build on **another registry** (`observability`): it names that
+  registry and carries the public key its modules are signed with.
+- It may have **modules of its own** in `modules/`; they are part of the
+  stack's digest and are not published separately.
+- Its **lock file is published with it**, so a version of the stack always
+  means the same module versions.
+
+## Versions and tags
+
+- Every module and every stack has its own version in `metadata.hcl`.
+- A version is published as the tag `<name>/v<version>`: `nats/v1.0.0`,
+  `postgres/v0.3.0`, `data-platform/v1.2.0`. A tag is never moved. Names are
+  unique across the modules and stacks of the registry.
+- A change to the resources a module produces raises the patch version, a
+  new variable the minor version, a renamed or removed variable or a changed
+  default the major version (the minor one while at `0.x`).
+
+## Publishing
+
+```shell
+rig module validate modules/nats        # schemas, examples, tests, icon
+rig module publish modules/nats --sign  # tag nats/v1.0.0, signature of its tree digest
+
+rig stack sync     stacks/data-platform        # resolve the modules, write the lock
+rig stack validate stacks/data-platform        # schemas, examples, the lock
+rig stack publish  stacks/data-platform --sign # tag data-platform/v1.2.0
+```
+
+## Using it
+
+```hcl
+rig {
+  registry "example" {
+    source = "github.com/example/rig-registry"
+  }
+}
+
+module "nats" {
+  source  = "example/nats"
+  version = "~> 1.0"
+}
+```
+
+## Rules of this registry
+
+- Third-party software is referenced (an image, a release archive), never
+  shipped; `metadata.hcl` names its license.
+- Secrets come from the secret store of the cluster, never from a variable.
+- Every module has at least one file in `examples/` and one test; every
+  stack at least one file in `examples/`, planned in CI.
+- CI: `rig fmt -check`, `rig module validate`, `rig module test`, license
+  and sign-off checks.

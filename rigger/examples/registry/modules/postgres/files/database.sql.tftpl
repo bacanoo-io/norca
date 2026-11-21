@@ -1,0 +1,17 @@
+-- Database ${name}, owner ${owner}. Safe to run again.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${owner}') THEN
+    CREATE ROLE "${owner}" LOGIN;
+  END IF;
+END
+$$;
+ALTER ROLE "${owner}" PASSWORD @@PASSWORD@@;
+
+SELECT 'CREATE DATABASE "${name}" OWNER "${owner}"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${name}')\gexec
+
+\connect "${name}"
+%{ for ext in extensions ~}
+CREATE EXTENSION IF NOT EXISTS "${ext}";
+%{ endfor ~}

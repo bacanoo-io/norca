@@ -1,0 +1,4 @@
+-----BEGIN PUBLIC KEY-----
+EXAMPLE ONLY: the public key the external registry signs its modules with
+goes here (ECDSA P-256, as written by `rig key generate`).
+-----END PUBLIC KEY-----
