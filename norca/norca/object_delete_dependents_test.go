@@ -290,8 +290,10 @@ func TestObjectGC_KeepsDependentsNobodyWasCheckedFor(t *testing.T) {
 		var obj *structs.CustomObject
 		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
 			obj = c.object(structs.OperatorsGroup, csiVolumeRequestKind, name)
-			return obj == nil || obj.Deleting() || len(obj.Owners) == 0
-		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of", name))
+			// The event of the release is written after the release itself.
+			return obj == nil || obj.Deleting() ||
+				(len(obj.Owners) == 0 && len(c.eventMessages("default", csiVolumeRequestKind, name, objectEventDependentKept)) > 0)
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of, with its event", name))
 		must.NotNil(t, obj, must.Sprintf("%s was deleted with its owner", name))
 		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", name))
 		must.NotNil(t, c.volume(name))
@@ -506,8 +508,10 @@ namespace "*" {
 		var obj *structs.CustomObject
 		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
 			obj = c.get(late.namespace, late.kind, late.name)
-			return obj == nil || obj.Deleting() || len(obj.Owners) == 0
-		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of", late.name))
+			// The event of the release is written after the release itself.
+			return obj == nil || obj.Deleting() ||
+				(len(obj.Owners) == 0 && len(c.eventMessages(late.namespace, late.kind, late.name, objectEventDependentKept)) > 0)
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of, with its event", late.name))
 		must.NotNil(t, obj, must.Sprintf("%s was deleted with its owner", late.name))
 		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", late.name))
 		must.SliceContains(t, c.eventReasons(late.namespace, late.kind, late.name), objectEventDependentKept)
@@ -790,8 +794,10 @@ namespace "*" {
 		var obj *structs.CustomObject
 		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
 			obj = c.get("", late.kind, late.name)
-			return obj == nil || obj.Deleting() || len(obj.Owners) == 0
-		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of", late.name))
+			// The event of the release is written after the release itself.
+			return obj == nil || obj.Deleting() ||
+				(len(obj.Owners) == 0 && len(c.eventMessages("", late.kind, late.name, objectEventDependentKept)) > 0)
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of, with its event", late.name))
 		must.NotNil(t, obj, must.Sprintf("%s was deleted with its owner", late.name))
 		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", late.name))
 		messages := c.eventMessages("", late.kind, late.name, objectEventDependentKept)
