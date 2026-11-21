@@ -41,6 +41,11 @@ type Unplaced struct {
 	// The size of one allocation: CPU in MHz, memory and disk in MB.
 	CPU, Memory, Disk float64
 
+	// Cores are the cores one allocation reserves (resources.cores). They
+	// are not in CPU: a group counts them with the MHz of a core of its
+	// nodes (review finding ASC-5).
+	Cores int
+
 	// Spread is the spread of the task group over the datacenters, nil if
 	// it has none. PreferredDatacenters are the datacenters the job or the
 	// group has an affinity for (a positive weight on ${node.datacenter}).

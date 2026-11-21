@@ -82,6 +82,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 				if task.Resources != nil {
 					u.CPU += float64(task.Resources.CPU)
 					u.Memory += float64(task.Resources.MemoryMB)
+					u.Cores += task.Resources.Cores
 				}
 			}
 			if tg.EphemeralDisk != nil {

@@ -175,6 +175,9 @@ type demandGroup struct {
 
 	size      NodeSize
 	sizeKnown bool
+	// coreMHz is the MHz of one core of the group's nodes, for the work
+	// that reserves cores; 0 when it is not known.
+	coreMHz float64
 
 	// The headroom: free capacity worth this many nodes of the group, or
 	// this share of the nodes it has (the larger applies), and the free
@@ -242,8 +245,16 @@ func (g *demandGroup) key() NodeGroupKey {
 	return NodeGroupKey{Pool: g.pool, Datacenter: g.dc, Class: g.class}
 }
 
+// sized returns the allocation with the cores it reserves counted in its CPU,
+// with the MHz of a core of the group's nodes.
+func (g *demandGroup) sized(u Unplaced) Unplaced {
+	u.CPU += float64(u.Cores) * g.coreMHz
+	return u
+}
+
 // fitIndex returns the virtual node the allocation fits, -1 if none.
 func (g *demandGroup) fitIndex(u Unplaced) int {
+	u = g.sized(u)
 	for i, n := range g.nodes {
 		if u.Exclusive && n.exclusive {
 			continue
@@ -263,7 +274,8 @@ func (g *demandGroup) place(u Unplaced) {
 		i = len(g.nodes) - 1
 	}
 	n := &g.nodes[i]
-	n.free = NodeSize{n.free.CPU - u.CPU, n.free.Memory - u.Memory, n.free.Disk - u.Disk}
+	cpu := g.sized(u).CPU
+	n.free = NodeSize{n.free.CPU - cpu, n.free.Memory - u.Memory, n.free.Disk - u.Disk}
 	n.used = true
 	n.exclusive = n.exclusive || u.Exclusive
 	g.bucket = append(g.bucket, u)
@@ -362,6 +374,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		if m, ok := marked[g.name]; ok && m.ready*2 < g.spec-g.pending {
 			g.isShort = true
 		}
+		g.coreMHz = marked[g.name].coreMHz
 
 		// The size of a node: what the operator reports, or what the spec
 		// says by hand, less the reserved resources.
@@ -397,6 +410,9 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 // markedCount are the nodes that name a node group in their meta.
 type markedCount struct {
 	total, ready int64
+	// coreMHz is the MHz of one core of the group's nodes (Norca, review
+	// finding ASC-5); 0 when no node tells.
+	coreMHz float64
 }
 
 // markedNodes counts the nodes of the node groups as the servers have them:
@@ -419,6 +435,9 @@ func markedNodes(store *state.StateStore) (map[string]markedCount, error) {
 		m.total++
 		if node.Status == structs.NodeStatusReady {
 			m.ready++
+		}
+		if m.coreMHz == 0 && node.NodeResources != nil && node.NodeResources.Cpu.TotalCpuCores > 0 {
+			m.coreMHz = float64(node.NodeResources.Cpu.CpuShares) / float64(node.NodeResources.Cpu.TotalCpuCores)
 		}
 		res[group] = m
 	}
@@ -771,7 +790,11 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			if !ok {
 				continue
 			}
-			if !restricted.fits(g.size) {
+			if restricted.Cores > 0 && g.coreMHz == 0 {
+				rejected = append(rejected, g.name+": the work reserves cores, and the MHz of a core of its nodes is not known")
+				continue
+			}
+			if !g.sized(restricted).fits(g.size) {
 				rejected = append(rejected, g.name+": allocation too large for a node")
 				blocked["toolarge/"+g.name+"/"+item.Namespace+"/"+item.Job+"/"+item.Group] = fmt.Sprintf(
 					"an allocation of %.0f MHz, %.0f MB memory, %.0f MB disk does not fit an empty node of %s (%.0f MHz, %.0f MB, %.0f MB)",

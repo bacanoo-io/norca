@@ -112,6 +112,7 @@ func TestCollectBlocked_FilteredWorkIsNotDemand(t *testing.T) {
 		mutate     func(*structs.Job)
 		unverified string // a part of the reason; "" for demand
 		ineligible bool   // the group is named ineligible
+		cores      int    // the cores one allocation reserves
 	}{
 		{name: "attribute constraint", mutate: func(j *structs.Job) {
 			j.Constraints = []*structs.Constraint{{LTarget: "${attr.kernel.name}", RTarget: "windows", Operand: "="}}
@@ -129,6 +130,12 @@ func TestCollectBlocked_FilteredWorkIsNotDemand(t *testing.T) {
 		{name: "too large for the free resources", mutate: func(j *structs.Job) {
 			j.TaskGroups[0].Tasks[0].Resources.CPU = 5000
 		}},
+		// The cores are part of the size of the work (review finding
+		// ASC-5).
+		{name: "more cores than a node has", mutate: func(j *structs.Job) {
+			j.TaskGroups[0].Tasks[0].Resources.CPU = 0
+			j.TaskGroups[0].Tasks[0].Resources.Cores = 64
+		}, cores: 64},
 	}
 
 	for _, tc := range cases {
@@ -163,6 +170,7 @@ func TestCollectBlocked_FilteredWorkIsNotDemand(t *testing.T) {
 			}
 			found = true
 			must.Eq(t, resp.JobModifyIndex, u.JobIndex, must.Sprint(tc.name))
+			must.Eq(t, tc.cores, u.Cores, must.Sprint(tc.name))
 			if tc.unverified == "" {
 				must.Eq(t, "", u.Unverifiable, must.Sprint(tc.name))
 			} else {
