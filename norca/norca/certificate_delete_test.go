@@ -396,6 +396,14 @@ func TestCertificate_ExternalIssuerRevokeDeleting(t *testing.T) {
 	must.True(t, resp.Earlier)
 	must.True(t, resp.Pending)
 	must.True(t, resp.Deleting)
+	// The event does not promise that the current certificate stays (review
+	// finding ATM-24p), as the one before the deletion did.
+	ordered := containing(c.eventMessages("default", structs.CertificateKind, "web-tls", "RevocationOrdered"),
+		"earlier certificate with the serial "+first.Serial)
+	must.Len(t, 2, ordered)
+	must.StrContains(t, ordered[0], "the current certificate stays")
+	must.StrNotContains(t, ordered[1], "the current certificate stays")
+	must.StrContains(t, ordered[1], "the object is being deleted, and no new certificate is issued")
 
 	// The deletion goes on: nothing is issued, and the object goes when its
 	// certificates are revoked.
