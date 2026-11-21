@@ -302,7 +302,10 @@ func objectDeletionLetsGo(existing *structs.CustomObject, propagation string) bo
 // The reply is the object as marked, or as it was before it was removed
 // (DeletionTime 0). A deletion in the orphan mode of an object that is being
 // deleted in another mode lets go of its dependents (objectDeletionLetsGo);
-// any other repeated deletion changes nothing.
+// any other repeated deletion changes nothing. If letting go removes the
+// object, the reply is the object without the mark of the deletion that was
+// started (DeletionTime 0, no DeletionPropagation, no DeletionApproved), as
+// the reply of any removal.
 func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *structs.CustomObjectWriteResponse) error {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("CustomObject.Delete", args, args, reply); done {
@@ -443,8 +446,19 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			marked.DeletionApproved = approved
 			marked.ModifyTime = now
 		}
+		// The reply of a removal is the object without the mark of a
+		// deletion: that is how the caller tells a removal from a mark. The
+		// object that a deletion that lets go removes has the mark of the
+		// deletion that was started (review finding MUK-31).
+		removed := existing
+		if removeNow && lettingGo {
+			removed = existing.Copy()
+			removed.DeletionTime = 0
+			removed.DeletionPropagation = ""
+			removed.DeletionApproved = nil
+		}
 		if args.DryRun {
-			reply.Object = existing
+			reply.Object = removed
 			if marked != nil {
 				reply.Object = marked
 			}
@@ -474,7 +488,7 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			return err
 		}
 
-		reply.Object = existing
+		reply.Object = removed
 		if marked != nil {
 			marked.ModifyIndex = index
 			reply.Object = marked

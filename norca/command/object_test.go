@@ -324,6 +324,61 @@ spec {
 	must.Eq(t, 0, run(&ObjectKindDeleteCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster"), must.Sprint(ui.ErrorWriter.String()))
 }
 
+// A repeated delete in the orphan mode of an object that waits for what it
+// owns in a foreground deletion removes the object at once, and the command
+// says so (review finding MUK-31). The reply was the object with the mark of
+// the foreground deletion, and the command printed "is marked for deletion
+// (foreground)" of an object that was gone.
+func TestObjectDeleteCommand_OrphanRemovesAnObjectBeingDeleted(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, client, url := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	dir := t.TempDir()
+	must.NoError(t, os.WriteFile(filepath.Join(dir, "pg.schema.json"), []byte(testCLIObjectSchema), 0o600))
+	kindPath := filepath.Join(dir, "pg.hcl")
+	must.NoError(t, os.WriteFile(kindPath, []byte(testCLIObjectKind), 0o600))
+
+	run := func(cmd cli.Command, args ...string) int {
+		return cmd.Run(append([]string{"-address", url}, args...))
+	}
+	const kindRef = "db.example.com/PostgresCluster"
+
+	ui := cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectKindApplyCommand{Meta: Meta{Ui: ui}}, kindPath), must.Sprint(ui.ErrorWriter.String()))
+
+	// The owner has no finalizer; the object it owns has one that nobody
+	// removes, so the foreground deletion of the owner waits.
+	_, _, err := client.Objects().Apply(&api.CustomObject{Group: "db.example.com", Kind: "PostgresCluster", Name: "owner",
+		Spec: map[string]any{"version": "16"}}, nil, nil)
+	must.NoError(t, err)
+	_, _, err = client.Objects().Apply(&api.CustomObject{Group: "db.example.com", Kind: "PostgresCluster", Name: "held",
+		Spec: map[string]any{"version": "16"}, Finalizers: []string{"example.com/never-removed"},
+		Owners: []*api.ObjectOwnerReference{{Kind: kindRef, Name: "owner"}}}, nil, nil)
+	must.NoError(t, err)
+
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectDeleteCommand{Meta: Meta{Ui: ui}}, "-propagation", "foreground", kindRef, "owner"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "is marked for deletion (foreground)")
+
+	// The dry run changes nothing.
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectDeleteCommand{Meta: Meta{Ui: ui}}, "-dry-run", "-propagation", "orphan", kindRef, "owner"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "can be deleted")
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectGetCommand{Meta: Meta{Ui: ui}}, kindRef, "owner"), must.Sprint(ui.ErrorWriter.String()))
+
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectDeleteCommand{Meta: Meta{Ui: ui}}, "-propagation", "orphan", kindRef, "owner"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), `Successfully deleted object "db.example.com/PostgresCluster/owner"!`)
+	must.StrNotContains(t, ui.OutputWriter.String(), "marked for deletion")
+
+	// The object is gone.
+	ui = cli.NewMockUi()
+	must.Eq(t, 1, run(&ObjectGetCommand{Meta: Meta{Ui: ui}}, kindRef, "owner"))
+}
+
 func TestParseObjectScaleArgs(t *testing.T) {
 	ci.Parallel(t)
 
