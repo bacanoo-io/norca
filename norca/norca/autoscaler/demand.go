@@ -966,11 +966,6 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		poolAdded[g.pool] += add
 		touched[g.name] = true
 		g.raised = true
-		if blockedAdd > 0 {
-			if note := d.noteRaised(g); note != "" {
-				blocked["balance/"+g.pool] = note
-			}
-		}
 
 		desired := g.spec + add
 		if r.lastDemand[g.name] == desired && g.policy.Target["dry-run"] == "true" {
@@ -994,9 +989,18 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 			check = checkHeadroom
 		}
 		reason := strings.Join(reasons, "; ") + fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec)
-		if err := r.scaleGroupUp(g, desired, reason, check); err != nil {
+		held, err := r.scaleGroupUp(g, desired, reason, check)
+		if err != nil {
 			r.logger.Warn("failed to raise the scale of a node group", "group", g.name, "error", err)
 			continue
+		}
+		if held != "" {
+			continue
+		}
+		if blockedAdd > 0 {
+			if note := d.noteRaised(g); note != "" {
+				blocked["balance/"+g.pool] = note
+			}
 		}
 		r.recordDecision(g, desired, check, reason)
 		r.lastDemand[g.name] = desired
@@ -1109,24 +1113,31 @@ func demandJobs(bucket []Unplaced) string {
 }
 
 // scaleGroupUp raises the scale of a group.
-func (r *runner) scaleGroupUp(g *demandGroup, desired int64, reason, check string) error {
+func (r *runner) scaleGroupUp(g *demandGroup, desired int64, reason, check string) (string, error) {
 	return r.scaleGroup(g, desired, sdk.ScaleDirectionUp, reason, check)
 }
 
 // scaleGroup hands a decision to the executor, which applies the rate limit,
-// the oscillation guard and the dry run of the group.
-func (r *runner) scaleGroup(g *demandGroup, desired int64, dir sdk.ScaleDirection, reason, check string) error {
+// the oscillation guard and the dry run of the group. It returns the reason
+// the executor held the action for, one of the Hold constants, and "" for an
+// action that was made: the callers note a scaling only when it was made
+// (review finding ASC-6: a held scale down of the balance switched the
+// balance of the pool off for hours when the group was raised after it).
+func (r *runner) scaleGroup(g *demandGroup, desired int64, dir sdk.ScaleDirection, reason, check string) (string, error) {
 	c, t, err := r.groupTarget(g)
 	if err != nil {
-		return err
+		return "", err
 	}
 	action := sdk.ScalingAction{
 		Count:     desired,
 		Direction: dir,
 		Reason:    reason,
 	}
-	_, err = r.exec.execute(c, t, action, check, r.now())
-	return err
+	held, err := r.exec.execute(c, t, action, check, r.now())
+	if held != "" {
+		r.logger.Debug("the scaling of a node group was held", "group", g.name, "count", desired, "held", held)
+	}
+	return held, err
 }
 
 // groupTarget returns what the executor needs to scale a node group: its

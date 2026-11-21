@@ -174,7 +174,7 @@ func (d *demandRun) scaleDown() {
 		// scale down it held may go on (review finding ASC-2).
 		if g.vetoed(now) && g.statusReplicas && g.spec < g.ready {
 			reason := "the operator vetoed the scale down: " + g.vetoMsg
-			if err := r.scaleGroup(g, g.ready, sdk.ScaleDirectionUp, reason, checkScaleDownVeto); err != nil {
+			if _, err := r.scaleGroup(g, g.ready, sdk.ScaleDirectionUp, reason, checkScaleDownVeto); err != nil {
 				r.logger.Warn("failed to set the scale of a node group back", "group", g.name, "error", err)
 			}
 			continue
@@ -192,11 +192,14 @@ func (d *demandRun) scaleDown() {
 				continue
 			}
 			reason := fmt.Sprintf("maximum %d (%s) [%d ready, spec %d]", g.max, g.windows, g.ready, g.spec)
-			if err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkSchedule); err != nil {
+			held, err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkSchedule)
+			if err != nil {
 				r.logger.Warn("failed to lower a node group to the maximum of its window", "group", g.name, "error", err)
 				continue
 			}
-			r.lastDown[g.name] = desired
+			if held == "" {
+				r.lastDown[g.name] = desired
+			}
 			continue
 		}
 		reason, ok := d.unneeded(g)
@@ -245,8 +248,12 @@ func (d *demandRun) scaleDown() {
 		if r.lastDown[g.name] == desired && g.policy.Target["dry-run"] == "true" {
 			continue
 		}
-		if err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkScaleDown); err != nil {
+		held, err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkScaleDown)
+		if err != nil {
 			r.logger.Warn("failed to lower the scale of a node group", "group", g.name, "error", err)
+			continue
+		}
+		if held != "" {
 			continue
 		}
 		r.lastDown[g.name] = desired
