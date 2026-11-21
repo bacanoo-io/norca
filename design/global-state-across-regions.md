@@ -47,6 +47,14 @@ changed in the configuration of every server, and the custom objects of that reg
 - Workload state (jobs, allocations, deployments, volumes, services) stays in its region. Multi-region jobs
   are unchanged.
 - Local work keeps its latency: only global writes may cross regions.
+- **Regional writes and regional identities do not cross regions.** A node's secret, a client certificate
+  (`client.<region>.norca`) and a workload identity (signed by the region's keyring) are identities of one
+  region; the RPCs of nodes stay in their region (review finding JOG-18: a `client.A.norca` certificate
+  registered a node in region B through a server of A, because B saw only the forwarding server's
+  `server.A.norca` certificate). A cross-region RPC authorizes by its token (management, the replication
+  token, a global ACL token), never by the certificate of the server that forwarded it: the TLS handshake
+  accepts `server.<region>.norca` of every region, so a forwarded request of any caller arrives on such a
+  connection.
 
 ## 3. Part A: an authority that can be moved
 
@@ -89,6 +97,10 @@ Authority {
   replication RPCs.
 - Every replication response carries the source's record; a region applies a record with a higher epoch
   and ignores a lower one. This is the fencing of A3.
+- The new cross-region RPCs of A (`Authority.Announce`, the replication RPCs that carry the record, the
+  writes of A5 through `forwardRegion`) are authorized by a token: the replication token or a management
+  token, checked in the receiving region. That the request came over a `server.<region>.norca` connection
+  is not an authorization (section 2, JOG-18).
 
 ### A3. Promotion
 
@@ -245,7 +257,9 @@ Open, for the maintainer:
    decide, which is what B gives.
 4. **B-light (copies fed by the local member) or the full split?** Recommendation: B-light first.
 5. **Witness region:** one server, voter of the global group only, no clients? Recommendation: yes; the
-   deployer gets a `witness` region role.
+   deployer gets a `witness` region role, and the server of a witness region refuses node registrations
+   (`Node.Register` answers that the region takes no nodes), so no node, of its own region or forwarded,
+   can attract work there (JOG-18).
 6. **Pin the mTLS trust domain at bootstrap?** Recommendation: yes, in the authority record; a configured
    trust domain still wins.
 7. **Replicate namespaces, node pools and quota specs without ACLs?** Recommendation: yes (A0).
