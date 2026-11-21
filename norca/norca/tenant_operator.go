@@ -1040,6 +1040,14 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 	asIs := false
 	if spec, err := decodeTenantSpec(obj.Name, obj.Spec); err == nil {
 		asIs = spec.ReleaseWithoutRestore
+	} else {
+		// The deletion needs nothing else of the spec, and does not wait
+		// for one nobody can read (review finding ATM-24o): the status
+		// lists what the tenant created and what it took over.
+		asIs, _ = obj.Spec["release_without_restore"].(bool)
+		o.logger.Warn("a tenant with a spec that can't be decoded is being deleted: "+
+			"what its status lists is deleted or given back", "tenant", obj.Name,
+			"release_without_restore", asIs, "error", err)
 	}
 
 	nsRef, adoptedNS := owned[tenantResourceRef{Type: structs.TenantResourceNamespace, Name: status.Namespace}.key()]

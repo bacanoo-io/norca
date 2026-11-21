@@ -6,12 +6,15 @@ package norca
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
@@ -321,6 +324,12 @@ func operatorCount(kind, what string) {
 // writeOperatorObject writes an object of a built-in operator: a changed
 // copy of the stored object with a check-and-set on its modify index, or a
 // new object (modify index 0). The object is validated against its kind.
+//
+// An object that is being deleted is written also when its kind refuses it
+// (operatorWritePastKind; review finding ATM-24o): the check is of the whole
+// object, so with a spec the kind refuses, stored before the kind said so or
+// past it, no operator could write the status of the object or take its
+// finalizer off, and its deletion would never end.
 func (s *Server) writeOperatorObject(obj *structs.CustomObject) (*structs.CustomObject, error) {
 	snap, err := s.State().Snapshot()
 	if err != nil {
@@ -354,7 +363,11 @@ func (s *Server) writeOperatorObject(obj *structs.CustomObject) (*structs.Custom
 
 	co := &CustomObject{srv: s}
 	if err := co.validateObject(kind, obj, nil, operation, &objectWrite{args: &structs.GenericRequest{}}); err != nil {
-		return nil, err
+		if !operatorWritePastKind(snap, obj, err) {
+			return nil, err
+		}
+		s.logger.Named("operators").Warn("an object that is being deleted does not pass its kind; its status and finalizers are written all the same",
+			"object", obj.KindRef()+"/"+obj.Name, "namespace", obj.Namespace, "error", err)
 	}
 	req := &structs.CustomObjectUpsertStateRequest{
 		Object:              obj,
@@ -371,6 +384,30 @@ func (s *Server) writeOperatorObject(obj *structs.CustomObject) (*structs.Custom
 		written.CreateIndex = index
 	}
 	return written, nil
+}
+
+// operatorWritePastKind reports whether a write of a built-in operator that
+// the kind of the object refused (refusal) is made all the same: the object
+// is stored, as the operator read it, with the mark of its deletion, and the
+// write changes nothing of it but the status and the finalizers. So nothing
+// the kind refuses is stored that is not stored already, and no changed spec
+// gets past its kind this way; an object that is not being deleted is
+// refused as ever. The write keeps its check-and-set on the modify index.
+func operatorWritePastKind(snap *state.StateSnapshot, obj *structs.CustomObject, refusal error) bool {
+	if code, _, ok := structs.CodeFromRPCCodedErr(refusal); !ok || code != http.StatusBadRequest || obj.ModifyIndex == 0 {
+		return false
+	}
+	stored, err := snap.CustomObjectByName(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
+	if err != nil || stored == nil || !stored.Deleting() || stored.ModifyIndex != obj.ModifyIndex ||
+		!structs.ObjectMapsEqual(stored.Spec, obj.Spec) {
+		return false
+	}
+	// Everything else, but for what an operator writes.
+	was, is := stored.Copy(), obj.Copy()
+	for _, o := range []*structs.CustomObject{was, is} {
+		o.Spec, o.Status, o.Finalizers, o.ModifyTime = nil, nil, nil, 0
+	}
+	return reflect.DeepEqual(was, is)
 }
 
 // operatorMessageMax is the length in bytes of the longest message of an

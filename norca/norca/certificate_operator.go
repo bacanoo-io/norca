@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -82,42 +81,15 @@ type certificateOperator struct {
 }
 
 // writeObject writes a Certificate object as the operator changed it
-// (Server.writeOperatorObject).
-//
-// An object that is being deleted is written also when it does not pass its
-// kind (review finding ATM-24n): with a spec the kind refuses, stored before
-// the kind said so or past it, no write of the object gets through, and it
-// would keep the finalizer of the servers for good. The operator changes the
-// status and the finalizers only, so the write stores nothing of the spec
-// that is not stored already.
+// (Server.writeOperatorObject, which writes an object that is being deleted
+// also when its kind refuses it: review findings ATM-24n and ATM-24o).
 func (o *certificateOperator) writeObject(obj *structs.CustomObject) (*structs.CustomObject, error) {
 	if fault := o.writeFault.Load(); fault != nil {
 		if err := (*fault)(obj); err != nil {
 			return nil, err
 		}
 	}
-	written, err := o.srv.writeOperatorObject(obj)
-	if err == nil || !obj.Deleting() || obj.ModifyIndex == 0 {
-		return written, err
-	}
-	if code, _, ok := structs.CodeFromRPCCodedErr(err); !ok || code != http.StatusBadRequest {
-		return nil, err
-	}
-	o.logger.Warn("a certificate that is being deleted does not pass its kind; its status and finalizers are written all the same",
-		"namespace", obj.Namespace, "certificate", obj.Name, "error", err)
-	obj.ModifyTime = time.Now().UnixNano()
-	req := &structs.CustomObjectUpsertStateRequest{
-		Object:              obj,
-		ExpectedModifyIndex: obj.ModifyIndex,
-		WriteRequest:        structs.WriteRequest{Region: o.srv.Region()},
-	}
-	_, index, err := o.srv.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, req)
-	if err != nil {
-		return nil, err
-	}
-	written = obj.Copy()
-	written.ModifyIndex = index
-	return written, nil
+	return o.srv.writeOperatorObject(obj)
 }
 
 func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperator {

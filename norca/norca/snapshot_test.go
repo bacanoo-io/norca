@@ -1501,3 +1501,49 @@ func TestSnapshotSchedule_StaleScheduleIsNotActedOn(t *testing.T) {
 		must.Eq(t, 1, len(f.deleteSecrets), must.Sprint("the retention went on after the schedule changed"))
 	})
 }
+
+// A snapshot schedule whose spec its kind refuses can still be deleted
+// (review finding ATM-24o). With a spec that can't be decoded its snapshots
+// stay, also with delete_snapshots: nothing is deleted on the word of a spec
+// that can't be read. A spec that can be read is followed.
+func TestSnapshotSchedule_DeleteInvalidSpec(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name  string
+		spoil func(spec map[string]any)
+		stay  bool
+	}{
+		{name: "a spec that can't be decoded", spoil: func(spec map[string]any) { spec["keep"] = "three" }, stay: true},
+		{name: "a spec with a field the kind does not know", spoil: func(spec map[string]any) { spec["unknown"] = true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, fake, cleanup := snapshotTestServer(t, false, true)
+			defer cleanup()
+			spec := map[string]any{"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 3}, "delete_snapshots": true}
+			_, err := c.apply("default", volumeSnapshotScheduleKind, "nightly", spec)
+			must.NoError(t, err)
+			c.waitSchedule("nightly", "one taken", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+				return st.Kept >= 1 && slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+			})
+			// At rest, so that the list is what the plugin holds.
+			spec["suspend"] = true
+			_, err = c.apply("default", volumeSnapshotScheduleKind, "nightly", spec)
+			must.NoError(t, err)
+			st := c.waitSchedule("nightly", "at rest", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+				return objectConditionTrue(obj.Status, snapshotConditionSuspended) && len(st.Snapshots) > 0 &&
+					!slices.ContainsFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return !s.Ready || s.DeleteError != "" })
+			})
+			taken := st.Snapshots
+
+			c.spoilSpec("default", volumeSnapshotScheduleKind, "nightly", tt.spoil)
+			must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "nightly"))
+			c.goneObject("default", volumeSnapshotScheduleKind, "nightly")
+			held := fake.existing()
+			for _, s := range taken {
+				must.Eq(t, tt.stay, slices.Contains(held, s.ID), must.Sprint(s.ID))
+			}
+		})
+	}
+}
