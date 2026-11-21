@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -82,13 +83,41 @@ type certificateOperator struct {
 
 // writeObject writes a Certificate object as the operator changed it
 // (Server.writeOperatorObject).
+//
+// An object that is being deleted is written also when it does not pass its
+// kind (review finding ATM-24n): with a spec the kind refuses, stored before
+// the kind said so or past it, no write of the object gets through, and it
+// would keep the finalizer of the servers for good. The operator changes the
+// status and the finalizers only, so the write stores nothing of the spec
+// that is not stored already.
 func (o *certificateOperator) writeObject(obj *structs.CustomObject) (*structs.CustomObject, error) {
 	if fault := o.writeFault.Load(); fault != nil {
 		if err := (*fault)(obj); err != nil {
 			return nil, err
 		}
 	}
-	return o.srv.writeOperatorObject(obj)
+	written, err := o.srv.writeOperatorObject(obj)
+	if err == nil || !obj.Deleting() || obj.ModifyIndex == 0 {
+		return written, err
+	}
+	if code, _, ok := structs.CodeFromRPCCodedErr(err); !ok || code != http.StatusBadRequest {
+		return nil, err
+	}
+	o.logger.Warn("a certificate that is being deleted does not pass its kind; its status and finalizers are written all the same",
+		"namespace", obj.Namespace, "certificate", obj.Name, "error", err)
+	obj.ModifyTime = time.Now().UnixNano()
+	req := &structs.CustomObjectUpsertStateRequest{
+		Object:              obj,
+		ExpectedModifyIndex: obj.ModifyIndex,
+		WriteRequest:        structs.WriteRequest{Region: o.srv.Region()},
+	}
+	_, index, err := o.srv.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, req)
+	if err != nil {
+		return nil, err
+	}
+	written = obj.Copy()
+	written.ModifyIndex = index
+	return written, nil
 }
 
 func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperator {
@@ -352,7 +381,15 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	status := &structs.CertificateStatus{}
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("certificate with a spec that can't be decoded", "namespace", obj.Namespace, "certificate", obj.Name, "error", err)
-		return ""
+		if !obj.Deleting() {
+			return ""
+		}
+		// The deletion does not wait for a spec nobody can read (review
+		// finding ATM-24n): the object would keep its finalizer for good.
+		spec = certificateDeletionSpec(obj)
+		o.logger.Warn("a certificate with a spec that can't be decoded is being deleted: "+
+			"its certificates are revoked as its status lists them, and its secret is left as it is",
+			"namespace", obj.Namespace, "certificate", obj.Name, "keep_certificates", spec.KeepCertificates)
 	}
 	if err := structs.DecodeObjectPart(obj.Status, status); err != nil {
 		status = &structs.CertificateStatus{}
@@ -1724,6 +1761,19 @@ func checkOrderChain(chainPEM string, pub crypto.PublicKey, spec *structs.Certif
 	return leaf, stored.String(), nil
 }
 
+// certificateDeletionSpec returns the spec the deletion of a certificate goes
+// by when its spec can't be decoded (review finding ATM-24n). The revocation
+// needs none: the status lists the certificates of the object and who
+// signed them, and they are revoked as by default, unless the spec says
+// keep_certificates in a way that can be read on its own. The secret is
+// left alone, whatever the spec holds: nothing is destroyed on the word of a
+// spec that can't be read, and a secret that stays can be deleted by hand.
+func certificateDeletionSpec(obj *structs.CustomObject) *structs.CertificateSpec {
+	spec := &structs.CertificateSpec{}
+	spec.KeepCertificates, _ = obj.Spec["keep_certificates"].(bool)
+	return spec
+}
+
 // finishDeletion does what the deletion of a certificate asks of the
 // operator, and lets the object go when that is over: it drops the open
 // order, has the certificates of the object revoked unless the spec keeps
@@ -1738,7 +1788,8 @@ func checkOrderChain(chainPEM string, pub crypto.PublicKey, spec *structs.Certif
 // delete_secret it is destroyed in the first pass.
 //
 // The spec is read in every pass: an object that waits goes at once when it
-// is changed to keep_certificates.
+// is changed to keep_certificates. One that can't be decoded does not hold
+// up the deletion (certificateDeletionSpec).
 func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec, status *structs.CertificateStatus) {
 	if !slices.Contains(obj.Finalizers, structs.OperatorsFinalizer) {
 		return
@@ -1753,7 +1804,9 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 	if !spec.KeepCertificates {
 		// A certificate the status does not record (review finding ATM-24c)
 		// is revoked with the others.
-		if secret, err := p.store.SecretByPath(p.ws, obj.Namespace, spec.SecretPath); err != nil {
+		if spec.SecretPath == "" {
+			// A spec that can't be decoded (certificateDeletionSpec).
+		} else if secret, err := p.store.SecretByPath(p.ws, obj.Namespace, spec.SecretPath); err != nil {
 			o.logger.Warn("secret lookup failed", "namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
 		} else {
 			ours := secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name

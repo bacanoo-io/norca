@@ -288,3 +288,63 @@ func TestCertificate_RecreatedObjectOldSerials(t *testing.T) {
 	compromise, _ := structs.CertificateRevokeReasonCode(structs.CertificateRevokeReasonKeyCompromise)
 	must.Eq(t, map[string]int{old.Serial: cessation, again.Serial: compromise}, c.crlReasons())
 }
+
+// A certificate whose spec the kind refuses can still be deleted (review
+// finding ATM-24n): the finalizer of the servers is taken off although the
+// object does not pass its kind. With a spec that can't be decoded the
+// status still lists its certificates, and they are revoked without the
+// spec; the secret is left alone then.
+func TestCertificate_DeleteInvalidSpec(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name       string
+		spoil      func(spec map[string]any)
+		decodes    bool
+		secretGone bool
+	}{
+		{name: "a spec that can't be decoded", spoil: func(spec map[string]any) { spec["dns_names"] = "web.example.com" }},
+		{name: "a spec with a field the kind does not know", spoil: func(spec map[string]any) { spec["unknown"] = true },
+			decodes: true, secretGone: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, cleanup := newCertTest(t)
+			defer cleanup()
+			c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+			_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+			must.NoError(t, err)
+			_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+				"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web", "delete_secret": true})
+			must.NoError(t, err)
+			held := c.waitFor("default", "web-tls", "issued", certReady)
+
+			// A spec the schema of the kind refuses, written past it.
+			must.Wait(t, wait.InitialSuccess(
+				wait.ErrorFunc(func() error {
+					broken := c.get("default", structs.CertificateKind, "web-tls").Copy()
+					tt.spoil(broken.Spec)
+					_, _, err := c.s.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, &structs.CustomObjectUpsertStateRequest{
+						Object:              broken,
+						ExpectedModifyIndex: broken.ModifyIndex,
+						WriteRequest:        structs.WriteRequest{Region: c.s.Region()},
+					})
+					return err
+				}),
+				wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+			obj := c.get("default", structs.CertificateKind, "web-tls")
+			must.Eq(t, tt.decodes, structs.DecodeObjectPart(obj.Spec, &structs.CertificateSpec{}) == nil)
+			must.SliceContains(t, obj.Finalizers, structs.OperatorsFinalizer)
+			_, err = c.s.writeOperatorObject(obj.Copy())
+			must.ErrorContains(t, err, "is invalid", must.Sprint("the object does not pass its kind"))
+
+			must.NoError(t, c.delete("default", structs.CertificateKind, "web-tls"))
+			c.gone("default", "web-tls", "its spec does not hold it")
+			must.Eq(t, []string{held.Serial}, c.crlSerials(), must.Sprint("the certificate the status lists is revoked"))
+			secret, err := c.s.State().SecretByPath(nil, "default", "certs/web")
+			must.NoError(t, err)
+			must.Eq(t, tt.secretGone, secret == nil,
+				must.Sprint("delete_secret of a spec that can be read is done; nothing is deleted on the word of one that can't"))
+		})
+	}
+}
