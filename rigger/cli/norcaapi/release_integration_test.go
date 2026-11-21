@@ -106,6 +106,17 @@ func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *
 	}
 }
 
+// checkKept fails the test unless the revision keeps what Rigger needs: the
+// module digest, its input digest, the manager rigger and the owner stack.
+func checkKept(t *testing.T, spec *api.ReleaseRevisionSpec) {
+	t.Helper()
+
+	if spec.Pack.Digest != moduleDigest || spec.InputDigest != releaseDigest || spec.Pack.Manager != api.ReleaseManagerRigger ||
+		spec.Owner == nil || spec.Owner.Name != "platform" {
+		t.Errorf("the revision does not keep what Rigger needs: %+v", spec)
+	}
+}
+
 func TestReleaseSpike_ApplyWithoutPackCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -133,10 +144,7 @@ func TestReleaseSpike_ApplyWithoutPackCatalog(t *testing.T) {
 	t.Logf("revision: pack %s %s digest %s manager %s, inputDigest %s, owner %+v, contentDigest %s, values %v",
 		spec.Pack.Name, spec.Pack.Version, spec.Pack.Digest, spec.Pack.Manager, spec.InputDigest, spec.Owner, spec.ContentDigest, spec.Values)
 
-	if spec.Pack.Digest != moduleDigest || spec.InputDigest != releaseDigest || spec.Pack.Manager != api.ReleaseManagerRigger ||
-		spec.Owner == nil || spec.Owner.Name != "platform" {
-		t.Errorf("the revision does not keep what Rigger needs: %+v", spec)
-	}
+	checkKept(t, spec)
 
 	plan, _, err := c.Releases().Plan(release, request(t, "default", nil), w)
 	if err != nil {
