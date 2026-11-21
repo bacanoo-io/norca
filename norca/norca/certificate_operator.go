@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -72,6 +73,22 @@ func certificateAuthorityExpiring(ca *structs.CertificateAuthority, now time.Tim
 type certificateOperator struct {
 	srv    *Server
 	logger hclog.Logger
+
+	// writeFault, if set, is asked before the operator writes a Certificate
+	// object, and fails the write with the error it returns. Only tests set
+	// it: a write of the status that is lost.
+	writeFault atomic.Pointer[func(*structs.CustomObject) error]
+}
+
+// writeObject writes a Certificate object as the operator changed it
+// (Server.writeOperatorObject).
+func (o *certificateOperator) writeObject(obj *structs.CustomObject) (*structs.CustomObject, error) {
+	if fault := o.writeFault.Load(); fault != nil {
+		if err := (*fault)(obj); err != nil {
+			return nil, err
+		}
+	}
+	return o.srv.writeOperatorObject(obj)
 }
 
 func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperator {
@@ -265,7 +282,7 @@ func (o *certificateOperator) writeStatus(obj *structs.CustomObject, status map[
 	if finalizers != nil {
 		changed.Finalizers = slices.Clone(*finalizers)
 	}
-	written, err := o.srv.writeOperatorObject(changed)
+	written, err := o.writeObject(changed)
 	if err != nil {
 		if !structs.IsObjectConflictError(err) {
 			o.logger.Warn("failed to write the status of an object", "object", obj.KindRef()+"/"+obj.Name,
@@ -325,6 +342,21 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		slices.Contains(secret.ItemKeys, structs.CertificateSecretItemCert) &&
 		slices.Contains(secret.ItemKeys, structs.CertificateSecretItemKey)
 	notAfter, _ := time.Parse(time.RFC3339, status.NotAfter)
+
+	// A certificate in the secret that the status does not record: the
+	// write of the status after its issuance was lost (review finding
+	// ATM-24c). It is made known as an earlier certificate before anything
+	// else is done, in a write of its own: the issuance that follows puts
+	// another certificate in its place in the secret, and then nothing would
+	// name its serial.
+	if found := o.unrecorded(p, obj, spec, status, secret, ours); found != nil {
+		if o.recordUnrecorded(p, obj, spec, status, found) {
+			return status.Order
+		}
+		// Known by now, as an earlier certificate: the secret does not hold
+		// the certificate of the status, and a new one is issued.
+		have = false
+	}
 
 	out := &certificateOutcome{ready: have && p.now.Before(notAfter)}
 	st := *status
@@ -427,6 +459,155 @@ func (o *certificateOperator) encodeStatus(p *certificatePass, obj *structs.Cust
 	encoded[structs.ObjectStatusConditions] = conditions.list()
 	encoded[structs.ObjectStatusObservedGeneration] = obj.Generation
 	return encoded, nil
+}
+
+// unrecorded returns the certificate that the secret of a certificate holds
+// and the status does not record as the one that is held, as an entry for
+// the earlier certificates, or nil: the operator has written it to the
+// secret, and the write of the status that followed was lost (review finding
+// ATM-24c). Without it nothing names the serial of that certificate once the
+// next one is issued, and nobody can revoke it by its serial number.
+//
+// The secret is read only when its current version is not the one the status
+// names, and when the operator wrote it for this very object
+// (structs.SecretLabelCertificateID): the secret a deleted object left
+// behind holds a certificate of that object, on which one created again
+// under its name has no right (review finding ATM-24f). The labels and the
+// items of a secret are the user's to write, though, and a certificate is
+// public: a certificate counts as one of this object only if the secret
+// holds the private key of it too (who holds the key of a certificate may
+// have it revoked), and if an issuer the object can have had signed it: an
+// issuing CA of the region, or the external issuer of the spec or of the
+// status, by the roots its controller declared. Anything else in the secret
+// is left alone.
+func (o *certificateOperator) unrecorded(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
+	status *structs.CertificateStatus, secret *structs.Secret, ours bool) *structs.CertificateEarlier {
+
+	if secret == nil || !ours || secret.Deleted || secret.Destroyed || secret.CurrentVersion == status.SecretVersion ||
+		secret.Labels[structs.SecretLabelCertificateID] != obj.ID ||
+		!slices.Contains(secret.ItemKeys, structs.CertificateSecretItemCert) ||
+		!slices.Contains(secret.ItemKeys, structs.CertificateSecretItemKey) {
+		return nil
+	}
+	items, _, err := o.srv.secretReadValue(obj.Namespace, spec.SecretPath, 0)
+	if err != nil {
+		o.logger.Debug("the secret of a certificate can't be read", "namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
+		return nil
+	}
+	chain, err := parseCertificatesPEM(items[structs.CertificateSecretItemCert])
+	if err != nil || len(chain) == 0 {
+		return nil
+	}
+	leaf := chain[0]
+	serial := certificateSerial(leaf)
+	if serial == status.Serial {
+		return nil
+	}
+	key, err := parsePrivateKeyPEM(items[structs.CertificateSecretItemKey])
+	if err != nil || !publicKeysEqual(leaf.PublicKey, key.Public()) {
+		return nil
+	}
+	found := &structs.CertificateEarlier{Serial: serial, NotAfter: leaf.NotAfter.UTC().Format(time.RFC3339)}
+
+	// The built-in issuer: the CA that signed it revokes it, whatever the
+	// issuer of the certificate is now.
+	for _, ca := range p.all {
+		if ca.Region != o.srv.Region() {
+			continue
+		}
+		certs, err := parseCertificatesPEM(ca.Cert)
+		if err != nil || len(certs) == 0 || leaf.CheckSignatureFrom(certs[0]) != nil {
+			continue
+		}
+		found.Authority, found.Issuer = ca.ID, status.Issuer
+		if issuer := p.issuers[spec.Issuer]; issuer != nil {
+			issuerSpec := &structs.CertificateIssuerSpec{}
+			if err := structs.DecodeObjectPart(issuer.Spec, issuerSpec); err == nil && issuerSpec.Builtin != nil {
+				found.Issuer = spec.Issuer
+			}
+		}
+		return found
+	}
+
+	// An external issuer: the one the spec names, which the lost write was
+	// most likely for, or the one of the certificate the status holds.
+	intermediates := x509.NewCertPool()
+	for _, cert := range chain[1:] {
+		intermediates.AddCert(cert)
+	}
+	for i, name := range []string{spec.Issuer, status.Issuer} {
+		issuer := p.issuers[name]
+		if issuer == nil || (i == 1 && name == spec.Issuer) {
+			continue
+		}
+		issuerSpec := &structs.CertificateIssuerSpec{}
+		issuerStatus := &structs.CertificateIssuerStatus{}
+		if err := structs.DecodeObjectPart(issuer.Spec, issuerSpec); err != nil || issuerSpec.External == nil {
+			continue
+		}
+		_ = structs.DecodeObjectPart(issuer.Status, issuerStatus)
+		declared, err := parseCertificatesPEM(issuerStatus.Roots)
+		if err != nil || len(declared) == 0 {
+			continue
+		}
+		roots := x509.NewCertPool()
+		for _, root := range declared {
+			roots.AddCert(root)
+		}
+		if _, err := leaf.Verify(x509.VerifyOptions{
+			Roots:         roots,
+			Intermediates: intermediates,
+			CurrentTime:   p.now,
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		}); err == nil {
+			found.Issuer = name
+			return found
+		}
+	}
+	return nil
+}
+
+// recordUnrecorded makes a certificate the secret holds and the status does
+// not record (unrecorded) known as an earlier certificate of the object, and
+// reports whether the pass ends with that: the status is written with it and
+// with nothing else, so that the entry is stored before the next issuance
+// takes the certificate out of the secret. A write that fails is tried again
+// by the next pass, which still finds the certificate in the secret. It
+// reports false for a certificate that needs no entry: it has one, or it has
+// expired.
+func (o *certificateOperator) recordUnrecorded(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec,
+	status *structs.CertificateStatus, found *structs.CertificateEarlier) bool {
+
+	earlier := certificateEarlierValid(status.Earlier, p.now)
+	if len(certificateEarlierValid([]*structs.CertificateEarlier{found}, p.now)) == 0 ||
+		slices.ContainsFunc(earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == found.Serial }) {
+		return false
+	}
+	part, err := structs.EncodeObjectPart(&structs.CertificateStatus{Earlier: o.appendEarlier(obj, earlier, found)})
+	if err != nil {
+		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
+		return false
+	}
+	changed := obj.Copy()
+	if changed.Status == nil {
+		changed.Status = map[string]any{}
+	}
+	changed.Status["earlier"] = part["earlier"]
+	written, err := o.writeObject(changed)
+	if err != nil {
+		if !structs.IsObjectConflictError(err) {
+			o.logger.Warn("failed to record a certificate that the status of its object did not know",
+				"namespace", obj.Namespace, "certificate", obj.Name, "serial", found.Serial, "error", err)
+		}
+		p.want(p.now.Add(operatorsRetry))
+		return true
+	}
+	o.srv.operatorEvent(written, structs.ObjectEventTypeWarning, "CertificateRecovered", fmt.Sprintf(
+		"the secret %q holds a certificate with the serial %s, valid until %s, that the status did not record: "+
+			"the write of the status after its issuance was lost; it is kept as an earlier certificate, "+
+			"which can be revoked by its serial number, and a new certificate is issued",
+		spec.SecretPath, found.Serial, found.NotAfter))
+	return true
 }
 
 // certificateFailure returns the reason and the message of the Failed
@@ -1058,7 +1239,7 @@ func (o *certificateOperator) keepEarlier(p *certificatePass, obj *structs.Custo
 		slices.ContainsFunc(st.Earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == st.Serial }) {
 		return st.Earlier
 	}
-	earlier := append(slices.Clone(st.Earlier), &structs.CertificateEarlier{
+	return o.appendEarlier(obj, st.Earlier, &structs.CertificateEarlier{
 		Serial:    st.Serial,
 		Issuer:    st.Issuer,
 		Authority: st.Authority,
@@ -1070,6 +1251,15 @@ func (o *certificateOperator) keepEarlier(p *certificatePass, obj *structs.Custo
 		RevokeReason: st.RevokeReason,
 		Revoking:     st.Revoking,
 	})
+}
+
+// appendEarlier returns the earlier certificates of an object with one more.
+// The list is bounded (keepEarlier): the oldest entries go, each with an
+// event. The list given is not changed.
+func (o *certificateOperator) appendEarlier(obj *structs.CustomObject, list []*structs.CertificateEarlier,
+	entry *structs.CertificateEarlier) []*structs.CertificateEarlier {
+
+	earlier := append(slices.Clone(list), entry)
 	for len(earlier) > structs.CertificateEarlierMax {
 		dropped := earlier[0]
 		earlier = earlier[1:]
@@ -1138,6 +1328,7 @@ func (o *certificateOperator) writeSecret(obj *structs.CustomObject, spec *struc
 		meta.Labels = map[string]string{}
 	}
 	meta.Labels[structs.SecretLabelCertificate] = obj.Name
+	meta.Labels[structs.SecretLabelCertificateID] = obj.ID
 	if expires != nil {
 		meta.ExpiresAt = expires
 	}
@@ -1516,6 +1707,18 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 	closed := true
 	var unrevoked []string
 	if !spec.KeepCertificates {
+		// A certificate the status does not record (review finding ATM-24c)
+		// is revoked with the others.
+		if secret, err := p.store.SecretByPath(p.ws, obj.Namespace, spec.SecretPath); err != nil {
+			o.logger.Warn("secret lookup failed", "namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
+		} else {
+			ours := secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name
+			found := o.unrecorded(p, obj, spec, status, secret, ours)
+			if found != nil && len(certificateEarlierValid([]*structs.CertificateEarlier{found}, p.now)) == 1 &&
+				!slices.ContainsFunc(st.Earlier, func(e *structs.CertificateEarlier) bool { return e.Serial == found.Serial }) {
+				st.Earlier = o.appendEarlier(obj, st.Earlier, found)
+			}
+		}
 		closed, unrevoked = o.revokeDeleted(p, obj, &st, out)
 	}
 	if closed {
@@ -1539,7 +1742,7 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 	changed := obj.Copy()
 	changed.Status = encoded
 	changed.Finalizers = slices.DeleteFunc(changed.Finalizers, func(f string) bool { return f == structs.OperatorsFinalizer })
-	written, err := o.srv.writeOperatorObject(changed)
+	written, err := o.writeObject(changed)
 	if err != nil {
 		if !structs.IsObjectConflictError(err) {
 			o.logger.Warn("failed to remove the finalizer of a deleted certificate", "certificate", obj.Name, "error", err)

@@ -56,6 +56,13 @@ const (
 	// Certificate object: the name of the object.
 	SecretLabelCertificate = "norca.io/certificate"
 
+	// SecretLabelCertificateID is the label the certificate operator gives
+	// the secret when it writes a certificate into it: the ID of the
+	// Certificate object the certificate was issued for. An object created
+	// again under the name of a deleted one has another ID (review finding
+	// ATM-24c).
+	SecretLabelCertificateID = "norca.io/certificate-id"
+
 	// Items of the secret of a certificate.
 	CertificateSecretItemCert    = "cert"
 	CertificateSecretItemKey     = "key"
