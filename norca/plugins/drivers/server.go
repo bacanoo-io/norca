@@ -50,6 +50,12 @@ func (b *driverPluginServer) Capabilities(ctx context.Context, req *proto.Capabi
 			MustCreateNetwork:     caps.MustInitiateNetwork,
 			NetworkIsolationModes: []proto.NetworkIsolationSpec_NetworkIsolationMode{},
 			RemoteTasks:           caps.RemoteTasks,
+			// (Norca) Both were left out, so an external driver that
+			// supports no mounts was taken for one that supports all of
+			// them, and one that disables log collection got the log
+			// collectors (review finding PLG-2).
+			MountConfigs:         proto.DriverCapabilities_MountConfigs(caps.MountConfigs),
+			DisableLogCollection: caps.DisableLogCollection,
 		},
 	}
 
