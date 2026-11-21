@@ -36,6 +36,10 @@ type processor struct {
 	defaultEvaluationInterval time.Duration
 	minEvaluationInterval     time.Duration
 	nomadAPMs                 []string
+
+	// strategyDriver returns the driver of a strategy name (Config.
+	// StrategyDriver); nil takes the name for the driver.
+	strategyDriver func(string) string
 }
 
 // canonicalizePolicy sets standardized values for missing fields.
@@ -141,7 +145,7 @@ func (pr *processor) validatePolicy(p *sdk.ScalingPolicy) error {
 		}
 
 		// Threshold strategy with instant queries validation.
-		if c.QueryInstant && c.Strategy != nil && c.Strategy.Name == plugins.InternalStrategyThreshold {
+		if c.QueryInstant && c.Strategy != nil && pr.driverOf(c.Strategy.Name) == plugins.InternalStrategyThreshold {
 			triggerRaw, ok := c.Strategy.Config[thresholdWithinBoundsTriggerConfigKey]
 			if !ok {
 				mErr = multierror.Append(mErr,
@@ -227,4 +231,12 @@ func isShortQuery(q string) bool {
 	opMetric := strings.SplitN(q, "_", 2)
 	hasSlash := strings.Contains(q, "/")
 	return len(opMetric) == 2 && !hasSlash
+}
+
+// driverOf returns the driver of a strategy name.
+func (pr *processor) driverOf(name string) string {
+	if pr.strategyDriver == nil {
+		return name
+	}
+	return pr.strategyDriver(name)
 }

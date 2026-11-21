@@ -154,6 +154,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			defaultEvaluationInterval: cfg.DefaultEvaluationInterval,
 			minEvaluationInterval:     cfg.MinEvalInterval,
 			nomadAPMs:                 host.nomadAPMs,
+			strategyDriver:            cfg.StrategyDriver,
 		},
 		exec:   newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
 		settle: newSettleTracker(),
@@ -651,6 +652,10 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 		}
 
 		strategyName := check.Strategy.Name
+		// What the strategy does is decided by its driver, as admission
+		// decides it: a name of the agent configuration stands for the
+		// built-in strategy it configures (review finding ASP-10).
+		driver := r.cfg.StrategyDriver(strategyName)
 
 		s, err := r.host.getStrategyRunner(strategyName)
 		if err != nil {
@@ -664,7 +669,7 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 		scope := valueScopeRunning
 		// Fixed-value strategy does not need APM; keep looker nil and skip APM lookup.
 		switch {
-		case strategyName == plugins.InternalStrategyFixedValue:
+		case driver == plugins.InternalStrategyFixedValue:
 			scope = valueScopeUnknown
 		case r.usage != nil && r.proc.isNomadAPMQuery(check.Source):
 			// Nomad's own metrics come from the usage pushed by clients.
@@ -685,7 +690,7 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 			}
 		}
 		// A value handed on as the count is not a value per instance.
-		if strategyName == plugins.InternalStrategyPassThrough {
+		if driver == plugins.InternalStrategyPassThrough {
 			scope = valueScopeUnknown
 		}
 
@@ -696,6 +701,7 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 			MetricsGetter:  mg,
 			Policy:         policy,
 			Scope:          scope,
+			StrategyDriver: driver,
 			Now:            r.now,
 		}, check))
 	}

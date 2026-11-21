@@ -51,6 +51,10 @@ type CheckRunnerConfig struct {
 	// Scope says what population the value of the check belongs to.
 	Scope valueScope
 
+	// StrategyDriver is the driver of the check's strategy: the built-in
+	// strategy a name of the agent configuration stands for (Norca).
+	StrategyDriver string
+
 	// Now returns the current time.
 	Now func() time.Time
 }
@@ -94,6 +98,7 @@ type checkRunner struct {
 	check          *sdk.ScalingPolicyCheck
 	policy         *sdk.ScalingPolicy
 	scope          valueScope
+	strategyDriver string
 	schedule       *compiledSchedule
 	scheduleErr    error
 	scheduleOnce   sync.Once
@@ -139,6 +144,7 @@ func newCheckRunner(config *CheckRunnerConfig, c *sdk.ScalingPolicyCheck) *check
 		metricsGetter:  config.MetricsGetter,
 		policy:         config.Policy,
 		scope:          config.Scope,
+		strategyDriver: config.StrategyDriver,
 		now:            config.Now,
 	}
 }
@@ -392,8 +398,10 @@ func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, 
 	}
 
 	metrics := sdk.TimestampedMetrics{}
-	// Fixed-value strategy does not require APM metrics; all other strategies still do.
-	if ch.check.Strategy.Name != plugins.InternalStrategyFixedValue {
+	// Fixed-value strategy does not require APM metrics; all other strategies
+	// still do. The driver decides, as at admission: a name of the agent
+	// configuration for fixed-value is fixed-value (review finding ASP-10).
+	if ch.strategyDriver != plugins.InternalStrategyFixedValue {
 		var err error
 		metrics, err = ch.queryMetrics(ctx, cache)
 		if err != nil {
