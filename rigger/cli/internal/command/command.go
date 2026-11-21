@@ -68,7 +68,7 @@ Commands:
                           plan and apply, release after release
   stack status [dir] [-json]
                           the releases of the stack, their revision, drift
-  stack destroy [dir]     uninstall the releases of the stack
+  stack destroy [dir]     uninstall the stack's releases
   stack publish [dir] [-key name.key]
                           validate a stack with metadata.hcl and its lock
                           file, sign it, commit the signature and tag the
