@@ -6,6 +6,7 @@ package consulkv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,6 +31,11 @@ const Timeout = 10 * time.Second
 // Get returns the live key, or the keys with the prefix key, and the
 // blocking index of the result. With index set it blocks until the blocking
 // index exceeds index or wait passes.
+//
+// The index of a result without a matching key is the last sequence of the
+// bucket, which writes of other keys raise too: a blocking query for a key
+// that does not exist returns, unchanged, after any write to the bucket.
+// Consul's API allows such returns; the caller queries again.
 func Get(ctx context.Context, kv jetstream.KeyValue, scope, key string, prefix bool, index uint64, wait time.Duration) ([]*Entry, uint64, error) {
 	// A watch delivers the last revision of every matching key (delete
 	// markers included), a nil entry, then the changes.
@@ -43,12 +49,19 @@ func Get(ctx context.Context, kv jetstream.KeyValue, scope, key string, prefix b
 	// key between the two): the caller got no key with an index past its
 	// put, and its next blocking query saw the key only when its wait time
 	// was over.
-	var lastSeq uint64
-	if st, err := kv.Status(ctx); err == nil {
-		if bs, ok := st.(*jetstream.KeyValueBucketStatus); ok {
-			lastSeq = bs.StreamInfo().State.LastSeq
-		}
+	//
+	// Norca: a failure to read it fails the query. Taken for 0, it gave the
+	// index 1, below an index the caller had already got (review finding
+	// HLP-9).
+	st, err := kv.Status(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("reading the status of the KV: %w", err)
 	}
+	bs, ok := st.(*jetstream.KeyValueBucketStatus)
+	if !ok {
+		return nil, 0, fmt.Errorf("the status of the KV is a %T, not a bucket status", st)
+	}
+	lastSeq := bs.StreamInfo().State.LastSeq
 
 	w, err := kv.Watch(ctx, scope+Filter(key, prefix))
 	if err != nil {
