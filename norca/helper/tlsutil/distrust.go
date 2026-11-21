@@ -24,21 +24,37 @@ import (
 //
 // The file is read again when it changes, without a restart or a reload. When
 // it can't be read any more, the last list that could be read stays.
+//
+// A change is told by the file (another one renamed over it), its
+// modification and change times and its size, and the file is read again
+// every distrustReread whatever they say (Norca, review finding HLP-10: a
+// list replaced by one of the same size within the resolution of the
+// modification time, or copied with its time kept, stayed unread, and a CA
+// just listed was still accepted).
 
 // distrustList is the list of distrusted public keys read from a PEM file.
 type distrustList struct {
 	path string
 
 	mu      sync.Mutex
+	info    os.FileInfo // the file read, for os.SameFile
 	modTime time.Time
+	ctime   time.Time // the change time, zero where it is not known
 	size    int64
+	readAt  time.Time                    // when the file was read last
 	keys    map[[sha256.Size]byte]string // the subject of each listed certificate
+
+	now func() time.Time // time.Now; set by tests
 }
+
+// distrustReread is how often the list is read again even when nothing tells
+// that the file changed.
+const distrustReread = 30 * time.Second
 
 // newDistrustList reads the file. It is an error when the file can't be read
 // or has no certificate: a list that is set must be in force.
 func newDistrustList(path string) (*distrustList, error) {
-	d := &distrustList{path: path}
+	d := &distrustList{path: path, now: time.Now}
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the distrusted CA file: %v", err)
@@ -47,8 +63,22 @@ func newDistrustList(path string) (*distrustList, error) {
 	if err != nil {
 		return nil, err
 	}
-	d.keys, d.modTime, d.size = keys, info.ModTime(), info.Size()
+	d.keys = keys
+	d.noteRead(info)
 	return d, nil
+}
+
+// noteRead keeps what tells a change of the file read.
+func (d *distrustList) noteRead(info os.FileInfo) {
+	d.info, d.modTime, d.ctime, d.size = info, info.ModTime(), changeTime(info), info.Size()
+	d.readAt = d.now()
+}
+
+// changed reports whether the file may have changed since it was read.
+func (d *distrustList) changed(info os.FileInfo) bool {
+	return !os.SameFile(info, d.info) || !info.ModTime().Equal(d.modTime) ||
+		!changeTime(info).Equal(d.ctime) || info.Size() != d.size ||
+		d.now().Sub(d.readAt) >= distrustReread
 }
 
 // readDistrusted reads the public keys of the certificates of a PEM file.
@@ -84,12 +114,15 @@ func (d *distrustList) current() map[[sha256.Size]byte]string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	info, err := os.Stat(d.path)
-	if err != nil || (info.ModTime().Equal(d.modTime) && info.Size() == d.size) {
+	if err != nil || !d.changed(info) {
 		return d.keys
 	}
 	if keys, err := readDistrusted(d.path); err == nil {
 		d.keys = keys
-		d.modTime, d.size = info.ModTime(), info.Size()
+		d.noteRead(info)
+	} else {
+		// Tried again at the next change, or after distrustReread.
+		d.readAt = d.now()
 	}
 	return d.keys
 }
