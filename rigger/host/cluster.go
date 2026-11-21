@@ -6,7 +6,7 @@ package host
 import "context"
 
 // ClusterInfo holds the facts of the cluster that an evaluation needs: the
-// rig.region fact and the check of the requires block of a module
+// rigger.region fact and the check of the requires block of a module
 // (design 4.2, 4.4).
 type ClusterInfo struct {
 	// Version is the version of Norca, in semver.

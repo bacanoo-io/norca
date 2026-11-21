@@ -2,8 +2,8 @@
 # release and loads the chosen dashboard sets.
 
 job "load" {
-  id   = "${rig.release}-load"
-  name = "${rig.release}-load"
+  id   = "${rigger.release}-load"
+  name = "${rigger.release}-load"
   type = "batch"
 
   hook {

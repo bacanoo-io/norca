@@ -16,7 +16,7 @@ coverage.html
 go.work.sum
 
 # Local data of a stack (design 12.6)
-.rig/
+.rigger/
 
 # Editors and systems
 .idea/

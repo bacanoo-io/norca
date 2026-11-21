@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
@@ -22,7 +22,7 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			eng, err := rig.New(rig.WithJobDecoder(norcaapi.JobDecoder{}))
+			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +50,7 @@ func TestEngine_TestModule_Examples(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			eng, err := rig.New(rig.WithJobDecoder(norcaapi.JobDecoder{}))
+			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -10,12 +10,12 @@ and `nats`, with the secrets they need generated once.
 | `variables.hcl` | the inputs of the stack |
 | `secrets.hcl` | secrets created once: the superuser, one per database, one per application |
 | `outputs.hcl` | `databases` and `bus`: what an application needs to connect |
-| `rig.lock.hcl` | the module versions and digests this version of the stack was published with |
+| `rigger.lock.hcl` | the module versions and digests this version of the stack was published with |
 
 ```shell
-rig stack show  example/data-platform
-rig stack plan  example/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
-rig stack apply example/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
+rigger stack show  example/data-platform
+rigger stack plan  example/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
+rigger stack apply example/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
 ```
 
 A stack of your own can build on it:

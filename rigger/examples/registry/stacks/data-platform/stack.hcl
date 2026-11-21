@@ -1,13 +1,13 @@
 # The modules come from this same registry, by address and version: a
 # published stack never reaches into the repository by path, so it means the
-# same wherever it is fetched from. rig.lock.hcl pins what the constraints
+# same wherever it is fetched from. rigger.lock.hcl pins what the constraints
 # resolved to when this version of the stack was published.
 
-rig {
+rigger {
   required_version = ">= 0.1.0"
 
   registry "example" {
-    source = "github.com/example/rig-registry"
+    source = "github.com/example/rigger-registry"
   }
 }
 

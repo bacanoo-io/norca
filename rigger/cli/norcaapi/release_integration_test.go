@@ -4,7 +4,7 @@
 //go:build integration
 
 // The spike of phase 0 for the release API (design 15, phase 0): resources
-// evaluated by Rig applied through the release API of today, against a
+// evaluated by Rigger applied through the release API of today, against a
 // running agent (NORCA_ADDR, default http://127.0.0.1:4646).
 //
 //	norca agent -dev &
@@ -34,11 +34,11 @@ import (
 const (
 	// moduleDigest stands for the tree digest of a module version.
 	moduleDigest = "sha256:5e7a9c1b3d5f7e9a1c3b5d7f9e1a3c5b7d9f1e3a1c3e5a7b9d1f3e5c7a9b1d3f"
-	// releaseDigest stands for Rig's digest of the module digest, the
+	// releaseDigest stands for Rigger's digest of the module digest, the
 	// values and the settings of a release (design 9.2).
 	releaseDigest = "sha256:0d1f3e5a7c9b1d3f5e7a9c1b3d5f7e9a1c3b5d7f9e1a3c5b7d9f1e3a5c7b9d1f"
 	// owner is how the spike marks the stack that owns the release.
-	owner = "rig stack platform"
+	owner = "rigger stack platform"
 	// release and module name the release and its module.
 	release = "web"
 	module  = "web"
@@ -60,8 +60,8 @@ func client(t *testing.T) *api.Client {
 	return c
 }
 
-// request is what the rig program would send for the module web of the
-// stack platform: the module in the pack fields, Rig's digest in
+// request is what the rigger program would send for the module web of the
+// stack platform: the module in the pack fields, Rigger's digest in
 // ValuesHash, the owner in the description, and the evaluated resources.
 func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *api.ReleaseApplyRequest {
 	t.Helper()
@@ -80,7 +80,7 @@ func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *
 		Pack: &api.ReleasePack{
 			Name:       module,
 			Version:    "0.1.0",
-			Source:     "github.com/example/rig-registry//modules/web",
+			Source:     "github.com/example/rigger-registry//modules/web",
 			Ref:        "web/v0.1.0",
 			Digest:     moduleDigest,
 			Signatures: sigs,
@@ -94,7 +94,7 @@ func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *
 				Type: api.ReleaseResourceVariable,
 				Variable: &api.Variable{
 					Namespace: namespace,
-					Path:      "rig/spike/web",
+					Path:      "rigger/spike/web",
 					Items:     map[string]string{"release": "web"},
 				},
 			},
@@ -131,7 +131,7 @@ func TestReleaseSpike_ApplyWithoutPackCatalog(t *testing.T) {
 		spec.Pack.Name, spec.Pack.Version, spec.Pack.Digest, spec.ValuesHash, spec.Description, spec.ContentDigest, spec.Values)
 
 	if spec.Pack.Digest != moduleDigest || spec.ValuesHash != releaseDigest || spec.Description != owner {
-		t.Errorf("the revision does not keep what Rig needs: %+v", spec)
+		t.Errorf("the revision does not keep what Rigger needs: %+v", spec)
 	}
 
 	plan, _, err := c.Releases().Plan(release, request(t, "default", nil), w)
@@ -162,17 +162,17 @@ func TestReleaseSpike_ApplyWithoutPackCatalog(t *testing.T) {
 
 // sign makes a signature in the format the admission of today verifies:
 // a cosign simple signing payload naming the digest, here with the module
-// and version of Rig in its optional part.
+// and version of Rigger in its optional part.
 func sign(t *testing.T, key *ecdsa.PrivateKey, digest string) *api.ReleasePackSignature {
 	t.Helper()
 
 	payload, err := json.Marshal(map[string]any{
 		"critical": map[string]any{
-			"identity": map[string]any{"docker-reference": "github.com/example/rig-registry//modules/web"},
+			"identity": map[string]any{"docker-reference": "github.com/example/rigger-registry//modules/web"},
 			"image":    map[string]any{"docker-manifest-digest": digest},
 			"type":     "cosign container image signature",
 		},
-		"optional": map[string]any{"rig.module": module, "rig.version": "0.1.0"},
+		"optional": map[string]any{"rigger.module": module, "rigger.version": "0.1.0"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func sign(t *testing.T, key *ecdsa.PrivateKey, digest string) *api.ReleasePackSi
 func TestReleaseSpike_TrustedKeys(t *testing.T) {
 	t.Parallel()
 
-	const ns = "rig-signed"
+	const ns = "rigger-signed"
 
 	c := client(t)
 
@@ -213,7 +213,7 @@ func TestReleaseSpike_TrustedKeys(t *testing.T) {
 	keyID := "sha256:" + hex.EncodeToString(sum[:])
 
 	policy := &api.AdmissionPolicy{
-		Name:        "rig-spike-trust",
+		Name:        "rigger-spike-trust",
 		Action:      "deny",
 		Match:       &api.AdmissionPolicyMatch{Namespaces: []string{ns}, Resources: []string{"release"}},
 		TrustedKeys: []string{string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))},

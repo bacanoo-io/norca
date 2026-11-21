@@ -14,7 +14,7 @@ headers (HashiCorp, Inc., modifications by Norca contributors, MPL-2.0):
 - `types.config.go`
 - `types.variables.go`
 
-Rig adds `rig_decode.go` (`DecodeJob`) and its test. `DecodeJob` needs the
+Rigger adds `rigger_decode.go` (`DecodeJob`) and its test. `DecodeJob` needs the
 unexported decoding of the package, so it can only live inside a copy of it
 until norca exports it (design, question 4).
 

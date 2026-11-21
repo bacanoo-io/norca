@@ -1,4 +1,4 @@
-# rig stack apply -f values/prod.vars.hcl
+# rigger stack apply -f values/prod.vars.hcl
 
 node      = "worker-1"
 api_count = 4

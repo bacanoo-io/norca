@@ -1,10 +1,16 @@
-# Rig: the Package Manager of Norca (design draft)
+# Rigger: the Package Manager of Norca (design draft)
+
+**Since 2026-11-21:** Rig is called Rigger, and it lives in `rigger/` of the
+norca repository (step 4.0 of `design/rig-integration.md` of norca, which
+plans phase 7). The repository `norca-rig` this draft names is where it was
+written; the rule below that norca, norca-deployer and norca-registry are
+not changed until Rigger is ready is lifted (decision 8 there).
 
 Status: draft for discussion, 2026-11-15; phase 0 done 2026-11-18 (section 15:
 the library's ports and constructor, the CLI host, the spikes of the job
 decoder and of the release API, redis and nats converted on paper); phase 1
-under way: modules load, validate and evaluate (`rig module validate`,
-`rig module render`). `examples/` shows a module, a registry with three larger
+under way: modules load, validate and evaluate (`rigger module validate`,
+`rigger module render`). `examples/` shows a module, a registry with three larger
 modules and a stack in this language; every module of it renders, and a
 Norca server accepts the rendered jobs (`/v1/validate/job`). It starts from the
 maintainer's first sketch (`rig.md`, not in this repository) and from an inventory of
@@ -14,10 +20,10 @@ and the pack handling of norca-deployer.
 
 Rules of this work, set by the maintainer:
 
-- norca, norca-deployer and norca-registry are **not changed** until Rig is
-  ready. Rig is built in its own repositories and works against the Norca API
+- norca, norca-deployer and norca-registry are **not changed** until Rigger is
+  ready. Rigger is built in its own repositories and works against the Norca API
   as it is today.
-- **Rig is a new development, written from the start.** No code is lifted
+- **Rigger is a new development, written from the start.** No code is lifted
   from the pack manager. Its sound ideas (logic, the signing scheme, some
   structures) are built again, which leaves us free to shape them; its faulty
   foundations are thought again.
@@ -25,13 +31,13 @@ Rules of this work, set by the maintainer:
   no implementation is copied or closely rewritten from code under the
   Business Source License (Terraform, and Nomad, Vault and Consul in their
   later versions) or any other license that is not open source. Names and
-  behaviour may be like those of other tools; the implementation is Rig's,
+  behaviour may be like those of other tools; the implementation is Rigger's,
   or an open-source dependency's. `make check-licenses` checks the
   dependencies and the files of the repository.
 - **The library has an interface that Norca can take in** (section 12):
-  the server embeds Rig later through it, without Rig knowing the server.
+  the server embeds Rigger later through it, without Rigger knowing the server.
 - Go templates go. The result is a complete package manager, not a renderer.
-- Rig respects the working principles of norca-deployer.
+- Rigger respects the working principles of norca-deployer.
 - Everything can be extended.
 - The design stays in this repository.
 
@@ -47,7 +53,7 @@ Goals:
    uninstall, drift, an air-gapped path.
 3. **One library, two ways to run it.** The engine is a Go library with a
    public interface (section 12). It runs as an external application (the
-   `rig` program, with local data of its own) and embedded in the Norca
+   `rigger` program, with local data of its own) and embedded in the Norca
    server (server-side evaluation, the install form of the UI). Both are
    built; which stay is decided at the end.
 4. **Declarative and idempotent**, as the deployer is: a description of the
@@ -56,7 +62,7 @@ Goals:
 
 Non-goals (for now):
 
-- A general infrastructure tool. Rig manages what a Norca cluster holds
+- A general infrastructure tool. Rigger manages what a Norca cluster holds
   (section 5), not machines, clouds or DNS.
 - Compatibility with packs. Nothing is released; packs are converted by hand,
   with a helper for the mechanical part (section 14).
@@ -67,21 +73,21 @@ Non-goals (for now):
 ### 2.1 Ideas kept, built again
 
 These proved themselves in the pack manager, the registry and the deployer.
-Rig implements them anew; the column says what Rig does differently.
+Rigger implements them anew; the column says what Rigger does differently.
 
-| Idea kept | Known from | In Rig |
+| Idea kept | Known from | In Rigger |
 | --- | --- | --- |
 | Variable schema: `type`, `default`, `description`, `validation { pattern, min, max, min_items, unique, ... }`, `ui { tab, group, widget, show_if, ... }`, `secret { path, item }`, cross-variable `rule` blocks | the pack manager | validation of list items by key added (section 6.2), so no check is left outside the schema |
 | The install form: a JSON Schema synthesized from the variables | the pack manager and the UI | hints are explicit; no guessing of tabs, widgets and categories from names |
-| Releases on the server: revisions, history, rollback, hooks, drift check, ownership, multi-region, the fixed order of resource kinds | the Norca server | used as they are through the API; Rig adds release dependencies on its side |
+| Releases on the server: revisions, history, rollback, hooks, drift check, ownership, multi-region, the fixed order of resource kinds | the Norca server | used as they are through the API; Rigger adds release dependencies on its side |
 | Resource kinds a package may hold: namespace, quota, ACL policy (bound to a job), variable, object kind, admission policy, external service, object, job | the pack manager, the operator packs of the registry | typed blocks instead of file suffixes |
 | Signing: ECDSA P-256 keys in the cosign format, key ID = SHA-256 of the public key, trust policy `require_signature` + `public_keys`, re-verification of cached content | the pack manager | what is signed changes (section 8.1); existing keys stay usable |
 | Tree digest: SHA-256 over the sorted `<file hash>  <path>` lines | the pack manager | becomes *the* identity of a package version |
 | Lock file with digests, `--lock=verify\|require\|update` | the pack manager | one format for modules and stacks |
 | Air-gapped bundle: one reproducible archive of packages | the pack manager | same idea, new content |
 | Registry rules: per-package semver, tags never moved, third-party software referenced and never shipped, license named, examples rendered in CI, LF line ends | norca-registry | per-package versions become addressable (section 7) |
-| Server-side registry object with sync, staged swap, push notice | the Norca server | unchanged for now; a Rig registry kind is added when the server embeds Rig |
-| Value forms: `!generate`, `!nkey-seed`, `!enc:`, `@file` | norca-deployer | Rig understands them in stack values (section 6.4) |
+| Server-side registry object with sync, staged swap, push notice | the Norca server | unchanged for now; a Rigger registry kind is added when the server embeds Rigger |
+| Value forms: `!generate`, `!nkey-seed`, `!enc:`, `@file` | norca-deployer | Rigger understands them in stack values (section 6.4) |
 
 Because nothing is copied, the formats are free to change where it helps
 (file names, the lock format, the bundle layout, the statement that is
@@ -89,18 +95,18 @@ signed); only the server's release API and the key format are given.
 
 ### 2.2 Thought again
 
-| Faulty foundation today | What goes wrong | In Rig |
+| Faulty foundation today | What goes wrong | In Rigger |
 | --- | --- | --- |
 | Go `text/template` with `[[ ]]` over HCL text | output is checked only after rendering; `<no value>` stripped by string replace; `indent N` passed as an argument; `toStringList` to print a list; `fmt` can't parse most templates; errors found by parsing error text | no templates: HCL expressions, `dynamic` blocks, typed functions (section 4) |
 | Two template languages in one file (`[[ ]]` at install time, `{{ }}` at run time) with hand-written escaping | the nats pack escapes `\` and `"` by `replaceAll` inside a runtime template | install-time values are HCL; runtime templates stay the task's own business and get values through typed functions (`jsonencode`, `quote`) |
 | Checks written as template `fail` calls | 9 in consul, more in nats, forgejo, mtls-gateway; found only at render | every check is a `validation`, a `rule` or a `check` block, run before anything is evaluated |
 | Variables travel as strings (form JSON → `--var` strings → parsed again) | types lost and guessed back | cty values from the form to the engine |
-| Job meta injected by parsing the rendered text again, silently skipped on a parse failure | `pack.*` meta lost without an error | Rig owns the job value and sets the meta on it |
+| Job meta injected by parsing the rendered text again, silently skipped on a parse failure | `pack.*` meta lost without an error | Rigger owns the job value and sets the meta on it |
 | A signature covers the OCI manifest | git and dir packages have nothing a signature binds to; a client-rendered release claims a digest the server can't check | the signature covers the tree digest of the package, whatever carried it; the release records that digest |
 | The registry is versioned as a whole (`v0.2.0` of everything); the default ref is a moving `latest` | a package version can't be asked for; changing the ref redeploys nothing in the deployer | every module version has its own tag and an index entry; a stack locks digests |
 | Dependencies are sub-packs rendered into the same release | forgejo needs rustfs, otel needs openobserve: only in READMEs; no order between releases | `requires { module ... }` and stack-level dependencies with order and wait (section 6.5) |
 | Built-in packs as Go string maps (1356 lines) | not testable as packages | ordinary module directories embedded with `go:embed` |
-| "Unchanged" decided by marker files next to the deployer | no drift check, removing an entry uninstalls nothing, markers hold resolved secrets | the release on the server records what was applied; Rig compares digests with it (section 9) |
+| "Unchanged" decided by marker files next to the deployer | no drift check, removing an entry uninstalls nothing, markers hold resolved secrets | the release on the server records what was applied; Rigger compares digests with it (section 9) |
 | Secret redaction by name patterns (`password`, `token`) | a secret under another name leaks into history | `sensitive = true` and `secret {}` are part of the type; sensitive values never enter a revision |
 | Left-overs: parser v1, `nomad/packs` cache path, `integration {}`, upstream TODOs | dead weight | not carried over |
 
@@ -108,7 +114,7 @@ signed); only the server's release API and the key format are given.
 
 | Term | Meaning |
 | --- | --- |
-| **Rig** | the tool and the library |
+| **Rigger** | the tool and the library |
 | **Module** | a package: one service or building block with variables, resources and outputs; has a version, a digest and an icon |
 | **Release** | a module installed in a cluster under a name, with revisions (the server's release object of today) |
 | **Stack** | a description of which modules run in a region with which values: the unit of `plan` and `apply` |
@@ -121,7 +127,7 @@ deployer is today. A stack lives in the repository of its user, or is
 published in a registry like a module (section 7.5).
 
 Decided by the maintainer (2026-11-15): the package is a **module**, the tool
-is **rig**. In this document *module* always means a package of Rig; the Go
+is **rigger**. In this document *module* always means a package of Rigger; the Go
 code that Norca takes in is called the *library* (section 12), never a
 module.
 
@@ -139,7 +145,7 @@ module.
 - Values are typed (`cty`): string, number, bool, list, map, object, with
   optional attributes and defaults.
 - No text is generated and parsed again anywhere.
-- `&&` and `||` evaluate both sides in the hcl of Norca (the version Rig
+- `&&` and `||` evaluate both sides in the hcl of Norca (the version Rigger
   must keep, section 12.2): `x == null || x.a == ""` fails on a null `x`.
   A guard is the conditional operator, `x == null ? true : x.a == ""`
   (found while checking the example values, phase 1).
@@ -148,26 +154,26 @@ module.
 
 A job specification names things that only exist on a node at run time
 (`${attr.kernel.name}`, `${node.class}`, `${NORCA_PORT_http}`, `${env "X"}` in
-a task template). Rig evaluates these namespaces at install time:
+a task template). Rigger evaluates these namespaces at install time:
 
 | Namespace | Content |
 | --- | --- |
 | `var.<name>` | the variables of the module |
 | `local.<name>` | `locals` of the module |
 | `module.<name>.<output>` | outputs of a child module, or of another module of the stack |
-| `rig.*` | facts of the install: `rig.release`, `rig.namespace`, `rig.region`, `rig.module.name`, `rig.module.version` |
+| `rigger.*` | facts of the install: `rigger.release`, `rigger.namespace`, `rigger.region`, `rigger.module.name`, `rigger.module.version` |
 | `each.*`, `count.index` | inside `for_each` / `count` |
 
 Any other reference inside a string of a `job` is a runtime reference and is
 passed through untouched, as jobspec2 does today. Nothing is written `$${}`
-because of Rig. A runtime name that is misspelled as an install-time one
+because of Rigger. A runtime name that is misspelled as an install-time one
 (`${vars.x}`, `local` for `locals`: one letter away) is an error with a hint,
 and so is `each.*` or `count.*` outside a resource with `for_each` or
 `count`.
 
 Outside a `job` block (in `locals`, in a child module that only computes
 values) nothing passes through by itself, so runtime values are named with
-functions. They return the text the cluster resolves later, and Rig knows
+functions. They return the text the cluster resolves later, and Rigger knows
 that the value is not known at install time:
 
 | Function | Gives |
@@ -199,7 +205,7 @@ up inside generated configuration (see `examples/registry/modules/nats`).
 
 ### 4.3 What replaces what
 
-| Template construct | In Rig |
+| Template construct | In Rigger |
 | --- | --- |
 | `[[ if $v.tls_enabled ]] ... [[ end ]]` around a block | `dynamic "x" { for_each = var.tls_enabled ? [1] : [] ... }`, or `enabled = var.tls_enabled` on a resource |
 | `[[ range $v.users ]] ... [[ end ]]` | `dynamic` blocks, `for` expressions |
@@ -208,7 +214,7 @@ up inside generated configuration (see `examples/registry/modules/nats`).
 | a longer text with conditions | the template syntax of HCL itself (`${}`, `%{ if }`, `%{ for }`) in a heredoc or in a file of the module read with `templatefile("files/x.tftpl", { ... })`: typed, parsed with the module, errors with a position. Allowed by decision (question 2); a template file sees only the values it is given |
 | `[[ fail "..." ]]` | `validation`, `rule`, `check` |
 | `fileContents` relative to the working directory | `file("files/x")`, relative to the module, inside it only |
-| `nomadNamespace`, `nomadRegions` (live API calls from a template) | `rig.namespace`, `rig.region`; lookups of the cluster are `data` blocks, which the first version does not have (decided, question 6) |
+| `nomadNamespace`, `nomadRegions` (live API calls from a template) | `rigger.namespace`, `rigger.region`; lookups of the cluster are `data` blocks, which the first version does not have (decided, question 6) |
 
 ### 4.4 A module, in short
 
@@ -266,7 +272,7 @@ rule "users_need_userpass" {
 ```hcl
 # locals.hcl
 locals {
-  job       = coalesce(var.job_name, rig.release)
+  job       = coalesce(var.job_name, rigger.release)
   clustered = var.count > 1
 }
 ```
@@ -314,10 +320,10 @@ job "nats" {
 policy "nats" {
   enabled = var.acl_policy_enabled
 
-  # The rules as a block: Rig writes it as the text of the rules.
+  # The rules as a block: Rigger writes it as the text of the rules.
   rules {
     dynamic "namespace" {
-      for_each = [rig.namespace]
+      for_each = [rigger.namespace]
       labels   = [namespace.value]
 
       content {
@@ -338,7 +344,7 @@ output "client_service" { value = local.job }
 output "client_port"    { value = var.client_port }
 ```
 
-The `job` block is the job specification of Norca with its own schema; Rig
+The `job` block is the job specification of Norca with its own schema; Rigger
 does not invent a second one. The core resolves the install-time values and
 the host decodes the block with Norca's own job decoder (section 12.2); that
 the decoder can take its values from outside is a spike of phase 0
@@ -366,10 +372,10 @@ the decoder can take its values from outside is a spike of phase 0
 | `files/*.tftpl` | a text in the template syntax of HCL, for `templatefile()` | |
 | `files/*` | plain files, for `file()` | |
 | `*.vars.hcl` | values of variables (`examples/`, a stack's `values/`) | var files |
-| `tests/*.rigtest.hcl` | tests | |
-| `stack.hcl` | a stack: the `rig` block and its modules | |
+| `tests/*.riggertest.hcl` | tests | |
+| `stack.hcl` | a stack: the `rigger` block and its modules | |
 | `secrets.hcl` | the `secret` blocks of a stack | |
-| `rig.lock.hcl` | the lock of a stack | |
+| `rigger.lock.hcl` | the lock of a stack | |
 
 - **The extension decides the kind**, as it does for packs; the `.tpl` goes
   because the files are HCL now. A job is `<name>.norca.hcl`: the name in
@@ -384,15 +390,15 @@ the decoder can take its values from outside is a spike of phase 0
 - **The content of a resource file is not thought again either.** Each kind
   keeps the format Norca reads for it today (`policy "<name>" { rules,
   job_acl }`, `kind "<name>" { ... }`, the job specification), with
-  expressions in the values and the few attributes Rig adds (`enabled`,
+  expressions in the values and the few attributes Rigger adds (`enabled`,
   `for_each`, `hook`). What exactly each of today's formats looks like is
   taken from Norca when the kind is implemented, not redefined here.
 - **A document of the host is written in HCL, not as a string.** The rules
   of an ACL policy are an HCL document Norca stores as text; a module writes
-  them as a `rules` block (the attribute stays possible), and Rig writes the
+  them as a `rules` block (the attribute stays possible), and Rigger writes the
   block as it evaluates as the text: in the order of the module, dynamic
   blocks expanded, nulls left out, comments staying in the module. Editors
-  highlight it, `rig fmt` formats it, and a namespace given by a variable is
+  highlight it, `rigger fmt` formats it, and a namespace given by a variable is
   a `dynamic "namespace"` block (a label of HCL is a literal). The JSON
   Schema of an object kind is written as `schema = jsonencode({ ... })`.
   (Decided 2026-11-18, phase 5: the heredocs of the converted modules were
@@ -424,14 +430,14 @@ kind, admission policy, external service, object, job.
   delete }` block instead of meta keys. `on` is a phase or a list of them
   (`pre-install`, `post-install`, `pre-upgrade`, `post-upgrade`,
   `pre-delete`, `post-delete`, `test`), `timeout` a duration, `delete` one
-  of `on-success`, `always`, `never`. Rig takes the block off the job, checks
+  of `on-success`, `always`, `never`. Rigger takes the block off the job, checks
   it and hands it to the host, which writes it the way its release API reads
   hooks: for Norca today the meta keys `pack.hook`, `pack.hook_weight`,
   `pack.hook_timeout`, `pack.hook_delete`.
 - `check "<name>" { condition, error_message }` inside a module: a condition
   over evaluated values that stops the plan (for what a `rule` over variables
   can't say).
-- A kind Rig does not know is refused. New kinds come by registration
+- A kind Rigger does not know is refused. New kinds come by registration
   (section 11), so that a kind added to the server (volumes, network policy)
   needs no new language.
 
@@ -440,7 +446,7 @@ kind, admission policy, external service, object, job.
 ### 6.1 Sources of values
 
 Order, last wins: defaults of the module, the stack's values, variable files
-(`-f`), environment (`RIG_VAR_<name>`), `--var`. A value for an undeclared
+(`-f`), environment (`RIGGER_VAR_<name>`), `--var`. A value for an undeclared
 variable is an error; a variable without a value and default is an error. All
 values are checked (`validation`, `rule`) before evaluation, and a stack
 checks every module before it changes anything.
@@ -479,7 +485,7 @@ module loads. The hints of the form (`ui`) are `tab`, `group`, `order`,
   Anywhere else a sensitive value is an error: in a job (the decoder would
   write it into the job, which is stored), in another kind, in a
   meta-argument, and in an output that does not say `sensitive = true`.
-  `rig module render` names the secret items and never writes their values.
+  `rigger module render` names the secret items and never writes their values.
 - A stack may *create* secrets once, as the deployer's `secrets.bootstrap`
   does (create-once unless `overwrite`).
 
@@ -487,7 +493,7 @@ module loads. The hints of the form (`ui`) are `tab`, `group`, `order`,
 
 ```hcl
 # stack.hcl
-rig {
+rigger {
   required_version = ">= 0.1.0"
   region           = "eu"
 
@@ -547,7 +553,7 @@ module "worker" {
 ### 6.5 Dependencies
 
 - **Between releases:** a reference `module.<a>.<output>` or
-  `depends_on = [module.a]` orders the applies; Rig waits until the release it
+  `depends_on = [module.a]` orders the applies; Rigger waits until the release it
   depends on is ready (its deployments healthy) before it applies the next.
   Cycles are an error at `plan`.
 - **Declared by a module:** `requires { module "rustfs" { version = ">= 0.2" } }`
@@ -566,7 +572,7 @@ module "worker" {
   repository the CLI finds it in; the fetched content on a server), never
   outside it. The other attributes of the block are values for the child's
   variables; locals and module blocks read each other in the order of their
-  references (a cycle is an error). Inside the child `rig.module.*` is the
+  references (a cycle is an error). Inside the child `rigger.module.*` is the
   child's; its resources join the release as `<block>.<name>`; a sensitive
   value goes only into a sensitive variable of the child, and a sensitive
   output of the child stays sensitive. Calls nest at most `Limits.Depth`
@@ -583,10 +589,10 @@ module "worker" {
 | Source | Example | Use |
 | --- | --- | --- |
 | global registry | `norca/nats` | the normal way: namespace/name in the global registry (7.3) |
-| git | `github.com/acme/rig-modules//nats` | a private or unlisted repository |
-| OCI | `oci://registry.internal/rig/nats` | internal registries, air-gapped |
-| directory | `./modules/worker`, `dir:///opt/rig/modules` | development, shipped with a product |
-| bundle | `bundle://./platform.rigbundle` | air-gapped transfer |
+| git | `github.com/acme/rigger-modules//nats` | a private or unlisted repository |
+| OCI | `oci://registry.internal/rigger/nats` | internal registries, air-gapped |
+| directory | `./modules/worker`, `dir:///opt/rigger/modules` | development, shipped with a product |
+| bundle | `bundle://./platform.riggerbundle` | air-gapped transfer |
 | built-in | `builtin/redis`, `builtin/audit` | modules embedded in the binary (the audit base: section 12.8) |
 
 Registry backends are an interface (section 11).
@@ -597,7 +603,7 @@ Registry backends are an interface (section 11).
 - In a git repository with several modules a version is the tag
   `<module>/v<version>` (the Go convention), so one module can be released
   without the others; a repository with one module uses `v<version>`.
-- A tag is never moved. Rig stores the commit and the tree digest in the lock
+- A tag is never moved. Rigger stores the commit and the tree digest in the lock
   file and refuses a tag that points elsewhere.
 - Version constraints as in the maintainer's sketch (`~> 1.2`, `>= 1.0, < 2`).
 - **Stacks are versioned the same way** (section 7.5): a stack of a registry
@@ -615,7 +621,7 @@ maintainer set out (2026-11-15): **the modules that users define move into
 it, and users add stacks that build on it.** Its repository is
 `github.com/bacanoo-io/norca-global-registry` (created, empty; checked out at
 `E:\orchestrate\norca-global-registry`). It is the default registry of
-Rig: `source = "acme/nats"` means the module `nats` of the namespace `acme`
+Rigger: `source = "acme/nats"` means the module `nats` of the namespace `acme`
 in the global registry.
 
 Like the OpenTofu registry it holds **entries, not the sources**: a git
@@ -668,7 +674,7 @@ keys/<namespace>/*.pub                             # signing keys of the namespa
   existing version entry.
 - **One list of advisories and blocked versions** next to the entries
   (decided, question 15): namespace, name, version, kind (warning or
-  blocked), reason. A warning is shown by `rig stack sync` and `plan` and
+  blocked), reason. A warning is shown by `rigger stack sync` and `plan` and
   changes nothing else; the entries themselves are not touched.
 - **Getting listed** is asked for through an issue form and reviewed; a
   namespace, its keys and its repositories are added by the maintainers of
@@ -686,9 +692,9 @@ BLACKLIST_README.md and repository), as the reference; the maintainer accepted t
 | Changing a version | never: "treats published versions as immutable"; fixes are new versions; not removed for CI mistakes, small bugs or a change of mind | the maintainer's rule above |
 | Removing a version | exceptional only: malicious code or a supply chain compromise, exposed secrets, a compromised signing key, a legal requirement; a request with evidence, decided by a vote of the steering committee, carried out with two approvals | the same four cases, with a recorded decision (decided, question 15) |
 | Keeping a bad version out | `versions_blacklist.json`: namespace, name, version, reason; the job skips it | one list of advisories and blocked versions with reasons, next to the entries (decided, question 15) |
-| Warnings | a `warnings` list in the entry of a provider ("This provider is deprecated.") | warnings in the same list, shown by `rig stack sync` and `plan` |
+| Warnings | a `warnings` list in the entry of a provider ("This provider is deprecated.") | warnings in the same list, shown by `rigger stack sync` and `plan` |
 
-Rig needs only "namespace/name → versions → source + digest + signature", so
+Rigger needs only "namespace/name → versions → source + digest + signature", so
 the global registry is not the only way: every source of 7.1 works without
 it (a private git repository, OCI, a directory), and an organization can run
 a registry of the same shape for itself.
@@ -705,14 +711,14 @@ nats/
   nats.norca.hcl      one file per resource, named by kind (4.5)
   files/              files for file() and templatefile()
   examples/*.vars.hcl value files; rendered and validated in CI
-  tests/*.rigtest.hcl assertions over the evaluated module, without a cluster
+  tests/*.riggertest.hcl assertions over the evaluated module, without a cluster
   icon.png            64x64 PNG, optional
   README.md
 ```
 
 - **Icon:** `icon.png`, exactly 64x64 pixels, PNG, at most 32 KiB; checked by
-  `rig module validate`; part of the tree digest; shown in the global registry and in
-  the UI. Without it the default icon of Rig is used. PNG only (decided,
+  `rigger module validate`; part of the tree digest; shown in the global registry and in
+  the UI. Without it the default icon of Rigger is used. PNG only (decided,
   question 8): an SVG can carry content that runs and would have to be
   cleaned before it is shown.
 - Tests: `test "<name>" { release, values, assert { condition,
@@ -731,13 +737,13 @@ nats/
   `for_each` an object by key; every kind is there, empty without
   resources. Lists, sets and maps read as tuples and objects, the types of
   the literals they are compared with. The module is evaluated with the
-  host's job decoder, so its errors fail a test too. `rig module test`
-  prints a line per test and exits 1 on a failure; `rig module validate`
+  host's job decoder, so its errors fail a test too. `rigger module test`
+  prints a line per test and exits 1 on a failure; `rigger module validate`
   parses the tests.
 - A registry repository: `modules/<name>/` and `stacks/<name>/`, `examples/`
   inside each of them, `LICENSES/`, `REUSE.toml`, `.gitattributes` with LF
-  (the digest is over file contents), CI: `rig fmt -check`, `rig module
-  validate`, `rig stack validate`, the examples, the tests, REUSE and DCO.
+  (the digest is over file contents), CI: `rigger fmt -check`, `rigger module
+  validate`, `rigger stack validate`, the examples, the tests, REUSE and DCO.
 
 ### 7.5 Stacks in a registry
 
@@ -748,11 +754,11 @@ install as one thing, with their own values.
 ```
 stacks/data-platform/
   metadata.hcl        the `stack` block: name, version, description, license, requires, icon
-  stack.hcl           the `rig` block, the modules and how they are wired
+  stack.hcl           the `rigger` block, the modules and how they are wired
   variables.hcl       the inputs of the stack, with validation and form hints
   outputs.hcl         what the stack tells its user
   modules/            the stack's own modules (part of its digest)
-  rig.lock.hcl        the versions and digests of the registry modules it uses
+  rigger.lock.hcl        the versions and digests of the registry modules it uses
   examples/*.vars.hcl value files; planned in CI
   icon.png, README.md
 ```
@@ -769,7 +775,7 @@ stacks/data-platform/
   stack and are covered by its digest; they are not published separately.
 - **The lock file is published with the stack.** A version of a stack names
   exact module versions and digests, so everyone who installs
-  `data-platform 1.2.0` gets the same modules. `rig stack publish` refuses a
+  `data-platform 1.2.0` gets the same modules. `rigger stack publish` refuses a
   stack whose lock is missing or does not match.
 - **Identity and signature** are those of a module: the tree digest of the
   stack directory (own modules and lock included), signed the same way,
@@ -778,13 +784,13 @@ stacks/data-platform/
 - **Using it:**
 
   ```shell
-  rig stack plan  example/data-platform --version "~> 1.2" -f my.vars.hcl
-  rig stack apply example/data-platform --version "~> 1.2" -f my.vars.hcl
+  rigger stack plan  example/data-platform --version "~> 1.2" -f my.vars.hcl
+  rigger stack apply example/data-platform --version "~> 1.2" -f my.vars.hcl
   ```
 
   The releases record the stack's name and version as their owner, so
   `status`, drift and `--prune` work as for a local stack. The local
-  directory holds only the values and the `.rig/` data.
+  directory holds only the values and the `.rigger/` data.
 - **Building on it:** a local stack may take a registry stack as a part,
   `stack "data" { source = "example/data-platform", version = "~> 1.2",
   values = { ... } }`, and wire its own modules to the outputs
@@ -806,15 +812,15 @@ came from git, OCI, a directory or a bundle.
 The statement is a cosign *simple signing* payload whose
 `critical.image.docker-manifest-digest` is the tree digest
 (`sha256:<hex>`) and whose `optional` part names the module and the version
-(`rig.module`, `rig.version`). This is the payload the admission of Norca
+(`rigger.module`, `rigger.version`). This is the payload the admission of Norca
 verifies for `trusted_keys` today, so a release of a signed module passes it
 without a change in norca (the spike of phase 0, section 12.2). Signatures are stored where the
 version is published: in the entry of the global registry, as a `.sig` file next to a
 directory or bundle, as a cosign signature in OCI, as a release asset or a
 signed tag note in git.
 
-- Keys: the cosign-format ECDSA P-256 keys of today (`rig key generate`,
-  `rig sign`, `rig verify`).
+- Keys: the cosign-format ECDSA P-256 keys of today (`rigger key generate`,
+  `rigger sign`, `rigger verify`).
 - Keyless signing (Sigstore: OIDC identity of a workflow, transparency log)
   is in the maintainer's sketch and is not in the pack manager today. It needs
   network access to Sigstore services at verify time or a bundled proof,
@@ -831,31 +837,31 @@ signed tag note in git.
   the same thing it checks today.
 - While the client evaluates (section 9.1) the server can't prove that the
   applied resources came from that digest: the gap of today's client-rendered
-  packs. It closes when the server embeds Rig and evaluates itself
+  packs. It closes when the server embeds Rigger and evaluates itself
   (`ServerRendered`).
 
 ### 8.3 Lock file
 
-`rig.lock.hcl` next to a stack: per module the resolved version, the source,
+`rigger.lock.hcl` next to a stack: per module the resolved version, the source,
 the commit or manifest, the tree digest, the key IDs. `--lock=verify`
 (default in CI), `update`, `require`. A module with child modules from other
 sources carries its own lock.
 
 ### 8.4 Access to private registries
 
-As in the sketch: a token from the environment (`RIG_GITHUB_TOKEN`,
+As in the sketch: a token from the environment (`RIGGER_GITHUB_TOKEN`,
 `GITHUB_TOKEN`), the `gh` session, SSH agent, OCI credentials (docker
-config), `rig login` with the key store of the system. No secret in a stack
+config), `rigger login` with the key store of the system. No secret in a stack
 file.
 
 ## 9. Engine and apply
 
 ### 9.1 Who evaluates
 
-Rig runs in two ways, and both are kept until the end of the work, when the
+Rigger runs in two ways, and both are kept until the end of the work, when the
 maintainer decides which stay (question 12):
 
-- **Standalone (external application):** the `rig` program evaluates on the
+- **Standalone (external application):** the `rigger` program evaluates on the
   machine it runs on and sends the resources to the server's release API as
   it exists (apply of rendered resources, plan, history, rollback, drift,
   uninstall). Releases made this way are ordinary releases: visible in the
@@ -863,7 +869,7 @@ maintainer decides which stay (question 12):
   is not changed, and it needs local data of its own (section 12.6).
 - **Embedded:** the server takes the library in, evaluates a module it
   fetched and verified itself, and serves the install form. A client (the
-  deployer, the UI, a thin `rig`) then sends module, version and values, as
+  deployer, the UI, a thin `rigger`) then sends module, version and values, as
   the deployer does with packs today, and keeps nothing locally.
 
 ### 9.2 Steps of `plan` / `apply` (the deployer's principles)
@@ -891,7 +897,7 @@ There is no state file. What is installed is the releases of the cluster:
 
 - "unchanged (skipped)" comes from the digest recorded in the release, so it
   is right from any machine and after a restore;
-- drift is the server's drift check, shown by `rig stack status` / `plan`;
+- drift is the server's drift check, shown by `rigger stack status` / `plan`;
 - **prune:** a release that carries the stack's name as its owner and is no
   longer in the stack is shown as `remove`; it is uninstalled only with
   `apply --prune` (the deployer never uninstalls on a removed entry; silent
@@ -935,7 +941,7 @@ which operation, and which subtask to which task.
 - **Every line is logged with a context** (the `Context` variants of
   slog); the linter enforces it (`sloglint`, `context: all`). A line
   without a context belongs to no span.
-- **The rig program** writes the tree for a person (`-log-format text`:
+- **The rigger program** writes the tree for a person (`-log-format text`:
   indented by depth, the operation first, without the IDs) or flat JSON
   lines with the IDs, from which the tree is rebuilt (`-log-format json`).
 - **Embedded** the server's handler gets the same IDs. When the
@@ -946,37 +952,37 @@ which operation, and which subtask to which task.
 ## 10. CLI
 
 ```
-rig init                         a stack or a module from a skeleton
-rig fmt [-check]                 format (all files are HCL, nothing is skipped)
-rig module validate [dir]        schemas, values of the examples, icon, tests
-rig module show <source>         variables, outputs, requires, versions
-rig module test [dir]            tests/*.rigtest.hcl: values in, assertions over resources
-rig module render <source>       the evaluated resources and outputs as JSON, for review
+rigger init                         a stack or a module from a skeleton
+rigger fmt [-check]                 format (all files are HCL, nothing is skipped)
+rigger module validate [dir]        schemas, values of the examples, icon, tests
+rigger module show <source>         variables, outputs, requires, versions
+rigger module test [dir]            tests/*.riggertest.hcl: values in, assertions over resources
+rigger module render <source>       the evaluated resources and outputs as JSON, for review
                                  (-f values, -var name=value, -release, -namespace, -region)
-rig module publish               sign, commit the signature, tag (-to oci://: push)
-rig registry add|list|remove     registries of the user configuration
-rig login <host>
-rig key generate / sign / verify
-rig bundle create|inspect|import
+rigger module publish               sign, commit the signature, tag (-to oci://: push)
+rigger registry add|list|remove     registries of the user configuration
+rigger login <host>
+rigger key generate / sign / verify
+rigger bundle create|inspect|import
 
-rig stack sync                   resolve versions, fill the cache, write the lock
-rig stack plan                   what would change
-rig stack apply [--prune]        make it so
-rig stack status                 releases of the stack, readiness, drift
-rig stack destroy                uninstall the releases of the stack
-rig stack validate [dir]         schemas, values of the examples, lock, icon
-rig stack show <source>          variables, outputs, the modules a version locks
-rig stack publish                sign, commit the signature, tag; needs a matching lock
-rig index update|check           list new versions in the global registry; check its files
+rigger stack sync                   resolve versions, fill the cache, write the lock
+rigger stack plan                   what would change
+rigger stack apply [--prune]        make it so
+rigger stack status                 releases of the stack, readiness, drift
+rigger stack destroy                uninstall the releases of the stack
+rigger stack validate [dir]         schemas, values of the examples, lock, icon
+rigger stack show <source>          variables, outputs, the modules a version locks
+rigger stack publish                sign, commit the signature, tag; needs a matching lock
+rigger index update|check           list new versions in the global registry; check its files
 
-Every `rig stack` command takes a directory (default: the current one) or a
+Every `rigger stack` command takes a directory (default: the current one) or a
 registry address with `--version`.
 
-rig release list|status|history|rollback|uninstall    one release, without a stack
-rig install <source> --name x -f values.hcl            a stack of one, for quick use
+rigger release list|status|history|rollback|uninstall    one release, without a stack
+rigger install <source> --name x -f values.hcl            a stack of one, for quick use
 ```
 
-`rig install` covers what `norca pack run` does today; everything else of a
+`rigger install` covers what `norca pack run` does today; everything else of a
 single release goes to the server's release API unchanged.
 
 ## 11. Extension points
@@ -1000,16 +1006,16 @@ question 7): there is no plugin protocol for extensions outside the binary.
 - Who writes modules and stacks extends freely with modules, child modules
   and stacks; that needs no Go and no build.
 - Who adds to the engine (a function, a resource kind, a registry backend, a
-  signer, a value form) writes Go against the interface and builds `rig`, or
+  signer, a value form) writes Go against the interface and builds `rigger`, or
   the Norca server with it. No program of a third party is fetched and run
-  by Rig, also not on the leader.
+  by Rigger, also not on the leader.
 - The interfaces are drawn so that a plugin protocol can be added later
   without changing modules.
 
 ## 12. The library interface: what Norca takes in
 
-Rig is a Go module with a public interface that a host program embeds. The
-`rig` program is the first host (standalone); the Norca server is the next
+Rigger is a Go module with a public interface that a host program embeds. The
+`rigger` program is the first host (standalone); the Norca server is the next
 (embedded). This interface is designed first and the CLI is written against it, so
 that the server gets nothing less than the CLI has.
 
@@ -1020,15 +1026,15 @@ use (the golang skills): **hexagonal architecture** and **manual constructor
 injection**.
 
 - **The core imports nothing of Norca.** Not the server, not its structs, not
-  its API client. Norca imports Rig, never the other way; there is no cycle
+  its API client. Norca imports Rigger, never the other way; there is no cycle
   and the server does not pull a second copy of itself.
 - **Ports and adapters.** What the core needs from outside it asks through
   interfaces (ports) in `host/` and `source/`. The adapters are separate:
   the one over the Norca HTTP API and the local store for the standalone
   program, the server's own inside norca.
 - **No DI library.** A host passes its adapters and extensions to
-  `rig.New` as functional options (`rig.WithCluster(c)`,
-  `rig.WithReleases(r)`, ...; decided by the maintainer, 2026-11-17); an
+  `rigger.New` as functional options (`rigger.WithCluster(c)`,
+  `rigger.WithReleases(r)`, ...; decided by the maintainer, 2026-11-17); an
   option with an invalid argument makes `New` fail. Everything else is
   built by constructors. A library that others embed brings as few
   dependencies as it can.
@@ -1039,9 +1045,9 @@ injection**.
 
 ```
 norca-rig/
-  go.mod                  module github.com/bacanoo-io/norca-rig  (the core; no Norca dependency)
+  go.mod                  module github.com/bacanoo-io/norca/rigger  (the core; no Norca dependency)
   go.work                 the root and ./cli, for development
-  rig.go                  package rig: Engine, New(...Option), Load, Evaluate, PlanStack, ApplyStack
+  rigger.go                  package rigger: Engine, New(...Option), Load, Evaluate, PlanStack, ApplyStack
   example_test.go         runnable examples of the public API
 
   module/                 a module: metadata, variables, form schema, digest
@@ -1058,11 +1064,11 @@ norca-rig/
     planner/                comparing with the releases, the order of applies
     builtin/                modules embedded with go:embed
 
-  cli/                    module github.com/bacanoo-io/norca-rig/cli  (the standalone program)
+  cli/                    module github.com/bacanoo-io/norca/rigger/cli  (the standalone program)
     go.mod                  requires the core and the Norca API client
-    cmd/rig/main.go         only main: parse the arguments, wire, run
+    cmd/rigger/main.go         only main: parse the arguments, wire, run
     norcaapi/               adapter: the host ports over the Norca HTTP API and its job decoder (public: the deployer may link it)
-    internal/jobspec2/      until phase 7: a copy of norca's jobspec2 with Rig's DecodeJob (question 4)
+    internal/jobspec2/      until phase 7: a copy of norca's jobspec2 with Rigger's DecodeJob (question 4)
     localstore/             adapter: Store on the user's and the stack's directories
     internal/command/       the commands of the CLI
 
@@ -1074,7 +1080,7 @@ norca-rig/
 
 - Public packages are at the root of each module, named in lower case and
   the singular after what they hold; `internal/` holds what no importer may
-  use; `cmd/rig` has `main.go` only.
+  use; `cmd/rigger` has `main.go` only.
 - Tests sit next to the code (`_test.go`), fixtures in `testdata/`; the
   modules of `examples/` are test input as well.
 - The CLI is configured by flags and environment variables and logs to
@@ -1084,14 +1090,14 @@ norca-rig/
 
 | Interface | The core asks | Standalone | Embedded in the server |
 | --- | --- | --- | --- |
-| `Cluster` | version, features, region, namespaces (for `requires` and `rig.*`) | HTTP API | its own state |
+| `Cluster` | version, features, region, namespaces (for `requires` and `rigger.*`) | HTTP API | its own state |
 | `JobDecoder` | turn an evaluated `job` block into a job the cluster accepts | the jobspec decoder, linked into `cli/norcaapi` | its own decoder |
 | `Releases` | current revision and its digest, plan, apply, history, rollback, uninstall, drift; composed of small interfaces (`ReleaseReader`, `ReleasePlanner`, `ReleaseWriter`; decided by the maintainer, 2026-11-17) | release API | release endpoints, in process |
 | `Secrets` | create-once secrets of a stack | secret API | secret store |
 | `Fetcher` (optional) | bytes of a module version, when the host has its own cache | the built-in sources | the leader's registry cache |
 | `Store` | the cache of modules, the configuration, values that must outlive a run (section 12.6) | a directory of the user and of the stack | the leader's data directory and objects in Raft |
 | `Clock` | time | the system clock | the system clock |
-| logging | a `*slog.Logger` of the standard library, not a port of Rig (decided by the maintainer, 2026-11-17; the controller SDK of norca takes one the same way); `slog.Default()` when the host gives none; the engine wraps its handler so that the log is a tree of operations (section 9.5) | a tree (text) or JSON on standard error | a handler that writes into the server's hclog |
+| logging | a `*slog.Logger` of the standard library, not a port of Rigger (decided by the maintainer, 2026-11-17; the controller SDK of norca takes one the same way); `slog.Default()` when the host gives none; the engine wraps its handler so that the log is a tree of operations (section 9.5) | a tree (text) or JSON on standard error | a handler that writes into the server's hclog |
 
 The job decoder is the host's because the job specification belongs to
 Norca: the core evaluates expressions and hands over a block with all
@@ -1100,11 +1106,11 @@ server, and the core never follows the job schema by hand (this answers most
 of question 4).
 
 What the spike of phase 0 showed (2026-11-17; its test is now
-`cli/internal/jobspec2/rig_decode_test.go`):
+`cli/internal/jobspec2/rigger_decode_test.go`):
 
 - The core does not hand over a resolved block but the block as parsed and
   an evaluation context (`host.JobSpec`): `var.*`, `local.*`, `module.*`,
-  `rig.*`, the functions of Rig, and an `UndefinedVariable` callback that
+  `rigger.*`, the functions of Rigger, and an `UndefinedVariable` callback that
   gives a runtime reference back as its text. This is the mechanism of
   Norca's own decoder (`jobspec2`, `types.config.go`), so `dynamic` blocks
   and runtime references behave as in a job file today.
@@ -1114,26 +1120,26 @@ What the spike of phase 0 showed (2026-11-17; its test is now
   Norca**: if it required a newer upstream hcl, the server that embeds it
   would get that version and its decoder would not compile.
 - Norca's decoder passes every unknown root through, so a misspelled
-  install-time reference (`rig.relase`, `vars.x`) would end up in the job
-  as text. The callback of Rig must refuse the roots of Rig's namespaces
+  install-time reference (`rigger.relase`, `vars.x`) would end up in the job
+  as text. The callback of Rigger must refuse the roots of Rigger's namespaces
   and names close to them, with a hint (section 4.2).
 
 What the spike of the release API showed (2026-11-17, against a dev agent;
 `cli/norcaapi/release_integration_test.go`, `make integration`). The release
-API of today takes what Rig evaluates, without a pack catalog and without a
+API of today takes what Rigger evaluates, without a pack catalog and without a
 change in norca:
 
-| Rig | In the request (`ReleaseApplyRequest`) | Kept in |
+| Rigger | In the request (`ReleaseApplyRequest`) | Kept in |
 | --- | --- | --- |
 | the module: name, version, source, tag, tree digest, signatures, `requires` | `Pack` (`Name`, `Version`, `Source`, `Ref`, `Digest`, `Signatures`, `Requires`) | the revision and the release; `Requires` is checked by the server |
 | the digest of a release (module digest, values, settings; section 9.2) | `ValuesHash` | the revision (opaque to the server) |
 | the values without the sensitive ones | `Values` | the revision |
-| the stack that owns the release | `Description` (`rig stack <name>`) | the revision and the release; `List` returns it, so prune needs no revision reads |
+| the stack that owns the release | `Description` (`rigger stack <name>`) | the revision and the release; `List` returns it, so prune needs no revision reads |
 | the evaluated resources | `Resources`, typed by kind (`job`, `variable` ...: the names of `resource.Kind`) | the revision (`ContentDigest` is the server's digest of them) |
 
 - The server's plan of an unchanged request says `unchanged` per resource,
   but an apply of it makes a new revision all the same: "unchanged
-  (skipped)" is Rig's, by comparing `Pack.Digest` and `ValuesHash` with the
+  (skipped)" is Rigger's, by comparing `Pack.Digest` and `ValuesHash` with the
   current revision before it applies (section 9.2, step 4).
 - With an admission policy with `trusted_keys` on the namespace, an
   unsigned module is refused ("not signed"), and a module signed as in
@@ -1141,24 +1147,24 @@ change in norca:
   SHA-256 of the public key).
 - Gaps for phase 7: the owner has no field of its own (the deployer writes
   the provenance of GitOps into `Description` as well; once the deployer
-  runs stacks through Rig the marker of Rig is the one written);
+  runs stacks through Rigger the marker of Rigger is the one written);
   `ValuesHash` carries more than the values; the server still can't check
   that the digest belongs to the resources (section 8.2).
 
 ### 12.3 What the core offers
 
 ```go
-eng, err := rig.New(rig.WithCluster(c), rig.WithJobDecoder(d),
-    rig.WithReleases(r), rig.WithLogger(logger), rig.WithLimits(limits))
+eng, err := rigger.New(rigger.WithCluster(c), rigger.WithJobDecoder(d),
+    rigger.WithReleases(r), rigger.WithLogger(logger), rigger.WithLimits(limits))
 
-mod, diags := eng.Load(ctx, rig.Ref{Source: "norca/nats", Version: "~> 1.0"})
+mod, diags := eng.Load(ctx, rigger.Ref{Source: "norca/nats", Version: "~> 1.0"})
 form := mod.FormSchema()                       // the install form of the UI
-res, diags := eng.Evaluate(ctx, mod, rig.Install{
+res, diags := eng.Evaluate(ctx, mod, rigger.Install{
     Release: "nats", Namespace: "platform", Region: "eu", Values: values})
 // res.Resources, res.Outputs, res.Digest, res.Signers
 
 plan, diags := eng.PlanStack(ctx, stack)       // what would change
-diags = eng.ApplyStack(ctx, plan, rig.ApplyOptions{Prune: false})
+diags = eng.ApplyStack(ctx, plan, rigger.ApplyOptions{Prune: false})
 ```
 
 - `Load` fetches, verifies and parses; `Evaluate` is a pure function of the
@@ -1194,7 +1200,7 @@ leader's rights. So the core:
   a module it fetched and verified itself: the release is server-rendered and
   the signature covers what was applied (section 8.2).
 - The install form of the UI comes from `FormSchema`.
-- `norca rig ...` commands, if wanted, are the CLI package linked into the
+- `norca rigger ...` commands, if wanted, are the CLI package linked into the
   `norca` binary.
 - The deployer needs no engine of its own then: it sends module, version and
   values to the server, the way it sends packs today (through the `norca`
@@ -1204,36 +1210,36 @@ leader's rights. So the core:
 
 ### 12.6 Local data of the standalone program
 
-Embedded, Rig keeps everything in the server. As an external application it
+Embedded, Rigger keeps everything in the server. As an external application it
 has to keep data on the machine it runs on. The rule from section 9.3 stays:
 **local data is never the record of what is installed** (that is the
 releases of the cluster). What is kept locally, and what its loss costs:
 
 | Data | Where | If lost |
 | --- | --- | --- |
-| Module cache: fetched versions by digest, with the proof of their origin (source, commit, signatures) so that a cached module is verified again before every use | user cache directory (`RIG_CACHE_DIR`) | fetched again |
+| Module cache: fetched versions by digest, with the proof of their origin (source, commit, signatures) so that a cached module is verified again before every use | user cache directory (`RIGGER_CACHE_DIR`) | fetched again |
 | Copies of global registry entries | user cache directory | fetched again |
-| Configuration: registries, default trust policy and public keys, cluster profiles (address, CA, which credential) | user configuration directory (`RIG_CONFIG`) | written again by the user |
-| Credentials: registry tokens, cluster tokens | the key store of the system; an encrypted file where there is none | `rig login` again |
+| Configuration: registries, default trust policy and public keys, cluster profiles (address, CA, which credential) | user configuration directory (`RIGGER_CONFIG`) | written again by the user |
+| Credentials: registry tokens, cluster tokens | the key store of the system; an encrypted file where there is none | `rigger login` again |
 | Signing keys (private) | where the user puts them, encrypted with a passphrase | **not recoverable**: a new key and a new trust entry |
-| Lock file | next to the stack, in version control | `rig stack sync` writes it again (versions may move within the constraints) |
-| Generated values of a stack (`!generate`, `!nkey-seed`) | `.rig/` next to the stack, encrypted with a master key as the deployer does | **a new value would be generated**: see below |
-| A saved plan (`rig stack plan -out`) | `.rig/` next to the stack | planned again |
-| Journal of the last apply (what was started, for a clear message after an interrupt) | `.rig/` next to the stack | none: the next `plan` reads the cluster |
+| Lock file | next to the stack, in version control | `rigger stack sync` writes it again (versions may move within the constraints) |
+| Generated values of a stack (`!generate`, `!nkey-seed`) | `.rigger/` next to the stack, encrypted with a master key as the deployer does | **a new value would be generated**: see below |
+| A saved plan (`rigger stack plan -out`) | `.rigger/` next to the stack | planned again |
+| Journal of the last apply (what was started, for a clear message after an interrupt) | `.rigger/` next to the stack | none: the next `plan` reads the cluster |
 
 - **Generated values are the one piece of local data with weight.** If the
   local copy were the only one, losing the directory would change a password
   on the next apply. So a generated value is also written once into the
   secret store of the cluster (create-once, as `secrets.bootstrap` of the
-  deployer), and Rig reads it back from there when the local copy is
+  deployer), and Rigger reads it back from there when the local copy is
   missing. The local copy is then a convenience, not the source.
-- Everything under `.rig/` that holds a secret is encrypted (AES-256-GCM,
-  the deployer's `!enc:` form and master key sources), and `.rig/` is not for
+- Everything under `.rigger/` that holds a secret is encrypted (AES-256-GCM,
+  the deployer's `!enc:` form and master key sources), and `.rigger/` is not for
   version control (a `.gitignore` is written with it).
 - The cache is safe to share between stacks and users of one machine only
   as far as verification goes: content is addressed by digest and checked on
   use; credentials are never in it.
-- Two runs against one stack at a time: a lock file in `.rig/` stops the
+- Two runs against one stack at a time: a lock file in `.rigger/` stops the
   second on the same machine; across machines the server's per-release lock
   is what protects a release.
 - All of this is behind the `Store` interface (12.2), so the same engine
@@ -1253,7 +1259,7 @@ signatures, renders, and applies a release under a lock it holds in memory.
 So the admin UI can run on an observer, but the registry work it starts
 lands on the leader.
 
-**With Rig** the split can change, because evaluation is a pure function
+**With Rigger** the split can change, because evaluation is a pure function
 (section 12.3): the same module, values and install facts give the same
 resources and the same digest on any server.
 
@@ -1292,15 +1298,15 @@ The interfaces of 12.2 already allow it (the `Fetcher`, `Store` and
 `Releases` of a host need not be on the same server); nothing in the core
 has to know.
 
-### 12.8 The audit module: a base in Rig, on the internal bus when embedded
+### 12.8 The audit module: a base in Rigger, on the internal bus when embedded
 
 The maintainer's direction (2026-11-15); the details below are a proposal
 and nothing of it is built.
 
-- **The base of audit is a module of Rig**, embedded in the binary as the
+- **The base of audit is a module of Rigger**, embedded in the binary as the
   other built-in modules (`builtin/audit`, section 7.1). A stack imports it
   like any module, next to its other modules, and wires it with values and
-  outputs. It is versioned with Rig and needs no signature or lock entry,
+  outputs. It is versioned with Rigger and needs no signature or lock entry,
   being part of the binary.
 - **Audit is declared, not wired** (the maintainer, 2026-11-15: the first
   sketch read like direct JetStream events, technical and not declarative).
@@ -1312,7 +1318,7 @@ and nothing of it is built.
   ```hcl
   # shop.audit.hcl
   audit "shop" {
-    namespaces = [rig.namespace]
+    namespaces = [rigger.namespace]
     record     = ["job", "secret", "variable", "acl"]   # kinds of resources
     actions    = ["create", "update", "delete"]
     keep       = "90d"
@@ -1342,7 +1348,7 @@ and nothing of it is built.
   recorded, how long it is kept, who may read it. What a product adds (a
   store of its own, reports, forwarding) is another module that takes the
   outputs of the base.
-- **Where the changes come from depends on how Rig runs**, not on the module
+- **Where the changes come from depends on how Rigger runs**, not on the module
   or its values:
 
 | Way to run | How the module gets the changes |
@@ -1382,15 +1388,15 @@ Checked in norca-deployer (`doc/packs.md`, `doc/gitops.md`,
 | `packs.deploy` | **local files:** the entries and their values are written in the plan file; the pack comes from a registry of the cluster (git, OCI, a directory on the servers, built-in) | the server renders; a marker file per release decides "unchanged" |
 | `packs.gitops` bindings | **a repository:** a pack directory in a Git repository (Forgejo, Gitea, GitHub, GitLab; branch or ref, subpath) | fetched into memory, optionally only from a signed commit or tag, uploaded to the cluster, deployed; also on a push through the webhook daemon, and once with `gitops run` |
 
-Rig keeps both ways, with one stack schema:
+Rigger keeps both ways, with one stack schema:
 
 | Later | From | Form in the plan |
 | --- | --- | --- |
-| a stack in the plan | local file | a `rig` section with the content of a `stack.hcl` (registries, trust, modules, values) |
-| a stack directory | local files | `rig { stack = "./stacks/platform" }`: a directory next to the plan, with its own modules, values file and lock |
+| a stack in the plan | local file | a `rigger` section with the content of a `stack.hcl` (registries, trust, modules, values) |
+| a stack directory | local files | `rigger { stack = "./stacks/platform" }`: a directory next to the plan, with its own modules, values file and lock |
 | a stack from a repository | a Git repository, or the global registry | a binding as today: provider, URL, branch or ref, subpath, `verify` keys, webhook; or `source = "acme/data-platform"` with a version |
 
-- The same stack can be applied by the deployer and by `rig` alone; the
+- The same stack can be applied by the deployer and by `rigger` alone; the
   deployer adds nothing to the language.
 - What the binding gives today stays: fetch into memory, signed commit or
   tag, deploy on push, the description of the source in the revision.
@@ -1398,19 +1404,19 @@ Rig keeps both ways, with one stack schema:
 - "Unchanged" comes from the releases of the cluster (section 9.3), so the
   marker files of the deployer go, and a changed ref or a removed entry is
   seen (both are missed today).
-- Until the server embeds Rig, the development clone of the deployer runs
-  the stack through the standalone `rig`; afterwards it sends the stack to
+- Until the server embeds Rigger, the development clone of the deployer runs
+  the stack through the standalone `rigger`; afterwards it sends the stack to
   the server (question 12).
 
 | Repository (local) | Content | Later |
 | --- | --- | --- |
-| `norca-rig` | the library, the `rig` CLI, built-in modules, this design, the documentation site in `doc/` (Hugo, Hextra) | stays its own repository; norca and the deployer import the library |
-| `norca-rig-registry` | modules converted from the packs, examples, tests, CI scripts | merged into norca-registry |
+| `norca-rig` | the library, the `rigger` CLI, built-in modules, this design, the documentation site in `doc/` (Hugo, Hextra) | stays its own repository; norca and the deployer import the library |
+| `norca-rigger-registry` | modules converted from the packs, examples, tests, CI scripts | merged into norca-registry |
 | `norca-global-registry` | the global registry (section 7.3): namespaces, keys, generated entries, the checks; `github.com/bacanoo-io/norca-global-registry` | filled from phase 6 on |
-| `norca-rig-deployer` | the deployer with a `rig:` section next to `packs:`; during development it runs the stack through the standalone `rig` | merged into norca-deployer, in the form the final decision gives (question 12) |
+| `norca-rigger-deployer` | the deployer with a `rigger:` section next to `packs:`; during development it runs the stack through the standalone `rigger` | merged into norca-deployer, in the form the final decision gives (question 12) |
 
 - The two development repositories are **local clones** of norca-registry and
-  norca-deployer under the other name, with the work on a branch (`rig`).
+  norca-deployer under the other name, with the work on a branch (`rigger`).
   They share history with the originals, so the later merge is an ordinary
   branch merge (fetch from the local clone, review, merge), and upstream
   changes can be pulled in meanwhile. The originals are not touched.
@@ -1418,18 +1424,18 @@ Rig keeps both ways, with one stack schema:
   both can be checked in one tree until the packs go.
 - The global registry repository comes after the first modules are published
   (section 7.3).
-- Rig is tested against a Norca built from `main`: a dev agent for the unit
+- Rigger is tested against a Norca built from `main`: a dev agent for the unit
   of work, the lab for a stack (a new lab case when the first stack exists).
 - Go path of the library and license (decided, question 9):
-  `github.com/bacanoo-io/norca-rig`, MPL-2.0. The code is written new: nothing is copied from the
-  pack manager (parts of which descend from nomad-pack), so Rig starts with
+  `github.com/bacanoo-io/norca/rigger`, MPL-2.0. The code is written new: nothing is copied from the
+  pack manager (parts of which descend from nomad-pack), so Rigger starts with
   its own history and notices only.
 
 ### 13.2 The documentation site
 
 `doc/` in this repository is a Hugo site on the **Hextra** theme, set up as
 norca-doc is (Hextra as a Hugo module, `hugo.yaml`, `content/docs/`), so the
-two sites look and are built alike. It holds the user documentation of Rig:
+two sites look and are built alike. It holds the user documentation of Rigger:
 writing a module, the language, file names, stacks, registries and the
 global registry, signing and trust, the CLI, the library interface. The
 design stays in `design/` and is not published there, as with norca.
@@ -1438,7 +1444,7 @@ design stays in `design/` and is not published there, as with norca.
 
 - Converted by hand, one pack at a time, simplest first (redis, test-app,
   rustfs), the heavy ones last (nats, consul, traefik, loadbalancer-operator).
-- `rig convert pack <dir>` does the mechanical part: `metadata.hcl` and
+- `rigger convert pack <dir>` does the mechanical part: `metadata.hcl` and
   `variables.hcl` almost unchanged, every template file renamed without its
   `.tpl` with the template left as a comment. The template logic is rewritten
   by a person.
@@ -1458,13 +1464,13 @@ one the pack renders. **nats** (norca-registry, pack 0.7.0: 63 variables, a
 construct against `examples/registry/modules/nats`, which shows the hard
 parts in a smaller module.
 
-| In the packs | In Rig | Section 4 as it is |
+| In the packs | In Rigger | Section 4 as it is |
 | --- | --- | --- |
 | `[[ if ]]` around an attribute (`region` when set, `static` when the port is not 0, `host_network`, `args` with persistence) | `x = cond ? v : null`: a null attribute is left out (checked with the decoder for `config`) | covers |
 | `[[ if ]]` around a block (`ephemeral_disk`, `volume`, `volume_mount`, `artifact`, `separate`, `disruption`, a service, the metrics task) | `dynamic "x" { for_each = cond ? [1] : [] }`; about 14 in nats | covers, verbosely |
 | the driver switch: `image` and `ports` for docker, `command` for exec | conditional attributes of `config`, null where they do not apply | covers |
 | helpers (`nats.location` six times over the packs, `nats.port`, `nats.list`, `nats.permissions`, `nats.userpass`) | locals, a library child module (`lib/placement`), `natsconf` (the escaping that `nats.list` worked around is the encoder's) | covers |
-| `namespace` and `region` variables in every pack | the release's: `rig.namespace`, `rig.region` (section 6.4) | covers; the variables go |
+| `namespace` and `region` variables in every pack | the release's: `rigger.namespace`, `rigger.region` (section 6.4) | covers; the variables go |
 | the checks of `nats.validate` (11 `fail`) | `one_of` (driver, storage, auth_mode), `unique_by` (users), `min` (count), six `rule` blocks | covers (section 6.2 confirmed) |
 | the options of a choice in `ui` only (redis `mode`, `network_mode`) | `validation { one_of }`; the form takes the options from it, `ui` keeps their labels | new rule: a value outside the options was accepted before |
 | `secret { path, item }` of a variable written into a Variable item (redis password) | a `sensitive` variable taken by the item | refined in section 6.3 |
@@ -1473,7 +1479,7 @@ parts in a smaller module.
 | `nomadService` routes without the own allocation | `service_addresses(..., { exclude_self })` | covers; the encoder must take a list that mixes known items and the runtime list (the own route first) |
 | `auth_mode = "nkey"`: a Variable item split and looped over at run time; `"config"`: an item inserted as raw configuration | a task template written by hand for that part, appended to the encoded one: `data = "${natsconf(local.config)}\n${local.auth}"`, where `local.auth` is a heredoc with `{{ }}` and install-time `${}` (NATS takes top-level blocks in any order) | covers (section 4.2: a task template may still be written by hand) |
 | `extra_config` indented by 10 | appended after the encoded configuration, no indentation | covers |
-| `meta "pack.name"` as the default job name; `printf "nomad/jobs/%s"` | `rig.release`, `coalesce()` | covers |
+| `meta "pack.name"` as the default job name; `printf "nomad/jobs/%s"` | `rigger.release`, `coalesce()` | covers |
 | `outputs.tpl` with `if` and `range` | a heredoc output with `%{ if }`, `%{ for }` | covers |
 | `job [[ var "job_name" ]]`: the ID from a variable | the label is the module's name; the ID is `id` | was wrong in the examples: section 4.5 now says it |
 
@@ -1481,7 +1487,7 @@ What the packs do wrong, which the conversion keeps (to render the same job)
 and a module version of its own then fixes: redis `mode`, `service_tags` and
 `extra_env` change nothing in the job, the password goes into the Variable
 but Redis does not read it, and the path of the Variable ignores `job_name`.
-Two of them are of a kind `rig module validate` finds by itself: **a variable
+Two of them are of a kind `rigger module validate` finds by itself: **a variable
 that no expression of the module reads is a warning.**
 
 Result for phase 0: the language of section 4 holds for both packs. Added:
@@ -1510,14 +1516,14 @@ since 2026-11-14 (`nomadSecret` stays as an alias).
 | 0 | Spikes: decode a `job` block through a host-supplied decoder (question 4); apply evaluated resources through today's release API; convert redis and nats by hand on paper; the host interfaces of section 12 written down as Go | the language of section 4 and the library interface confirmed or corrected |
 | 1 | Library core behind the library interface: load, schemas, variables with validation and rules, evaluation, `module validate/render/test`, `fmt`; local sources only; the CLI as its first host | modules can be written and tested |
 | 2 | Releases: `install`, `stack plan/apply/status/destroy`, dependencies, digests, prune; against a dev agent | a stack runs on a cluster |
-| 3 | Registries: git, directory, built-in, versions and tags, cache, lock; `norca-rig-registry` with the first converted modules | versions and reproducible installs |
+| 3 | Registries: git, directory, built-in, versions and tags, cache, lock; `norca-rigger-registry` with the first converted modules | versions and reproducible installs |
 | 4 | Supply chain: digest, sign, verify, trust, bundle, OCI | air-gapped and signed |
-| 5 | The rest of the modules converted; lab case; `norca-rig-deployer` with the `rig:` section | parity with the packs of today |
+| 5 | The rest of the modules converted; lab case; `norca-rigger-deployer` with the `rigger:` section | parity with the packs of today |
 | 6 | The global registry repository: namespaces, keys, generated entries, the checks of entries and of stacks; publish workflow; icons in the UI | public catalog |
-| 7 | Into the products: the server embeds the library (server-side evaluation of modules and stacks, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), `norca rig` commands, the deployer and registry branches merged, the pack manager removed once the lab is rewritten; the plan: `norca/design/rig-integration.md` | one package manager |
+| 7 | Into the products: the server embeds the library (server-side evaluation of modules and stacks, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), `norca rigger` commands, the deployer and registry branches merged, the pack manager removed once the lab is rewritten; the plan: `norca/design/rigger-integration.md` | one package manager |
 
-Phase 0 is done (2026-11-18): the ports of section 12.2 as Go, `rig.New`
-with functional options, the log as a tree (section 9.5), the `rig` program
+Phase 0 is done (2026-11-18): the ports of section 12.2 as Go, `rigger.New`
+with functional options, the log as a tree (section 9.5), the `rigger` program
 as the first host, `DecodeJob` and the job decoder (question 4), the release
 API spike (section 12.2), and redis and nats on paper (section 14.1).
 
@@ -1529,7 +1535,7 @@ with `enabled`/`for_each`/`count`, hooks, sensitive values, outputs) through
 `Engine.Evaluate`; `natsconf`; and `module render` with Norca's job decoder.
 `module test`; `fmt`; the warning on an unused variable in `module validate`;
 and the encoders `jsonencode`, `yamlencode`, `tomlencode`, `natsconf`, all
-Rig's own: an object's attributes by name, every string double-quoted and
+Rigger's own: an object's attributes by name, every string double-quoted and
 escaped, a runtime value quoted for where it sits, the addresses of
 `service_addresses()` as the last items of an inline list (so that an empty
 catalog still gives a list). `yamlencode` writes block style, `tomlencode`
@@ -1541,7 +1547,7 @@ value of their block as JSON until their kind is implemented).
 Phase 2 as built (2026-11-18), checked against a dev agent
 (`make integration`):
 
-- **A stack** is `stack.hcl` (one `rig` block with `name`, `region`,
+- **A stack** is `stack.hcl` (one `rigger` block with `name`, `region`,
   `namespace`; `module` blocks), `variables.hcl`, `locals.hcl`,
   `outputs.hcl`, `secrets.hcl`, `values/*.vars.hcl` and its own modules
   under `modules/`; other files are refused. A release is the label of a
@@ -1555,52 +1561,52 @@ Phase 2 as built (2026-11-18), checked against a dev agent
   its hash) and the settings. It is recorded in `ValuesHash`; an equal
   digest is `unchanged` and is not applied again.
 - **Generated values** (`!generate:<name>` in values and in the items of a
-  secret): one secret per stack, `rig/stacks/<stack>/generated` in the
+  secret): one secret per stack, `rigger/stacks/<stack>/generated` in the
   stack's namespace, created at the first apply that needs it and the only
   record of them; a generated value is sensitive. The encrypted local copy
   of 12.6 is left out: the cluster's secret store is the source.
 - **The other kinds** are mapped by the host onto Norca's API type of the
   kind by its `hcl` tags, else its field names; a `name`, `path` or `id`
   left out is the resource's name, a namespace left out the release's.
-- **Commands:** `rig stack validate|plan|apply|status|destroy`, `rig install
-  <dir> -name`, `rig release list|status|history|rollback|uninstall`; the
+- **Commands:** `rigger stack validate|plan|apply|status|destroy`, `rigger install
+  <dir> -name`, `rigger release list|status|history|rollback|uninstall`; the
   cluster is that of `NORCA_ADDR` / `NORCA_TOKEN`. `plan` exits with 2 on
   changes; `apply -prune` uninstalls what the stack owns and no longer has;
   `destroy` uninstalls in the reverse order of the stack and keeps the
   secrets.
-- Left for later phases: `requires` of modules checked by Rig (the server
+- Left for later phases: `requires` of modules checked by Rigger (the server
   checks `norca` and `features`), a saved plan (`-out`), the journal of
   12.6, the multi-region install.
 
 Phase 3 as built (2026-11-18):
 
 - **Addresses** (package `source`): `<registry>/<name>` is `modules/<name>`
-  of a registry of the stack (`rig { registry "<name>" { source } }`),
+  of a registry of the stack (`rigger { registry "<name>" { source } }`),
   tagged `<name>/v<version>`; a git address (`<host>/<path>[//<dir>]`,
   `https://`, `file://`, an absolute path) tagged `<dir>/v<version>` or
   `v<version>`; `builtin/<name>`; `dir://<path>`. Any other `<a>/<b>` is the
   global registry, refused until phase 6, which resolves it. OCI and
   bundles come with phase 4.
-- **Versions** (package `version`, Rig's own): semver with pre-releases,
+- **Versions** (package `version`, Rigger's own): semver with pre-releases,
   constraints `=`, `!=`, `>`, `>=`, `<`, `<=`, `~>` joined with commas;
   `~> 1.2` is `< 2.0.0`, `~> 1.2.3` is `< 1.3.0`; a pre-release meets only a
   constraint that names one.
-- **The fetcher of the rig program** keeps a bare mirror of each repository
-  and the tree of each commit in the cache (`RIG_CACHE_DIR`, else the
+- **The fetcher of the rigger program** keeps a bare mirror of each repository
+  and the tree of each commit in the cache (`RIGGER_CACHE_DIR`, else the
   user's cache directory), through the `git` program; the tree of the whole
   repository is fetched, so that a child module of the same repository
   (`../lib/placement`) is found. The built-in modules are embedded in the
   program (`builtin/redis` for now; the audit base of 12.8 later).
-- **The lock file** `rig.lock.hcl`: per source the version, the constraint,
+- **The lock file** `rigger.lock.hcl`: per source the version, the constraint,
   the repository and path, the tag, its commit and the tree digest.
-  `rig stack sync` writes it, keeping a locked version that still meets the
+  `rigger stack sync` writes it, keeping a locked version that still meets the
   constraint unless `-upgrade`; every other command loads the modules of
   sources as it records them and refuses a source missing from it, a
   version that no longer meets the constraint, a moved tag and content of
   another digest. The revision records the address and the tag of the
   module (`Pack.Source`, `Pack.Ref`).
-- `norca-rig-registry` (next to this repository, a clone of norca-registry
-  with the work on the branch `rig`) held redis, nats, postgres and
+- `norca-rigger-registry` (next to this repository, a clone of norca-registry
+  with the work on the branch `rigger`) held redis, nats, postgres and
   lib/placement, tagged, with `scripts/check-modules.sh` for its CI; phase 5
   converted every pack (below).
 
@@ -1608,14 +1614,14 @@ Phase 4 as built (2026-11-18), signatures and trust:
 
 - **Keys and statements** (package `sign`): ECDSA P-256 keys in the format
   of cosign (the private key encrypted with scrypt and nacl/secretbox under
-  `RIG_KEY_PASSWORD`), key IDs and the simple signing payload as Norca's
-  admission computes and reads them. `rig key generate|sign|verify`.
-- **Where a signature lives:** in the module, under `.rig-signatures/`, one
+  `RIGGER_KEY_PASSWORD`), key IDs and the simple signing payload as Norca's
+  admission computes and reads them. `rigger key generate|sign|verify`.
+- **Where a signature lives:** in the module, under `.rigger-signatures/`, one
   file per key. A hidden directory is outside the tree digest, so the
   signature goes with the module from every source (git, a directory, a
   bundle) without changing what it signs; it is committed before the tag.
 - **Trust:** `trust { registry, require_signature, public_keys }` in the
-  `rig` block of a stack, the rule of a registry or, without `registry`,
+  `rigger` block of a stack, the rule of a registry or, without `registry`,
   the default. Checked at `sync` and at every load from the lock; the lock
   records the signers, which must still sign. A built-in module is part of
   the program and needs no signature. The request of a release carries the
@@ -1623,7 +1629,7 @@ Phase 4 as built (2026-11-18), signatures and trust:
   them against its `trusted_keys` (checked against a dev agent).
 - A tag whose version is not the version of the module's metadata is
   refused.
-- **Bundles** (`rig bundle create|inspect|import`): a reproducible archive
+- **Bundles** (`rigger bundle create|inspect|import`): a reproducible archive
   (sorted entries, no times, owners or modes of the machine) of the modules
   of a stack from git sources as its lock pins them: a manifest with
   source, version, tag, commit, digest and signers, and the files of the
@@ -1634,16 +1640,16 @@ Phase 4 as built (2026-11-18), signatures and trust:
   its own: the lock file says what to install, the bundle only brings it.
   Built-in modules and directories need no bundle.
 - **OCI** (`oci://<host>/<repository>`): a module version is an OCI image
-  manifest of the artifact type `application/vnd.norca.rig.module.v1`,
+  manifest of the artifact type `application/vnd.norca.rigger.module.v1`,
   tagged with the version, with one layer: the tar.gz of the directories of
   the module and its children, signatures included (so a signature is not
   a cosign artifact of its own but goes with the module, as in git), and
   the module's name, version, path and tree digest as annotations. The lock
   records the manifest digest in place of a commit, so a tag pushed again
-  is refused. `rig module publish [dir] -to oci://...` pushes. The client is
-  Rig's own over the distribution API: anonymous, or Basic and Bearer with
-  `RIG_OCI_USERNAME` / `RIG_OCI_PASSWORD`; http for localhost only. The
-  credentials of docker's configuration and `rig login` are left for later
+  is refused. `rigger module publish [dir] -to oci://...` pushes. The client is
+  Rigger's own over the distribution API: anonymous, or Basic and Bearer with
+  `RIGGER_OCI_USERNAME` / `RIGGER_OCI_PASSWORD`; http for localhost only. The
+  credentials of docker's configuration and `rigger login` are left for later
   (8.4).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
@@ -1651,15 +1657,15 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
 
 Phase 5 as built (2026-11-18):
 
-- **`rig convert pack <dir> -out <dir> [-examples <dir>]`** does the
+- **`rigger convert pack <dir> -out <dir> [-examples <dir>]`** does the
   mechanical part of section 14: the `module` block from `app` and `pack`;
-  the variables without `namespace` and `region`, their checks as Rig takes
+  the variables without `namespace` and `region`, their checks as Rigger takes
   them (`item_min_length` and `item_pattern` in an `item` block, the
   `options` of the form as `one_of`, `item_options` as `one_of` of the
   attributes of the items); the examples as `examples/<name>.vars.hcl`;
   every template kept as the comment of the file it becomes.
-- **Every pack of norca-registry is a module** of norca-rig-registry
-  (branch `rig`, tagged `<module>/v<version>`): consul, forgejo,
+- **Every pack of norca-registry is a module** of norca-rigger-registry
+  (branch `rigger`, tagged `<module>/v<version>`): consul, forgejo,
   loadbalancer-operator, mtls-gateway, nats, nodescaler-operator,
   norca-acme, norca-dns, norca-provider, openobserve, otel-collector,
   postgres, rustfs, seaweedfs, seaweedfs-csi and traefik. The earlier
@@ -1669,7 +1675,7 @@ Phase 5 as built (2026-11-18):
 - **The acceptance of section 14 is a script**, `compare-packs.sh` of the
   registry: for the defaults and every example, the module renders the
   jobs, ACL policies, object kinds and admission policies of the pack,
-  compared as parsed resources (the pack's resource files go through rig in
+  compared as parsed resources (the pack's resource files go through rigger in
   a module of their own, so both pass the same decoders). All 85 cases
   match. `check-modules-server.sh` sends every rendered job (104) to
   `/v1/validate/job` of a server; all pass.
@@ -1680,14 +1686,14 @@ Phase 5 as built (2026-11-18):
     attribute of their content is evaluated with its iterator.
   - An object given where a block without labels is taken is that block:
     the `env` of a `secret` block, with names the module computes.
-  - `rig module validate` evaluates the defaults too when every variable
+  - `rigger module validate` evaluates the defaults too when every variable
     has one; it evaluated the examples only.
   - `strlen` is among the functions (the rules of a pack used it).
   - **Object kinds and objects are decoded by Norca's parser.** The value
     of a block mapped by field names lost the order of labelled blocks
     (the columns of a kind) and did not map `rule` blocks onto `Rules`; a
     kind did not apply. A host may decode some kinds from the block written
-    as HCL in the order of the module (`host.ResourceDecoder`); the rig
+    as HCL in the order of the module (`host.ResourceDecoder`); the rigger
     program decodes kinds and objects with a copy of norca's
     `resourcespec/object.go`, compared by `check-copy` like jobspec2, until
     phase 7.
@@ -1704,15 +1710,15 @@ Phase 5 as built (2026-11-18):
   - A file named by its block's label (4.5) and a resource named by a
     `name` attribute where Norca names it otherwise (a kind's `Kind`, a
     policy's name).
-- **`norca-rig-deployer`** (a clone of norca-deployer, branch `rig`) has
-  the `rig:` section of 13.1: a stack directory or `stack_hcl`, values
-  files, variables, `prune`, the rig program. `apply` runs `rig stack
+- **`norca-rigger-deployer`** (a clone of norca-deployer, branch `rigger`) has
+  the `rigger:` section of 13.1: a stack directory or `stack_hcl`, values
+  files, variables, `prune`, the rigger program. `apply` runs `rigger stack
   apply` after the packs against the cluster's API served on a local port,
   each request sent to the first server through `norca operator api`;
   checked against a dev agent (install, unchanged, destroy).
 - The lab case of a stack is not written yet: norca-lab runs on the
   Hyper-V host (`run-tests.ps1`, the elevated labrunner), and a case needs
-  rig built for Windows next to the deployer and the registry reached from
+  rigger built for Windows next to the deployer and the registry reached from
   there.
 - Open: a variable that only rules read is reported as unused (14.1), also
   when it is a gate the installer must set (`consul_license_accepted`,
@@ -1736,7 +1742,7 @@ Phase 6 as built (2026-11-18), the global registry:
 - **`<namespace>/<name>` resolves through the global registry** when the
   stack names no registry of that name: by default
   `github.com/bacanoo-io/norca-global-registry`, mirrored into the cache
-  like a git source and read at its default branch; `RIG_GLOBAL_REGISTRY`
+  like a git source and read at its default branch; `RIGGER_GLOBAL_REGISTRY`
   names another (a git address, or a directory read as it is). A blocked
   version is not offered and a lock file that names it fails with the
   reason; the module is fetched from its author's repository at the listed
@@ -1746,14 +1752,14 @@ Phase 6 as built (2026-11-18), the global registry:
   and commit, so a bundle carries the module like a git source; without
   the registry (a machine without a network) such a module is taken by its
   lock entry, with the keys the trust of the stack names. Warnings are
-  shown by `rig stack sync` and `plan`.
-- **The registry repository is kept by rig itself.** `rig index update`
+  shown by `rigger stack sync` and `plan`.
+- **The registry repository is kept by rigger itself.** `rigger index update`
   lists, per namespace, the tags of its repositories that are not listed
   yet: each one validated (a module with its examples rendered, a stack
   with its value files and the modules its lock pins), its metadata naming
   the name and version of the tag, signed by a key of the namespace, not
   blocked; a tag that fails stays out with its reason, a listed tag that
-  moved is reported. `rig index check` checks every file, and with
+  moved is reported. `rigger index check` checks every file, and with
   `-base <revision>` that a change only adds (no listed version or advisory
   changed or removed) and every added version against its source; without
   it, every version. `-replace url=path` reads a repository from a clone.
@@ -1761,20 +1767,20 @@ Phase 6 as built (2026-11-18), the global registry:
   pull request and push and weekly in full, `update.yml` every hour, which
   commits what passed; issue forms ask for a namespace and report a
   version.
-- **Publishing:** `rig module publish [dir] -key <key>` (without `-to`)
+- **Publishing:** `rigger module publish [dir] -key <key>` (without `-to`)
   validates the module, signs its tree digest, commits the signature and
   tags the version (`<name>/v<version>`, `v<version>` at the root of a
-  repository); `rig stack publish [dir] -key <key>` does the same for a
+  repository); `rigger stack publish [dir] -key <key>` does the same for a
   stack, validated with its lock file. A tag is never made twice, and a
   module with changes not committed is refused. Nothing is pushed.
 - **Stacks in a registry (7.5):** a stack with `metadata.hcl` (a `stack`
-  block with the name of its `rig` block and a version) is published; its
+  block with the name of its `rigger` block and a version) is published; its
   own modules and their children lie in its `modules/`, and its tree digest
-  covers its directory with the lock file. `rig key sign|verify` take it
+  covers its directory with the lock file. `rigger key sign|verify` take it
   like a module. The stack commands but `sync` and `publish` take the
   source of a published stack instead of a directory, with `-version`.
   A stack of the global registry uses only modules of the global registry,
-  its own and built-in ones; `rig index` resolves them from the checkout it
+  its own and built-in ones; `rigger index` resolves them from the checkout it
   works on, so a stack and the modules it pins are checked together.
 - **Parts:** a local stack takes a published stack as a part, `stack
   "<part>" { source, version, values, depends_on }`, one level (a published
@@ -1786,21 +1792,21 @@ Phase 6 as built (2026-11-18), the global registry:
   release of the stack reads its outputs as `stack.<part>.<output>` and
   waits for all its releases, and the releases of the part wait for what
   the part reads.
-- **The namespace `norca`** lists `norca-rig-registry`. Its signing key is
-  for the maintainers to make (`rig key generate -out norca`, the public
+- **The namespace `norca`** lists `norca-rigger-registry`. Its signing key is
+  for the maintainers to make (`rigger key generate -out norca`, the public
   half into `keys/norca/`); until then the update lists nothing of it:
   every tag of the registry validates and is reported as not signed.
   Checked on a copy with a key of its own: nats 2.0.0 signed, listed, and
   installed by a stack from `norca/nats` through the registry.
 - Not in this phase: icons in the user interface (phase 7, in norca); the
-  user configuration of registries (`rig registry add`), `rig login` and
+  user configuration of registries (`rigger registry add`), `rigger login` and
   credentials of OCI registries; a registry stack used by name of a
   registry block (`<registry>/<name>`) works for parts only.
 
 ## 16. Open questions for the maintainer
 
 1. **Names.** Decided by the maintainer (2026-11-15): the package is a
-   *module*, the tool is *rig*. The official repository is the global
+   *module*, the tool is *rigger*. The official repository is the global
    registry of section 7.3: users' modules, and stacks that build on it.
 2. **How strict is "no templates"?** Decided by the maintainer (2026-11-15):
    **the template syntax of HCL itself is allowed** (`${}`, `%{ if }`,
@@ -1814,33 +1820,33 @@ Phase 6 as built (2026-11-18), the global registry:
    12.2): the core has no Norca dependency, the CLI's host package links
    Norca's job decoder, the server uses its own. Open is only whether that
    decoder can take install-time values from outside as it is, or needs a
-   small change in norca when the server embeds Rig (phase 7). The
-   alternative, a decoder of Rig's own against the API structs, is a second
+   small change in norca when the server embeds Rigger (phase 7). The
+   alternative, a decoder of Rigger's own against the API structs, is a second
    job language to keep in step and is not recommended.
    **Answered by the spike (2026-11-17): not as it is; a small change is
    enough.** `jobspec2.ParseWithConfig` takes text and takes values only for
    `variable` blocks of the same file, and it turns an unknown namespace
-   such as `rig.release` silently into the text `"${rig.release}"`. An
+   such as `rigger.release` silently into the text `"${rigger.release}"`. An
    exported entry point of about 25 lines that runs the decoding of
    `jobspec2` with a context from outside,
    `DecodeJob(block *hcl.Block, ctx *hcl.EvalContext) (*api.Job, hcl.Diagnostics)`,
    decodes a job file of a module correctly: values of `var`, `local` and
-   `rig`, a function of Rig, a `dynamic` block, and the runtime references
+   `rigger`, a function of Rigger, a `dynamic` block, and the runtime references
    `${attr.kernel.name}`, `${node.class}` and `${NOMAD_ALLOC_DIR}` passed
    through. It changes nothing for the callers of today.
    **Decided by the maintainer (2026-11-17): the change goes into norca in
    phase 7; until then it is part of this repository.** `cli/internal/jobspec2`
-   holds the non-test files of norca's `jobspec2`, unchanged, and Rig's
+   holds the non-test files of norca's `jobspec2`, unchanged, and Rigger's
    `DecodeJob` next to them (`SOURCE.md` names the norca commit);
    `cli/norcaapi` builds the `JobDecoder` on it. `make check-copy` fails when
    the copy differs from the norca checkout. In phase 7 `DecodeJob` moves
-   into norca and the copy is deleted. The rig program imports norca for
+   into norca and the copy is deleted. The rigger program imports norca for
    this (the CLI module only, never the core): the main module of norca
    for `jobspec2`, its `api` module for the HTTP client, with norca's own
    replacements repeated in `cli/go.mod`.
    **Confirmed (2026-11-18):** `DecodeJob` is exported from norca's
-   `jobspec2`, Norca uses it for its own package management, and Rig imports
-   it from there (`norca/design/rig-integration.md`, step 4.1).
+   `jobspec2`, Norca uses it for its own package management, and Rigger imports
+   it from there (`norca/design/rigger-integration.md`, step 4.1).
 5. **Keyless signing.** Decided (2026-11-15): **keys first**; Sigstore later
    as a second signer type.
 6. **Reading the cluster** during evaluation (`data` blocks). Decided
@@ -1850,30 +1856,30 @@ Phase 6 as built (2026-11-18), the global registry:
    registration only**; no plugin protocol now.
 8. **Icon format.** Decided (2026-11-15): **PNG 64x64 only.**
 9. **Go path and license** of the library. Decided (2026-11-15):
-   `github.com/bacanoo-io/norca-rig`, MPL-2.0.
+   `github.com/bacanoo-io/norca/rigger`, MPL-2.0.
 10. **Stack and deployer.** Decided (2026-11-15): the deployer works from
-    local files and from repositories today (checked, section 13.1), and Rig
+    local files and from repositories today (checked, section 13.1), and Rigger
     in the deployer keeps both, in the three forms of section 13.1 with one
     stack schema: a stack written in the plan, a stack directory next to the
     plan, a stack from a repository or the global registry.
 11. **Where the first evaluation runs for the UI.** Until the server embeds
-    Rig, the UI install form can only install packs. Is that acceptable for
+    Rigger, the UI install form can only install packs. Is that acceptable for
     the development period?
 12. **Standalone, embedded, or both** (decided at the end, with both built):
-    does the external `rig` stay as a full program with its local data
+    does the external `rigger` stay as a full program with its local data
     (section 12.6), become a thin client of the server, or go? And does the
-    deployer send its `rig:` section to the server, or run it through the
+    deployer send its `rigger:` section to the server, or run it through the
     standalone program?
     **Decided by the maintainer (2026-11-18): both stay.** The server
-    evaluates stacks as well as modules; the norca binary gets `norca rig`
-    commands and norca-rig keeps the `rig` program, both the same command
-    package; Norca uses Rig's fetcher; the pack manager runs beside Rig until
+    evaluates stacks as well as modules; the norca binary gets `norca rigger`
+    commands and norca-rig keeps the `rigger` program, both the same command
+    package; Norca uses Rigger's fetcher; the pack manager runs beside Rigger until
     the tests of norca-lab are rewritten. The plan of phase 7 is
-    `norca/design/rig-integration.md`.
+    `norca/design/rigger-integration.md`.
 13. **Stacks inside stacks.** Decided by the maintainer (2026-11-15): **one
     level.** A local stack may take registry stacks as parts (section 7.5);
     a stack published in a registry uses modules only and includes no other
-    stack. `rig stack validate` and `publish` refuse a registry stack with a
+    stack. `rigger stack validate` and `publish` refuse a registry stack with a
     `stack` part, and a part of a local stack that itself has parts.
 14. **What the global registry holds.** Decided (2026-11-15): **entries**
     that point to the authors' repositories, as the OpenTofu registry, plus
@@ -1888,5 +1894,5 @@ Phase 6 as built (2026-11-18), the global registry:
 Open after 2026-11-18: question 11 (a consequence of the development
 order); question 12 is decided.
 Without a phase yet: evaluation on an observer, apply on the leader (section
-12.7); the audit base module, which sits on the internal bus once Rig is
+12.7); the audit base module, which sits on the internal bus once Rigger is
 embedded (section 12.8).

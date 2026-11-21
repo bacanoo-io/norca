@@ -43,7 +43,7 @@ require (
 replace github.com/bacanoo-io/norca/rigger => ../
 
 // The norca program module is in the same repository (until step 4.1 of
-// design/rig-integration.md moves the decoders into norca/spec). The other
+// design/rigger-integration.md moves the decoders into norca/spec). The other
 // replacements are the program module's own (norca/go.mod); a replacement
 // in a dependency does not apply here, so they are repeated.
 replace (

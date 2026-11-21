@@ -1,5 +1,5 @@
 locals {
-  job              = rig.release
+  job              = rigger.release
   superuser_secret = "${var.secret_prefix}/superuser"
   app_secret       = { for d in var.databases : d.name => "${var.secret_prefix}/apps/${d.name}" }
 

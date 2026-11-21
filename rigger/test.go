@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func (r TestResult) Passed() bool {
 }
 
 // TestModule runs the tests of m, the test blocks of its
-// tests/*.rigtest.hcl (design 7.4): each evaluates the module with its
+// tests/*.riggertest.hcl (design 7.4): each evaluates the module with its
 // values and checks its assertions over resource.<block>.<name> and
 // output.<name>, or expects an error. No cluster is needed; jobs go through
 // the job decoder of the engine. The diagnostics are those of test files

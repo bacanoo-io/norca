@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package bundle writes and reads the bundles of the rig program (design
+// Package bundle writes and reads the bundles of the rigger program (design
 // 7.1, 10): one reproducible archive with the modules of a stack from git
 // sources, as its lock file pins them, for an install without a network.
 // An import writes them into the cache, where the fetcher finds them by the
@@ -21,30 +21,30 @@ import (
 	"slices"
 	"strings"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 )
 
 // manifestName is the name of the manifest in a bundle.
-const manifestName = "rig-bundle.json"
+const manifestName = "rigger-bundle.json"
 
 // format is the version of the layout of a bundle.
 const format = 1
 
 // Manifest says what a bundle holds.
 type Manifest struct {
-	Format  int                 `json:"format"`
-	Stack   string              `json:"stack"`
-	Modules []rig.SourcedModule `json:"modules"`
+	Format  int                    `json:"format"`
+	Stack   string                 `json:"stack"`
+	Modules []rigger.SourcedModule `json:"modules"`
 }
 
 // ErrBundle is the error of an archive that is not a bundle.
-var ErrBundle = errors.New("not a bundle of rig")
+var ErrBundle = errors.New("not a bundle of rigger")
 
 // Write writes a bundle of the modules of a stack: the manifest, then the
 // files of each module's directories under trees/<commit>/, in order, with
 // no time, owner or mode of the machine, so the same modules make the same
 // bundle.
-func Write(w io.Writer, stack string, modules []rig.SourcedModule) error {
+func Write(w io.Writer, stack string, modules []rigger.SourcedModule) error {
 	gz := gzip.NewWriter(w)
 	tw := tar.NewWriter(gz)
 
@@ -74,7 +74,7 @@ func Write(w io.Writer, stack string, modules []rig.SourcedModule) error {
 
 // writeDir writes the files of a directory of a module, signatures
 // included, sorted.
-func writeDir(tw *tar.Writer, m rig.SourcedModule, dir string) error {
+func writeDir(tw *tar.Writer, m rigger.SourcedModule, dir string) error {
 	var files []string
 
 	err := fs.WalkDir(m.Root, dir, func(p string, d fs.DirEntry, err error) error {

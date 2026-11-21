@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package fetch is the fetcher of the rig program (source.Fetcher): git
+// Package fetch is the fetcher of the rigger program (source.Fetcher): git
 // repositories through the git program, directories, and the modules built
 // into the program. What it fetches is kept in a cache directory, a version
 // of a repository by its commit (design 12.6).
@@ -53,10 +53,10 @@ func New(dir string) *Fetcher {
 	return &Fetcher{cache: dir, oci: oci.NewClient(), global: DefaultGlobalRegistry, updated: map[string]bool{}}
 }
 
-// CacheDir is the cache of the rig program: RIG_CACHE_DIR, else rig in the
+// CacheDir is the cache of the rigger program: RIGGER_CACHE_DIR, else rigger in the
 // cache directory of the user.
 func CacheDir() (string, error) {
-	if dir := os.Getenv("RIG_CACHE_DIR"); dir != "" {
+	if dir := os.Getenv("RIGGER_CACHE_DIR"); dir != "" {
 		return dir, nil
 	}
 
@@ -65,7 +65,7 @@ func CacheDir() (string, error) {
 		return "", err
 	}
 
-	return filepath.Join(dir, "rig"), nil
+	return filepath.Join(dir, "rigger"), nil
 }
 
 // Versions returns the versions of the module of req.
@@ -109,7 +109,7 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 	case source.KindBuiltin:
 		dir := path.Clean(req.Path)
 		if _, err := fs.Stat(builtin.FS(), dir+"/metadata.hcl"); err != nil {
-			return source.Fetched{}, fmt.Errorf("rig has no built-in module %s: %w", path.Base(dir), fs.ErrNotExist)
+			return source.Fetched{}, fmt.Errorf("rigger has no built-in module %s: %w", path.Base(dir), fs.ErrNotExist)
 		}
 
 		return source.Fetched{FS: builtin.FS(), Dir: dir, Origin: origin}, nil

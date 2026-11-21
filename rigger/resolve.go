@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 )
 
 // ErrNoFetcher is the error of a module of a source the engine can't fetch.
-var ErrNoFetcher = errors.New("the engine has no fetcher of modules (rig.WithFetcher)")
+var ErrNoFetcher = errors.New("the engine has no fetcher of modules (rigger.WithFetcher)")
 
 // resolveLocked loads the modules of the releases from sources as the lock
 // file of the stack records them (design 8.3): the version, the tag and its
@@ -44,13 +44,13 @@ func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnosti
 		entry := s.Lock.Module(r.Source)
 		if entry == nil {
 			diags = append(diags, diagAt(rng, "Not in the lock file",
-				fmt.Sprintf("%s has no entry in %s; run rig stack sync.", r.Source, lang.LockFile)))
+				fmt.Sprintf("%s has no entry in %s; run rigger stack sync.", r.Source, lang.LockFile)))
 
 			continue
 		}
 
 		if err := meets(r.Version, entry.Version); err != nil {
-			diags = append(diags, diagAt(rng, "Lock file out of date", err.Error()+"; run rig stack sync."))
+			diags = append(diags, diagAt(rng, "Lock file out of date", err.Error()+"; run rigger stack sync."))
 
 			continue
 		}
@@ -192,7 +192,7 @@ func verifyTrust(rule eval.TrustRule, c signedContent, locked []string) ([]strin
 
 	for _, id := range locked {
 		if !slices.Contains(signers, id) {
-			return nil, fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rig stack sync", c.source, c.version, id)
+			return nil, fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rigger stack sync", c.source, c.version, id)
 		}
 	}
 
@@ -360,7 +360,7 @@ func moduleName(req source.Request) string {
 
 // SyncStack resolves the versions of the modules of a stack from sources,
 // fetches and verifies them, and returns the stack loaded with them and the
-// new lock file (design 8.3, rig stack sync). A locked version that still
+// new lock file (design 8.3, rigger stack sync). A locked version that still
 // meets its constraint is kept unless upgrade is set.
 func (e *Engine) SyncStack(ctx context.Context, root fs.FS, dir string, upgrade bool) (*Stack, []byte, hcl.Diagnostics) {
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.sync", "dir", dir)

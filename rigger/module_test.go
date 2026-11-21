@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig_test
+package rigger_test
 
 import (
 	"bytes"
@@ -13,13 +13,13 @@ import (
 	"testing"
 	"testing/fstest"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 )
 
-func engine(t *testing.T) *rig.Engine {
+func engine(t *testing.T) *rigger.Engine {
 	t.Helper()
 
-	e, err := rig.New(rig.WithLogger(slog.New(slog.DiscardHandler)))
+	e, err := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatal(err)
 	}

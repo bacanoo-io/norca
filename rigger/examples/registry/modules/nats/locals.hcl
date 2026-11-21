@@ -2,7 +2,7 @@
 # it with natsconf(); nothing here is text that has to be indented or escaped.
 
 locals {
-  job       = rig.release
+  job       = rigger.release
   clustered = var.count > 1
   auth      = length(var.users) > 0
   tls       = var.tls_secret != ""
@@ -75,7 +75,7 @@ locals {
     }
 
     cluster = !local.clustered ? null : {
-      name      = rig.region
+      name      = rigger.region
       listen    = "0.0.0.0:${var.ports.cluster}"
       advertise = runtime_env("NORCA_ADDR_cluster")
       # The other servers, found in the native catalog when the task

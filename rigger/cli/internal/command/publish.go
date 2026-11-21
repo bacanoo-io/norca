@@ -20,8 +20,8 @@ var (
 	errNoVersion = errors.New("a module is published with the version of its metadata; it has none")
 )
 
-// runPublish runs rig module publish [dir] -to oci://host/repository, or
-// rig module publish [dir] [-key name.key], which signs and tags the
+// runPublish runs rigger module publish [dir] -to oci://host/repository, or
+// rigger module publish [dir] [-key name.key], which signs and tags the
 // module in its git repository.
 func runPublish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	dir := "."
@@ -29,10 +29,10 @@ func runPublish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		dir, args = args[0], args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig module publish", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger module publish", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	to := flags.String("to", "", "the OCI repository: oci://<host>/<repository>; none: tag in git")
-	key := flags.String("key", "", "git: the private key the version is signed with (password in RIG_KEY_PASSWORD)")
+	key := flags.String("key", "", "git: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
 	if err := flags.Parse(args); err != nil {
 		return exitError

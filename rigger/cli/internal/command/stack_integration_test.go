@@ -21,8 +21,8 @@ import (
 // integrationStack is a stack of two releases: a Variable with a generated
 // token, and a job that reads the path of the Variable.
 var integrationStack = map[string]string{
-	stackFile: `rig {
-  name      = "rigit"
+	stackFile: `rigger {
+  name      = "riggerit"
   region    = "global"
   namespace = "default"
 }
@@ -40,20 +40,20 @@ module "worker" {
 
 module "cache" {
   source = "builtin/redis"
-  values = { job_name = "rigit-cache", auth_enabled = true, redis_password = "!generate:cache" }
+  values = { job_name = "riggerit-cache", auth_enabled = true, redis_password = "!generate:cache" }
   wait   = false
 }
 `,
 	variablesFile:                   "variable \"greeting\" {\n  default = \"hello\"\n}\n",
-	"secrets.hcl":                   "secret \"rigit/app\" {\n  items = { token = \"!generate:config-token\" }\n}\n",
+	"secrets.hcl":                   "secret \"riggerit/app\" {\n  items = { token = \"!generate:config-token\" }\n}\n",
 	"modules/config/metadata.hcl":   "module {\n  name    = \"config\"\n  version = \"1.0.0\"\n}\n",
 	"modules/config/variables.hcl":  "variable \"greeting\" {}\n\nvariable \"token\" {\n  sensitive = true\n}\n",
-	"modules/config/config.var.hcl": "variable \"config\" {\n  path = \"rigit/${rig.release}\"\n\n  items {\n    greeting = var.greeting\n    token    = var.token\n  }\n}\n",
-	"modules/config/outputs.hcl":    "output \"path\" {\n  value = \"rigit/${rig.release}\"\n}\n",
+	"modules/config/config.var.hcl": "variable \"config\" {\n  path = \"riggerit/${rigger.release}\"\n\n  items {\n    greeting = var.greeting\n    token    = var.token\n  }\n}\n",
+	"modules/config/outputs.hcl":    "output \"path\" {\n  value = \"riggerit/${rigger.release}\"\n}\n",
 	"modules/worker/metadata.hcl":   "module {\n  name    = \"worker\"\n  version = \"1.0.0\"\n}\n",
 	"modules/worker/variables.hcl":  "variable \"config_path\" {}\n",
 	"modules/worker/worker.norca.hcl": `job "worker" {
-  id          = "rigit-${rig.release}"
+  id          = "riggerit-${rigger.release}"
   datacenters = ["dc1"]
 
   group "w" {
@@ -94,23 +94,23 @@ func TestIntegration_Stack(t *testing.T) {
 		}
 	})
 
-	t.Setenv("RIG_CACHE_DIR", t.TempDir())
-	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
-	rigRun(t, exitChanges, []string{"+ config", "+ worker", "+ cache", "redis 0.3.0", "install", "secret rigit/app", "create", "generate cache, config-token"}, "stack", "plan", dir)
-	rigRun(t, exitOK, []string{"install default/config: done", "install default/worker: done", "install default/cache: done"}, "stack", "apply", dir)
-	rigRun(t, exitOK, []string{"= config", "= worker", "= cache", "nothing to do"}, "stack", "plan", dir)
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	riggerRun(t, exitChanges, []string{"+ config", "+ worker", "+ cache", "redis 0.3.0", "install", "secret riggerit/app", "create", "generate cache, config-token"}, "stack", "plan", dir)
+	riggerRun(t, exitOK, []string{"install default/config: done", "install default/worker: done", "install default/cache: done"}, "stack", "apply", dir)
+	riggerRun(t, exitOK, []string{"= config", "= worker", "= cache", "nothing to do"}, "stack", "plan", dir)
 	checkCluster(t, client)
-	rigRun(t, exitChanges, []string{"~ config", "upgrade", "= worker"}, "stack", "plan", dir, "-var", "greeting=hi")
-	rigRun(t, exitOK, []string{"config", "worker", "in sync"}, "stack", "status", dir)
+	riggerRun(t, exitChanges, []string{"~ config", "upgrade", "= worker"}, "stack", "plan", dir, "-var", "greeting=hi")
+	riggerRun(t, exitOK, []string{"config", "worker", "in sync"}, "stack", "status", dir)
 	prune(t, dir)
 
 	// One release without a stack.
 	module := filepath.Join(dir, "modules", "config")
-	rigRun(t, exitOK, []string{"install default/solo: revision 1"}, "install", module, "-name", "solo", "-var", "greeting=x", "-var", "token=y")
-	rigRun(t, exitOK, []string{"default/solo is unchanged"}, "install", module, "-name", "solo", "-var", "greeting=x", "-var", "token=y")
-	rigRun(t, exitOK, []string{"solo", "config 1.0.0", "-"}, "release", "list")
-	rigRun(t, exitOK, []string{"solo"}, "release", "history", "solo")
-	rigRun(t, exitOK, []string{"uninstalled default/solo"}, "release", "uninstall", "solo")
+	riggerRun(t, exitOK, []string{"install default/solo: revision 1"}, "install", module, "-name", "solo", "-var", "greeting=x", "-var", "token=y")
+	riggerRun(t, exitOK, []string{"default/solo is unchanged"}, "install", module, "-name", "solo", "-var", "greeting=x", "-var", "token=y")
+	riggerRun(t, exitOK, []string{"solo", "config 1.0.0", "-"}, "release", "list")
+	riggerRun(t, exitOK, []string{"solo"}, "release", "history", "solo")
+	riggerRun(t, exitOK, []string{"uninstalled default/solo"}, "release", "uninstall", "solo")
 }
 
 // checkCluster checks what the apply wrote: the generated token in the
@@ -119,14 +119,14 @@ func TestIntegration_Stack(t *testing.T) {
 func checkCluster(t *testing.T, client *api.Client) {
 	t.Helper()
 
-	secret, _, err := client.Secrets().Read("rigit/app", 0, nil)
+	secret, _, err := client.Secrets().Read("riggerit/app", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	token := secret.Items["token"]
 
-	v, _, err := client.Variables().Read("rigit/config", nil)
+	v, _, err := client.Variables().Read("riggerit/config", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,16 +145,16 @@ func checkCluster(t *testing.T, client *api.Client) {
 		t.Fatal(err)
 	}
 
-	if data, _ := json.Marshal(rev); strings.Contains(string(data), token) || rev.Spec.Description != "rig stack rigit" {
+	if data, _ := json.Marshal(rev); strings.Contains(string(data), token) || rev.Spec.Description != "rigger stack riggerit" {
 		t.Errorf("the revision holds the token or no owner: %s", data)
 	}
 
-	job, _, err := client.Jobs().Info("rigit-worker", nil)
+	job, _, err := client.Jobs().Info("riggerit-worker", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if env := job.TaskGroups[0].Tasks[0].Env; env["CONFIG"] != "rigit/config" || env["ALLOC"] != "${NORCA_ALLOC_ID}" {
+	if env := job.TaskGroups[0].Tasks[0].Env; env["CONFIG"] != "riggerit/config" || env["ALLOC"] != "${NORCA_ALLOC_ID}" {
 		t.Errorf("env of the job = %v", env)
 	}
 }
@@ -169,7 +169,7 @@ func prune(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 
-	rigRun(t, exitChanges, []string{"- worker", "remove (with -prune)", "+ worker2"}, "stack", "plan", dir)
-	rigRun(t, exitOK, []string{"remove default/worker: done"}, "stack", "apply", dir, "-prune")
-	rigRun(t, exitOK, []string{"uninstalled default/"}, "stack", "destroy", dir)
+	riggerRun(t, exitChanges, []string{"- worker", "remove (with -prune)", "+ worker2"}, "stack", "plan", dir)
+	riggerRun(t, exitOK, []string{"remove default/worker: done"}, "stack", "apply", dir, "-prune")
+	riggerRun(t, exitOK, []string{"uninstalled default/"}, "stack", "destroy", dir)
 }

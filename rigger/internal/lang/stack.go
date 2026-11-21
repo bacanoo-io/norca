@@ -24,7 +24,7 @@ import (
 // Stack is a loaded stack (design 6.4): the modules of a region with their
 // values, as releases.
 type Stack struct {
-	Rig RigBlock
+	Rigger RiggerBlock
 	// Vars holds the variables and rules of variables.hcl, in the shape of
 	// a module, so that the values of a stack are checked as a module's.
 	Vars *Module
@@ -54,8 +54,8 @@ type Stack struct {
 	Root fs.FS
 }
 
-// RigBlock is the rig block of stack.hcl.
-type RigBlock struct {
+// RiggerBlock is the rigger block of stack.hcl.
+type RiggerBlock struct {
 	RequiredVersion string `hcl:"required_version,optional"`
 	// Name is the name of the stack, the owner of its releases.
 	Name   string `hcl:"name"`
@@ -149,7 +149,7 @@ var stackDirs = map[string]bool{"modules": true, "values": true, "keys": true, "
 
 var (
 	stackSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
-		{Type: "rig"}, {Type: "module", LabelNames: []string{labelName}}, {Type: blockStack, LabelNames: []string{labelName}},
+		{Type: "rigger"}, {Type: "module", LabelNames: []string{labelName}}, {Type: blockStack, LabelNames: []string{labelName}},
 	}}
 	secretsSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
 		{Type: "secret", LabelNames: []string{labelName}},
@@ -183,11 +183,11 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 	if _, ok := s.Sources["stack.hcl"]; !ok {
 		return s, append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError, Summary: "Missing stack.hcl",
-			Detail: "A stack has a stack.hcl with its rig block and its modules (design 6.4).",
+			Detail: "A stack has a stack.hcl with its rigger block and its modules (design 6.4).",
 		})
 	}
 
-	s.Vars.Metadata.Name = s.Rig.Name
+	s.Vars.Metadata.Name = s.Rigger.Name
 
 	for _, r := range s.Releases {
 		diags = append(diags, s.loadRelease(ctx, root, r, limits)...)
@@ -205,7 +205,7 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 }
 
 // checkPublished checks the rules of a published stack (design 7.5): the
-// name of its metadata is that of its rig block, and its own modules and
+// name of its metadata is that of its rigger block, and its own modules and
 // their children lie in its directory, so that its digest covers them.
 func (s *Stack) checkPublished() hcl.Diagnostics {
 	var diags hcl.Diagnostics
@@ -215,9 +215,9 @@ func (s *Stack) checkPublished() hcl.Diagnostics {
 			"A published stack has no stack blocks: parts are one level, a local stack over published stacks (design 7.5)."))
 	}
 
-	if s.Metadata.Name != s.Rig.Name {
-		diags = append(diags, errorAt(s.Rig.Range, "Names differ",
-			fmt.Sprintf("metadata.hcl names the stack %q, the rig block %q.", s.Metadata.Name, s.Rig.Name)))
+	if s.Metadata.Name != s.Rigger.Name {
+		diags = append(diags, errorAt(s.Rigger.Range, "Names differ",
+			fmt.Sprintf("metadata.hcl names the stack %q, the rigger block %q.", s.Metadata.Name, s.Rigger.Name)))
 	}
 
 	for _, r := range s.Releases {
@@ -390,18 +390,18 @@ func (s *Stack) decodeFile(p string, src []byte, file *hcl.File) hcl.Diagnostics
 	}
 }
 
-// decodeStack decodes stack.hcl: one rig block and the module blocks.
+// decodeStack decodes stack.hcl: one rigger block and the module blocks.
 func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 	content, diags := file.Body.Content(stackSchema)
 
-	var rigs int
+	var riggers int
 
 	for _, b := range content.Blocks {
 		switch b.Type {
-		case "rig":
-			rigs++
+		case "rigger":
+			riggers++
 
-			diags = append(diags, s.decodeRig(b)...)
+			diags = append(diags, s.decodeRigger(b)...)
 		case blockStack:
 			p, moreDiags := decodePart(b)
 			diags = append(diags, moreDiags...)
@@ -419,40 +419,40 @@ func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 		}
 	}
 
-	if rigs != 1 {
-		diags = append(diags, errorAt(file.Body.MissingItemRange(), "One rig block",
-			"stack.hcl has one rig block with the name of the stack (design 6.4)."))
+	if riggers != 1 {
+		diags = append(diags, errorAt(file.Body.MissingItemRange(), "One rigger block",
+			"stack.hcl has one rigger block with the name of the stack (design 6.4)."))
 	}
 
-	if s.Rig.Name != "" && !releaseName.MatchString(s.Rig.Name) {
-		diags = append(diags, errorAt(s.Rig.Range, "Invalid stack name",
-			fmt.Sprintf("%q is not a name of a stack: lower case letters, digits and -, at most 63.", s.Rig.Name)))
+	if s.Rigger.Name != "" && !releaseName.MatchString(s.Rigger.Name) {
+		diags = append(diags, errorAt(s.Rigger.Range, "Invalid stack name",
+			fmt.Sprintf("%q is not a name of a stack: lower case letters, digits and -, at most 63.", s.Rigger.Name)))
 	}
 
 	return diags
 }
 
-// rigSchema is the schema of the blocks of the rig block.
-var rigSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
+// riggerSchema is the schema of the blocks of the rigger block.
+var riggerSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
 	{Type: "registry", LabelNames: []string{labelName}}, {Type: "trust"},
 }}
 
-// decodeRig decodes the rig block: its attributes, its registries and its
+// decodeRigger decodes the rigger block: its attributes, its registries and its
 // trust.
-func (s *Stack) decodeRig(b *hcl.Block) hcl.Diagnostics {
-	content, remain, diags := b.Body.PartialContent(rigSchema)
+func (s *Stack) decodeRigger(b *hcl.Block) hcl.Diagnostics {
+	content, remain, diags := b.Body.PartialContent(riggerSchema)
 
 	for _, inner := range content.Blocks {
 		if inner.Type == "registry" {
-			s.Rig.Registries = append(s.Rig.Registries, inner)
+			s.Rigger.Registries = append(s.Rigger.Registries, inner)
 		} else {
-			s.Rig.Trust = append(s.Rig.Trust, inner)
+			s.Rigger.Trust = append(s.Rigger.Trust, inner)
 		}
 	}
 
-	s.Rig.Range = b.DefRange
+	s.Rigger.Range = b.DefRange
 
-	return append(diags, gohcl.DecodeBody(remain, nil, &s.Rig)...)
+	return append(diags, gohcl.DecodeBody(remain, nil, &s.Rigger)...)
 }
 
 // decodeRelease decodes a module block of a stack.
@@ -672,7 +672,7 @@ func (s *Stack) Registries() (map[string]string, hcl.Diagnostics) {
 
 	var diags hcl.Diagnostics
 
-	for _, b := range s.Rig.Registries {
+	for _, b := range s.Rigger.Registries {
 		var reg struct {
 			Source string `hcl:"source"`
 		}

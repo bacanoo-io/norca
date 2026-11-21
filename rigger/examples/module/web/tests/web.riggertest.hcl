@@ -1,4 +1,4 @@
-# `rig module test` evaluates the module with the values of each test and
+# `rigger module test` evaluates the module with the values of each test and
 # checks the assertions against the resources it gives. No cluster is needed.
 
 test "defaults" {

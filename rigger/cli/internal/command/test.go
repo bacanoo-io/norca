@@ -9,7 +9,7 @@ import (
 	"io"
 	"log/slog"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
@@ -17,7 +17,7 @@ import (
 // Norca: a line per test, the failures under it, and a summary. A failed
 // test is an error.
 func testModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func testModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 }
 
 // writeResult writes the line of a test, and why it failed.
-func writeResult(stdout, stderr io.Writer, dir string, r rig.TestResult) error {
+func writeResult(stdout, stderr io.Writer, dir string, r rigger.TestResult) error {
 	status := "ok  "
 	if !r.Passed() {
 		status = "FAIL"

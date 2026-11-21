@@ -16,9 +16,9 @@ func TestRun_ModuleTest(t *testing.T) {
 
 	failing := t.TempDir()
 	files := map[string]string{
-		metadataFile:          "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
-		"x.acl.hcl":           "policy \"x\" {\n  rules = \"r\"\n}\n",
-		"tests/x.rigtest.hcl": "test \"holds\" {\n  assert {\n    condition     = resource.policy.x.rules == \"r\"\n    error_message = \"r\"\n  }\n}\n\ntest \"fails\" {\n  assert {\n    condition     = resource.policy.x.rules == \"s\"\n    error_message = \"the rules are s\"\n  }\n}\n",
+		metadataFile:             "module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n",
+		"x.acl.hcl":              "policy \"x\" {\n  rules = \"r\"\n}\n",
+		"tests/x.riggertest.hcl": "test \"holds\" {\n  assert {\n    condition     = resource.policy.x.rules == \"r\"\n    error_message = \"r\"\n  }\n}\n\ntest \"fails\" {\n  assert {\n    condition     = resource.policy.x.rules == \"s\"\n    error_message = \"the rules are s\"\n  }\n}\n",
 	}
 
 	for name, data := range files {
@@ -42,15 +42,15 @@ func TestRun_ModuleTest(t *testing.T) {
 			name:           "the tests of nats",
 			args:           []string{cmdModule, cmdTest, "../../../examples/registry/modules/nats"},
 			expectedCode:   exitOK,
-			expectedStdout: []string{"ok   tests/nats.rigtest.hcl: three servers form a cluster over the datacenters", "6 passed, 0 failed"},
+			expectedStdout: []string{"ok   tests/nats.riggertest.hcl: three servers form a cluster over the datacenters", "6 passed, 0 failed"},
 		},
 		{
 			name:         "a failing test",
 			args:         []string{cmdModule, cmdTest, failing},
 			expectedCode: exitError,
 			expectedStdout: []string{
-				"ok   tests/x.rigtest.hcl: holds", "FAIL tests/x.rigtest.hcl: fails",
-				"tests/x.rigtest.hcl:10,21-51: the rules are s", "1 passed, 1 failed",
+				"ok   tests/x.riggertest.hcl: holds", "FAIL tests/x.riggertest.hcl: fails",
+				"tests/x.riggertest.hcl:10,21-51: the rules are s", "1 passed, 1 failed",
 			},
 		},
 	}

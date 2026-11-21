@@ -5,7 +5,7 @@ package eval
 
 import "github.com/zclconf/go-cty/cty"
 
-// Facts are the facts of an install: the rig.* of an evaluation
+// Facts are the facts of an install: the rigger.* of an evaluation
 // (design 4.2).
 type Facts struct {
 	Release       string
@@ -15,7 +15,7 @@ type Facts struct {
 	ModuleVersion string
 }
 
-// value returns the object rig.* of the facts.
+// value returns the object rigger.* of the facts.
 func (f Facts) value() cty.Value {
 	return cty.ObjectVal(map[string]cty.Value{
 		"release":   cty.StringVal(f.Release),

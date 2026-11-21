@@ -2,10 +2,10 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 #
-# Rig takes no code from source that is not open: nothing under the Business
+# Rigger takes no code from source that is not open: nothing under the Business
 # Source License or another license that is not open source, neither as a
 # dependency nor copied (CLAUDE.md, design: rules of this work). It fails
-# when a module linked into the library or the rig program has a license
+# when a module linked into the library or the rigger program has a license
 # file of the Business Source License, or when a file of this repository
 # carries such a license.
 set -euo pipefail

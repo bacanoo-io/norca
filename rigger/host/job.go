@@ -14,25 +14,25 @@ import (
 
 // JobSpec is a job block of a module, ready to be decoded.
 //
-// Block is the block as parsed, without the meta-arguments of Rig (enabled,
+// Block is the block as parsed, without the meta-arguments of Rigger (enabled,
 // for_each, count); its label is the name the module refers to the job by,
 // the ID when the block has no id attribute (design 4.5), and its ranges
 // place the diagnostics. EvalContext holds the install-time values
-// (var.*, local.*, module.*, rig.*) and the functions of the engine. A
+// (var.*, local.*, module.*, rigger.*) and the functions of the engine. A
 // reference the context does not hold, such as a node attribute or a task
 // variable, is a runtime reference: the context gives it back as its text
 // (hcl.EvalContext.UndefinedVariable), as the job decoder of Norca does for
 // a job file today (design 4.2).
 //
 // The decoder of Norca takes such a context through a small exported entry
-// point; until norca has it, the rig program carries it in a copy of the
+// point; until norca has it, the rigger program carries it in a copy of the
 // decoder (design, question 4).
 type JobSpec struct {
 	// Block is the job block.
 	Block *hcl.Block
 	// EvalContext resolves the install-time references of the block.
 	EvalContext *hcl.EvalContext
-	// Hook is the hook block of the job, which Rig took off the block; nil
+	// Hook is the hook block of the job, which Rigger took off the block; nil
 	// for a job that is not a hook. The host writes it the way its release
 	// API reads hooks.
 	Hook *resource.Hook
@@ -54,7 +54,7 @@ type Job struct {
 // JobDecoder turns a job block into a job the cluster accepts.
 //
 // The job specification belongs to Norca, so its decoder is the host's: the
-// rig program links the decoder of Norca, the server uses its own, and the
+// rigger program links the decoder of Norca, the server uses its own, and the
 // engine never follows the job schema by hand (design 12.2).
 type JobDecoder interface {
 	// DecodeJob decodes the block. Errors are diagnostics with the position

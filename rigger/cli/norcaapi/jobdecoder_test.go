@@ -19,8 +19,8 @@ import (
 )
 
 // spec parses src, the job file of a module, and returns its job block
-// with an evaluation context in the way of Rig: the values of var, the
-// release in rig, and runtime references given back as their text.
+// with an evaluation context in the way of Rigger: the values of var, the
+// release in rigger, and runtime references given back as their text.
 func spec(t *testing.T, src string) host.JobSpec {
 	t.Helper()
 
@@ -40,8 +40,8 @@ func spec(t *testing.T, src string) host.JobSpec {
 		Block: content.Blocks[0],
 		EvalContext: &hcl.EvalContext{
 			Variables: map[string]cty.Value{
-				"var": cty.ObjectVal(map[string]cty.Value{"count": cty.NumberIntVal(2)}),
-				"rig": cty.ObjectVal(map[string]cty.Value{"release": cty.StringVal("shop")}),
+				"var":    cty.ObjectVal(map[string]cty.Value{"count": cty.NumberIntVal(2)}),
+				"rigger": cty.ObjectVal(map[string]cty.Value{"release": cty.StringVal("shop")}),
 			},
 			UndefinedVariable: func(tr hcl.Traversal) (cty.Value, hcl.Diagnostics) {
 				r := tr.SourceRange()
@@ -53,7 +53,7 @@ func spec(t *testing.T, src string) host.JobSpec {
 }
 
 const webJob = `job "web" {
-  name = rig.release
+  name = rigger.release
 
   group "web" {
     count = var.count

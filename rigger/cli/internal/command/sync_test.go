@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// wroteLock is what rig stack sync says when it writes the lock file.
+// wroteLock is what rigger stack sync says when it writes the lock file.
 const wroteLock = "wrote"
 
 // gitIn runs git in dir for a test.
@@ -36,8 +36,8 @@ func registryRepo(t *testing.T) string {
 	repo := writeTree(t, map[string]string{
 		"modules/greeter/metadata.hcl":  "module {\n  name    = \"greeter\"\n  version = \"1.0.0\"\n}\n",
 		"modules/greeter/variables.hcl": "variable \"text\" {\n  default = \"hello\"\n}\n",
-		"modules/greeter/g.var.hcl":     "variable \"g\" {\n  path = \"greeter/${rig.release}\"\n\n  items {\n    text = var.text\n  }\n}\n",
-		"modules/greeter/outputs.hcl":   "output \"path\" {\n  value = \"greeter/${rig.release}\"\n}\n",
+		"modules/greeter/g.var.hcl":     "variable \"g\" {\n  path = \"greeter/${rigger.release}\"\n\n  items {\n    text = var.text\n  }\n}\n",
+		"modules/greeter/outputs.hcl":   "output \"path\" {\n  value = \"greeter/${rigger.release}\"\n}\n",
 	})
 
 	gitIn(t, repo, "init", "--quiet", "-b", "main")
@@ -58,10 +58,10 @@ func registryRepo(t *testing.T) string {
 
 func TestRun_StackSync(t *testing.T) {
 	repo := registryRepo(t)
-	t.Setenv("RIG_CACHE_DIR", t.TempDir())
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
 
 	dir := writeTree(t, map[string]string{
-		stackFile: `rig {
+		stackFile: `rigger {
   name = "greet"
 
   registry "local" {
@@ -80,7 +80,7 @@ module "redis" {
 `,
 	})
 
-	out := rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	out := riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
 
 	lock, err := os.ReadFile(filepath.Join(dir, lockFile))
 	if err != nil {
@@ -93,8 +93,8 @@ module "redis" {
 		}
 	}
 
-	rigRun(t, exitOK, []string{"is up to date"}, "stack", "sync", dir)
-	rigRun(t, exitOK, []string{"stack greet"}, "stack", "validate", dir)
+	riggerRun(t, exitOK, []string{"is up to date"}, "stack", "sync", dir)
+	riggerRun(t, exitOK, []string{"stack greet"}, "stack", "validate", dir)
 
 	// -upgrade takes no newer version outside ~> 1.0.0; with ~> 1.0 it does.
 	stack := filepath.Join(dir, stackFile)
@@ -104,13 +104,13 @@ module "redis" {
 		t.Fatal(err)
 	}
 
-	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
 
 	if lock, _ = os.ReadFile(filepath.Join(dir, lockFile)); !strings.Contains(string(lock), `"greeter/v1.0.0"`) || !strings.Contains(string(lock), `"~> 1.0"`) {
 		t.Fatalf("lock after a new constraint keeps the version it has:\n%s", lock)
 	}
 
-	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir, "-upgrade")
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir, "-upgrade")
 
 	lock, _ = os.ReadFile(filepath.Join(dir, lockFile))
 	if !strings.Contains(string(lock), `"greeter/v1.1.0"`) {
@@ -119,13 +119,13 @@ module "redis" {
 
 	// A tag of another version than the metadata is refused.
 	gitIn(t, repo, "tag", "greeter/v1.2.0")
-	rigRunErr(t, "the tag greeter/v1.2.0 is version 1.2.0, the metadata of the module says \"1.1.0\"", "stack", "sync", dir, "-upgrade")
+	riggerRunErr(t, "the tag greeter/v1.2.0 is version 1.2.0, the metadata of the module says \"1.1.0\"", "stack", "sync", dir, "-upgrade")
 	gitIn(t, repo, "tag", "-d", "greeter/v1.2.0")
 
 	// A tag that moves is refused.
 	gitIn(t, repo, "commit", "--quiet", "--allow-empty", "-m", "moved")
 	gitIn(t, repo, "tag", "-f", "-a", "-m", "moved", "greeter/v1.1.0")
-	rigRunErr(t, "the tag points to another commit", "stack", "validate", dir)
+	riggerRunErr(t, "the tag points to another commit", "stack", "validate", dir)
 
 	// Content that is not what the lock records is refused.
 	redis := strings.Index(string(lock), `module "builtin/redis"`)
@@ -135,20 +135,20 @@ module "redis" {
 		t.Fatal(err)
 	}
 
-	rigRunErr(t, "is not what the lock file records", "stack", "validate", dir)
+	riggerRunErr(t, "is not what the lock file records", "stack", "validate", dir)
 }
 
-// rigRunErr runs rig, which must fail with a message.
-func rigRunErr(t *testing.T, want string, args ...string) {
+// riggerRunErr runs rigger, which must fail with a message.
+func riggerRunErr(t *testing.T, want string, args ...string) {
 	t.Helper()
 
 	var stdout, stderr strings.Builder
 
 	if code := Run(t.Context(), append([]string{flagLogLevel, "warn"}, args...), &stdout, &stderr); code != exitError {
-		t.Fatalf("rig %s = %d, want an error", strings.Join(args, " "), code)
+		t.Fatalf("rigger %s = %d, want an error", strings.Join(args, " "), code)
 	}
 
 	if !strings.Contains(stderr.String(), want) {
-		t.Fatalf("rig %s: stderr does not contain %q:\n%s", strings.Join(args, " "), want, stderr.String())
+		t.Fatalf("rigger %s: stderr does not contain %q:\n%s", strings.Join(args, " "), want, stderr.String())
 	}
 }

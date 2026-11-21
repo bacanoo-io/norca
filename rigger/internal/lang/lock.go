@@ -14,7 +14,7 @@ import (
 )
 
 // LockFile is the name of the lock file of a stack (design 8.3).
-const LockFile = "rig.lock.hcl"
+const LockFile = "rigger.lock.hcl"
 
 // Lock is the lock file of a stack: per source, the version it resolved
 // to and where that version was found, so that every run installs the same
@@ -90,7 +90,7 @@ func (l *Lock) Bytes() []byte {
 	body := f.Body()
 	body.AppendUnstructuredTokens(hclwrite.Tokens{{
 		Type:  hclsyntax.TokenComment,
-		Bytes: []byte("# Written by rig stack sync: the versions of the modules of the stack and\n# where they were found (design 8.3). Kept in version control; not edited.\n"),
+		Bytes: []byte("# Written by rigger stack sync: the versions of the modules of the stack and\n# where they were found (design 8.3). Kept in version control; not edited.\n"),
 	}})
 
 	writeEntries(body, "module", l.Modules)

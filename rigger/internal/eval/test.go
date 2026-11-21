@@ -17,7 +17,7 @@ import (
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
-// Test is a test block of a tests/*.rigtest.hcl file (design 7.4): the
+// Test is a test block of a tests/*.riggertest.hcl file (design 7.4): the
 // install, the values, and the assertions over what the module gives, or
 // the error it must give instead.
 type Test struct {
@@ -231,7 +231,7 @@ func checkAsserts(m *lang.Module, t *Test, vars cty.Value, facts Facts, res *Res
 	ctx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			varRoot:    asLiterals(vars),
-			rigRoot:    facts.value(),
+			riggerRoot: facts.value(),
 			"resource": asLiterals(resourceObject(res.Resources)),
 			"output":   asLiterals(res.OutputValues),
 		},

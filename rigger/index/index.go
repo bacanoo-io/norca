@@ -54,7 +54,7 @@ const (
 
 // The levels of an advisory.
 const (
-	// LevelWarning is shown by rig stack sync and plan and changes nothing
+	// LevelWarning is shown by rigger stack sync and plan and changes nothing
 	// else.
 	LevelWarning = "warning"
 	// LevelBlocked keeps a version out: it is not listed again, and a lock
@@ -135,7 +135,7 @@ type Namespace struct {
 
 // Repository is a source repository of a namespace.
 type Repository struct {
-	// URL is the git address: github.com/acme/rig-modules.
+	// URL is the git address: github.com/acme/rigger-modules.
 	URL    string `json:"url"`
 	Layout string `json:"layout"`
 }

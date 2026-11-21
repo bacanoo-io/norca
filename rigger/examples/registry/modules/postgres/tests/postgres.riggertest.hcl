@@ -46,7 +46,7 @@ test "backups bring a periodic job and its policy" {
   }
 
   assert {
-    condition     = resource.policy.backup.job_acl.job_id == "${rig.release}-backup"
+    condition     = resource.policy.backup.job_acl.job_id == "${rigger.release}-backup"
     error_message = "the policy is bound to the dump job"
   }
 }

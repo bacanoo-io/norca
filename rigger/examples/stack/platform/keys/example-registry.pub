@@ -1,4 +1,4 @@
 -----BEGIN PUBLIC KEY-----
 EXAMPLE ONLY: the public key of the registry's signing key goes here
-(ECDSA P-256, as written by `rig key generate`).
+(ECDSA P-256, as written by `rigger key generate`).
 -----END PUBLIC KEY-----

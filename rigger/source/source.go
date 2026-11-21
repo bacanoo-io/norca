@@ -39,7 +39,7 @@ const (
 // Request names a module of a source, and a version to fetch.
 type Request struct {
 	// Source is the address as written in a stack: "example/postgres",
-	// "github.com/acme/rig-modules//nats", "builtin/redis".
+	// "github.com/acme/rigger-modules//nats", "builtin/redis".
 	Source string `json:"source"`
 	Kind   Kind   `json:"kind"`
 	// Registry is the name of the registry of the stack the address names;
@@ -133,7 +133,7 @@ type ListedSignature struct {
 }
 
 // Fetcher lists and fetches the versions of a source. A host implements
-// it; the rig program fetches with git, from directories and from the
+// it; the rigger program fetches with git, from directories and from the
 // modules built into it.
 type Fetcher interface {
 	// Versions returns the versions of the module of req.

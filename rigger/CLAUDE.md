@@ -1,17 +1,18 @@
-# norca-rig
+# Rigger
 
-Facts for agents working in this repository. Procedures live in skills; the
-design lives in `design/rig-design.md` and is the source of truth, so this
+Facts for agents working on Rigger, in `rigger/` of the norca repository
+(github.com/bacanoo-io/norca-rig before 2026-11-21). Procedures live in skills; the
+design lives in `design/rigger-design.md` and is the source of truth, so this
 file points to it instead of repeating it.
 
 ## The project
 
-- Rig is the package manager of Norca: a Go library (the core) and the `rig`
-  program, its first host. Design: `design/rig-design.md`. The examples of
+- Rigger is the package manager of Norca: a Go library (the core) and the `rigger`
+  program, its first host. Design: `design/rigger-design.md`. The examples of
   the language are in `examples/`; every module there loads, validates and
-  renders (`rig module render`), and the tests keep it so.
+  renders (`rigger module render`), and the tests keep it so.
 - Rules of the work (the introduction of the design): norca, norca-deployer
-  and norca-registry are not changed until Rig is ready; Rig is written from
+  and norca-registry are not changed until Rigger is ready; Rigger is written from
   scratch and no code is copied from the pack manager; the library has an
   interface Norca can take in (section 12); the design stays in this
   repository.
@@ -27,15 +28,15 @@ file points to it instead of repeating it.
   Source License (Terraform since 1.6, Nomad since 1.7, Vault, Consul) or any
   other license that is not open source, neither copied nor closely
   rewritten. Names of functions and their behaviour may be like those of
-  other tools (`coalesce`, `length`); their implementation is Rig's own, or
+  other tools (`coalesce`, `length`); their implementation is Rigger's own, or
   comes from an open-source dependency (go-cty: MIT, hcl: MPL-2.0). Code
   from Norca and from Nomad before its license change is MPL-2.0 and keeps
   its headers. `make check-licenses` fails on a dependency or a file under
   the Business Source License; a new dependency is checked by hand too.
-- Go path and license: `github.com/bacanoo-io/norca-rig`, MPL-2.0.
-- hcl/v2 stays at the commit Norca pins (`go.mod`): Rig's evaluation needs
+- Go path and license: `github.com/bacanoo-io/norca/rigger`, MPL-2.0.
+- hcl/v2 stays at the commit Norca pins (`go.mod`): Rigger's evaluation needs
   `hcl.EvalContext.UndefinedVariable`, which upstream hcl does not have, and
-  a newer hcl in Rig would break Norca's decoder when the server embeds Rig
+  a newer hcl in Rigger would break Norca's decoder when the server embeds Rigger
   (design 12.2).
 - Build in Claude's Linux VM: `source ../.tools/go-env.sh` first (Go 1.27.3
   built from source, modules from the Windows module cache, `GOSUMDB=off`),
@@ -48,15 +49,15 @@ file points to it instead of repeating it.
   `~/bin/norca agent -dev -bind 127.0.0.1` in the background and run the
   tests in the same call: a process does not outlive the call. The same
   agent checks rendered jobs: `PUT /v1/validate/job` with `{"Job": <spec>}`
-  from `rig module render`; the decoder accepts jobs the server refuses.
+  from `rigger module render`; the decoder accepts jobs the server refuses.
 - Runtime values (`runtime_env`, `secret_ref`, `service_address`, a runtime
   reference in a job) are placeholders of package `runref`; the job decoder
   of the host resolves them where they land (design 4.2). Template functions
   of Norca: `norcaSecret` (`nomadSecret` is an alias), `nomadVar`,
   `nomadService`, environment `NORCA_*`.
 - `cli/internal/jobspec2` is a copy of norca's jobspec2 until phase 7
-  (design, question 4): never edit the copied files; Rig's code there is
-  `rig_*.go`. `make check-copy` compares the copy with `../norca`; when
+  (design, question 4): never edit the copied files; Rigger's code there is
+  `rigger_*.go`. `make check-copy` compares the copy with `../norca`; when
   norca changes them, copy them again and update `SOURCE.md`.
 - The CLI module imports norca through `replace` to the checkout next to
   this repository (`../../norca/norca`), with norca's own replacements

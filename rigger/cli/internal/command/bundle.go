@@ -20,7 +20,7 @@ import (
 
 var errBundleOut = errors.New("bundle create needs -o, the file to write")
 
-// runBundle runs rig bundle create|inspect|import (design 7.1, 10).
+// runBundle runs rigger bundle create|inspect|import (design 7.1, 10).
 func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		warn(stderr, "bundle needs a command: create, inspect or import")
@@ -35,9 +35,9 @@ func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 		positional, args = append(positional, args[0]), args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig bundle "+cmd, flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger bundle "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	out := flags.String("o", "", "create: the bundle to write (platform.rigbundle)")
+	out := flags.String("o", "", "create: the bundle to write (platform.riggerbundle)")
 
 	if err := flags.Parse(args); err != nil {
 		return exitError

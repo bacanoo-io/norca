@@ -19,7 +19,7 @@ const (
 	varRoot    = "var"
 	localsRoot = "local"
 	moduleRoot = "module"
-	rigRoot    = "rig"
+	riggerRoot = "rigger"
 	eachRoot   = "each"
 	attrKey    = "key"
 	attrValue  = "value"

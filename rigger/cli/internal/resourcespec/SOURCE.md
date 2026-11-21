@@ -5,12 +5,12 @@
 MPL-2.0): the parsers of object kinds and objects, the ones the servers use
 for the resource files of a pack.
 
-**Why a copy:** Rig gives the host an object kind as its block written as
+**Why a copy:** Rigger gives the host an object kind as its block written as
 HCL in the order of the module (host.ResourceDecoder), and `cli/norcaapi`
 decodes it with the parser of Norca, so that a kind of a module is the kind
 the same file makes with `norca object-kind apply` and with the pack
 manager. The rest of the package needs packages of norca's server module,
-which the rig program does not link; norca is not changed before phase 7.
+which the rigger program does not link; norca is not changed before phase 7.
 **When it goes:** in phase 7, with the copy of jobspec2 (`cli/norcaapi`
 then imports norca's package).
 

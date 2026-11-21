@@ -101,7 +101,7 @@ func newStackRun(ctx context.Context, s *lang.Stack, vars cty.Value, generated G
 		base: &hcl.EvalContext{
 			Variables: map[string]cty.Value{
 				varRoot:    vars,
-				rigRoot:    stackFacts(s),
+				riggerRoot: stackFacts(s),
 				moduleRoot: cty.EmptyObjectVal,
 				localsRoot: cty.EmptyObjectVal,
 				stackRoot:  cty.EmptyObjectVal,
@@ -151,10 +151,10 @@ func (r *stackRun) run() (*StackResult, cty.Value, hcl.Diagnostics) {
 // maxReleaseName is the longest name of a release.
 const maxReleaseName = 63
 
-// stackFacts is the object rig.* of a stack.
+// stackFacts is the object rigger.* of a stack.
 func stackFacts(s *lang.Stack) cty.Value {
 	return cty.ObjectVal(map[string]cty.Value{
-		"stack":     cty.StringVal(s.Rig.Name),
+		"stack":     cty.StringVal(s.Rigger.Name),
 		"region":    cty.StringVal(StackRegion(s)),
 		"namespace": cty.StringVal(StackNamespace(s)),
 	})
@@ -162,12 +162,12 @@ func stackFacts(s *lang.Stack) cty.Value {
 
 // StackRegion is the region of a stack: global when it names none.
 func StackRegion(s *lang.Stack) string {
-	return or(s.Rig.Region, "global")
+	return or(s.Rigger.Region, "global")
 }
 
 // StackNamespace is the namespace of a release that names none.
 func StackNamespace(s *lang.Stack) string {
-	return or(s.Rig.Namespace, "default")
+	return or(s.Rigger.Namespace, "default")
 }
 
 // nodes gathers the locals, releases and parts of the stack.
@@ -323,7 +323,7 @@ func (r *stackRun) part(n *node) (cty.Value, hcl.Diagnostics) {
 	if p.Stack == nil {
 		return cty.DynamicVal, hcl.Diagnostics{{
 			Severity: hcl.DiagError, Summary: "Part not loaded",
-			Detail: fmt.Sprintf("The published stack of the part %q is not loaded; run rig stack sync.", p.Name), Subject: p.Block.DefRange.Ptr(),
+			Detail: fmt.Sprintf("The published stack of the part %q is not loaded; run rigger stack sync.", p.Name), Subject: p.Block.DefRange.Ptr(),
 		}}
 	}
 
@@ -354,10 +354,10 @@ func (r *stackRun) part(n *node) (cty.Value, hcl.Diagnostics) {
 	}
 
 	view := *p.Stack
-	view.Rig.Name, view.Rig.Region = r.stack.Rig.Name, StackRegion(r.stack)
+	view.Rigger.Name, view.Rigger.Region = r.stack.Rigger.Name, StackRegion(r.stack)
 
-	if view.Rig.Namespace == "" {
-		view.Rig.Namespace = StackNamespace(r.stack)
+	if view.Rigger.Namespace == "" {
+		view.Rigger.Namespace = StackNamespace(r.stack)
 	}
 
 	sub := newStackRun(r.ctx, &view, vars, func(name string) (string, bool) { return r.generated(p.Name + "-" + name) },
@@ -653,7 +653,7 @@ func StackTrust(s *lang.Stack, fileBytes int64) ([]TrustRule, hcl.Diagnostics) {
 		diags hcl.Diagnostics
 	)
 
-	for _, b := range s.Rig.Trust {
+	for _, b := range s.Rigger.Trust {
 		var t struct {
 			Registry string   `hcl:"registry,optional"`
 			Require  bool     `hcl:"require_signature,optional"`

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig_test
+package rigger_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/host"
 )
 
@@ -140,14 +140,14 @@ func stackFiles(stack string) fstest.MapFS {
 		"s/modules/db/metadata.hcl":   {Data: []byte("module {\n  name    = \"db\"\n  version = \"1.0.0\"\n}\n")},
 		"s/modules/db/variables.hcl":  {Data: []byte("variable \"size\" {}\n\nvariable \"password\" {\n  sensitive = true\n}\n")},
 		"s/modules/db/db.var.hcl":     {Data: []byte("variable \"db\" {\n  path = \"apps/db/info\"\n\n  items {\n    size     = var.size\n    password = var.password\n  }\n}\n")},
-		"s/modules/db/outputs.hcl":    {Data: []byte("output \"service\" {\n  value = \"${rig.release}-svc\"\n}\n")},
+		"s/modules/db/outputs.hcl":    {Data: []byte("output \"service\" {\n  value = \"${rigger.release}-svc\"\n}\n")},
 		"s/modules/app/metadata.hcl":  {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
 		"s/modules/app/variables.hcl": {Data: []byte("variable \"db\" {}\n")},
 		"s/modules/app/app.var.hcl":   {Data: []byte("variable \"app\" {\n  path = \"apps/app\"\n\n  items {\n    db = var.db\n  }\n}\n")},
 	}
 }
 
-const twoReleases = `rig {
+const twoReleases = `rigger {
   name      = "shop"
   region    = "eu"
   namespace = "apps"
@@ -167,10 +167,10 @@ module "db" {
 // testNamespace is the namespace of the stack of the tests.
 const testNamespace = "apps"
 
-func stackEngine(t *testing.T, f *fakeCluster) *rig.Engine {
+func stackEngine(t *testing.T, f *fakeCluster) *rigger.Engine {
 	t.Helper()
 
-	e, err := rig.New(rig.WithReleases(f), rig.WithSecrets(f), rig.WithLogger(slog.New(slog.DiscardHandler)))
+	e, err := rigger.New(rigger.WithReleases(f), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func stackEngine(t *testing.T, f *fakeCluster) *rig.Engine {
 	return e
 }
 
-func planOf(t *testing.T, e *rig.Engine, fsys fstest.MapFS, values rig.Values) *rig.StackPlan {
+func planOf(t *testing.T, e *rigger.Engine, fsys fstest.MapFS, values rigger.Values) *rigger.StackPlan {
 	t.Helper()
 
 	s, diags := e.LoadStack(t.Context(), fsys, "s")
@@ -194,7 +194,7 @@ func planOf(t *testing.T, e *rig.Engine, fsys fstest.MapFS, values rig.Values) *
 	return plan
 }
 
-func actions(plan *rig.StackPlan) string {
+func actions(plan *rigger.StackPlan) string {
 	var out []string
 	for _, r := range plan.Releases {
 		out = append(out, r.Release.Name+":"+string(r.Action))
@@ -219,7 +219,7 @@ func TestStack_PlanApply(t *testing.T) {
 		t.Errorf("plan generates %v, secrets %+v", plan.Generate, plan.Secrets)
 	}
 
-	if _, diags := e.ApplyStack(t.Context(), plan, rig.ApplyOptions{}); diags.HasErrors() {
+	if _, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{}); diags.HasErrors() {
 		t.Fatal(diags)
 	}
 
@@ -230,7 +230,7 @@ func TestStack_PlanApply(t *testing.T) {
 		t.Errorf("plan after apply = %s, generate %v, secrets %+v; want nothing to do", got, again.Generate, again.Secrets)
 	}
 
-	bigger := planOf(t, e, fsys, rig.Values{"size": {Value: ctyNumber(3)}})
+	bigger := planOf(t, e, fsys, rigger.Values{"size": {Value: ctyNumber(3)}})
 	if got := actions(bigger); got != "db:upgrade app:unchanged" || len(bigger.Releases[0].Changes) == 0 {
 		t.Errorf("plan with another size = %s", got)
 	}
@@ -243,7 +243,7 @@ func checkApplied(t *testing.T, f *fakeCluster) {
 	t.Helper()
 
 	db := f.releases[host.ReleaseRef{Namespace: testNamespace, Name: "db"}][0]
-	generated := f.secrets["rig/stacks/shop/generated"]["db"].Reveal()
+	generated := f.secrets["rigger/stacks/shop/generated"]["db"].Reveal()
 
 	if len(generated) != 32 || f.secrets["apps/db"]["password"].Reveal() != generated {
 		t.Errorf("generated %q, secret %q: want one value of 32 characters in both", generated, f.secrets["apps/db"]["password"].Reveal())
@@ -265,7 +265,7 @@ func TestStack_Prune(t *testing.T) {
 	f := newFakeCluster()
 	e := stackEngine(t, f)
 
-	if _, diags := e.ApplyStack(t.Context(), planOf(t, e, stackFiles(twoReleases), nil), rig.ApplyOptions{}); diags.HasErrors() {
+	if _, diags := e.ApplyStack(t.Context(), planOf(t, e, stackFiles(twoReleases), nil), rigger.ApplyOptions{}); diags.HasErrors() {
 		t.Fatal(diags)
 	}
 
@@ -276,12 +276,12 @@ func TestStack_Prune(t *testing.T) {
 		t.Fatalf("plan = %s, want app removed", got)
 	}
 
-	out, diags := e.ApplyStack(t.Context(), plan, rig.ApplyOptions{})
+	out, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{})
 	if diags.HasErrors() || !out[1].Skipped || len(f.releases) != 2 {
 		t.Fatalf("apply without prune: %+v %v; the release stays", out, diags)
 	}
 
-	if _, diags := e.ApplyStack(t.Context(), plan, rig.ApplyOptions{Prune: true}); diags.HasErrors() || len(f.releases) != 1 {
+	if _, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{Prune: true}); diags.HasErrors() || len(f.releases) != 1 {
 		t.Fatalf("apply with prune left %d releases: %v", len(f.releases), diags)
 	}
 
@@ -312,7 +312,7 @@ func TestStack_Errors(t *testing.T) {
 		{
 			name:     "a source of the global registry not synced",
 			stack:    strings.Replace(twoReleases, "\"./modules/app\"", "\"example/app\"", 1),
-			expected: "example/app has no entry in rig.lock.hcl",
+			expected: "example/app has no entry in rigger.lock.hcl",
 		},
 		{
 			name:     "an invalid release name",

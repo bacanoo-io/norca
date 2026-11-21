@@ -1,4 +1,4 @@
-# rig stack apply example/observability --version "~> 0.4" -f cluster.vars.hcl
+# rigger stack apply example/observability --version "~> 0.4" -f cluster.vars.hcl
 
 size           = "cluster"
 retention_days = 30

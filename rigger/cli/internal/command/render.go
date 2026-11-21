@@ -20,14 +20,14 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // errOneDirectory is the error of a render given more than one directory.
 var errOneDirectory = errors.New("module render takes one directory")
 
-// renderFlags are the flags of rig module render.
+// renderFlags are the flags of rigger module render.
 type renderFlags struct {
 	dir       string
 	files     listFlag
@@ -56,7 +56,7 @@ func parseRenderFlags(stderr io.Writer, args []string) (*renderFlags, error) {
 		f.dir, args = args[0], args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig module render", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger module render", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Var(&f.files, "f", "a file of values (*.vars.hcl); may be given more than once, a later one wins")
 	flags.Var(&f.vars, "var", "a value, name=value; wins over the files; may be given more than once")
@@ -87,7 +87,7 @@ func parseRenderFlags(stderr io.Writer, args []string) (*renderFlags, error) {
 // writes its resources and outputs to stdout as JSON. The jobs are decoded
 // with the job decoder of Norca.
 func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *renderFlags) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 		release = m.Metadata().Name
 	}
 
-	res, moreDiags := eng.Evaluate(ctx, m, rig.Install{
+	res, moreDiags := eng.Evaluate(ctx, m, rigger.Install{
 		Release: release, Namespace: f.namespace, Region: f.region, Values: values,
 	})
 	diags = append(diags, moreDiags...)
@@ -131,7 +131,7 @@ func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 	return writeRendered(stdout, m, release, f, res)
 }
 
-// rendered is the output of rig module render.
+// rendered is the output of rigger module render.
 type rendered struct {
 	Module    string             `json:"module"`
 	Version   string             `json:"version,omitempty"`
@@ -139,18 +139,18 @@ type rendered struct {
 	Namespace string             `json:"namespace"`
 	Region    string             `json:"region"`
 	Resources []renderedResource `json:"resources"`
-	Outputs   []rig.Output       `json:"outputs"`
+	Outputs   []rigger.Output    `json:"outputs"`
 }
 
 type renderedResource struct {
-	rig.Resource
+	rigger.Resource
 
 	// SecretItems are the names of the secret items; their values are
 	// never written.
 	SecretItems []string `json:"secret_items,omitempty"`
 }
 
-func writeRendered(w io.Writer, m *rig.Module, release string, f *renderFlags, res *rig.Result) error {
+func writeRendered(w io.Writer, m *rigger.Module, release string, f *renderFlags, res *rigger.Result) error {
 	md := m.Metadata()
 	out := rendered{
 		Module: md.Name, Version: md.Version, Release: release, Namespace: f.namespace, Region: f.region,
@@ -170,13 +170,13 @@ func writeRendered(w io.Writer, m *rig.Module, release string, f *renderFlags, r
 
 // readValues reads the files of values in order, then the -var values; a
 // later value of a name wins.
-func readValues(f *renderFlags) (rig.Values, hcl.Diagnostics) {
-	values := rig.Values{}
+func readValues(f *renderFlags) (rigger.Values, hcl.Diagnostics) {
+	values := rigger.Values{}
 
 	var diags hcl.Diagnostics
 
 	for _, p := range f.files {
-		// The person running rig names the file; it may be anywhere.
+		// The person running rigger names the file; it may be anywhere.
 		src, err := os.ReadFile(filepath.Clean(p))
 		if err != nil {
 			diags = append(diags, &hcl.Diagnostic{
@@ -186,7 +186,7 @@ func readValues(f *renderFlags) (rig.Values, hcl.Diagnostics) {
 			continue
 		}
 
-		more, moreDiags := rig.ParseValues(p, src)
+		more, moreDiags := rigger.ParseValues(p, src)
 		diags = append(diags, moreDiags...)
 
 		maps.Copy(values, more)
@@ -203,7 +203,7 @@ func readValues(f *renderFlags) (rig.Values, hcl.Diagnostics) {
 			continue
 		}
 
-		values[name] = rig.Value{Value: varValue(v)}
+		values[name] = rigger.Value{Value: varValue(v)}
 	}
 
 	return values, diags

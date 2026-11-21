@@ -35,7 +35,7 @@ done
 
 for f in "$copy"/*.go; do
   name="$(basename "$f")"
-  case "$name" in rig_*) continue ;; esac
+  case "$name" in rigger_*) continue ;; esac
 
   if [ ! -f "$norca/$name" ]; then
     echo "check-copy: $name is in the copy, not in norca's jobspec2" >&2

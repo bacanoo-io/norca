@@ -52,7 +52,7 @@ func TestSignVerify(t *testing.T) {
 	}
 
 	data, _ := json.Marshal(s)
-	fsys := fstest.MapFS{"m/.rig-signatures/" + sign.FileName(pub.ID): {Data: data}}
+	fsys := fstest.MapFS{"m/.rigger-signatures/" + sign.FileName(pub.ID): {Data: data}}
 
 	sigs, err := sign.ReadSignatures(fsys, "m")
 	if err != nil || len(sigs) != 1 || sigs[0] != s {

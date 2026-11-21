@@ -1,8 +1,8 @@
-# Rig examples
+# Rigger examples
 
-Illustrations of the design in `design/rig-design.md`: how a module, a
+Illustrations of the design in `design/rigger-design.md`: how a module, a
 registry and a stack look. The modules load, validate and render with
-`rig module validate` and `rig module render`, and their jobs pass a Norca
+`rigger module validate` and `rigger module render`, and their jobs pass a Norca
 server's validation; the stacks wait for phase 2. They change with the
 design.
 
@@ -18,8 +18,8 @@ What to look for:
   expressions and `enabled`; configuration files are built from data with an
   encoder (`natsconf`, `jsonencode`); longer texts use the template syntax of
   HCL itself.
-- **Install time and run time.** `var.*`, `local.*`, `module.*`, `rig.*` are
-  resolved by Rig. Everything else inside a job (`${NORCA_PORT_client}`,
+- **Install time and run time.** `var.*`, `local.*`, `module.*`, `rigger.*` are
+  resolved by Rigger. Everything else inside a job (`${NORCA_PORT_client}`,
   `${attr.kernel.name}`, the `{{ }}` of a task template) belongs to the
   cluster and passes through; in the data of a task template a runtime
   reference becomes `{{ env "..." }}`.
@@ -46,10 +46,10 @@ What to look for:
 | `files/*.tftpl` | a text in the template syntax of HCL, read with `templatefile()` |
 | `files/*` (other) | a plain file, read with `file()` |
 | `examples/*.vars.hcl`, `values/*.vars.hcl` | values of variables |
-| `tests/*.rigtest.hcl` | tests |
-| `stack.hcl` | a stack: the `rig` block and the modules it installs |
+| `tests/*.riggertest.hcl` | tests |
+| `stack.hcl` | a stack: the `rigger` block and the modules it installs |
 | `secrets.hcl` | the secrets a stack creates once |
-| `rig.lock.hcl` | the lock of a stack |
+| `rigger.lock.hcl` | the lock of a stack |
 
 The resource extensions are the ones packs use today, without `.tpl`. A
 block in a file of another name is an error, so a directory listing says
@@ -61,5 +61,5 @@ Details of the language the examples rely on (design sections 4.2, 5, 6):
   values the cluster resolves on the node;
 - a stack has modules of its own next to it (`./modules/...`), without a
   registry, a version or a signature;
-- tests are `tests/*.rigtest.hcl` with `test` blocks, `values`, `assert` and
+- tests are `tests/*.riggertest.hcl` with `test` blocks, `values`, `assert` and
   `expect_error`.

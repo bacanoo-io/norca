@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package convert does the mechanical part of turning a pack of Norca's
-// pack manager into a Rig module (design 14): the metadata, the variables
+// pack manager into a Rigger module (design 14): the metadata, the variables
 // with their checks, the examples, and the templates kept as comments for a
 // person to rewrite as HCL.
 package convert
@@ -222,7 +222,7 @@ func (c *converter) metadata() error {
 }
 
 // variables writes variables.hcl: the variables of the release go, and the
-// checks are written as Rig takes them.
+// checks are written as Rigger takes them.
 func (c *converter) variables() error {
 	path := filepath.Join(c.dir, "variables.hcl")
 
@@ -256,7 +256,7 @@ func (c *converter) variables() error {
 	data := f.Bytes()
 	for _, name := range releaseVariables {
 		if bytes.Contains(data, []byte("var."+name)) {
-			c.note("variables.hcl: var.%s is the release's now: rig.%s", name, name)
+			c.note("variables.hcl: var.%s is the release's now: rigger.%s", name, name)
 		}
 	}
 
@@ -266,7 +266,7 @@ func (c *converter) variables() error {
 func isReleaseVariable(name string) bool { return slices.Contains(releaseVariables, name) }
 
 // The checks of the pack manager on the items of a list and what they are
-// in an item block of Rig (design 6.2).
+// in an item block of Rigger (design 6.2).
 var itemChecks = map[string]string{"item_min_length": "min_length", "item_pattern": "pattern"}
 
 // variable rewrites the validation and ui blocks of one variable.
@@ -481,7 +481,7 @@ func (c *converter) templateList() ([]template, error) {
 
 // commentOut writes src, from the file name of the pack, as comment lines.
 func commentOut(buf *bytes.Buffer, name string, src []byte) {
-	fmt.Fprintf(buf, "\n# Converted by rig convert pack from %s of the pack: the template\n# below is to be written as HCL.\n#\n", name)
+	fmt.Fprintf(buf, "\n# Converted by rigger convert pack from %s of the pack: the template\n# below is to be written as HCL.\n#\n", name)
 
 	for line := range strings.Lines(string(src)) {
 		line = strings.TrimRight(line, "\r\n")

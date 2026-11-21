@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package lang loads a module of Rig: it reads the files of a module from an
+// Package lang loads a module of Rigger: it reads the files of a module from an
 // fs.FS, checks their names (design 4.5), parses them, and decodes what can
 // be decoded before any value is known: the metadata, the variables, the
 // rules, and the blocks of every file against its schema (design 4.1).

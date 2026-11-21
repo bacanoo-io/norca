@@ -17,7 +17,7 @@ import (
 )
 
 // DefaultGlobalRegistry is the address of the global registry (design
-// 7.3), the default registry of Rig.
+// 7.3), the default registry of Rigger.
 const DefaultGlobalRegistry = "github.com/bacanoo-io/norca-global-registry"
 
 // SetGlobalRegistry sets the address of the global registry: a git address,

@@ -13,7 +13,7 @@ import (
 // signedStack is a stack of the module greeter of the registry repo,
 // trusting the public key in keys/trusted.pub.
 func signedStack(repo string) string {
-	return `rig {
+	return `rigger {
   name = "signed"
 
   registry "local" {
@@ -37,11 +37,11 @@ func TestRun_KeyAndTrust(t *testing.T) {
 	repo := registryRepo(t)
 	keys := t.TempDir()
 
-	t.Setenv("RIG_CACHE_DIR", t.TempDir())
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
 	t.Setenv(passwordEnv, "secret")
 
-	rigRun(t, exitOK, []string{wroteLock, "key sha256:"}, "key", "generate", "-out", filepath.Join(keys, "signer"))
-	rigRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "other"))
+	riggerRun(t, exitOK, []string{wroteLock, "key sha256:"}, "key", "generate", "-out", filepath.Join(keys, "signer"))
+	riggerRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "other"))
 
 	// The greeter 1.1.1 is signed in the repository and tagged.
 	module := filepath.Join(repo, "modules", "greeter")
@@ -49,9 +49,9 @@ func TestRun_KeyAndTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rigRun(t, exitOK, []string{"signed greeter 1.1.1"}, "key", "sign", module, "-key", filepath.Join(keys, "signer.key"))
-	rigRun(t, exitOK, []string{"is signed by sha256:"}, "key", "verify", module, "-key", filepath.Join(keys, "signer.pub"))
-	rigRunErr(t, "not signed", "key", "verify", module, "-key", filepath.Join(keys, "other.pub"))
+	riggerRun(t, exitOK, []string{"signed greeter 1.1.1"}, "key", "sign", module, "-key", filepath.Join(keys, "signer.key"))
+	riggerRun(t, exitOK, []string{"is signed by sha256:"}, "key", "verify", module, "-key", filepath.Join(keys, "signer.pub"))
+	riggerRunErr(t, "not signed", "key", "verify", module, "-key", filepath.Join(keys, "other.pub"))
 
 	gitIn(t, repo, "add", "-A")
 	gitIn(t, repo, "commit", "--quiet", "-m", "greeter 1.1.1, signed")
@@ -67,20 +67,20 @@ func TestRun_KeyAndTrust(t *testing.T) {
 	}
 
 	ok := stack("signer.pub")
-	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", ok)
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", ok)
 
 	lock, err := os.ReadFile(filepath.Join(ok, lockFile))
 	if err != nil || !strings.Contains(string(lock), "signers") || !strings.Contains(string(lock), "greeter/v1.1.1") {
 		t.Fatalf("lock = %s, %v; want the signer of greeter/v1.1.1", lock, err)
 	}
 
-	rigRun(t, exitOK, []string{isValid}, "stack", "validate", ok)
+	riggerRun(t, exitOK, []string{isValid}, "stack", "validate", ok)
 
-	rigRunErr(t, "not signed by a key the stack trusts", "stack", "sync", stack("other.pub"))
+	riggerRunErr(t, "not signed by a key the stack trusts", "stack", "sync", stack("other.pub"))
 
 	if err := os.Unsetenv(passwordEnv); err != nil {
 		t.Fatal(err)
 	}
 
-	rigRunErr(t, passwordEnv, "key", "generate", "-out", filepath.Join(keys, "third"))
+	riggerRunErr(t, passwordEnv, "key", "generate", "-out", filepath.Join(keys, "third"))
 }

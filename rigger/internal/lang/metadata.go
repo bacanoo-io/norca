@@ -127,7 +127,7 @@ type stackMetadataFile struct {
 }
 
 // decodeMetadata decodes metadata.hcl of a stack: its stack block, with the
-// name of the rig block and a version.
+// name of the rigger block and a version.
 func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 	var md stackMetadataFile
 

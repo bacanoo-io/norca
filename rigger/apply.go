@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -269,7 +269,7 @@ func (e *Engine) destroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef,
 	return removed, nil
 }
 
-// PlanInstall plans one release of a module on its own (rig install): a
+// PlanInstall plans one release of a module on its own (rigger install): a
 // stack of one, owned by no stack.
 func (e *Engine) PlanInstall(ctx context.Context, m *Module, in Install, set host.Settings) (*ReleasePlan, hcl.Diagnostics) {
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "release.plan", "release", in.Release, "namespace", in.Namespace)

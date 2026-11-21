@@ -22,7 +22,7 @@ const (
 
 func version(v string) index.Version {
 	return index.Version{
-		Version: v, Repository: "github.com/acme/rig", Path: "modules/nats", Tag: "nats/v" + v, Commit: commit,
+		Version: v, Repository: "github.com/acme/rigger", Path: "modules/nats", Tag: "nats/v" + v, Commit: commit,
 		Digest: digest, Signatures: []index.Signature{{KeyID: digest, Signature: "MEUCIQ=="}}, Listed: "2026-11-18",
 	}
 }

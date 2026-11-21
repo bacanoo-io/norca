@@ -29,7 +29,7 @@ import (
 // SignatureDir is the directory of the signatures of a module, inside the
 // module. It is hidden, so the tree digest it signs leaves it out (design
 // 8.1): the signatures go with the module from any source.
-const SignatureDir = ".rig-signatures"
+const SignatureDir = ".rigger-signatures"
 
 // Signature is a signed statement about a tree digest.
 type Signature struct {
@@ -120,10 +120,10 @@ type statement struct {
 func Statement(digest, module, version string) (string, error) {
 	var st statement
 
-	st.Critical.Identity.DockerReference = "rig/" + module
+	st.Critical.Identity.DockerReference = "rigger/" + module
 	st.Critical.Image.DockerManifestDigest = digest
 	st.Critical.Type = "cosign container image signature"
-	st.Optional = map[string]string{"rig.module": module, "rig.version": version}
+	st.Optional = map[string]string{"rigger.module": module, "rigger.version": version}
 
 	payload, err := json.Marshal(st)
 	if err != nil {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"bytes"
@@ -150,7 +150,7 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 }
 
 // ValidateModule checks what can be checked of a module without a cluster
-// (design 10, rig module validate): its icon, its test files (parsed, not
+// (design 10, rigger module validate): its icon, its test files (parsed, not
 // run), every value file of its examples/, checked against its variables
 // and evaluated (design 7.4), the module with no values when every variable
 // has a default, and a warning for each variable that changes

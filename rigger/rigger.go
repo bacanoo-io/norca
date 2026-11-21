@@ -1,19 +1,19 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package rig is the engine of Rig, the package manager of Norca.
+// Package rigger is the engine of Rigger, the package manager of Norca.
 //
 // A host program builds an [Engine] with [New] and gives it, as options, the
 // adapters it has: the cluster, the release API, the secret store, its
 // storage and the decoder of job specifications (package host), and a
-// fetcher of modules (package source). The rig program is the first host;
+// fetcher of modules (package source). The rigger program is the first host;
 // the Norca server embeds the engine later through the same options
 // (design, section 12).
 //
 // The engine keeps no global state, reads no environment variables and no
 // files of its own, and reaches the network and the cluster only through
 // the adapters it is given (design 12.4).
-package rig
+package rigger
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ import (
 
 // ErrInvalidOption is matched (with errors.Is) by the error of [New] when an
 // option is invalid.
-var ErrInvalidOption = errors.New("rig: invalid option")
+var ErrInvalidOption = errors.New("rigger: invalid option")
 
 // Engine loads, evaluates, plans and applies modules and stacks. It is safe
 // for concurrent use.

@@ -19,11 +19,11 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
-// stackFlags are the flags of rig stack <command>.
+// stackFlags are the flags of rigger stack <command>.
 type stackFlags struct {
 	dir string
 	// address is the source of a published stack, version its constraint
@@ -39,7 +39,7 @@ type stackFlags struct {
 	region  string
 }
 
-// The commands of rig stack.
+// The commands of rigger stack.
 const (
 	cmdPlan    = "plan"
 	cmdApply   = "apply"
@@ -48,7 +48,7 @@ const (
 	cmdSync    = "sync"
 )
 
-// runStack runs rig stack <command> [dir] [flags].
+// runStack runs rigger stack <command> [dir] [flags].
 func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		warn(stderr, "stack needs a command: sync, validate, plan, apply, status, destroy or publish")
@@ -106,7 +106,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 		f.dir, args = args[0], args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig stack "+cmd, flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger stack "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Var(&f.files, "f", "a file of values of the stack (values/dev.vars.hcl); may be given more than once")
 	flags.Var(&f.vars, "var", "a value of the stack, name=value; may be given more than once")
@@ -115,7 +115,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
 	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
 	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")
-	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIG_KEY_PASSWORD)")
+	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
 	if err := flags.Parse(args); err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func isStackAddress(arg string) bool {
 // loadStack loads the stack in dir, with the root it reads its modules
 // from, and the values of the flags (files relative to the working
 // directory).
-func loadStack(ctx context.Context, eng *rig.Engine, f *stackFlags) (*rig.Stack, rig.Values, hcl.Diagnostics, error) {
+func loadStack(ctx context.Context, eng *rigger.Engine, f *stackFlags) (*rigger.Stack, rigger.Values, hcl.Diagnostics, error) {
 	if f.address != "" {
 		s, diags := eng.FetchStack(ctx, f.address, f.version)
 		if diags.HasErrors() {
@@ -194,7 +194,7 @@ func loadStack(ctx context.Context, eng *rig.Engine, f *stackFlags) (*rig.Stack,
 }
 
 // stackClusterEngine connects to the cluster of a stack.
-func stackClusterEngine(ctx context.Context, logger *slog.Logger, f *stackFlags) (*rig.Engine, *rig.Stack, rig.Values, hcl.Diagnostics, error) {
+func stackClusterEngine(ctx context.Context, logger *slog.Logger, f *stackFlags) (*rigger.Engine, *rigger.Stack, rigger.Values, hcl.Diagnostics, error) {
 	offline, err := offlineEngine(logger)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -252,7 +252,7 @@ func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 				return err
 			}
 
-			vals, moreDiags := rig.ParseValues(p, src)
+			vals, moreDiags := rigger.ParseValues(p, src)
 			diags = append(diags, moreDiags...)
 
 			if !moreDiags.HasErrors() {
@@ -311,7 +311,7 @@ func planApplyStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 		return nil
 	}
 
-	outcomes, diags := eng.ApplyStack(ctx, plan, rig.ApplyOptions{Prune: f.prune})
+	outcomes, diags := eng.ApplyStack(ctx, plan, rigger.ApplyOptions{Prune: f.prune})
 	if err := writeOutcomes(stdout, outcomes); err != nil {
 		return err
 	}
@@ -324,13 +324,13 @@ func planApplyStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 }
 
 // planSigns are the signs of the actions of a plan.
-var planSigns = map[rig.ReleaseAction]string{
-	rig.ActionInstall: "+", rig.ActionUpgrade: "~", rig.ActionUnchanged: "=",
-	rig.ActionRemove: "-", rig.ActionDisabled: " ",
+var planSigns = map[rigger.ReleaseAction]string{
+	rigger.ActionInstall: "+", rigger.ActionUpgrade: "~", rigger.ActionUnchanged: "=",
+	rigger.ActionRemove: "-", rigger.ActionDisabled: " ",
 }
 
 // writePlan writes a plan for a person, or as JSON.
-func writePlan(w io.Writer, plan *rig.StackPlan, asJSON, prune bool) error {
+func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 	if asJSON {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
@@ -343,7 +343,7 @@ func writePlan(w io.Writer, plan *rig.StackPlan, asJSON, prune bool) error {
 
 	for _, r := range plan.Releases {
 		action := string(r.Action)
-		if r.Action == rig.ActionRemove && !prune {
+		if r.Action == rigger.ActionRemove && !prune {
 			action += " (with -prune)"
 		}
 
@@ -370,14 +370,14 @@ func writePlan(w io.Writer, plan *rig.StackPlan, asJSON, prune bool) error {
 }
 
 // writeOutcomes writes what an apply did.
-func writeOutcomes(w io.Writer, outcomes []rig.ReleaseOutcome) error {
+func writeOutcomes(w io.Writer, outcomes []rigger.ReleaseOutcome) error {
 	for _, o := range outcomes {
 		status := "done"
 
 		switch {
 		case o.Skipped:
 			status = "skipped"
-		case o.Action == rig.ActionUnchanged || o.Action == rig.ActionDisabled:
+		case o.Action == rigger.ActionUnchanged || o.Action == rigger.ActionDisabled:
 			continue
 		}
 
@@ -491,4 +491,4 @@ func syncStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 }
 
 // lockFile is the name of the lock file of a stack.
-const lockFile = "rig.lock.hcl"
+const lockFile = "rigger.lock.hcl"

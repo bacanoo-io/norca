@@ -47,7 +47,7 @@ variable "token" {
 }
 `)},
 		"lib/x/outputs.hcl": {Data: []byte(`output "name" {
-  value = "${var.prefix}-${rig.module.name}-${rig.module.version}"
+  value = "${var.prefix}-${rigger.module.name}-${rigger.module.version}"
 }
 
 output "token" {
@@ -87,7 +87,7 @@ func TestEvaluate_Children(t *testing.T) {
 			name: "locals and a child read each other",
 			files: map[string]string{
 				appModules:          callX,
-				appLocals:           "locals {\n  prefix = rig.release\n  name   = upper(module.x.name)\n}\n",
+				appLocals:           "locals {\n  prefix = rigger.release\n  name   = upper(module.x.name)\n}\n",
 				"app/app.norca.hcl": "job \"app\" {\n  id = local.name\n}\n",
 			},
 			names:    "acl-policy x.y, job app",

@@ -18,7 +18,7 @@ import (
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
-// The meta-arguments Rig adds to a resource (design 5).
+// The meta-arguments Rigger adds to a resource (design 5).
 const (
 	metaEnabled = "enabled"
 	metaForEach = "for_each"
@@ -358,7 +358,7 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, c
 	if e.cfg.Jobs == nil {
 		return Resource{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError, Summary: "No job decoder",
-			Detail:  "The engine has no job decoder, so it can't evaluate a job (rig.WithJobDecoder).",
+			Detail:  "The engine has no job decoder, so it can't evaluate a job (rigger.WithJobDecoder).",
 			Subject: r.Block.DefRange.Ptr(),
 		}}
 	}

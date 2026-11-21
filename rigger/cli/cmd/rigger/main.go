@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Command rig is the package manager of Norca: it installs modules and
+// Command rigger is the package manager of Norca: it installs modules and
 // stacks into a Norca cluster.
 package main
 

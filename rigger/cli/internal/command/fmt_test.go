@@ -53,7 +53,7 @@ func TestRun_Fmt(t *testing.T) {
 		},
 		{
 			name:         "hidden directories are left out",
-			files:        map[string]string{"m/.rig/state.hcl": unformatted},
+			files:        map[string]string{"m/.rigger/state.hcl": unformatted},
 			check:        true,
 			expectedCode: exitOK,
 		},

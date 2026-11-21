@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -27,13 +27,13 @@ func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []
 		entry := s.Lock.Stack(p.Source)
 		if entry == nil {
 			diags = append(diags, diagAt(rng, "Not in the lock file",
-				fmt.Sprintf("%s has no entry in %s; run rig stack sync.", p.Source, lang.LockFile)))
+				fmt.Sprintf("%s has no entry in %s; run rigger stack sync.", p.Source, lang.LockFile)))
 
 			continue
 		}
 
 		if err := meets(p.Version, entry.Version); err != nil {
-			diags = append(diags, diagAt(rng, "Lock file out of date", err.Error()+"; run rig stack sync."))
+			diags = append(diags, diagAt(rng, "Lock file out of date", err.Error()+"; run rigger stack sync."))
 
 			continue
 		}

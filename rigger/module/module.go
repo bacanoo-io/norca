@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package module describes a module of Rig as plain data: its metadata, the
+// Package module describes a module of Rigger as plain data: its metadata, the
 // tabs of its install form and its variables (design 4.4, 4.5). The engine
 // fills these from metadata.hcl and variables.hcl; a host shows them, for
-// example in rig module show or in the install form of the UI.
+// example in rigger module show or in the install form of the UI.
 package module
 
 // Metadata is the module block of metadata.hcl.

@@ -36,7 +36,7 @@ job "backup" {
         PGUSER    = "postgres"
         S3_BUCKET = var.backup.enabled ? var.backup.s3.bucket : ""
         KEEP_DAYS = tostring(var.backup.keep_days)
-        PREFIX    = "${rig.region}/${local.job}"
+        PREFIX    = "${rigger.region}/${local.job}"
       }
 
       template {

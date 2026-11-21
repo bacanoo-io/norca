@@ -27,7 +27,7 @@ var (
 
 // publishGit publishes the module in dir in its git repository (design
 // 7.2, 7.3): it validates the module, signs its tree digest with key into
-// .rig-signatures and commits the signature, and tags the commit with the
+// .rigger-signatures and commits the signature, and tags the commit with the
 // tag of the version: v<version> for a module at the root of the
 // repository, <name>/v<version> for one in a directory. The tag is not
 // pushed; the global registry lists it from the repository once it is.
@@ -64,7 +64,7 @@ func publishStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 	return tagVersion(ctx, logger, stdout, stderr, f.dir, f.key, t)
 }
 
-// tagVersion signs the module or stack in dir with key into .rig-signatures
+// tagVersion signs the module or stack in dir with key into .rigger-signatures
 // and commits the signature, then tags the commit with the tag of the
 // version: v<version> at the root of the repository, <name>/v<version> in a
 // directory. The tag is not pushed.

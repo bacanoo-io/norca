@@ -21,11 +21,11 @@ import (
 )
 
 // ownerPrefix marks the stack that owns a release in its description (the
-// spike of phase 0, design 12.2): "rig stack <name>". A release installed
-// on its own is described as "rig".
+// spike of phase 0, design 12.2): "rigger stack <name>". A release installed
+// on its own is described as "rigger".
 const (
-	ownerPrefix = "rig stack "
-	ownDesc     = "rig"
+	ownerPrefix = "rigger stack "
+	ownDesc     = "rigger"
 )
 
 // Releases is the release API of Norca (host.Releases).

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package eval evaluates a module of Rig: the values of its variables and
+// Package eval evaluates a module of Rigger: the values of its variables and
 // its rules now; its locals, resources and outputs as phase 1 goes on
 // (design 4.2, 6.1).
 package eval

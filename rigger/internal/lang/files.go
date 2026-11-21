@@ -107,7 +107,7 @@ func Classify(p string) (FileKind, ResourceType, string) {
 			return FileExample, ResourceType{}, ""
 		}
 	case "tests":
-		if dir == "tests/" && strings.HasSuffix(name, ".rigtest.hcl") {
+		if dir == "tests/" && strings.HasSuffix(name, ".riggertest.hcl") {
 			return FileTest, ResourceType{}, ""
 		}
 	}

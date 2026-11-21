@@ -1,7 +1,7 @@
 #!/bin/sh
 # Dump every database, upload it, remove the dumps older than KEEP_DAYS.
 # A plain file of the module: backup.norca.hcl reads it with file(), nothing in it
-# is filled in by Rig; its settings come from the environment of the task.
+# is filled in by Rigger; its settings come from the environment of the task.
 set -eu
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)

@@ -21,15 +21,15 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
-// errUnformatted is the error of rig fmt -check when a file is not
+// errUnformatted is the error of rigger fmt -check when a file is not
 // formatted.
 var errUnformatted = errors.New("files are not formatted")
 
-// runFmt runs rig fmt [-check] [path ...]: every .hcl file under the paths
+// runFmt runs rigger fmt [-check] [path ...]: every .hcl file under the paths
 // (design 10: all files are HCL, nothing is skipped), hidden directories
 // left out.
 func runFmt(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	flags := flag.NewFlagSet("rig fmt", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger fmt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	check := flags.Bool("check", false, "write nothing; list the files that are not formatted and fail if there are any")
 
@@ -118,7 +118,7 @@ func (f *formatter) file(p string) error {
 // formatFile formats one file, and says whether its formatting changed it.
 // With check it writes nothing.
 func formatFile(p string, check bool) (bool, hcl.Diagnostics, error) {
-	// The person running rig names the files; they may be anywhere.
+	// The person running rigger names the files; they may be anywhere.
 	src, err := os.ReadFile(filepath.Clean(p))
 	if err != nil {
 		return false, nil, err
@@ -142,6 +142,6 @@ func formatFile(p string, check bool) (bool, hcl.Diagnostics, error) {
 		return false, nil, err
 	}
 
-	// The person running rig names the files to format.
+	// The person running rigger names the files to format.
 	return true, nil, os.WriteFile(p, out, info.Mode().Perm()) //nolint:gosec // G703: the path is the user's own argument
 }

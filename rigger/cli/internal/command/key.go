@@ -19,15 +19,16 @@ import (
 	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
-// passwordEnv holds the password of a private key.
-const passwordEnv = "RIG_KEY_PASSWORD"
+// passwordEnv names the environment variable that holds the password of a
+// private key.
+const passwordEnv = "RIGGER_KEY_PASSWORD" //nolint:gosec // G101: the name of a variable, not a credential
 
 var (
 	errPassword = errors.New(passwordEnv + " holds the password of the private key; set it (an empty value is a key without a password)")
 	errKeyFlag  = errors.New("the command needs -key")
 )
 
-// runKey runs rig key generate|sign|verify (design 8.1, 10).
+// runKey runs rigger key generate|sign|verify (design 8.1, 10).
 func runKey(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		warn(stderr, "key needs a command: generate, sign or verify")
@@ -42,10 +43,10 @@ func runKey(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, 
 		positional, args = append(positional, args[0]), args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig key "+cmd, flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger key "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	key := flags.String("key", "", "sign: the private key; verify: the public key")
-	out := flags.String("out", "rig", "generate: the files to write, <out>.key and <out>.pub")
+	out := flags.String("out", "rigger", "generate: the files to write, <out>.key and <out>.pub")
 
 	if err := flags.Parse(args); err != nil {
 		return exitError
@@ -73,7 +74,7 @@ func runKey(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, 
 }
 
 // generateKey writes a new key pair: <out>.key encrypted with the password
-// of RIG_KEY_PASSWORD, and <out>.pub.
+// of RIGGER_KEY_PASSWORD, and <out>.pub.
 func generateKey(w io.Writer, out string) error {
 	password, ok := os.LookupEnv(passwordEnv)
 	if !ok {
@@ -184,7 +185,7 @@ const stackFile = "stack.hcl"
 var errUnpublished = errors.New("a stack is signed when it is published: it needs metadata.hcl with its stack block (design 7.5)")
 
 // signModule signs the tree digest of the module or published stack in dir
-// and writes the signature into its .rig-signatures directory, which the
+// and writes the signature into its .rigger-signatures directory, which the
 // digest leaves out.
 func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir, keyFile string) error {
 	key, err := readPrivateKey(keyFile)
@@ -227,7 +228,7 @@ func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	return err
 }
 
-// readPrivateKey reads a private key with the password of RIG_KEY_PASSWORD.
+// readPrivateKey reads a private key with the password of RIGGER_KEY_PASSWORD.
 func readPrivateKey(keyFile string) (*ecdsa.PrivateKey, error) {
 	if keyFile == "" {
 		return nil, errKeyFlag

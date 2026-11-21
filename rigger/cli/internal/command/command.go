@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package command holds the commands of the rig program.
+// Package command holds the commands of the rigger program.
 //
 // The program is configured by flags and logs to standard error (design
 // 12.1); the engine reads neither.
@@ -47,17 +47,17 @@ const (
 	cmdValidate = "validate"
 )
 
-const usage = `Usage: rig [flags] <command>
+const usage = `Usage: rigger [flags] <command>
 
 Commands:
   help                    print this help
-  version                 print the version of rig
+  version                 print the version of rigger
   fmt [-check] [path ...] format the .hcl files under the paths (the current
                           directory); -check lists those that are not
                           formatted and fails
   stack sync [dir] [-upgrade]
                           resolve the versions of the modules of a stack,
-                          fetch and verify them, write rig.lock.hcl
+                          fetch and verify them, write rigger.lock.hcl
   stack validate [dir] [-f values] [-var name=value]
                           evaluate a stack without a cluster (each file of
                           values/ when none is given)
@@ -80,14 +80,14 @@ Commands:
                           install or upgrade one release of a module
   release list|status|history|rollback|uninstall [name] [-namespace ns]
                           one release, without a stack
-  key generate [-out name] write name.key (encrypted with RIG_KEY_PASSWORD)
+  key generate [-out name] write name.key (encrypted with RIGGER_KEY_PASSWORD)
                           and name.pub
   key sign [dir] -key name.key
                           sign the tree digest of a module into its
-                          .rig-signatures directory
+                          .rigger-signatures directory
   key verify [dir] -key name.pub
                           check that a module is signed by the key
-  bundle create [stack] -o file.rigbundle
+  bundle create [stack] -o file.riggerbundle
                           the modules of a stack from git sources, as its
                           lock pins them, in one archive
   bundle inspect file     what a bundle holds
@@ -96,7 +96,7 @@ Commands:
   The cluster is that of NORCA_ADDR and NORCA_TOKEN. A source
   <namespace>/<name> that names no registry of the stack is a module of
   the global registry, github.com/bacanoo-io/norca-global-registry, or of
-  RIG_GLOBAL_REGISTRY (a git address or a directory).
+  RIGGER_GLOBAL_REGISTRY (a git address or a directory).
   convert pack <dir> -out <dir> [-examples <dir>]
                           the mechanical part of turning a pack into a
                           module: metadata, variables, examples; the
@@ -104,7 +104,7 @@ Commands:
   module validate [dir]   check a module without a cluster: its files, its
                           icon, its tests, and its example values rendered
                           (dir: the current one)
-  module test [dir]       run the tests of a module (tests/*.rigtest.hcl):
+  module test [dir]       run the tests of a module (tests/*.riggertest.hcl):
                           its values in, assertions over its resources
   module publish [dir] -to oci://host/repository
                           push the module, with its child modules and
@@ -128,7 +128,7 @@ Commands:
 Flags:
 `
 
-// command runs a command of the rig program with its arguments.
+// command runs a command of the rigger program with its arguments.
 type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int
 
 // commands are the commands that take commands or flags of their own.
@@ -138,10 +138,10 @@ var commands = map[string]command{
 	cmdIndex: runIndex,
 }
 
-// Run runs the rig program with its arguments, without the program name,
+// Run runs the rigger program with its arguments, without the program name,
 // and returns the exit code.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("rig", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() { printUsage(flags) }
 
@@ -171,7 +171,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	switch name {
 	case cmdVersion:
 		return run(ctx, logger, stderr, name, func(context.Context) error {
-			_, err := fmt.Fprintf(stdout, "rig %s\n", version())
+			_, err := fmt.Fprintf(stdout, "rigger %s\n", version())
 
 			return err
 		})
@@ -258,5 +258,5 @@ func printUsage(flags *flag.FlagSet) {
 // warn writes a message for the user to standard error. A failed write
 // there can't be reported anywhere else, so its error is dropped.
 func warn(w io.Writer, format string, args ...any) {
-	_, _ = fmt.Fprintf(w, "rig: "+format+"\n", args...)
+	_, _ = fmt.Fprintf(w, "rigger: "+format+"\n", args...)
 }

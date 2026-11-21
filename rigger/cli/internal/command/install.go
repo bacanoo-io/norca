@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 	"github.com/bacanoo-io/norca/rigger/host"
 )
 
-// installFlags are the flags of rig install.
+// installFlags are the flags of rigger install.
 type installFlags struct {
 	renderFlags
 
@@ -28,7 +28,7 @@ type installFlags struct {
 
 var errInstallName = errors.New("install needs -name, the name of the release")
 
-// runInstall runs rig install <dir> -name x: one release of a module, a
+// runInstall runs rigger install <dir> -name x: one release of a module, a
 // stack of one owned by no stack (design 10).
 func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	f := &installFlags{}
@@ -38,7 +38,7 @@ func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		f.dir, args = args[0], args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig install", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger install", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Var(&f.files, "f", "a file of values (*.vars.hcl); may be given more than once")
 	flags.Var(&f.vars, "var", "a value, name=value; may be given more than once")
@@ -98,13 +98,13 @@ func install(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 		region = "global"
 	}
 
-	rp, diags := eng.PlanInstall(ctx, m, rig.Install{Release: f.name, Namespace: f.namespace, Region: region, Values: values},
+	rp, diags := eng.PlanInstall(ctx, m, rigger.Install{Release: f.name, Namespace: f.namespace, Region: region, Values: values},
 		host.Settings{Wait: true, Timeout: f.timeout})
 	if diags.HasErrors() {
 		return reportDiags(stderr, f.dir, diags)
 	}
 
-	if rp.Action == rig.ActionUnchanged {
+	if rp.Action == rigger.ActionUnchanged {
 		_, err := fmt.Fprintf(stdout, "%s/%s is unchanged (revision %d)\n", rp.Release.Namespace, rp.Release.Name, rp.Revision)
 
 		return err

@@ -1,7 +1,7 @@
 # One group per subject: each scales and restarts on its own.
 job "worker" {
-  id   = rig.release
-  name = rig.release
+  id   = rigger.release
+  name = rigger.release
   type = "service"
 
   dynamic "group" {

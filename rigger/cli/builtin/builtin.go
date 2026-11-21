@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package builtin holds the modules built into the rig program (design 7.1:
+// Package builtin holds the modules built into the rigger program (design 7.1:
 // builtin/<name>). Each is a module of modules/<name>, of the version its
 // metadata says.
 package builtin

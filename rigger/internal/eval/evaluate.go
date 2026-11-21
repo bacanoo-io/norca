@@ -127,7 +127,7 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 	base := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			varRoot:    vars,
-			rigRoot:    facts.value(),
+			riggerRoot: facts.value(),
 			moduleRoot: cty.EmptyObjectVal,
 			localsRoot: cty.EmptyObjectVal,
 		},

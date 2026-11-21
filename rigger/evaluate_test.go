@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig_test
+package rigger_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 )
 
 func TestEngine_Evaluate(t *testing.T) {
@@ -25,22 +25,22 @@ func TestEngine_Evaluate(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		install  rig.Install
+		install  rigger.Install
 		expected string
 	}{
 		{
 			name:     "missing facts",
-			install:  rig.Install{Release: "cache"},
+			install:  rigger.Install{Release: "cache"},
 			expected: "Missing namespace; An install names its namespace.",
 		},
 		{
 			name:     "a job without a decoder",
-			install:  rig.Install{Release: "cache", Namespace: testNamespace, Region: "eu"},
+			install:  rigger.Install{Release: "cache", Namespace: testNamespace, Region: "eu"},
 			expected: "No job decoder",
 		},
 		{
 			name: "invalid values",
-			install: rig.Install{Release: "cache", Namespace: testNamespace, Region: "eu", Values: rig.Values{
+			install: rigger.Install{Release: "cache", Namespace: testNamespace, Region: "eu", Values: rigger.Values{
 				"count": {Value: cty.NumberIntVal(0)},
 			}},
 			expected: "var.count is 0, less than 1",

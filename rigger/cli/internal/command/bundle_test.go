@@ -13,10 +13,10 @@ import (
 func TestRun_Bundle(t *testing.T) {
 	repo := registryRepo(t)
 	online := t.TempDir()
-	t.Setenv("RIG_CACHE_DIR", online)
+	t.Setenv("RIGGER_CACHE_DIR", online)
 
 	dir := writeTree(t, map[string]string{
-		stackFile: `rig {
+		stackFile: `rigger {
   name = "offline"
 
   registry "local" {
@@ -31,11 +31,11 @@ module "hello" {
 `,
 	})
 
-	rigRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
 
-	first, second := filepath.Join(t.TempDir(), "a.rigbundle"), filepath.Join(t.TempDir(), "b.rigbundle")
-	rigRun(t, exitOK, []string{"1 module(s) of the stack offline"}, "bundle", "create", dir, "-o", first)
-	rigRun(t, exitOK, []string{wroteLock}, "bundle", "create", dir, "-o", second)
+	first, second := filepath.Join(t.TempDir(), "a.riggerbundle"), filepath.Join(t.TempDir(), "b.riggerbundle")
+	riggerRun(t, exitOK, []string{"1 module(s) of the stack offline"}, "bundle", "create", dir, "-o", first)
+	riggerRun(t, exitOK, []string{wroteLock}, "bundle", "create", dir, "-o", second)
 
 	a, _ := os.ReadFile(first)
 	b, _ := os.ReadFile(second)
@@ -44,16 +44,16 @@ module "hello" {
 		t.Fatalf("two bundles of the same modules differ (%d, %d bytes)", len(a), len(b))
 	}
 
-	rigRun(t, exitOK, []string{"local/greeter 1.1.0 (greeter/v1.1.0, sha256:"}, "bundle", "inspect", first)
+	riggerRun(t, exitOK, []string{"local/greeter 1.1.0 (greeter/v1.1.0, sha256:"}, "bundle", "inspect", first)
 
 	// Without a network: the repository is gone and the cache is empty.
 	if err := os.Rename(repo, repo+".gone"); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Setenv("RIG_CACHE_DIR", t.TempDir())
-	rigRunErr(t, "Module not loaded", "stack", "validate", dir)
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+	riggerRunErr(t, "Module not loaded", "stack", "validate", dir)
 
-	rigRun(t, exitOK, []string{"imported local/greeter 1.1.0"}, "bundle", "import", first)
-	rigRun(t, exitOK, []string{isValid}, "stack", "validate", dir)
+	riggerRun(t, exitOK, []string{"imported local/greeter 1.1.0"}, "bundle", "import", first)
+	riggerRun(t, exitOK, []string{isValid}, "stack", "validate", dir)
 }

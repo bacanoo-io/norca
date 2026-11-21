@@ -2,14 +2,14 @@
 
 ## What the stack declares
 
-The base of audit is a module of rig (`builtin/audit`, an idea, not built),
+The base of audit is a module of rigger (`builtin/audit`, an idea, not built),
 imported in `stack.hcl` like the other modules. What is audited is a
 resource file of a module, `<name>.audit.hcl`, here
 `modules/shop-api/shop.audit.hcl`; it says what and nothing about how:
 
 ```hcl
 audit "shop" {
-  namespaces = [rig.namespace]
+  namespaces = [rigger.namespace]
   record     = ["job", "secret", "variable", "acl"]
   actions    = ["create", "update", "delete"]
   keep       = "90d"
@@ -19,13 +19,13 @@ audit "shop" {
 
 The trail then holds records (when, who, which action, which resource, the
 outcome), and a reader asks for the records of a resource, a person or a
-time span. Once rig is embedded in the Norca servers, the module sits on
+time span. Once rigger is embedded in the Norca servers, the module sits on
 the internal bus and this declaration is all there is.
 
-## Underneath, until rig is embedded
+## Underneath, until rigger is embedded
 
 This part is the plumbing, and not what an author of a stack should have to
-write. Until rig is embedded, the changes of the region are read from
+write. Until rigger is embedded, the changes of the region are read from
 outside as events of the system bus; these are the steps for it, with the
 NATS of this stack as the place they arrive.
 
@@ -92,7 +92,7 @@ the token.
    as a leaf node and the changes arrive in the account `AUDIT`.
 
    ```shell
-   rig stack apply -f values/prod.vars.hcl
+   rigger stack apply -f values/prod.vars.hcl
    norca operator bus status        # Leaf nodes = 1
    ```
 

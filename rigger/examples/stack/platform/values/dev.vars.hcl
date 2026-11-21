@@ -1,4 +1,4 @@
-# rig stack apply -f values/dev.vars.hcl
+# rigger stack apply -f values/dev.vars.hcl
 # No change data capture: the NATS of the stack is not attached to the bus.
 
 node      = "dev-1"

@@ -62,7 +62,7 @@ job "web" {
       env = local.env
 
       # The credentials reach the task at run time; the {{ }} below is the
-      # task template of the cluster, Rig only fills in the path.
+      # task template of the cluster, Rigger only fills in the path.
       dynamic "template" {
         for_each = var.database == null ? [] : [var.database_secret]
         content {

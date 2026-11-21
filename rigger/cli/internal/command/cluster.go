@@ -9,7 +9,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
@@ -28,24 +28,24 @@ func newClient(region string) (*api.Client, error) {
 
 // clusterEngine returns an engine with the ports over the cluster of the
 // client; secrets live in namespace.
-func clusterEngine(logger *slog.Logger, client *api.Client, namespace string) (*rig.Engine, error) {
+func clusterEngine(logger *slog.Logger, client *api.Client, namespace string) (*rigger.Engine, error) {
 	fetcher, err := newFetcher()
 	if err != nil {
 		return nil, err
 	}
 
-	return rig.New(
-		rig.WithLogger(logger),
-		rig.WithFetcher(fetcher),
-		rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}),
-		rig.WithCluster(norcaapi.NewCluster(client)),
-		rig.WithReleases(norcaapi.NewReleases(client)),
-		rig.WithSecrets(norcaapi.NewSecrets(client, namespace)),
+	return rigger.New(
+		rigger.WithLogger(logger),
+		rigger.WithFetcher(fetcher),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithCluster(norcaapi.NewCluster(client)),
+		rigger.WithReleases(norcaapi.NewReleases(client)),
+		rigger.WithSecrets(norcaapi.NewSecrets(client, namespace)),
 	)
 }
 
-// newFetcher returns the fetcher of modules with its cache (RIG_CACHE_DIR)
-// and the global registry (RIG_GLOBAL_REGISTRY, a git address or a
+// newFetcher returns the fetcher of modules with its cache (RIGGER_CACHE_DIR)
+// and the global registry (RIGGER_GLOBAL_REGISTRY, a git address or a
 // directory).
 func newFetcher() (*fetch.Fetcher, error) {
 	dir, err := fetch.CacheDir()
@@ -55,7 +55,7 @@ func newFetcher() (*fetch.Fetcher, error) {
 
 	f := fetch.New(dir)
 
-	if global := os.Getenv("RIG_GLOBAL_REGISTRY"); global != "" {
+	if global := os.Getenv("RIGGER_GLOBAL_REGISTRY"); global != "" {
 		f.SetGlobalRegistry(global)
 	}
 
@@ -64,11 +64,11 @@ func newFetcher() (*fetch.Fetcher, error) {
 
 // offlineEngine is an engine without a cluster: it loads, fetches and
 // evaluates.
-func offlineEngine(logger *slog.Logger) (*rig.Engine, error) {
+func offlineEngine(logger *slog.Logger) (*rigger.Engine, error) {
 	fetcher, err := newFetcher()
 	if err != nil {
 		return nil, err
 	}
 
-	return rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}), rig.WithFetcher(fetcher))
+	return rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}), rigger.WithFetcher(fetcher))
 }

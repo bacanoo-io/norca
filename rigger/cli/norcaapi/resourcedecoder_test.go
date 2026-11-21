@@ -10,7 +10,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
@@ -21,7 +21,7 @@ import (
 func TestResourceDecoder_ObjectKind(t *testing.T) {
 	t.Parallel()
 
-	eng, err := rig.New(rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestResourceDecoder_ObjectKind(t *testing.T) {
 }
 
 // decodedKind evaluates m and decodes its one resource, an object kind.
-func decodedKind(t *testing.T, eng *rig.Engine, m *rig.Module) *api.ObjectKind {
+func decodedKind(t *testing.T, eng *rigger.Engine, m *rigger.Module) *api.ObjectKind {
 	t.Helper()
 
 	res, diags := eng.Evaluate(t.Context(), m, install)

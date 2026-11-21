@@ -20,7 +20,7 @@ import (
 	"slices"
 	"strings"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/module"
@@ -36,7 +36,7 @@ type Indexer struct {
 	Dir string
 	// Engine loads and validates modules; it renders their examples with
 	// the decoders of the host.
-	Engine  *rig.Engine
+	Engine  *rigger.Engine
 	Fetcher *fetch.Fetcher
 	// Replace reads a repository from another place (a clone), keyed by
 	// its URL; the entries still name the URL.
@@ -343,7 +343,7 @@ func (ix *Indexer) inspectStack(ctx context.Context, t tree) (module.Metadata, s
 			return module.Metadata{}, "", nil, err
 		}
 
-		vals, diags := rig.ParseValues(p, src)
+		vals, diags := rigger.ParseValues(p, src)
 		if !diags.HasErrors() {
 			diags = append(diags, ix.Engine.ValidateStack(ctx, s, vals)...)
 		}

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -178,16 +178,16 @@ func TestNew_InvalidOptions(t *testing.T) {
 		opt      Option
 		expected string
 	}{
-		{name: "nil option", opt: nil, expected: "rig: invalid option: option 0 is nil"},
-		{name: "nil cluster", opt: WithCluster(nil), expected: "rig: invalid option: nil cluster"},
-		{name: "nil job decoder", opt: WithJobDecoder(nil), expected: "rig: invalid option: nil job decoder"},
-		{name: "nil releases", opt: WithReleases(nil), expected: "rig: invalid option: nil releases"},
-		{name: "nil secrets", opt: WithSecrets(nil), expected: "rig: invalid option: nil secrets"},
-		{name: "nil store", opt: WithStore(nil), expected: "rig: invalid option: nil store"},
-		{name: "nil fetcher", opt: WithFetcher(nil), expected: "rig: invalid option: nil fetcher"},
-		{name: "nil clock", opt: WithClock(nil), expected: "rig: invalid option: nil clock"},
-		{name: "nil logger", opt: WithLogger(nil), expected: "rig: invalid option: nil logger"},
-		{name: "zero limits", opt: WithLimits(Limits{}), expected: "rig: invalid option: module bytes 0 is not positive\n" +
+		{name: "nil option", opt: nil, expected: "rigger: invalid option: option 0 is nil"},
+		{name: "nil cluster", opt: WithCluster(nil), expected: "rigger: invalid option: nil cluster"},
+		{name: "nil job decoder", opt: WithJobDecoder(nil), expected: "rigger: invalid option: nil job decoder"},
+		{name: "nil releases", opt: WithReleases(nil), expected: "rigger: invalid option: nil releases"},
+		{name: "nil secrets", opt: WithSecrets(nil), expected: "rigger: invalid option: nil secrets"},
+		{name: "nil store", opt: WithStore(nil), expected: "rigger: invalid option: nil store"},
+		{name: "nil fetcher", opt: WithFetcher(nil), expected: "rigger: invalid option: nil fetcher"},
+		{name: "nil clock", opt: WithClock(nil), expected: "rigger: invalid option: nil clock"},
+		{name: "nil logger", opt: WithLogger(nil), expected: "rigger: invalid option: nil logger"},
+		{name: "zero limits", opt: WithLimits(Limits{}), expected: "rigger: invalid option: module bytes 0 is not positive\n" +
 			"file bytes 0 is not positive\nresources 0 is not positive\ndepth 0 is not positive\nduration 0s is not positive"},
 	}
 

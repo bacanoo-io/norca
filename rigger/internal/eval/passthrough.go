@@ -13,16 +13,16 @@ import (
 	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
-// namespaces are the roots of the references Rig resolves at install time
+// namespaces are the roots of the references Rigger resolves at install time
 // (design 4.2).
-var namespaces = []string{varRoot, localsRoot, rigRoot, moduleRoot, eachRoot, metaCount}
+var namespaces = []string{varRoot, localsRoot, riggerRoot, moduleRoot, eachRoot, metaCount}
 
 // passthrough returns the UndefinedVariable callback of the context of a
-// job: a reference whose root Rig does not resolve is a runtime reference,
+// job: a reference whose root Rigger does not resolve is a runtime reference,
 // given back as a runtime part (package runref), which the job decoder
 // writes as ${...} in an attribute of the job and as {{ env "..." }} in the
 // data of a task template, so that the cluster resolves it on the node. A root one letter away from a
-// namespace of Rig (vars, locals, rigs) is a mistake, not a runtime
+// namespace of Rigger (vars, locals, riggers) is a mistake, not a runtime
 // reference: it is an error with a hint.
 func passthrough(sources map[string][]byte) func(hcl.Traversal) (cty.Value, hcl.Diagnostics) {
 	return func(t hcl.Traversal) (cty.Value, hcl.Diagnostics) {
@@ -43,7 +43,7 @@ func passthrough(sources map[string][]byte) func(hcl.Traversal) (cty.Value, hcl.
 				return cty.DynamicVal, hcl.Diagnostics{{
 					Severity: hcl.DiagError,
 					Summary:  "Unknown reference",
-					Detail: fmt.Sprintf("%s is neither a reference of Rig nor one the cluster resolves. Did you mean %s?",
+					Detail: fmt.Sprintf("%s is neither a reference of Rigger nor one the cluster resolves. Did you mean %s?",
 						root, ns),
 					Subject: rng.Ptr(),
 				}}

@@ -24,7 +24,7 @@ What it shows:
   registry and carries its public key (`keys/norca-registry.pub`), so the
   modules are checked against the right key without the user configuring
   the external registry.
-- **The lock pins the external modules** (`rig.lock.hcl`): version, commit,
+- **The lock pins the external modules** (`rigger.lock.hcl`): version, commit,
   digest and signer of each. A new version of an external module reaches
   users only when this stack is published again.
 - **One input, several modules.** `size` chooses the shape of the store and
@@ -33,8 +33,8 @@ What it shows:
   with the stack and needs no tag or signature of its own.
 
 ```shell
-rig stack show  example/observability
-rig stack apply example/observability --version "~> 0.4" -f examples/cluster.vars.hcl
+rigger stack show  example/observability
+rigger stack apply example/observability --version "~> 0.4" -f examples/cluster.vars.hcl
 ```
 
 Published as the tag `observability/v0.4.0`.

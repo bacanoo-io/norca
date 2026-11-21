@@ -3,7 +3,7 @@ job "redis" {
   # The ID comes from the variable, as in the pack; the label is only the
   # name the module refers to the job by.
   id          = var.job_name
-  region      = rig.region
+  region      = rigger.region
   datacenters = var.datacenters
   node_pool   = var.node_pool
   type        = "service"

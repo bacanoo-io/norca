@@ -2,7 +2,7 @@
 # resources and actions, never subjects, streams, consumers or tokens.
 # The names of the attributes are not designed yet; they show the form.
 audit "shop" {
-  namespaces = [rig.namespace]
+  namespaces = [rigger.namespace]
   record     = ["job", "secret", "variable", "acl"]
   actions    = ["create", "update", "delete"]
   keep       = "90d"

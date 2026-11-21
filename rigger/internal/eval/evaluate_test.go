@@ -204,7 +204,7 @@ func evaluateCases() []evaluateCase {
 		{
 			name: "locals in the order of their references",
 			files: map[string]string{
-				localsHCL: "locals {\n  b = \"${local.a}-b\"\n}\nlocals {\n  a = rig.release\n}\n",
+				localsHCL: "locals {\n  b = \"${local.a}-b\"\n}\nlocals {\n  a = rigger.release\n}\n",
 				appNorca:  `job "app" { id = local.b }`,
 			},
 			contains: `"id":"cache-b"`,
@@ -216,7 +216,7 @@ func evaluateCases() []evaluateCase {
 		},
 		{
 			name:     "a failed check",
-			files:    map[string]string{localsHCL: "check \"region\" {\n  condition     = rig.region == \"us\"\n  error_message = \"Only in us.\"\n}\n"},
+			files:    map[string]string{localsHCL: "check \"region\" {\n  condition     = rigger.region == \"us\"\n  error_message = \"Only in us.\"\n}\n"},
 			expected: "Check failed: region; Only in us.",
 		},
 		{
@@ -281,7 +281,7 @@ func functionCases() []evaluateCase {
 		},
 		{
 			name:     "templatefile",
-			files:    map[string]string{"files/t.tpl": "hello ${who}", xACL: `policy "x" { rules = templatefile("files/t.tpl", { who = rig.release }) }`},
+			files:    map[string]string{"files/t.tpl": "hello ${who}", xACL: `policy "x" { rules = templatefile("files/t.tpl", { who = rigger.release }) }`},
 			contains: `"rules":"hello cache"`,
 		},
 		{

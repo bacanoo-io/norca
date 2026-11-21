@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 )
 
 // Install is what an evaluation installs: the release, where, and the values
-// of the variables (design 12.3). The facts are the rig.* of the module.
+// of the variables (design 12.3). The facts are the rigger.* of the module.
 type Install struct {
 	Release   string
 	Namespace string

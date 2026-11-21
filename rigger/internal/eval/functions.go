@@ -13,7 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
-// Functions returns the standard set of functions of Rig (design 11): those
+// Functions returns the standard set of functions of Rigger (design 11): those
 // of the HCL standard library under the names module authors know from
 // other HCL tools. None of them reads a file, the environment or the
 // network.

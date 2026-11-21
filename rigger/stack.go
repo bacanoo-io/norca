@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig
+package rigger
 
 import (
 	"context"
@@ -36,7 +36,7 @@ type Stack struct {
 }
 
 // Name is the name of the stack, the owner of its releases.
-func (s *Stack) Name() string { return s.s.Rig.Name }
+func (s *Stack) Name() string { return s.s.Rigger.Name }
 
 // Region is the region of the stack.
 func (s *Stack) Region() string { return eval.StackRegion(s.s) }
@@ -194,12 +194,12 @@ func (p *StackPlan) HasChanges() bool {
 
 // generatedPath is the secret that holds the generated values of a stack.
 func generatedPath(stack string) string {
-	return "rig/stacks/" + stack + "/generated"
+	return "rigger/stacks/" + stack + "/generated"
 }
 
 // ErrNoCluster is the error of an operation on a cluster by an engine
 // without the ports it needs.
-var ErrNoCluster = errors.New("the engine has no release API or secret store (rig.WithReleases, rig.WithSecrets)")
+var ErrNoCluster = errors.New("the engine has no release API or secret store (rigger.WithReleases, rigger.WithSecrets)")
 
 // PlanStack evaluates a stack with its values and compares every release
 // with the cluster (design 9.2): unchanged by the digest the current
@@ -537,7 +537,7 @@ func (e *Engine) evalConfig() eval.Config {
 // and of the secrets of the stack.
 func (s *Stack) Namespace() string { return eval.StackNamespace(s.s) }
 
-// ValidateStack evaluates a stack with values without a cluster (rig stack
+// ValidateStack evaluates a stack with values without a cluster (rigger stack
 // validate): its variables, rules, locals, the values and modules of its
 // releases, its checks, secrets and outputs. Generated values stand as
 // fresh random values.

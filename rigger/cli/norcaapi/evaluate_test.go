@@ -14,7 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
@@ -25,13 +25,13 @@ const (
 )
 
 // install is the install of the tests.
-var install = rig.Install{Release: "shop", Namespace: "apps", Region: "eu"}
+var install = rigger.Install{Release: "shop", Namespace: "apps", Region: "eu"}
 
 // evaluate evaluates the module in fsys with the job decoder of Norca.
-func evaluate(t *testing.T, fsys fstest.MapFS) (*rig.Result, hcl.Diagnostics) {
+func evaluate(t *testing.T, fsys fstest.MapFS) (*rigger.Result, hcl.Diagnostics) {
 	t.Helper()
 
-	eng, err := rig.New(rig.WithJobDecoder(norcaapi.JobDecoder{}))
+	eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func evaluate(t *testing.T, fsys fstest.MapFS) (*rig.Result, hcl.Diagnostics) {
 }
 
 // firstJob decodes the job of the first resource.
-func firstJob(t *testing.T, res *rig.Result) *api.Job {
+func firstJob(t *testing.T, res *rigger.Result) *api.Job {
 	t.Helper()
 
 	var job api.Job
@@ -65,7 +65,7 @@ func TestEngine_Evaluate(t *testing.T) {
 	fsys := fstest.MapFS{
 		"metadata.hcl":  {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
 		"variables.hcl": {Data: []byte("variable \"count\" {\n  default = 2\n}\n")},
-		"locals.hcl":    {Data: []byte("locals {\n  job = \"${rig.release}-app\"\n}\n")},
+		"locals.hcl":    {Data: []byte("locals {\n  job = \"${rigger.release}-app\"\n}\n")},
 		appFile: {Data: []byte(`job "app" {
   count       = 2
   id          = "${local.job}-${count.index}"

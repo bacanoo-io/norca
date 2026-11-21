@@ -10,7 +10,7 @@ policy "backup" {
   }
 
   rules = <<-EOT
-    namespace "${rig.namespace}" {
+    namespace "${rigger.namespace}" {
       capabilities = ["read-job"]
     }
   EOT

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package logging holds the log handlers of the rig program.
+// Package logging holds the log handlers of the rigger program.
 package logging
 
 import (

@@ -1,4 +1,4 @@
-rig {
+rigger {
   required_version = ">= 0.1.0"
 
   # The external registry the modules come from.

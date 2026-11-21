@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/indexer"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
@@ -31,7 +31,7 @@ var (
 	errProblems     = errors.New("the registry has problems")
 )
 
-// runIndex runs rig index update|check, the work of the workflows of the
+// runIndex runs rigger index update|check, the work of the workflows of the
 // global registry (design 7.3) on a checkout of it.
 func runIndex(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 || (args[0] != cmdUpdate && args[0] != cmdCheck) {
@@ -40,7 +40,7 @@ func runIndex(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 		return exitError
 	}
 
-	flags := flag.NewFlagSet("rig index "+args[0], flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger index "+args[0], flag.ContinueOnError)
 	flags.SetOutput(stderr)
 
 	dir := flags.String("dir", ".", "the checkout of the registry")
@@ -106,8 +106,8 @@ func newIndexer(logger *slog.Logger, dir, today string, replace []string) (*inde
 		return nil, err
 	}
 
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}),
-		rig.WithResourceDecoder(norcaapi.ResourceDecoder{}), rig.WithFetcher(fetcher))
+	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}), rigger.WithFetcher(fetcher))
 	if err != nil {
 		return nil, err
 	}

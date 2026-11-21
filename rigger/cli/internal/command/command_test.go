@@ -20,23 +20,23 @@ func TestRun(t *testing.T) {
 		expectedStdout string
 		expectedStderr string
 	}{
-		{name: "version", args: []string{cmdVersion}, expectedCode: exitOK, expectedStdout: "rig "},
-		{name: "help command", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage: rig"},
-		{name: "help flag", args: []string{"-h"}, expectedCode: exitOK, expectedStderr: "Usage: rig"},
-		{name: "no command", args: nil, expectedCode: exitError, expectedStderr: "Usage: rig"},
-		{name: "unknown command", args: []string{"nope"}, expectedCode: exitError, expectedStderr: `rig: unknown command "nope"`},
+		{name: "version", args: []string{cmdVersion}, expectedCode: exitOK, expectedStdout: "rigger "},
+		{name: "help command", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage: rigger"},
+		{name: "help flag", args: []string{"-h"}, expectedCode: exitOK, expectedStderr: "Usage: rigger"},
+		{name: "no command", args: nil, expectedCode: exitError, expectedStderr: "Usage: rigger"},
+		{name: "unknown command", args: []string{"nope"}, expectedCode: exitError, expectedStderr: `rigger: unknown command "nope"`},
 		{name: "unknown flag", args: []string{"-nope", cmdVersion}, expectedCode: exitError, expectedStderr: "flag provided but not defined"},
 		{
 			name:           "invalid log format",
 			args:           []string{"-log-format", "xml", cmdVersion},
 			expectedCode:   exitError,
-			expectedStderr: `rig: invalid log format "xml"`,
+			expectedStderr: `rigger: invalid log format "xml"`,
 		},
 		{
 			name:           "invalid log level",
 			args:           []string{flagLogLevel, "loud", cmdVersion},
 			expectedCode:   exitError,
-			expectedStderr: `rig: invalid log level "loud"`,
+			expectedStderr: `rigger: invalid log level "loud"`,
 		},
 	}
 

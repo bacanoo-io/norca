@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package oplog makes the log of Rig a tree: every operation (a stack, a
+// Package oplog makes the log of Rigger a tree: every operation (a stack, a
 // release in it, a step of a release, a resource) is a span, and every log
 // line carries the span it belongs to.
 //
 // A span has an ID and the ID of its parent; the trace ID of the root
 // operation is carried by the whole tree. The keys follow the key
 // convention of Norca's OpenTelemetry plan (trace_id, span_id, duration),
-// so the lines of Rig and of the server read alike. A JSON log keeps the
+// so the lines of Rigger and of the server read alike. A JSON log keeps the
 // lines flat and the tree can be rebuilt from the IDs; a text log can
 // indent them by depth.
 //

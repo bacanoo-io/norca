@@ -13,11 +13,11 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 )
 
-// TestIntegration_TrustedKeys installs a module signed with rig key sign
+// TestIntegration_TrustedKeys installs a module signed with rigger key sign
 // into a namespace whose admission policy trusts the key: the server
-// verifies the signatures Rig sends and records the signer (design 8.2).
+// verifies the signatures Rigger sends and records the signer (design 8.2).
 func TestIntegration_TrustedKeys(t *testing.T) {
-	const ns = "rig-trust"
+	const ns = "rigger-trust"
 
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
@@ -26,7 +26,7 @@ func TestIntegration_TrustedKeys(t *testing.T) {
 
 	keys := t.TempDir()
 	t.Setenv(passwordEnv, "")
-	rigRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "k"))
+	riggerRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "k"))
 
 	pub, err := os.ReadFile(filepath.Join(keys, "k.pub"))
 	if err != nil {
@@ -38,7 +38,7 @@ func TestIntegration_TrustedKeys(t *testing.T) {
 	}
 
 	policy := &api.AdmissionPolicy{
-		Name: "rig-trust", Action: "deny",
+		Name: "rigger-trust", Action: "deny",
 		Match:       &api.AdmissionPolicyMatch{Namespaces: []string{ns}, Resources: []string{"release"}},
 		TrustedKeys: []string{string(pub)},
 	}
@@ -48,19 +48,19 @@ func TestIntegration_TrustedKeys(t *testing.T) {
 
 	t.Cleanup(func() {
 		_, _, _ = client.Releases().Delete("signed", &api.ReleaseDeleteOptions{Propagation: api.ReleasePropagationBackground}, &api.WriteOptions{Namespace: ns})
-		_, _ = client.AdmissionPolicies().Delete("rig-trust", nil)
+		_, _ = client.AdmissionPolicies().Delete("rigger-trust", nil)
 	})
 
 	dir := writeTree(t, map[string]string{
 		"m/metadata.hcl": "module {\n  name    = \"note\"\n  version = \"1.0.0\"\n}\n",
-		"m/note.var.hcl": "variable \"note\" {\n  path = \"rigtrust/note\"\n\n  items {\n    text = \"x\"\n  }\n}\n",
+		"m/note.var.hcl": "variable \"note\" {\n  path = \"riggertrust/note\"\n\n  items {\n    text = \"x\"\n  }\n}\n",
 	})
 	module := filepath.Join(dir, "m")
 
-	rigRunErr(t, "not signed", "install", module, "-name", "signed", "-namespace", ns)
+	riggerRunErr(t, "not signed", "install", module, "-name", "signed", "-namespace", ns)
 
-	rigRun(t, exitOK, []string{"signed note 1.0.0"}, "key", "sign", module, "-key", filepath.Join(keys, "k.key"))
-	rigRun(t, exitOK, []string{"install " + ns + "/signed: revision"}, "install", module, "-name", "signed", "-namespace", ns)
+	riggerRun(t, exitOK, []string{"signed note 1.0.0"}, "key", "sign", module, "-key", filepath.Join(keys, "k.key"))
+	riggerRun(t, exitOK, []string{"install " + ns + "/signed: revision"}, "install", module, "-name", "signed", "-namespace", ns)
 
 	rel, _, err := client.Releases().Info("signed", &api.QueryOptions{Namespace: ns})
 	if err != nil {

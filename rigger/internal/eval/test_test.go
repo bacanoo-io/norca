@@ -78,7 +78,7 @@ func TestRunTest(t *testing.T) {
   }
 
   assert {
-    condition     = issensitive(resource.variable.x.a.items.token) && output.names == ["a", "b"] && rig.release == "r"
+    condition     = issensitive(resource.variable.x.a.items.token) && output.names == ["a", "b"] && rigger.release == "r"
     error_message = "marks, outputs as literals, facts"
   }
 }
@@ -91,7 +91,7 @@ func TestRunTest(t *testing.T) {
     error_message = "no arguments"
   }
 }
-`, failures: "test.rigtest.hcl:5,21-76: no arguments"},
+`, failures: "test.riggertest.hcl:5,21-76: no arguments"},
 		{name: "an assert that does not evaluate", src: `test "t" {
   assert {
     condition     = resource.job.nothing.id == "x"
@@ -123,7 +123,7 @@ func TestRunTest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, diags := eval.ParseTests("test.rigtest.hcl", []byte(tt.src))
+			parsed, diags := eval.ParseTests("test.riggertest.hcl", []byte(tt.src))
 			if diags.HasErrors() {
 				t.Fatal(diags)
 			}
@@ -163,7 +163,7 @@ func TestParseTests_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, diags := eval.ParseTests("t.rigtest.hcl", []byte(tt.src))
+			_, diags := eval.ParseTests("t.riggertest.hcl", []byte(tt.src))
 			if !strings.Contains(diags.Error(), tt.expected) {
 				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
 			}

@@ -14,9 +14,9 @@ import (
 	"github.com/bacanoo-io/norca/rigger/cli/internal/convert"
 )
 
-var errConvertUsage = errors.New("usage: rig convert pack <dir> -out <dir> [-examples <dir>]")
+var errConvertUsage = errors.New("usage: rigger convert pack <dir> -out <dir> [-examples <dir>]")
 
-// runConvert runs rig convert pack <dir> -out <dir> [-examples <dir>]: the
+// runConvert runs rigger convert pack <dir> -out <dir> [-examples <dir>]: the
 // mechanical part of a conversion (design 14).
 func runConvert(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) < 2 || args[0] != "pack" {
@@ -27,7 +27,7 @@ func runConvert(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 
 	dir := args[1]
 
-	flags := flag.NewFlagSet("rig convert pack", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger convert pack", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	out := flags.String("out", "", "the directory of the module; must not exist or be empty")
 	examples := flags.String("examples", "", "a directory of variable files of the pack, written as examples/<name>.vars.hcl")

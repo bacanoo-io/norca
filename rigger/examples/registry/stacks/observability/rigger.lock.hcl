@@ -1,4 +1,4 @@
-# Written by `rig stack sync`, published with the stack.
+# Written by `rigger stack sync`, published with the stack.
 # The digests are made up for the example.
 
 module "norca/rustfs" {

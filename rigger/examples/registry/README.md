@@ -42,20 +42,20 @@ A stack of a registry is a tested composition others install as one thing.
 ## Publishing
 
 ```shell
-rig module validate modules/nats        # schemas, examples, tests, icon
-rig module publish modules/nats --sign  # tag nats/v1.0.0, signature of its tree digest
+rigger module validate modules/nats        # schemas, examples, tests, icon
+rigger module publish modules/nats --sign  # tag nats/v1.0.0, signature of its tree digest
 
-rig stack sync     stacks/data-platform        # resolve the modules, write the lock
-rig stack validate stacks/data-platform        # schemas, examples, the lock
-rig stack publish  stacks/data-platform --sign # tag data-platform/v1.2.0
+rigger stack sync     stacks/data-platform        # resolve the modules, write the lock
+rigger stack validate stacks/data-platform        # schemas, examples, the lock
+rigger stack publish  stacks/data-platform --sign # tag data-platform/v1.2.0
 ```
 
 ## Using it
 
 ```hcl
-rig {
+rigger {
   registry "example" {
-    source = "github.com/example/rig-registry"
+    source = "github.com/example/rigger-registry"
   }
 }
 
@@ -72,5 +72,5 @@ module "nats" {
 - Secrets come from the secret store of the cluster, never from a variable.
 - Every module has at least one file in `examples/` and one test; every
   stack at least one file in `examples/`, planned in CI.
-- CI: `rig fmt -check`, `rig module validate`, `rig module test`, license
+- CI: `rigger fmt -check`, `rigger module validate`, `rigger module test`, license
   and sign-off checks.

@@ -16,7 +16,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
@@ -24,7 +24,7 @@ import (
 // already: run exits with an error and writes nothing more.
 var errReported = errors.New("reported")
 
-// runModule runs a module command: rig module <command> [args].
+// runModule runs a module command: rigger module <command> [args].
 func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		warn(stderr, "module needs a command: render, test, validate or publish")
@@ -79,7 +79,7 @@ func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 // validateModule loads the module in dir and validates it; the examples are
 // rendered with the job decoder of Norca.
 func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rig.New(rig.WithLogger(logger), rig.WithJobDecoder(norcaapi.JobDecoder{}), rig.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 
 // loadModule loads the module in dir, with the root it may read child
 // modules from: the git repository dir is in, or dir alone outside one.
-func loadModule(ctx context.Context, eng *rig.Engine, dir string) (*rig.Module, hcl.Diagnostics, error) {
+func loadModule(ctx context.Context, eng *rigger.Engine, dir string) (*rigger.Module, hcl.Diagnostics, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, nil, err

@@ -1,5 +1,5 @@
 # golangci-lint v2. The recommended configuration of the golang-lint skill
-# (samber/cc-skills-golang), with the settings of Rig at the end.
+# (samber/cc-skills-golang), with the settings of Rigger at the end.
 version: "2"
 
 run:
@@ -111,7 +111,7 @@ linters:
       - third_party$
       - examples$
       # The copy of norca's jobspec2 stays as norca has it (SOURCE.md);
-      # Rig's own files there (rig_*.go) are linted.
+      # Rigger's own files there (rigger_*.go) are linted.
       - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
       - internal/resourcespec/object\.go$
       # The copy of a file of norca's resourcespec, likewise.
@@ -143,7 +143,7 @@ linters:
       allow-first-in-block: true
       allow-whole-block: false
       branch-max-lines: 2
-    # Rig: log messages are constant; what varies goes into attributes.
+    # Rigger: log messages are constant; what varies goes into attributes.
     # Every line is logged with a context, so that it carries the operation
     # it belongs to (package oplog).
     sloglint:

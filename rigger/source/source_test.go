@@ -13,21 +13,21 @@ import (
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	registries := map[string]string{"example": "github.com/example/rig-registry", "local": "file:///srv/registry"}
+	registries := map[string]string{"example": "github.com/example/rigger-registry", "local": "file:///srv/registry"}
 
 	tests := []struct {
 		address  string
 		expected source.Request
 		err      error
 	}{
-		{address: "example/postgres", expected: source.Request{Kind: source.KindGit, Registry: "example", Repository: "github.com/example/rig-registry", Path: "modules/postgres", TagPrefix: "postgres/v"}},
+		{address: "example/postgres", expected: source.Request{Kind: source.KindGit, Registry: "example", Repository: "github.com/example/rigger-registry", Path: "modules/postgres", TagPrefix: "postgres/v"}},
 		{address: "local/nats", expected: source.Request{Kind: source.KindGit, Registry: "local", Repository: "file:///srv/registry", Path: "modules/nats", TagPrefix: "nats/v"}},
-		{address: "github.com/acme/rig-modules//nats", expected: source.Request{Kind: source.KindGit, Repository: "github.com/acme/rig-modules", Path: "nats", TagPrefix: "nats/v"}},
+		{address: "github.com/acme/rigger-modules//nats", expected: source.Request{Kind: source.KindGit, Repository: "github.com/acme/rigger-modules", Path: "nats", TagPrefix: "nats/v"}},
 		{address: "github.com/acme/redis", expected: source.Request{Kind: source.KindGit, Repository: "github.com/acme/redis", Path: ".", TagPrefix: "v"}},
-		{address: "https://git.internal/rig.git//modules/db", expected: source.Request{Kind: source.KindGit, Repository: "https://git.internal/rig.git", Path: "modules/db", TagPrefix: "db/v"}},
+		{address: "https://git.internal/rigger.git//modules/db", expected: source.Request{Kind: source.KindGit, Repository: "https://git.internal/rigger.git", Path: "modules/db", TagPrefix: "db/v"}},
 		{address: "builtin/redis", expected: source.Request{Kind: source.KindBuiltin, Path: "modules/redis"}},
-		{address: "dir:///opt/rig/worker", expected: source.Request{Kind: source.KindDirectory, Repository: "/opt/rig/worker", Path: "."}},
-		{address: "oci://registry.internal/rig/nats", expected: source.Request{Kind: source.KindOCI, Repository: "registry.internal/rig/nats"}},
+		{address: "dir:///opt/rigger/worker", expected: source.Request{Kind: source.KindDirectory, Repository: "/opt/rigger/worker", Path: "."}},
+		{address: "oci://registry.internal/rigger/nats", expected: source.Request{Kind: source.KindOCI, Repository: "registry.internal/rigger/nats"}},
 		{address: "oci://registry.internal", err: source.ErrAddress},
 		{address: "norca/nats", expected: source.Request{Kind: source.KindGlobal, Namespace: "norca", Name: "nats", Path: "."}},
 		{address: "Example/x", err: source.ErrAddress},

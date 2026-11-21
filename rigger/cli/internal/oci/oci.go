@@ -3,7 +3,7 @@
 
 // Package oci keeps modules in OCI registries (design 7.1: oci://), over
 // the distribution API: a module version is an image manifest of the
-// artifact type of Rig, tagged with the version, with one layer, the tar.gz
+// artifact type of Rigger, tagged with the version, with one layer, the tar.gz
 // of the directories of the module and its children, signatures included.
 // The manifest digest of a tag stands for its commit.
 package oci
@@ -32,14 +32,14 @@ import (
 
 // The media types of a module.
 const (
-	ArtifactType     = "application/vnd.norca.rig.module.v1"
-	LayerType        = "application/vnd.norca.rig.module.layer.v1.tar+gzip"
+	ArtifactType     = "application/vnd.norca.rigger.module.v1"
+	LayerType        = "application/vnd.norca.rigger.module.layer.v1.tar+gzip"
 	manifestType     = "application/vnd.oci.image.manifest.v1+json"
 	emptyType        = "application/vnd.oci.empty.v1+json"
 	emptyJSON        = "{}"
-	annotationPath   = "rig.path"
-	annotationDigest = "rig.digest"
-	annotationModule = "rig.module"
+	annotationPath   = "rigger.path"
+	annotationDigest = "rigger.digest"
+	annotationModule = "rigger.module"
 	annotationVer    = "org.opencontainers.image.version"
 )
 
@@ -77,8 +77,8 @@ type Client struct {
 	tokens map[string]string // by registry and scope
 }
 
-// NewClient returns a client. Credentials come from RIG_OCI_USERNAME and
-// RIG_OCI_PASSWORD; without them it is anonymous.
+// NewClient returns a client. Credentials come from RIGGER_OCI_USERNAME and
+// RIGGER_OCI_PASSWORD; without them it is anonymous.
 func NewClient() *Client {
 	return &Client{http: http.DefaultClient, tokens: map[string]string{}}
 }
@@ -158,13 +158,13 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 // authorize answers a challenge: Basic with the credentials, or Bearer with
 // a token of the realm.
 func (c *Client) authorize(ctx context.Context, challenge, scope string) (string, error) {
-	user, password := os.Getenv("RIG_OCI_USERNAME"), os.Getenv("RIG_OCI_PASSWORD")
+	user, password := os.Getenv("RIGGER_OCI_USERNAME"), os.Getenv("RIGGER_OCI_PASSWORD")
 
 	scheme, params, _ := strings.Cut(challenge, " ")
 	switch strings.ToLower(scheme) {
 	case "basic":
 		if user == "" {
-			return "", fmt.Errorf("%w: the registry asks for credentials (RIG_OCI_USERNAME, RIG_OCI_PASSWORD)", ErrRegistry)
+			return "", fmt.Errorf("%w: the registry asks for credentials (RIGGER_OCI_USERNAME, RIGGER_OCI_PASSWORD)", ErrRegistry)
 		}
 
 		return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+password)), nil
@@ -301,7 +301,7 @@ func (c *Client) Resolve(ctx context.Context, repository, tag string) (Manifest,
 	}
 
 	if m.ArtifactType != ArtifactType || len(m.Layers) != 1 || m.Layers[0].MediaType != LayerType {
-		return Manifest{}, "", fmt.Errorf("%w: %s:%s is not a module of Rig", ErrRegistry, repository, tag)
+		return Manifest{}, "", fmt.Errorf("%w: %s:%s is not a module of Rigger", ErrRegistry, repository, tag)
 	}
 
 	return m, digestOf(data), nil

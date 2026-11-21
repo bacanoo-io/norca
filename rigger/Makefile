@@ -1,4 +1,4 @@
-# Two Go modules (design 12.1): the core at the root and the rig program in
+# Two Go modules (design 12.1): the core at the root and the rigger program in
 # cli/. Each target runs in both. In Claude's Linux VM, source
 # ../.tools/go-env.sh first.
 
@@ -9,9 +9,9 @@ MODULES := . cli
 
 all: vet test build
 
-## build: build the rig program into bin/rig
+## build: build the rigger program into bin/rigger
 build:
-	$(GO) -C cli build -o ../bin/rig ./cmd/rig
+	$(GO) -C cli build -o ../bin/rigger ./cmd/rigger
 
 ## test: run the tests of both modules
 test:

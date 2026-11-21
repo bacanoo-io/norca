@@ -1,18 +1,18 @@
 # The stack "platform" of region eu: a database and a message bus from a
 # registry, and the shop's own modules from this directory, wired together.
 #
-#   rig stack sync    resolve versions, verify, write rig.lock.hcl
-#   rig stack plan    what would change
-#   rig stack apply   make it so, in the order of the dependencies
+#   rigger stack sync    resolve versions, verify, write rigger.lock.hcl
+#   rigger stack plan    what would change
+#   rigger stack apply   make it so, in the order of the dependencies
 
-rig {
+rigger {
   required_version = ">= 0.1.0"
   name             = "platform" # recorded in every release as its owner
   region           = "eu"
   namespace        = "shop" # default namespace of the releases
 
   registry "example" {
-    source = "github.com/example/rig-registry"
+    source = "github.com/example/rigger-registry"
   }
 
   # Modules of the registry must be signed with this key. The stack's own
@@ -75,12 +75,12 @@ module "nats" {
 }
 
 # ---------------------------------------------------------------------------
-# Built into rig
+# Built into rigger
 # ---------------------------------------------------------------------------
 
-# The base of audit is a module of rig itself: no registry, no version, no
-# signature. Run by the standalone rig it gets the changes through a leaf
-# node (AUDIT.md); once rig is embedded in the Norca servers it sits on the
+# The base of audit is a module of rigger itself: no registry, no version, no
+# signature. Run by the standalone rigger it gets the changes through a leaf
+# node (AUDIT.md); once rigger is embedded in the Norca servers it sits on the
 # internal bus. What is audited is declared in a resource file of a module
 # (modules/shop-api/shop.audit.hcl); subjects, streams, consumers and tokens
 # are the business of this module.

@@ -20,7 +20,7 @@ import (
 
 var errReleaseName = errors.New("the command needs the name of a release")
 
-// runRelease runs rig release list|status|history|rollback|uninstall: one
+// runRelease runs rigger release list|status|history|rollback|uninstall: one
 // release, without a stack, through the release API (design 10).
 func runRelease(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
@@ -36,7 +36,7 @@ func runRelease(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		positional, args = append(positional, args[0]), args[1:]
 	}
 
-	flags := flag.NewFlagSet("rig release "+cmd, flag.ContinueOnError)
+	flags := flag.NewFlagSet("rigger release "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	namespace := flags.String("namespace", "default", "namespace of the release (list: * for all)")
 	region := flags.String("region", "", "the region to talk to")

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-package rig_test
+package rigger_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	rig "github.com/bacanoo-io/norca/rigger"
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
@@ -40,7 +40,7 @@ func publishedData() fstest.MapFS {
 	files := stackFiles("")
 	tree := fstest.MapFS{
 		"stacks/data/metadata.hcl":  {Data: []byte("stack {\n  name    = \"data\"\n  version = \"1.0.0\"\n}\n")},
-		"stacks/data/stack.hcl":     {Data: []byte("rig {\n  name = \"data\"\n}\n\nmodule \"db\" {\n  source = \"./modules/db\"\n  values = { size = var.size, password = \"!generate:pw\" }\n}\n")},
+		"stacks/data/stack.hcl":     {Data: []byte("rigger {\n  name = \"data\"\n}\n\nmodule \"db\" {\n  source = \"./modules/db\"\n  values = { size = var.size, password = \"!generate:pw\" }\n}\n")},
 		"stacks/data/variables.hcl": {Data: []byte("variable \"size\" {\n  default = 1\n}\n")},
 		"stacks/data/outputs.hcl":   {Data: []byte("output \"service\" {\n  value = module.db.service\n}\n")},
 	}
@@ -55,11 +55,11 @@ func publishedData() fstest.MapFS {
 }
 
 // siteStack is a local stack over the part data.
-const siteStack = `rig {
+const siteStack = `rigger {
   name = "site"
 
   registry "acme" {
-    source = "github.com/acme/rig"
+    source = "github.com/acme/rigger"
   }
 }
 
@@ -80,8 +80,8 @@ func TestStack_Parts(t *testing.T) {
 
 	cluster := newFakeCluster()
 
-	e, err := rig.New(rig.WithReleases(cluster), rig.WithSecrets(cluster), rig.WithLogger(slog.New(slog.DiscardHandler)),
-		rig.WithFetcher(repoFetcher{tree: publishedData(), version: "1.0.0"}))
+	e, err := rigger.New(rigger.WithReleases(cluster), rigger.WithSecrets(cluster), rigger.WithLogger(slog.New(slog.DiscardHandler)),
+		rigger.WithFetcher(repoFetcher{tree: publishedData(), version: "1.0.0"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestStack_Parts(t *testing.T) {
 		}
 	}
 
-	files["s/rig.lock.hcl"] = &fstest.MapFile{Data: lock}
+	files["s/rigger.lock.hcl"] = &fstest.MapFile{Data: lock}
 
 	plan := planOf(t, e, files, nil)
 
@@ -124,7 +124,7 @@ func TestStack_Parts(t *testing.T) {
 	tampered := publishedData()
 	tampered["stacks/data/outputs.hcl"] = &fstest.MapFile{Data: []byte("output \"service\" {\n  value = \"x\"\n}\n")}
 
-	e2, _ := rig.New(rig.WithLogger(slog.New(slog.DiscardHandler)), rig.WithFetcher(repoFetcher{tree: tampered, version: "1.0.0"}))
+	e2, _ := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(repoFetcher{tree: tampered, version: "1.0.0"}))
 	if _, diags := e2.LoadStack(t.Context(), files, "s"); !strings.Contains(diags.Error(), "is not what the lock file records") {
 		t.Fatalf("a changed part: %v", diags)
 	}

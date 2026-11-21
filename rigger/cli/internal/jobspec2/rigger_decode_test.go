@@ -12,15 +12,15 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// rigJobFile is a job file of a module as an author writes it (design 4.4):
-// install-time references (var, local, rig, a function of Rig, a dynamic
+// riggerJobFile is a job file of a module as an author writes it (design 4.4):
+// install-time references (var, local, rigger, a function of Rigger, a dynamic
 // block) next to runtime references the cluster resolves on the node.
-const rigJobFile = `job "web" {
+const riggerJobFile = `job "web" {
   name        = local.name
   datacenters = var.datacenters
 
   meta {
-    release = rig.release
+    release = rigger.release
   }
 
   constraint {
@@ -62,7 +62,7 @@ const rigJobFile = `job "web" {
 }
 `
 
-// imageRef stands for the function image_ref of Rig.
+// imageRef stands for the function image_ref of Rigger.
 var imageRef = function.New(&function.Spec{
 	Params: []function.Parameter{{Name: "image", Type: cty.String}, {Name: "digest", Type: cty.String}},
 	Type:   function.StaticReturnType(cty.String),
@@ -75,7 +75,7 @@ var imageRef = function.New(&function.Spec{
 	},
 })
 
-func rigContext(src []byte) *hcl.EvalContext {
+func riggerContext(src []byte) *hcl.EvalContext {
 	funcs := Functions("", false)
 	funcs["image_ref"] = imageRef
 
@@ -90,10 +90,10 @@ func rigContext(src []byte) *hcl.EvalContext {
 				"digest":      cty.StringVal("sha256:abc"),
 				"log_level":   cty.StringVal("debug"),
 			}),
-			"local": cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("shop")}),
-			"rig":   cty.ObjectVal(map[string]cty.Value{"release": cty.StringVal("shop")}),
+			"local":  cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("shop")}),
+			"rigger": cty.ObjectVal(map[string]cty.Value{"release": cty.StringVal("shop")}),
 		},
-		// What Rig's evaluator does for a runtime reference: give back its
+		// What Rigger's evaluator does for a runtime reference: give back its
 		// text, as ParseWithConfig does (types.config.go).
 		UndefinedVariable: func(t hcl.Traversal) (cty.Value, hcl.Diagnostics) {
 			r := t.SourceRange()
@@ -106,7 +106,7 @@ func rigContext(src []byte) *hcl.EvalContext {
 func TestDecodeJob(t *testing.T) {
 	t.Parallel()
 
-	src := []byte(rigJobFile)
+	src := []byte(riggerJobFile)
 
 	file, diags := hclsyntax.ParseConfig(src, "web.norca.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -120,7 +120,7 @@ func TestDecodeJob(t *testing.T) {
 		t.Fatal(diags)
 	}
 
-	job, diags := DecodeJob(content.Blocks[0], rigContext(src))
+	job, diags := DecodeJob(content.Blocks[0], riggerContext(src))
 	if diags.HasErrors() {
 		t.Fatal(diags)
 	}
@@ -142,11 +142,11 @@ func TestDecodeJob(t *testing.T) {
 		{name: "job ID from the label", got: *job.ID, expected: "web"},
 		{name: "name from local", got: *job.Name, expected: "shop"},
 		{name: "datacenter from var", got: job.Datacenters[0], expected: "eu-1"},
-		{name: "meta from rig", got: job.Meta["release"], expected: "shop"},
+		{name: "meta from rigger", got: job.Meta["release"], expected: "shop"},
 		{name: "constraint passed through", got: job.Constraints[0].LTarget, expected: "${attr.kernel.name}"},
 		{name: "count from var", got: *group.Count, expected: 3},
 		{name: "ports of the dynamic block", got: len(ports), expected: 2},
-		{name: "image from a function of Rig", got: image, expected: "ghcr.io/example/web:1.4.2@sha256:abc"},
+		{name: "image from a function of Rigger", got: image, expected: "ghcr.io/example/web:1.4.2@sha256:abc"},
 		{name: "task variable passed through", got: task.Env["ALLOC"], expected: "${NOMAD_ALLOC_DIR}/data"},
 		{name: "node attribute passed through", got: task.Env["NODE"], expected: "${node.class}"},
 		{name: "env from var", got: task.Env["LEVEL"], expected: "debug"},

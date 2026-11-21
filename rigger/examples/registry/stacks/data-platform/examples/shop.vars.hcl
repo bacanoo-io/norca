@@ -1,4 +1,4 @@
-# rig stack apply example/data-platform --version "~> 1.2" -f shop.vars.hcl
+# rigger stack apply example/data-platform --version "~> 1.2" -f shop.vars.hcl
 
 database_node = "worker-1"
 

@@ -1,7 +1,7 @@
 # redis
 
 The built-in pack `redis` 0.2.1 of norca, converted to a module on paper in
-phase 0 of the design (`design/rig-design.md`, section 14). It follows the
+phase 0 of the design (`design/rigger-design.md`, section 14). It follows the
 pack so that it renders the same job; the faults of the pack are kept and
 named here, to be fixed in a version of their own once the conversion is
 proven.
@@ -24,5 +24,5 @@ Faults of the pack, kept:
   runs without a password.
 - The path of the Variable is `nomad/jobs/redis` whatever `job_name` is.
 
-`rig module validate` should find the first two by itself: a variable no
+`rigger module validate` should find the first two by itself: a variable no
 expression of the module reads is a warning (design, section 14).

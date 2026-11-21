@@ -102,7 +102,7 @@ func digestFiles(m *Module, prefix string, lines map[string]string) error {
 // modules, values, examples and lock file included, hidden files left out.
 func StackDigest(s *Stack) (string, error) {
 	lines := map[string]string{}
-	if err := digestFiles(&Module{FS: s.FS, Metadata: module.Metadata{Name: s.Rig.Name}}, "", lines); err != nil {
+	if err := digestFiles(&Module{FS: s.FS, Metadata: module.Metadata{Name: s.Rigger.Name}}, "", lines); err != nil {
 		return "", err
 	}
 

@@ -1,5 +1,5 @@
 # The variables of the pack. namespace and region are gone: they are the
-# release's (rig.namespace, rig.region; design 6.4). The options of a choice
+# release's (rigger.namespace, rigger.region; design 6.4). The options of a choice
 # are a validation, so a value outside them is refused; the form takes them
 # from there and keeps only their labels.
 
@@ -228,7 +228,7 @@ variable "auth_enabled" {
 
 # The pack's secret { path, item } wrote this value into the item password of
 # the Variable. Here it is a sensitive value that the Variable resource
-# (auth.var.hcl) takes: Rig sends it to the release API as a secret item,
+# (auth.var.hcl) takes: Rigger sends it to the release API as a secret item,
 # never in the revision (design 6.3).
 variable "redis_password" {
   type        = string

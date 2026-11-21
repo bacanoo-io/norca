@@ -1,5 +1,5 @@
 locals {
-  name = rig.release
+  name = rigger.release
 
   # Environment built from data: only what is configured appears.
   env = merge(

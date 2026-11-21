@@ -36,25 +36,25 @@ func writeTree(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-// rigRun runs the rig program and checks its exit code and output.
-func rigRun(t *testing.T, code int, wants []string, args ...string) string {
+// riggerRun runs the rigger program and checks its exit code and output.
+func riggerRun(t *testing.T, code int, wants []string, args ...string) string {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
 
 	got := Run(t.Context(), append([]string{flagLogLevel, "warn"}, args...), &stdout, &stderr)
 	if got != code {
-		t.Fatalf("rig %s = %d, want %d\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), got, code, stdout.String(), stderr.String())
+		t.Fatalf("rigger %s = %d, want %d\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), got, code, stdout.String(), stderr.String())
 	}
 
 	for _, want := range wants {
 		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("rig %s: stdout does not contain %q:\n%s", strings.Join(args, " "), want, stdout.String())
+			t.Fatalf("rigger %s: stdout does not contain %q:\n%s", strings.Join(args, " "), want, stdout.String())
 		}
 	}
 
 	return stdout.String()
 }
 
-// The test is not parallel: it owns the releases and the stack "rigit" of
+// The test is not parallel: it owns the releases and the stack "riggerit" of
 // the agent.
