@@ -142,6 +142,14 @@ type applyInput struct {
 	// its part of, nil for a release of this region only.
 	multiregion *structs.ReleaseMultiregion
 
+	// owner is the owner of the release (a Rigger stack), inputDigest
+	// Rigger's digest of what it applies, both stored in the revision;
+	// adopt lets the manager of pack take over a release of another manager
+	// (checkReleaseManager).
+	owner       *structs.ReleaseOwner
+	inputDigest string
+	adopt       bool
+
 	// adopted maps the keys of the multiregion jobs that another region
 	// registers to that region; global are the global resources that the
 	// global region applies. Both are set by runApply.
@@ -437,6 +445,10 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if in.pack == nil {
 		in.pack = &structs.ReleasePack{}
 	}
+	if err := checkReleaseManager(rel, in.pack, in.adopt); err != nil {
+		return err
+	}
+	in.pack.Manager = in.pack.ManagerName()
 
 	if err := checkReleaseRequirements(in.pack.Requires); err != nil {
 		return err
@@ -666,6 +678,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	prevRevision := rel.Status.Revision
 	rel.Spec.Pack = in.pack
 	rel.Spec.Description = in.description
+	rel.Spec.Owner = in.owner
 	rel.Spec.Revision = revNum
 	rel.Spec.Atomic = op.atomic
 	rel.Spec.Multiregion = in.multiregion
@@ -702,6 +715,8 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 			Description: in.description,
 			Values:      in.values,
 			ValuesHash:  in.valuesHash,
+			InputDigest: in.inputDigest,
+			Owner:       in.owner,
 			Resources:   refs,
 			Content:     content,
 			User:        op.user,

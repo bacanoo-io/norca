@@ -302,6 +302,67 @@ type ReleaseSpec struct {
 	// Multiregion describes the multi-region install of the newest revision,
 	// nil for a release installed in its region only.
 	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
+
+	// Owner is the owner of the newest revision: the Rigger stack that
+	// installed the release, nil for a release no stack owns.
+	Owner *ReleaseOwner `json:"owner,omitempty"`
+}
+
+// ReleaseOwner is the owner of a release: the stack of Rigger whose apply
+// installed it. The caller of the apply sets it, with the right of the
+// apply; Rigger lists the releases of a stack by it (prune, status).
+type ReleaseOwner struct {
+	// Kind is the kind of the owner: ReleaseOwnerKindStack.
+	Kind string `json:"kind"`
+	// Name is the name of the stack.
+	Name string `json:"name"`
+	// Version and Source are those of a published stack; Part the part
+	// of the stack the release belongs to.
+	Version string `json:"version,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Part    string `json:"part,omitempty"`
+}
+
+// ReleaseOwnerKindStack is the kind of an owner that is a Rigger stack.
+const ReleaseOwnerKindStack = "stack"
+
+// The managers of a release (ReleasePack.Manager): the pack manager and
+// Rigger. One release has one manager; the other takes it over only when
+// asked to (Adopt).
+const (
+	ReleaseManagerPack   = "pack"
+	ReleaseManagerRigger = "rigger"
+)
+
+// Copy returns a copy of the owner.
+func (o *ReleaseOwner) Copy() *ReleaseOwner {
+	if o == nil {
+		return nil
+	}
+	c := *o
+	return &c
+}
+
+// Validate checks an owner given in a request: a known kind and a name.
+func (o *ReleaseOwner) Validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.Kind != ReleaseOwnerKindStack {
+		return fmt.Errorf("owner kind %q: only %q is known", o.Kind, ReleaseOwnerKindStack)
+	}
+	if o.Name == "" {
+		return fmt.Errorf("owner of kind %q without a name", o.Kind)
+	}
+	return nil
+}
+
+// String is the owner as the release list filters it: "<kind>/<name>".
+func (o *ReleaseOwner) String() string {
+	if o == nil {
+		return ""
+	}
+	return o.Kind + "/" + o.Name
 }
 
 // ReleaseMultiregion describes a multi-region install: the same pack
@@ -437,6 +498,23 @@ type ReleasePack struct {
 
 	// Requires are the requirements of the pack on the server.
 	Requires *ReleasePackRequires `json:"requires,omitempty"`
+
+	// Manager is the package manager that applied the revision:
+	// ReleaseManagerPack or ReleaseManagerRigger. Empty is the pack manager
+	// (revisions written before the field). See ManagerName.
+	Manager string `json:"manager,omitempty"`
+
+	// Commit is the git commit a Rigger module was fetched at.
+	Commit string `json:"commit,omitempty"`
+}
+
+// ManagerName returns the manager of a pack, ReleaseManagerPack when the
+// field is empty or the pack is nil.
+func (p *ReleasePack) ManagerName() string {
+	if p == nil || p.Manager == "" {
+		return ReleaseManagerPack
+	}
+	return p.Manager
 }
 
 // ReleasePackSignature is a cosign "simple signing" signature: the payload
@@ -616,6 +694,14 @@ type ReleaseRevisionSpec struct {
 	// ValuesHash is the hash of all values computed by the client.
 	Values     map[string]any `json:"values,omitempty"`
 	ValuesHash string         `json:"valuesHash,omitempty"`
+
+	// InputDigest is the digest Rigger computes over what it applies (the
+	// digest of the module, the values and the settings), stored as given;
+	// Rigger compares it to tell an unchanged release.
+	InputDigest string `json:"inputDigest,omitempty"`
+
+	// Owner is the owner of the revision (ReleaseSpec.Owner).
+	Owner *ReleaseOwner `json:"owner,omitempty"`
 
 	// VariablesSchemas are the variables schemas of the pack and its
 	// dependencies the values were validated against.
@@ -1216,6 +1302,17 @@ type ReleaseApplyRequest struct {
 	// to each region of a multi-region install.
 	Multiregion *ReleaseMultiregion
 
+	// Owner is the owner of the release (a Rigger stack), nil for none.
+	Owner *ReleaseOwner
+
+	// InputDigest is Rigger's digest of what it applies, stored in the
+	// revision (ReleaseRevisionSpec.InputDigest).
+	InputDigest string
+
+	// Adopt lets the manager of this request (Pack.Manager) take over a
+	// release whose newest revision another manager applied.
+	Adopt bool
+
 	WriteRequest
 }
 
@@ -1300,6 +1397,10 @@ type ReleaseRollbackRequest struct {
 	Timeout time.Duration
 	DryRun  bool
 
+	// Adopt lets a rollback restore a revision another manager applied than
+	// the one of the newest revision.
+	Adopt bool
+
 	WriteRequest
 }
 
@@ -1374,6 +1475,10 @@ type ReleaseDriftEvent struct {
 
 // ReleaseListRequest lists releases in a namespace ("*" for all).
 type ReleaseListRequest struct {
+	// Owner lists only the releases of an owner, "<kind>/<name>" (as
+	// ReleaseOwner.String); empty lists all.
+	Owner string
+
 	QueryOptions
 }
 

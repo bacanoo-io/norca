@@ -142,6 +142,12 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	if args.DryRun && args.RecordOnly {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "dry_run and record_only are exclusive")
 	}
+	if err := args.Owner.Validate(); err != nil {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
+	}
+	if err := validateReleaseManager(args.Pack); err != nil {
+		return err
+	}
 	if err := validateReleaseVariables(args.VariablesSchemas, args.VariableValues); err != nil {
 		return err
 	}
@@ -182,6 +188,10 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 
 		variablesSchemas: args.VariablesSchemas,
 		multiregion:      args.Multiregion,
+
+		owner:       args.Owner.Copy(),
+		inputDigest: args.InputDigest,
+		adopt:       args.Adopt,
 	}
 	if in.pack != nil {
 		p := *in.pack
@@ -325,6 +335,10 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 
 		variablesSchemas: rev.Spec.VariablesSchemas,
 		multiregion:      rev.Spec.Multiregion.Copy(),
+
+		owner:       rev.Spec.Owner.Copy(),
+		inputDigest: rev.Spec.InputDigest,
+		adopt:       args.Adopt,
 	}
 	if in.pack != nil {
 		p := *in.pack
@@ -740,6 +754,9 @@ func (r *Release) List(args *structs.ReleaseListRequest, reply *structs.ReleaseL
 				if err != nil {
 					return err
 				}
+				if args.Owner != "" && (rel.Spec == nil || rel.Spec.Owner.String() != args.Owner) {
+					continue
+				}
 				releases = append(releases, rel)
 			}
 			reply.Releases = releases
@@ -924,4 +941,37 @@ func (r *Release) GetRevision(args *structs.ReleaseRevisionRequest, reply *struc
 			return nil
 		}}
 	return r.srv.blockingRPC(&opts)
+}
+
+// validateReleaseManager refuses a pack that names a manager the servers do
+// not know (structs.ReleasePack.Manager; empty is the pack manager).
+func validateReleaseManager(pack *structs.ReleasePack) error {
+	if pack == nil {
+		return nil
+	}
+	switch pack.Manager {
+	case "", structs.ReleaseManagerPack, structs.ReleaseManagerRigger:
+		return nil
+	}
+	return structs.NewErrRPCCodedf(http.StatusBadRequest, "unknown manager %q of the pack: %q or %q",
+		pack.Manager, structs.ReleaseManagerPack, structs.ReleaseManagerRigger)
+}
+
+// checkReleaseManager refuses an operation of one manager on a release whose
+// newest revision another manager applied, unless the request adopts it
+// (design/rig-integration.md 4.4 b): one release has one manager, so the pack
+// manager and Rigger do not undo each other's work. rel is the release as
+// read under the release lock, nil for a new one; pack the pack of the
+// operation (for a rollback, that of the revision it restores).
+func checkReleaseManager(rel *structs.Release, pack *structs.ReleasePack, adopt bool) error {
+	if rel == nil || rel.Spec == nil || rel.Spec.Pack == nil || adopt {
+		return nil
+	}
+	current, wanted := rel.Spec.Pack.ManagerName(), pack.ManagerName()
+	if current == wanted {
+		return nil
+	}
+	return structs.NewErrRPCCodedf(http.StatusConflict,
+		"release %q is managed by %s: %s takes it over only when asked to (adopt; the flag -adopt)",
+		rel.Name, current, wanted)
 }

@@ -85,7 +85,30 @@ type ReleaseSpec struct {
 	// Multiregion describes the multi-region install of the newest
 	// revision, nil for a release of its region only.
 	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
+
+	// Owner is the owner of the newest revision (a Rigger stack).
+	Owner *ReleaseOwner `json:"owner,omitempty"`
 }
+
+// ReleaseOwner is the owner of a release: the Rigger stack that installed
+// it. Kind is ReleaseOwnerKindStack.
+type ReleaseOwner struct {
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Part    string `json:"part,omitempty"`
+}
+
+// ReleaseOwnerKindStack is the kind of an owner that is a Rigger stack.
+const ReleaseOwnerKindStack = "stack"
+
+// The managers of a release (ReleasePack.Manager); empty is the pack
+// manager.
+const (
+	ReleaseManagerPack   = "pack"
+	ReleaseManagerRigger = "rigger"
+)
 
 // ReleaseMultiregion describes a multi-region install: the regions in the
 // order they were applied, and the region whose release applies the global
@@ -141,6 +164,11 @@ type ReleasePack struct {
 	// catalog. It is set by the server.
 	ServerRendered bool                 `json:"serverRendered,omitempty"`
 	Requires       *ReleasePackRequires `json:"requires,omitempty"`
+	// Manager is the package manager that applied the revision
+	// (ReleaseManagerPack, ReleaseManagerRigger; empty: pack), and Commit
+	// the git commit a Rigger module was fetched at.
+	Manager string `json:"manager,omitempty"`
+	Commit  string `json:"commit,omitempty"`
 }
 
 // ReleasePackSignature is a cosign signature of the pack digest.
@@ -233,6 +261,8 @@ type ReleaseRevisionSpec struct {
 	Description string                `json:"description,omitempty"`
 	Values      map[string]any        `json:"values,omitempty"`
 	ValuesHash  string                `json:"valuesHash,omitempty"`
+	InputDigest string                `json:"inputDigest,omitempty"`
+	Owner       *ReleaseOwner         `json:"owner,omitempty"`
 	Resources   []*ReleaseResourceRef `json:"resources,omitempty"`
 
 	VariablesSchemas []*ReleaseVariablesSchema `json:"variablesSchemas,omitempty"`
@@ -312,6 +342,15 @@ type ReleaseApplyRequest struct {
 	// region applies it on the leader of every region in turn and returns
 	// the results per region (ReleaseApplyResponse.Regions).
 	Regions []string
+
+	// Owner is the owner of the release (a Rigger stack); InputDigest the
+	// digest of what Rigger applies, stored in the revision.
+	Owner       *ReleaseOwner `json:",omitempty"`
+	InputDigest string        `json:",omitempty"`
+
+	// Adopt lets the manager of Pack take over a release another manager
+	// applied.
+	Adopt bool `json:",omitempty"`
 }
 
 // ReleaseApplyResponse is the result of an apply, plan or rollback.
@@ -361,6 +400,8 @@ type ReleaseRollbackRequest struct {
 	Wait     bool
 	Timeout  time.Duration
 	DryRun   bool
+	// Adopt lets the rollback restore a revision of another manager.
+	Adopt bool `json:",omitempty"`
 }
 
 // ReleaseDeleteOptions are the options of an uninstall.

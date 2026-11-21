@@ -34,6 +34,10 @@ type releaseApplyBody struct {
 	VariablesSchemas []*structs.ReleaseVariablesSchema
 	VariableValues   map[string]map[string]any
 	Regions          []string
+
+	Owner       *structs.ReleaseOwner
+	InputDigest string
+	Adopt       bool
 }
 
 type releaseResourceBody struct {
@@ -59,6 +63,7 @@ type releaseRollbackBody struct {
 	Wait     bool
 	Timeout  time.Duration
 	DryRun   bool
+	Adopt    bool
 }
 
 // ReleasesRequest handles /v1/releases.
@@ -66,7 +71,7 @@ func (s *HTTPServer) ReleasesRequest(resp http.ResponseWriter, req *http.Request
 	if req.Method != http.MethodGet {
 		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
 	}
-	args := structs.ReleaseListRequest{}
+	args := structs.ReleaseListRequest{Owner: req.URL.Query().Get("owner")}
 	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
 		return nil, nil
 	}
@@ -219,6 +224,10 @@ func releaseRequestFromBody(name string, body *releaseApplyBody, namespace strin
 		VariablesSchemas: body.VariablesSchemas,
 		VariableValues:   body.VariableValues,
 		Regions:          body.Regions,
+
+		Owner:       body.Owner,
+		InputDigest: body.InputDigest,
+		Adopt:       body.Adopt,
 	}
 	if namespace == "" {
 		namespace = structs.DefaultNamespace
@@ -328,6 +337,7 @@ func (s *HTTPServer) releaseRollback(resp http.ResponseWriter, req *http.Request
 		Wait:     body.Wait,
 		Timeout:  body.Timeout,
 		DryRun:   body.DryRun,
+		Adopt:    body.Adopt,
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
