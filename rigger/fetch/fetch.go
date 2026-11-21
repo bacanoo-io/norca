@@ -26,8 +26,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bacanoo-io/norca/rigger/cli/builtin"
-	"github.com/bacanoo-io/norca/rigger/cli/internal/oci"
+	"github.com/bacanoo-io/norca/rigger/builtin"
+	"github.com/bacanoo-io/norca/rigger/oci"
 	"github.com/bacanoo-io/norca/rigger/source"
 	"github.com/bacanoo-io/norca/rigger/version"
 )

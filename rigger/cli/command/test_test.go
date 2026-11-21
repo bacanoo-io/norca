@@ -40,7 +40,7 @@ func TestRun_ModuleTest(t *testing.T) {
 	}{
 		{
 			name:           "the tests of nats",
-			args:           []string{cmdModule, cmdTest, "../../../examples/registry/modules/nats"},
+			args:           []string{cmdModule, cmdTest, "../../examples/registry/modules/nats"},
 			expectedCode:   exitOK,
 			expectedStdout: []string{"ok   tests/nats.riggertest.hcl: three servers form a cluster over the datacenters", "6 passed, 0 failed"},
 		},

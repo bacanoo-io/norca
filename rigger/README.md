@@ -49,8 +49,8 @@ Two Go modules in one repository (design 12.1):
 
 | Path | Module | Holds |
 | --- | --- | --- |
-| `/` | `github.com/bacanoo-io/norca/rigger` | the library: package `rigger` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `module` (the metadata of a module as plain data), `resource` (evaluated resources and hooks), `runref` (runtime references a host resolves), `oplog` (the log as a tree of operations), `sign` (keys, signatures), `version` (semver and constraints), `index` (the format of the global registry); `internal/lang` loads modules, `internal/eval` evaluates them |
-| `cli/` | `github.com/bacanoo-io/norca/rigger/cli` | the `rigger` program, the first host of the library; `norcaapi` (the ports over Norca, with norca's decoders `norca/jobspec2` and `norca/helper/resourcespec`) |
+| `/` | `github.com/bacanoo-io/norca/rigger` | the library: package `rigger` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `module` (the metadata of a module as plain data), `resource` (evaluated resources and hooks), `runref` (runtime references a host resolves), `oplog` (the log as a tree of operations), `sign` (keys, signatures), `version` (semver and constraints), `index` (the format of the global registry), `fetch` (the fetcher of modules: git, OCI, directories, the global registry, built-in modules), `oci` (OCI registries), `bundle` (bundles for a cluster without a network), `builtin` (the built-in modules); `internal/lang` loads modules, `internal/eval` evaluates them |
+| `cli/` | `github.com/bacanoo-io/norca/rigger/cli` | the `rigger` program, the first host of the library; `command` (the commands, shared with `norca rigger`), `norcaapi` (the ports over Norca, with norca's decoders `norca/jobspec2` and `norca/helper/resourcespec`) |
 
 The library imports nothing of Norca. A host builds the engine from its
 adapters:

@@ -10,8 +10,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
-	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 )
 
 // newClient returns a client of the Norca API configured as the norca

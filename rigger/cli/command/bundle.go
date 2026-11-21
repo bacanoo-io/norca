@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bacanoo-io/norca/rigger/cli/internal/bundle"
+	"github.com/bacanoo-io/norca/rigger/bundle"
 )
 
 var errBundleOut = errors.New("bundle create needs -o, the file to write")

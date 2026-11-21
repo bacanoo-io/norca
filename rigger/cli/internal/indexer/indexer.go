@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
-	"github.com/bacanoo-io/norca/rigger/cli/internal/fetch"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/module"
 	"github.com/bacanoo-io/norca/rigger/sign"

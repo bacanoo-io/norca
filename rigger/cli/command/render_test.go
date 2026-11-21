@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	redisDir = "../../../examples/registry/modules/redis"
+	redisDir = "../../examples/registry/modules/redis"
 	flagVar  = "-var"
 )
 
