@@ -385,6 +385,83 @@ func TestTenant_AdoptedReplacedUnderItsName(t *testing.T) {
 	})
 }
 
+// A tenant does not give an ACL role it took over back under a name that is
+// somebody else's now (review finding ATM-26f). The role is the one of the ID
+// the tenant recorded and is written under the name it has now (ATM-14); when
+// it was renamed, that is not the name the tenant lists and claims, and
+// another tenant may have taken the role over under it. The tenant then
+// keeps the role in its list (RestoreFailed) and writes nothing. It wrote
+// what it had found onto the role of the other tenant.
+func TestTenant_RoleNotGivenBackOntoAnotherOwner(t *testing.T) {
+	ci.Parallel(t)
+	c, _ := newTenantArmedTest(t, "")
+	_, err := c.apply("", structs.TenantKind, "team-f", map[string]any{
+		"namespace": map[string]any{"description": "F1"},
+	})
+	must.NoError(t, err)
+	stored := waitGeneration(c, "team-f")
+	claims := c.s.releases.claims
+
+	cases := []struct {
+		name string
+		role string
+		// owned makes the name of the role somebody else's, and returns
+		// what undoes it.
+		owned func(p *tenantPass, key string) func()
+		want  string
+	}{
+		{
+			name: "of another tenant", role: "ops-a",
+			owned: func(p *tenantPass, key string) func() {
+				p.tenants[key] = "team-o"
+				return func() {}
+			},
+			want: "acl-role ops-a belongs to the tenant team-o",
+		},
+		{
+			name: "being written", role: "ops-b",
+			owned: func(_ *tenantPass, key string) func() {
+				other := claims.claimant(claimTenant, "team-o")
+				claims.claim(other, []string{key})
+				return func() { claims.release(other) }
+			},
+			want: `acl-role ops-b is being written by tenant "team-o"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// The role the tenant took over as team-f-dev has another name
+			// now, and links another policy than the tenant found.
+			tenantByHand{c}.policyAndRole(tc.role)
+			role, err := c.s.State().GetACLRoleByName(nil, tc.role)
+			must.NoError(t, err)
+			must.NotNil(t, role)
+
+			p := newTenantPass(t, c.s)
+			undo := tc.owned(p, tenantResourceRef{Type: structs.TenantResourceACLRole, Name: tc.role}.key())
+			defer undo()
+
+			deleting := stored.Copy()
+			deleting.DeletionTime = time.Now().UnixNano()
+			deleting.Finalizers = []string{structs.OperatorsFinalizer}
+			deleting.Status = map[string]any{"resources": []any{
+				map[string]any{"type": structs.TenantResourceACLRole, "name": "team-f-dev", "id": role.ID, "adopted": true,
+					"original": map[string]any{"description": "as the tenant found it", "policies": []any{tc.role}}},
+			}}
+			o := newTenantOperator(c.s, c.s.logger)
+			o.finishDeletion(p, deleting)
+
+			live, err := c.s.State().GetACLRoleByID(nil, role.ID)
+			must.NoError(t, err)
+			must.NotNil(t, live)
+			must.Eq(t, "made by hand", live.Description, must.Sprint("the tenant gave its role back under a name that is somebody else's"))
+			must.Eq(t, tc.role+"-other", live.Policies[0].Name)
+			mustHaveEvent(t, c, stored, "RestoreFailed", tc.want)
+			must.NotNil(t, c.get("", structs.TenantKind, "team-f"), must.Sprint("the tenant let go of a role it could not give back"))
+		})
+	}
+}
+
 // A tenant does not delete a resource it lists that a release owns, or that
 // a release operation is writing (review finding ATM-13): one a release
 // owns is dropped from the tenant's list with an event, one being written

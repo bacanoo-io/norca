@@ -667,7 +667,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			// makes no role of the name until it can be (RestoreFailed).
 			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && (liveRole == nil || liveRole.ID != mine.ID) {
 				if mine.Adopted {
-					if _, err := o.giveBack(p, obj, mine, spec.ReleaseWithoutRestore); err != nil {
+					if _, err := o.giveBack(p, obj, w.claimant, mine, spec.ReleaseWithoutRestore); err != nil {
 						w.restoreFailures = append(w.restoreFailures, err.Error())
 						o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 							fmt.Sprintf("giving %s back failed: %v", mine, err))
@@ -762,7 +762,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		}
 		if ref.Adopted {
 			// On loan: given back as it was found, not deleted.
-			if _, err := o.giveBack(p, obj, ref, spec.ReleaseWithoutRestore); err != nil {
+			if _, err := o.giveBack(p, obj, w.claimant, ref, spec.ReleaseWithoutRestore); err != nil {
 				w.restoreFailures = append(w.restoreFailures, err.Error())
 				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
@@ -1050,7 +1050,7 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 			continue
 		}
 		if ref.Adopted {
-			if _, err := o.giveBack(p, obj, ref, asIs); err != nil {
+			if _, err := o.giveBack(p, obj, claimant, ref, asIs); err != nil {
 				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
 				p.want(p.now.Add(operatorsRetry))

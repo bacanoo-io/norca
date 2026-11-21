@@ -210,9 +210,10 @@ const (
 // tenant saved at the adoption over what the tenant wrote, or with asIs
 // leaves the resource as it is. It returns how the resource was given back.
 // An error means the resource can't be given back as it was found; the
-// tenant then keeps it, and the error says what is missing.
-func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
-	how, err := o.restore(p, obj, ref, asIs)
+// tenant then keeps it, and the error says what is missing. claimant is the
+// pass over the tenant in the claims registry.
+func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, ref tenantResourceRef, asIs bool) (string, error) {
+	how, err := o.restore(p, obj, claimant, ref, asIs)
 	if err != nil {
 		return "", err
 	}
@@ -233,7 +234,7 @@ func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref 
 	return how, nil
 }
 
-func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
+func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, ref tenantResourceRef, asIs bool) (string, error) {
 	store := o.srv.State()
 	orig := ref.Original
 	// Without a saved original there is nothing to write back.
@@ -368,6 +369,17 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if roleMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
+		// The role is written under the name it has now, which is not the
+		// name the tenant lists and claims when the role was renamed:
+		// somebody else may have that name by now, and then the role is
+		// theirs to write (review finding ATM-26f).
+		taken, err := o.roleNameTaken(p, obj, claimant, live.Name)
+		if err != nil {
+			return "", err
+		}
+		if taken != "" {
+			return "", fmt.Errorf("%s can't be given back: %s", ref, taken)
+		}
 		// A check-and-set on the role as read here: a rename in between
 		// is not written back (review finding ATM-26).
 		o.beforeWrite(ref)
@@ -407,6 +419,28 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		return "", fmt.Errorf("unknown resource type %q", ref.Type)
 	}
 	return tenantGivenBackRestored, nil
+}
+
+// roleNameTaken says, right before a tenant gives an ACL role back, who else
+// has the name of the role: another tenant that lists it, as the pass knows
+// (take), the release operation or the pass over another tenant that claims
+// it now, or a release that lists it (releaseHas, which claims the name for
+// the pass of the tenant first). "" when the name is free.
+func (o *tenantOperator) roleNameTaken(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, name string) (string, error) {
+	named := tenantResourceRef{Type: structs.TenantResourceACLRole, Name: name}
+	if owner, ok := p.othersResource(obj.Name, named); ok {
+		return fmt.Sprintf("%s belongs to the tenant %s", named, owner), nil
+	}
+	owner, writer, err := o.releaseHas(claimant, named)
+	switch {
+	case err != nil:
+		return "", err
+	case writer != "":
+		return fmt.Sprintf("%s is being written by %s", named, writer), nil
+	case owner != "":
+		return fmt.Sprintf("%s belongs to the release %s", named, owner), nil
+	}
+	return "", nil
 }
 
 // liveOriginal returns what a resource of a tenant holds now in the fields a
