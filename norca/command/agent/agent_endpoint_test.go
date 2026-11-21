@@ -432,9 +432,12 @@ func TestHTTP_AgentMonitor(t *testing.T) {
 			resp := newClosableRecorder()
 			defer resp.Close()
 
+			// set server to nil to monitor as client. Here and not in the
+			// goroutine of the handler: the shutdown of the agent reads
+			// the field after this function returns.
+			s.Agent.server = nil
+
 			go func() {
-				// set server to nil to monitor as client
-				s.Agent.server = nil
 				_, err = s.Server.AgentMonitor(resp, req)
 				assert.NoError(t, err)
 			}()
