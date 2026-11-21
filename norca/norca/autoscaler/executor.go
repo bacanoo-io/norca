@@ -128,7 +128,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		action.SetDryRun()
 	}
 
-	dryRun := action.Count == sdk.StrategyActionMetaValueDryRunCount
+	dryRun := action.IsDryRun()
 
 	// Oscillation protection: if this action would make the group change
 	// direction OscillationThreshold times within OscillationWindow, the

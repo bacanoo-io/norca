@@ -107,16 +107,16 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 		return eval, nil
 	}
 
-	newCount := int64(metric.Value)
+	newCount := sdk.CountFromFloat(metric.Value)
 
 	switch eval.Action.Direction {
 	case sdk.ScaleDirectionUp:
-		if maxScaleUp != nil && newCount > count+*maxScaleUp {
-			newCount = count + *maxScaleUp
+		if maxScaleUp != nil && newCount > sdk.AddCount(count, *maxScaleUp) {
+			newCount = sdk.AddCount(count, *maxScaleUp)
 		}
 	case sdk.ScaleDirectionDown:
-		if maxScaleDown != nil && newCount < count-*maxScaleDown {
-			newCount = count - *maxScaleDown
+		if maxScaleDown != nil && newCount < sdk.SubCount(count, *maxScaleDown) {
+			newCount = sdk.SubCount(count, *maxScaleDown)
 		}
 	}
 
@@ -127,7 +127,7 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 		"direction", eval.Action.Direction, "max_scale_up", maxScaleUpStr, "max_scale_down", maxScaleDownStr)
 
 	eval.Action.Count = newCount
-	eval.Action.Reason = fmt.Sprintf("scaling %s because metric is %d", eval.Action.Direction, int64(metric.Value))
+	eval.Action.Reason = fmt.Sprintf("scaling %s because metric is %d", eval.Action.Direction, sdk.CountFromFloat(metric.Value))
 
 	return eval, nil
 }

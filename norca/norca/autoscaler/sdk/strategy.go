@@ -16,10 +16,11 @@ const (
 	strategyActionMetaKeyCountOriginal = "nomad_autoscaler.count.original"
 	strategyActionMetaKeyReasonHistory = "nomad_autoscaler.reason_history"
 
-	// StrategyActionMetaValueDryRunCount is a special count value used when
-	// performing dry-run scaling activities. The Autoscaler will never set a
-	// count to a negative value during normal operation, so the agent is safe
-	// to assume a count set to this value implies dry-run.
+	// StrategyActionMetaValueDryRunCount is the count of an action in
+	// dry-run mode. A dry run is marked by the dry-run flag of Meta
+	// (IsDryRun), not by this count (Norca): a strategy can compute a
+	// negative count, which is capped to the minimum like any other count
+	// (review finding ASP-3).
 	StrategyActionMetaValueDryRunCount = -1
 )
 
@@ -115,10 +116,16 @@ func (a *ScalingAction) SetDryRun() {
 	a.Direction = ScaleDirectionNone
 }
 
+// IsDryRun reports whether the action was set to dry-run mode (SetDryRun).
+func (a *ScalingAction) IsDryRun() bool {
+	dryRun, _ := a.Meta[strategyActionMetaKeyDryRun].(bool)
+	return dryRun
+}
+
 // CapCount caps the value of Count so it remains within the specified limits.
-// If Count is StrategyActionMetaValueDryRunCount this method has no effect.
+// An action in dry-run mode is left as it is.
 func (a *ScalingAction) CapCount(min, max int64) {
-	if a.Count == StrategyActionMetaValueDryRunCount {
+	if a.IsDryRun() {
 		return
 	}
 

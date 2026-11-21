@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -282,6 +283,16 @@ func (ch *checkRunner) queryMetrics(ctx context.Context, cache *queryMetricsCach
 		return sdk.TimestampedMetrics{}, errNoMetrics
 	}
 
+	// A value that is not a finite number (a ratio over zero, an overflow of
+	// the source) says nothing a strategy can count with: the query failed,
+	// and the check's on_error decides what follows (review finding ASP-1).
+	if err := finiteMetrics(ms); err != nil {
+		if cache != nil {
+			cache.entries[cacheKey] = queryMetricsCacheEntry{err: err}
+		}
+		return sdk.TimestampedMetrics{}, err
+	}
+
 	// Make sure metrics are sorted consistently.
 	sort.Sort(ms)
 
@@ -402,6 +413,9 @@ func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, 
 		ch.log.Debug("no running instance to lay the value on, the check votes for no change")
 		return sdk.ScalingAction{Direction: sdk.ScaleDirectionNone}, reading, nil
 	}
+	if err := finiteMetrics(metrics); err != nil {
+		return sdk.ScalingAction{}, reading, fmt.Errorf("failed to lay the value on the count: %w", err)
+	}
 
 	action, err := ch.getNewCountFromStrategy(ctx, pop.desired, metrics)
 	if err != nil {
@@ -425,4 +439,14 @@ func (ch *checkRunner) failOnError() bool {
 	default:
 		return ch.policy.OnCheckError == sdk.ScalingPolicyOnErrorFail
 	}
+}
+
+// finiteMetrics returns an error when a value is not a finite number.
+func finiteMetrics(ms sdk.TimestampedMetrics) error {
+	for _, m := range ms {
+		if math.IsInf(m.Value, 0) || math.IsNaN(m.Value) {
+			return fmt.Errorf("the value %v is not a finite number", m.Value)
+		}
+	}
+	return nil
 }

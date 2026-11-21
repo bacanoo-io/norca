@@ -158,17 +158,17 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 	// standard calculation.
 	switch count {
 	case 0:
-		newCount = int64(math.Ceil(factor))
+		newCount = sdk.CountFromFloat(math.Ceil(factor))
 	default:
-		newCount = int64(math.Ceil(float64(count) * factor))
+		newCount = sdk.CountFromFloat(math.Ceil(float64(count) * factor))
 	}
 
 	// Limit the increase or decrease with the values specified in max_scale_up and max_scale_down.
-	if maxScaleDown != nil && newCount < count-(*maxScaleDown) {
-		newCount = count - *maxScaleDown
+	if maxScaleDown != nil && newCount < sdk.SubCount(count, *maxScaleDown) {
+		newCount = sdk.SubCount(count, *maxScaleDown)
 	}
-	if maxScaleUp != nil && newCount > count+(*maxScaleUp) {
-		newCount = count + *maxScaleUp
+	if maxScaleUp != nil && newCount > sdk.AddCount(count, *maxScaleUp) {
+		newCount = sdk.AddCount(count, *maxScaleUp)
 	}
 
 	// Log at trace level the details of the strategy calculation. This is

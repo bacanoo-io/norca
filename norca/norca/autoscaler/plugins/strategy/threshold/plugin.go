@@ -273,18 +273,18 @@ func withinBounds(logger hclog.Logger, metrics sdk.TimestampedMetrics, config *t
 
 // runDelta returns the next count for a delta check.
 func runDelta(count int64, d float64) int64 {
-	return count + int64(d)
+	return sdk.AddCount(count, sdk.CountFromFloat(d))
 }
 
 // runPercentage returns the next count for a percentage check.
 func runPercentage(count int64, pct float64) int64 {
 	newCount := float64(count) * (1 + pct/100)
-	return int64(math.Ceil(newCount))
+	return sdk.CountFromFloat(math.Ceil(newCount))
 }
 
 // runValue returns the next count for a value check.
 func runValue(v float64) int64 {
-	return int64(v)
+	return sdk.CountFromFloat(v)
 }
 
 // calculateDirection is used to calculate the direction of scaling that should
