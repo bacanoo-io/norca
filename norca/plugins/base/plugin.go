@@ -38,6 +38,20 @@ var (
 	}
 )
 
+// LegacyMagicCookieKey is the key under which a driver or device plugin built
+// against the plugin packages of Nomad 1.6.5 looks for the magic cookie
+// (Norca). The value is the same, and the protocol did not change.
+const LegacyMagicCookieKey = "NOMAD_PLUGIN_MAGIC_COOKIE"
+
+// LegacyHandshakeEnv returns the environment of a plugin process that lets a
+// plugin built against the plugin packages of Nomad 1.6.5 pass the handshake
+// as well (Norca, review finding ASP-2): go-plugin sets the cookie under the
+// key of Handshake only, and such a plugin exits when it does not find its
+// own key. The loaders start every plugin process with it.
+func LegacyHandshakeEnv() []string {
+	return []string{LegacyMagicCookieKey + "=" + Handshake.MagicCookieValue}
+}
+
 // PluginBase is wraps a BasePlugin and implements go-plugins GRPCPlugin
 // interface to expose the interface over gRPC.
 type PluginBase struct {

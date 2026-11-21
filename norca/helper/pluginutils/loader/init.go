@@ -321,6 +321,7 @@ func (l *PluginLoader) fingerprintPlugin(pluginExe os.FileInfo, config *config.P
 
 	// Build the command
 	cmd := exec.Command(info.exePath)
+	cmd.Env = base.LegacyHandshakeEnv()
 	if config != nil {
 		cmd.Args = append(cmd.Args, config.Args...)
 		info.args = config.Args

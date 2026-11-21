@@ -33,7 +33,7 @@ func (i *stringSliceFlags) Set(value string) error {
 // TestMain runs either the tests or runs a mock plugin based on the passed
 // flags
 func TestMain(m *testing.M) {
-	var plugin, configSchema bool
+	var plugin, configSchema, nomadKey bool
 	var name, pluginType, pluginVersion string
 	var pluginApiVersions stringSliceFlags
 	flag.BoolVar(&plugin, "plugin", false, "run binary as a plugin")
@@ -42,10 +42,15 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&pluginType, "type", "", "plugin type")
 	flag.StringVar(&pluginVersion, "version", "", "plugin version")
 	flag.Var(&pluginApiVersions, "api-version", "supported plugin API version")
+	flag.BoolVar(&nomadKey, "nomad-key", false, "serve with the cookie key of the Nomad 1.6.5 plugin packages (Norca)")
 	flag.Parse()
 
 	if plugin {
-		if err := pluginMain(name, pluginType, pluginVersion, pluginApiVersions, configSchema); err != nil {
+		handshake := base.Handshake
+		if nomadKey {
+			handshake.MagicCookieKey = base.LegacyMagicCookieKey
+		}
+		if err := pluginMain(name, pluginType, pluginVersion, pluginApiVersions, configSchema, handshake); err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
@@ -55,7 +60,7 @@ func TestMain(m *testing.M) {
 }
 
 // pluginMain starts a mock plugin using the passed parameters
-func pluginMain(name, pluginType, version string, apiVersions []string, config bool) error {
+func pluginMain(name, pluginType, version string, apiVersions []string, config bool, handshake plugin.HandshakeConfig) error {
 	// Validate passed parameters
 	if name == "" || pluginType == "" {
 		return fmt.Errorf("name and plugin type must be specified")
@@ -87,7 +92,7 @@ func pluginMain(name, pluginType, version string, apiVersions []string, config b
 
 	// Serve the plugin
 	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: base.Handshake,
+		HandshakeConfig: handshake,
 		Plugins:         pmap,
 		GRPCServer:      plugin.DefaultGRPCServer,
 	})

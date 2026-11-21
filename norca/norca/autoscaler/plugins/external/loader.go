@@ -236,10 +236,12 @@ func (i *instance) launch() (*plugin.Client, plugins.Base, error) {
 		return nil, nil, err
 	}
 
+	cmd := exec.Command(path, i.args...)
+	cmd.Env = LegacyHandshakeEnv()
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig:  Handshake,
 		Plugins:          pluginMap(i.pluginType),
-		Cmd:              exec.Command(path, i.args...),
+		Cmd:              cmd,
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger:           i.logger,
 	})

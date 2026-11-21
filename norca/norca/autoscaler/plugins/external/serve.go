@@ -25,12 +25,27 @@ import (
 // from executing bad plugins or executing a plugin directory. It is a UX
 // feature, not a security feature.
 //
-// The values are those of the Nomad Autoscaler, whose plugin versioning is
-// performed using the ProtocolVersion within the Handshake.
+// The protocol version and the value of the cookie are those of the Nomad
+// Autoscaler, whose plugin versioning is performed using the ProtocolVersion
+// within the Handshake; the key of the cookie is Norca's. A plugin built with
+// the Nomad Autoscaler SDK looks for the cookie under LegacyMagicCookieKey,
+// which the loader sets as well (LegacyHandshakeEnv).
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
 	MagicCookieKey:   "NORCA_AUTOSCALER_PLUGIN_MAGIC_COOKIE",
 	MagicCookieValue: "e082fa04d587a6525d683666fa253d6afda00f20c122c54a80a3ed57fec99ff3",
+}
+
+// LegacyMagicCookieKey is the key under which a plugin built with the Nomad
+// Autoscaler SDK looks for the magic cookie (review finding ASP-2).
+const LegacyMagicCookieKey = "NOMAD_AUTOSCALER_PLUGIN_MAGIC_COOKIE"
+
+// LegacyHandshakeEnv returns the environment of a plugin process that lets a
+// plugin built with the Nomad Autoscaler SDK pass the handshake as well:
+// go-plugin sets the cookie under the key of Handshake only, and such a
+// plugin exits when it does not find its own key.
+func LegacyHandshakeEnv() []string {
+	return []string{LegacyMagicCookieKey + "=" + Handshake.MagicCookieValue}
 }
 
 // Serve is used by a plugin binary to serve an APM or strategy plugin. The

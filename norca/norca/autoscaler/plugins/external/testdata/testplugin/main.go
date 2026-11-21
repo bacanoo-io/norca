@@ -5,8 +5,10 @@
 // tests of the external package. With -type=apm (default) it is an APM whose
 // queries are numbers returned as the metric value; the query "crash" makes
 // the process exit. With -type=strategy it is a strategy that sets the count
-// to the latest metric value. The plugin name is the binary name, as the
-// host expects the plugin name to match its driver.
+// to the latest metric value. With -nomadkey it serves with the key of the
+// magic cookie of the Nomad Autoscaler SDK, as a plugin built with that SDK
+// does. The plugin name is the binary name, as the host expects the plugin
+// name to match its driver.
 package main
 
 import (
@@ -21,13 +23,30 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/external"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	hclog "github.com/hashicorp/go-hclog"
+	plugin "github.com/hashicorp/go-plugin"
 )
 
 func main() {
 	pluginType := flag.String("type", sdk.PluginTypeAPM, "plugin type")
+	nomadKey := flag.Bool("nomadkey", false, "serve with the cookie key of the Nomad Autoscaler SDK")
 	flag.Parse()
 
 	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+
+	if *nomadKey {
+		hs := external.Handshake
+		hs.MagicCookieKey = external.LegacyMagicCookieKey
+		impl := &apm{name: name}
+		plugin.Serve(&plugin.ServeConfig{
+			HandshakeConfig: hs,
+			Plugins: map[string]plugin.Plugin{
+				sdk.PluginTypeAPM:  &external.PluginAPM{Impl: impl},
+				sdk.PluginTypeBase: &external.PluginBase{Impl: impl},
+			},
+			GRPCServer: plugin.DefaultGRPCServer,
+		})
+		return
+	}
 
 	external.Serve(func(hclog.Logger) interface{} {
 		switch *pluginType {

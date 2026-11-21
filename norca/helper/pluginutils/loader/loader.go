@@ -208,6 +208,7 @@ func (l *PluginLoader) dispensePlugin(
 		return nil, fmt.Errorf("one of launch command or reattach config must be specified")
 	} else if cmd != "" {
 		pluginCmd = exec.Command(cmd, args...)
+		pluginCmd.Env = base.LegacyHandshakeEnv()
 	}
 
 	client := plugin.NewClient(&plugin.ClientConfig{

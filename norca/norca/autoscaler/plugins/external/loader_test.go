@@ -240,3 +240,27 @@ func TestDiscover(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, filepath.Join(dir, externaltest.BinaryName("a-plugin")), path)
 }
+
+// A plugin built with the Nomad Autoscaler SDK looks for the magic cookie
+// under the key of that SDK; the loader sets it next to its own, so such a
+// plugin starts (review finding ASP-2).
+func TestLoader_PluginOfTheNomadSDKStarts(t *testing.T) {
+	ci.Parallel(t)
+
+	dir := t.TempDir()
+	externaltest.InstallPlugin(t, dir, "test-apm")
+	l, _ := newTestLoader(t, dir)
+
+	apm, err := l.APM("nomad-sdk", "test-apm", []string{"-nomadkey"}, nil)
+	must.NoError(t, err)
+	ms, err := apm.Query("5", testRange())
+	must.NoError(t, err)
+	must.Eq(t, 5.0, ms[0].Value)
+
+	// A plugin of this tree, with the Norca key, starts as before.
+	apm, err = l.APM("norca", "test-apm", nil, nil)
+	must.NoError(t, err)
+	ms, err = apm.Query("3", testRange())
+	must.NoError(t, err)
+	must.Eq(t, 3.0, ms[0].Value)
+}
