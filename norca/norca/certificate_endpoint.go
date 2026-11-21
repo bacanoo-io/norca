@@ -208,6 +208,14 @@ const certificateRevokeAttempts = 5
 // With a serial number it revokes the certificate of the object with that
 // serial (review finding ATM-24b): the current one as without it, an earlier
 // one (revokeEarlier) without a new certificate.
+//
+// An object that is being deleted is revoked like any other (review finding
+// ATM-24m): its deletion revokes its certificates with the reason
+// cessationOfOperation, and waits for an external issuer, so a request may
+// still raise the reason to keyCompromise, and a certificate of an object
+// that keeps its certificates (keep_certificates) and waits for something
+// else can still be revoked. The answer says Deleting then, since nothing is
+// issued for such an object.
 func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *structs.CertificateRevokeResponse) error {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("Certificate.Revoke", args, args, reply); done {
@@ -263,6 +271,7 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 		if err := structs.DecodeObjectPart(obj.Status, status); err != nil {
 			return err
 		}
+		reply.Deleting = obj.Deleting()
 		if serial != "" && serial != status.Serial {
 			index, pending, err := c.revokeEarlier(snap, obj, status, serial, reason, args)
 			if structs.IsObjectConflictError(err) && attempt < certificateRevokeAttempts {
