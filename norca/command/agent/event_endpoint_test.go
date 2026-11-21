@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -273,6 +274,9 @@ func TestHTTP_Alloc_Port_Response(t *testing.T) {
 		streamCh, err := events.Stream(ctx, topics, 1, nil)
 		require.NoError(t, err)
 
+		// The goroutine below gathers the events and the test reads them:
+		// allocEventsLock guards allocEvents.
+		var allocEventsLock sync.Mutex
 		var allocEvents []api.Event
 		// gather job alloc events
 		go func() {
@@ -285,33 +289,50 @@ func TestHTTP_Alloc_Port_Response(t *testing.T) {
 					if event.IsHeartbeat() {
 						continue
 					}
+					allocEventsLock.Lock()
 					allocEvents = append(allocEvents, event.Events...)
+					allocEventsLock.Unlock()
 				case <-time.After(10 * time.Second):
-					require.Fail(t, "failed waiting for event stream event")
+					// Not require: this is not the goroutine of the test.
+					assert.Fail(t, "failed waiting for event stream event")
+					return
 				}
 			}
 		}()
 
 		var networkResource *api.NetworkResource
 		testutil.WaitForResult(func() (bool, error) {
+			allocEventsLock.Lock()
+			defer allocEventsLock.Unlock()
+
 			for _, e := range allocEvents {
-				if e.Type == structs.TypeAllocationUpdated {
-					eventAlloc, err := e.Allocation()
-					if err != nil {
-						return false, err
-					}
-					if len(eventAlloc.AllocatedResources.Tasks["web"].Networks) == 0 {
-						return false, nil
-					}
-					networkResource = eventAlloc.AllocatedResources.Tasks["web"].Networks[0]
-					if networkResource.ReservedPorts[0].Value == 5000 {
-						return true, nil
-					}
+				if e.Type != structs.TypeAllocationUpdated {
+					continue
+				}
+				eventAlloc, err := e.Allocation()
+				if err != nil {
+					return false, err
+				}
+				// The job was registered too, so the scheduler may have
+				// placed an allocation of its own, whose task has no
+				// networks. Its events come before, between or after the
+				// ones of the allocation stored above: skip them.
+				if eventAlloc.ID != alloc.ID {
+					continue
+				}
+				networks := eventAlloc.AllocatedResources.Tasks["web"].Networks
+				if len(networks) == 0 {
+					continue
+				}
+				networkResource = networks[0]
+				if networkResource.ReservedPorts[0].Value == 5000 {
+					return true, nil
 				}
 			}
-			return false, nil
+			return false, fmt.Errorf("no update event of allocation %s with its ports among %d events",
+				alloc.ID, len(allocEvents))
 		}, func(e error) {
-			require.NoError(t, err)
+			require.NoError(t, e)
 		})
 
 		require.NotNil(t, networkResource)
