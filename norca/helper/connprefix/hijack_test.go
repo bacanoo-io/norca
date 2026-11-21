@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/hashicorp/go-connlimit"
@@ -285,6 +286,68 @@ func TestTrackListener_ConnMethods(t *testing.T) {
 	must.Eq(t, 4, n)
 	must.Eq(t, "abcd", plain.sb.String())
 	must.True(t, errors.Is(conn.CloseWrite(), errors.ErrUnsupported))
+}
+
+// pipeConn is one end of a net.Pipe that counts its Close calls.
+type pipeConn struct {
+	net.Conn
+	closes atomic.Int32
+}
+
+func (c *pipeConn) Close() error { c.closes.Add(1); return c.Conn.Close() }
+
+// Detach hands the network connection to the caller and leaves a closed
+// connection to whoever holds the tracked one (review finding MUK-34).
+func TestDetach(t *testing.T) {
+	ci.Parallel(t)
+
+	accept := func() (net.Conn, *pipeConn, net.Conn) {
+		server, client := net.Pipe()
+		t.Cleanup(func() { server.Close(); client.Close() })
+		inner := &pipeConn{Conn: server}
+		ln := &connListener{conns: make(chan net.Conn, 1)}
+		ln.conns <- inner
+		conn, err := TrackListener(ln).Accept()
+		must.NoError(t, err)
+		return conn, inner, client
+	}
+
+	conn, inner, client := accept()
+	nc := Detach(conn)
+	must.True(t, nc == net.Conn(inner))
+	must.Nil(t, Detach(conn))
+
+	// the tracked connection is closed for its holder, addresses apart
+	_, err := conn.Read(make([]byte, 1))
+	must.ErrorIs(t, err, net.ErrClosed)
+	_, err = conn.Write([]byte("x"))
+	must.ErrorIs(t, err, net.ErrClosed)
+	must.ErrorIs(t, conn.SetDeadline(time.Now()), net.ErrClosed)
+	must.Eq(t, inner.RemoteAddr().String(), conn.RemoteAddr().String())
+	must.Eq(t, inner.LocalAddr().String(), conn.LocalAddr().String())
+	must.Eq(t, inner.RemoteAddr().String(), ForLimit(conn).RemoteAddr().String())
+
+	// and its Close does not reach the network connection, which still works
+	must.NoError(t, conn.Close())
+	must.NoError(t, conn.Close())
+	must.Eq(t, 0, inner.closes.Load())
+	go nc.Write([]byte("ok"))
+	buf := make([]byte, 2)
+	_, err = io.ReadFull(client, buf)
+	must.NoError(t, err)
+	must.Eq(t, "ok", string(buf))
+
+	// through a TLS connection on the tracked one
+	conn, inner, _ = accept()
+	must.True(t, Detach(&tlsLikeConn{Conn: conn}) == net.Conn(inner))
+
+	// not a closed one, and no other connection
+	conn, inner, _ = accept()
+	must.NoError(t, conn.Close())
+	must.Nil(t, Detach(conn))
+	must.Eq(t, 1, inner.closes.Load())
+	must.Nil(t, Detach(inner))
+	must.Nil(t, Detach(&tlsLikeConn{Conn: inner}))
 }
 
 // The listener hands on the error of the wrapped one.

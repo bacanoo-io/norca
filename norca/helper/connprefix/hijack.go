@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 // TrackListener returns ln with connections that tell HTTPConnState when
@@ -93,6 +94,52 @@ func (c *trackedConn) CloseWrite() error {
 	}
 	return errors.ErrUnsupported
 }
+
+// Detach takes the network connection out of conn, a connection of a
+// TrackListener or a TLS connection that runs on one, and returns it. It
+// returns nil for any other connection, and for one that is closed or
+// detached already.
+//
+// From then on conn is a closed connection for whoever holds it: its reads
+// and writes fail and its Close does not reach the network connection,
+// which is the caller's to use and to close. It is for a connection that an
+// http.Server must not serve but that still gets an answer, which the
+// caller then writes without the server waiting for it.
+//
+// Call it only before anything read or wrote conn, as in the http.StateNew
+// hook: an http.Server starts to serve a connection after that hook
+// returned. Detach does not synchronize with a use of conn at the same time.
+func Detach(conn net.Conn) net.Conn {
+	tc := tracked(conn)
+	if tc == nil {
+		return nil
+	}
+
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if _, ok := tc.Conn.(detachedConn); ok || tc.closed {
+		return nil
+	}
+	nc := tc.Conn
+	tc.Conn = detachedConn{local: nc.LocalAddr(), remote: nc.RemoteAddr()}
+	return nc
+}
+
+// detachedConn is what Detach leaves in a trackedConn: a closed connection
+// that still knows its addresses, which a connection limiter keeps a
+// connection by.
+type detachedConn struct {
+	local, remote net.Addr
+}
+
+func (detachedConn) Read([]byte) (int, error)         { return 0, net.ErrClosed }
+func (detachedConn) Write([]byte) (int, error)        { return 0, net.ErrClosed }
+func (detachedConn) Close() error                     { return nil }
+func (c detachedConn) LocalAddr() net.Addr            { return c.local }
+func (c detachedConn) RemoteAddr() net.Addr           { return c.remote }
+func (detachedConn) SetDeadline(time.Time) error      { return net.ErrClosed }
+func (detachedConn) SetReadDeadline(time.Time) error  { return net.ErrClosed }
+func (detachedConn) SetWriteDeadline(time.Time) error { return net.ErrClosed }
 
 // tracked returns the connection of a TrackListener that conn is, or that a
 // TLS connection conn runs on; nil for any other connection.
