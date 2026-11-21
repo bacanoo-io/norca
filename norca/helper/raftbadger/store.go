@@ -62,6 +62,11 @@ type Store struct {
 
 	commitLock   sync.Mutex
 	stagedCommit uint64 // written with the next StoreLogs
+
+	// partialDelete, set by tests, is called after each transaction of a
+	// DeleteRange but the last; an error stops the deletion there, as a
+	// crash would.
+	partialDelete func() error
 }
 
 // Open opens or creates the store in opts.Path.
@@ -201,26 +206,56 @@ func (s *Store) StoreLogs(logs []*raft.Log) error {
 
 // DeleteRange deletes the entries from min to max, both included, in
 // transactions of the size Badger allows (no DropPrefix: it blocks writes).
+//
+// A range that ends at the last entry (raft truncating the tail of a
+// follower's log) is deleted from its end: a stop between two transactions
+// then leaves the log without a hole, ending before the range (review
+// finding HLP-8: deleted from its start, the log kept its old last entries
+// past a hole, and raft failed on the hole at every append). Any other range
+// (compaction of the head after a snapshot) is deleted from its start, for
+// the same reason.
 func (s *Store) DeleteRange(min, max uint64) error {
 	start := time.Now()
 	defer func() { s.db.MeasureSince("delete_range", start) }()
 
+	if min > max {
+		return nil
+	}
+	last, err := s.LastIndex()
+	if err != nil {
+		return err
+	}
+	if max >= last {
+		if last < min {
+			return nil
+		}
+		return s.deleteKeys(last-min+1, func(n uint64) uint64 { return last - n })
+	}
+	return s.deleteKeys(max-min+1, func(n uint64) uint64 { return min + n })
+}
+
+// deleteKeys deletes count entries, the nth at index(n), committing whenever
+// a transaction is full.
+func (s *Store) deleteKeys(count uint64, index func(n uint64) uint64) error {
 	txn := s.db.NewTransaction(true)
 	defer func() { txn.Discard() }()
-	for i := min; i <= max; i++ {
-		err := txn.Delete(logKey(i))
+	for n := uint64(0); n < count; n++ {
+		key := logKey(index(n))
+		err := txn.Delete(key)
 		if errors.Is(err, badger.ErrTxnTooBig) {
 			if err := txn.Commit(); err != nil {
 				return err
 			}
+			if s.partialDelete != nil {
+				if err := s.partialDelete(); err != nil {
+					return err
+				}
+			}
 			txn = s.db.NewTransaction(true)
-			err = txn.Delete(logKey(i))
+			err = txn.Delete(key)
 		}
 		if err != nil {
 			return err
-		}
-		if i == max { // max may be the largest uint64
-			break
 		}
 	}
 	return txn.Commit()
