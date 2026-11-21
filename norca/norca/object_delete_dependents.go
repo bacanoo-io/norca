@@ -206,15 +206,20 @@ func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject, deps 
 // its dependents with it (the background and the foreground mode). The
 // caller needs, for every dependent object whose deletion takes more than
 // the object with it (objectDeletionGuard: data in the storage, the resources
-// of a tenant, a certificate), the right that deleting that dependent itself
-// needs for that, and for every dependent job the right to stop it
-// (submit-job in its namespace, as Job.Deregister asks). The protection of a
-// managed job (norca.managed-by) is not asked for: it keeps others from
-// changing the job behind its manager, and the object that owns the job is
-// the way they are meant to take. It returns the list of the dependents the
-// caller was checked for, as it is recorded with the deletion
-// (CustomObject.DeletionApproved).
-func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, owner *structs.CustomObject) ([]string, error) {
+// of a tenant, a certificate), what deleting that dependent itself needs for
+// that: the right of the guard, and, for a dependent that is managed
+// (managed_by), to be its manager (checkObjectManagedBy; review finding
+// JOG-25): the collector deletes the dependent with the rights of the
+// servers, so otherwise an owner would be the way around the protection that
+// a direct deletion of the dependent meets. For every dependent job the
+// caller needs the right to stop it (submit-job in its namespace, as
+// Job.Deregister asks). The protection of a managed job (norca.managed-by)
+// is not asked for: it keeps others from changing the job behind its
+// manager, and the object that owns the job is the way they are meant to
+// take. args is the request of the caller, for its identity. It returns the
+// list of the dependents the caller was checked for, as it is recorded with
+// the deletion (CustomObject.DeletionApproved).
+func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, args structs.RequestWithIdentity, owner *structs.CustomObject) ([]string, error) {
 	var approved []string
 
 	dependents, err := objectDependents(snap, owner)
@@ -245,12 +250,23 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, own
 	deps := destroyingDependents(dependents)
 	for _, dep := range deps {
 		guard := objectDeletionGuard(dep)
-		if guard.allowed(aclObj, dep) {
+		// The dependent, and its manager, are named only to a caller who
+		// may read it.
+		readable := aclObj.AllowObjectOperation(objectOwnerACLNamespace(dep.Namespace), dep.KindRef(), acl.ObjectCapabilityRead)
+		var refused string
+		switch {
+		case !guard.allowed(aclObj, dep):
+			refused = "that needs " + guard.needs
+		case checkObjectManagedBy(aclObj, args, dep) != nil:
+			refused = "it is managed by another identity, and only that identity may delete it"
+			if readable {
+				refused = fmt.Sprintf("it is managed by %q, and only that identity may delete it", dep.ManagedBy)
+			}
+		default:
 			continue
 		}
-		// The dependent is named only to a caller who may read it.
 		which := guard.unnamed
-		if aclObj.AllowObjectOperation(objectOwnerACLNamespace(dep.Namespace), dep.KindRef(), acl.ObjectCapabilityRead) {
+		if readable {
 			which = "its dependent " + dep.KindRef() + " \"" + dep.Name + "\""
 		}
 		where := ""
@@ -258,9 +274,9 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, own
 			where = fmt.Sprintf(" in the namespace %q", dep.Namespace)
 		}
 		return nil, structs.NewErrRPCCodedf(http.StatusForbidden,
-			"deleting %s %q would delete %s%s, and with it %s: that needs %s; "+
+			"deleting %s %q would delete %s%s, and with it %s: %s; "+
 				"the propagation mode %q deletes the object and keeps its dependents",
-			owner.KindRef(), owner.Name, which, where, guard.takes, guard.needs, structs.ObjectPropagationOrphan)
+			owner.KindRef(), owner.Name, which, where, guard.takes, refused, structs.ObjectPropagationOrphan)
 	}
 	for _, dep := range deps {
 		approved = append(approved, dep.ID)

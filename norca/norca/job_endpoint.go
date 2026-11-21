@@ -299,7 +299,8 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if err := checkJobParent(args.Job, existingJob); err != nil {
 		return err
 	}
-	if err := checkJobOwnerMark(aclObj, existingJob, args.Job); err != nil {
+	keepsOwnerMark, err := checkJobOwnerMark(aclObj, existingJob, args.Job)
+	if err != nil {
 		return err
 	}
 
@@ -464,9 +465,17 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		// Pre-register a deployment if necessary.
 		args.Deployment = j.multiregionCreateDeployment(mr, args.Job, eval)
 
+		// A registration that keeps the owner mark of the stored job
+		// without the right on the owner is applied only to the job that
+		// was read above (Norca).
+		ownerMarkPinned := keepsOwnerMark && pinJobOwnerMark(args, existingJob)
+
 		// Commit this update via Raft
 		_, index, err := j.srv.raftApply(structs.JobRegisterRequestType, args)
 		if err != nil {
+			if ownerMarkPinned && strings.Contains(err.Error(), RegisterEnforceIndexErrPrefix) {
+				return errJobOwnerMarkStale(args.Job)
+			}
 			j.logger.Error("registering job failed", "error", err)
 			return err
 		}

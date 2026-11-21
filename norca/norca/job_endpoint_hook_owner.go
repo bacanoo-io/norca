@@ -34,11 +34,21 @@ var jobReservedMetaKeys = []string{
 //
 // The mark is checked when it is new: on a new job, and when the owner or
 // its kind differs from that of the stored job. A registration that keeps
-// the mark of the stored job is not checked again, so whoever may update the
-// job still can, and removing the mark takes no right on the owner. The
-// owner need not exist, and nothing is read to decide: the answer is the
-// same for an owner that exists and for one that does not. A value that
-// names no owner is refused, since no right can be checked for it.
+// the mark of the stored job is not refused, so whoever may update the job
+// still can, and removing the mark takes no right on the owner. A stored job
+// that is stopped holds no mark to keep (review finding JOG-24): the
+// collector does nothing to a stopped job and no deletion of the owner asks
+// for it (dependentJobs), so registering it again with the mark makes it a
+// dependent anew, as a new job. A job that is dead without being stopped
+// still counts in both places, and keeps its mark. The owner need not exist,
+// and nothing is read to decide: the answer is the same for an owner that
+// exists and for one that does not. A value that names no owner is refused,
+// since no right can be checked for it.
+//
+// kept reports that the registration is let through only because it keeps
+// the mark of the stored job: the caller has no right on the owner that a new
+// mark takes. Such a registration holds for the stored job as the endpoint
+// read it, and Job.Register applies it only to that (pinJobOwnerMark).
 //
 // Management tokens (the leader's included) and clusters without ACLs are
 // not restricted. The children of periodic and parameterized jobs inherit
@@ -46,23 +56,62 @@ var jobReservedMetaKeys = []string{
 // Job.Register (see checkJobParent): the mark of the parent was checked when
 // the parent was registered, and a dispatch can't set one
 // (checkDispatchReservedMeta).
-func checkJobOwnerMark(aclObj *acl.ACL, existing, job *structs.Job) error {
+func checkJobOwnerMark(aclObj *acl.ACL, existing, job *structs.Job) (kept bool, err error) {
 	if aclObj == nil || aclObj.IsManagement() {
-		return nil
+		return false, nil
 	}
 	value, ok := job.Meta[structs.JobMetaOwner]
 	if !ok {
-		return nil
+		return false, nil
 	}
-	kindMeta, hasKindMeta := job.Meta[structs.JobMetaOwnerKind]
-	if existing != nil {
+	err = checkNewJobOwnerMark(aclObj, job, value)
+	if err == nil {
+		return false, nil
+	}
+	if existing != nil && !existing.Stop {
+		kindMeta, hasKindMeta := job.Meta[structs.JobMetaOwnerKind]
 		prev, had := existing.Meta[structs.JobMetaOwner]
 		prevKind, hadKind := existing.Meta[structs.JobMetaOwnerKind]
 		if had && prev == value && hadKind == hasKindMeta && prevKind == kindMeta {
-			return nil
+			return true, nil
 		}
 	}
+	return false, err
+}
 
+// pinJobOwnerMark makes a registration that keeps the owner mark of the
+// stored job without the right on the owner (checkJobOwnerMark) one that is
+// applied only if the stored job is still the one the endpoint read: the FSM
+// checks the JobModifyIndex of the job when it applies the registration
+// (checkJobEnforceIndex), and every registration and every stop of a job
+// moves that index. Without it a job that is stopped, loses its mark or is
+// purged between the snapshot of the endpoint and the apply would get the
+// mark from a caller who may not put it on (review finding JOG-24). It
+// reports whether it set the check: a registration that enforces an index of
+// its own was checked against the same stored job, and stays as it is.
+func pinJobOwnerMark(args *structs.JobRegisterRequest, existing *structs.Job) bool {
+	if args.EnforceIndex || existing == nil {
+		return false
+	}
+	args.EnforceIndex = true
+	args.JobModifyIndex = existing.JobModifyIndex
+	return true
+}
+
+// errJobOwnerMarkStale is the error of a registration that kept the owner
+// mark of a stored job that changed before the registration was applied
+// (pinJobOwnerMark). Nothing was written.
+func errJobOwnerMarkStale(job *structs.Job) error {
+	return structs.NewErrRPCCodedf(http.StatusConflict,
+		"job %q changed while it was registered: keeping the owner in its meta %q without the write or "+
+			"manage-finalizers capability on the owner holds only for the job as it was read; register it again",
+		job.ID, structs.JobMetaOwner)
+}
+
+// checkNewJobOwnerMark checks the owner mark of a job as one that is new
+// (see checkJobOwnerMark): value is the meta structs.JobMetaOwner of job.
+func checkNewJobOwnerMark(aclObj *acl.ACL, job *structs.Job, value string) error {
+	kindMeta, hasKindMeta := job.Meta[structs.JobMetaOwnerKind]
 	group, kind, namespace, name, err := structs.ParseObjectOwnerMetaValue(value)
 	if err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest,

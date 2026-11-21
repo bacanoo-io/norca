@@ -4,7 +4,10 @@
 package norca
 
 import (
+	"context"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
@@ -205,6 +208,200 @@ func TestJobOwnerMark_UpdateOfAMarkedJob(t *testing.T) {
 	must.Eq(t, 403, errCode(t, err))
 	must.MapNotContainsKey(t, c.jobIn("default", "app").Meta, structs.JobMetaOwner)
 	must.NoError(t, controller.registerJob(markedJob("default", "app", shop)))
+}
+
+// A stopped job is no holder of its mark: the garbage collector does nothing
+// to it and no deletion of the owner asks for it, so registering it again
+// with the mark makes it a dependent anew, and takes the right on the owner
+// that a new mark takes (review finding JOG-24). Before the fix the mark of a
+// job that the collector, or anybody, had stopped counted as kept, and the
+// right to submit jobs was enough to run the job again as the dependent.
+func TestJobOwnerMark_StoppedJobHoldsNoMark(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := jobOwnerMarkServer(t)
+	defer cleanup()
+
+	submitter := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "submitter", `namespace "default" {
+  capabilities = ["submit-job", "read-job", "list-jobs"]
+}`))
+	controller := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "controller", `namespace "default" {
+  capabilities = ["submit-job", "read-job", "list-jobs"]
+  object "example.com/Database" { capabilities = ["manage-finalizers"] }
+}`))
+	stop := func(id string) {
+		t.Helper()
+		var resp structs.JobDeregisterResponse
+		must.NoError(t, c.s.RPC("Job.Deregister", &structs.JobDeregisterRequest{JobID: id, WriteRequest: c.write("default")}, &resp))
+		must.True(t, c.jobIn("default", id).Stop)
+	}
+
+	shop := ownerMeta(testOwnerGroup, testOwnerKind, "default", "shop")
+	must.NoError(t, controller.registerJob(markedJob("default", "app", shop)))
+	stop("app")
+	must.True(t, structs.JobOwnedBy(c.jobIn("default", "app").Meta, testOwnerGroup, testOwnerKind, "default", "shop"))
+
+	// With the mark the stopped job is registered again only with the right
+	// on the owner; a revert to a version with the mark is a registration.
+	err := submitter.registerJob(markedJob("default", "app", shop))
+	must.Error(t, err, must.Sprint("a stopped job was registered again with its owner mark without a right on the owner"))
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, `owner example.com/Database "shop" in namespace "default"`)
+	var revert structs.JobRegisterResponse
+	err = c.s.RPC("Job.Revert", &structs.JobRevertRequest{
+		JobID: "app", JobVersion: 0, WriteRequest: submitter.write("default"),
+	}, &revert)
+	must.Eq(t, 403, errCode(t, err))
+	must.True(t, c.jobIn("default", "app").Stop)
+
+	// Without the mark it takes no right on the owner.
+	must.NoError(t, submitter.registerJob(markedJob("default", "app", map[string]string{"team": "shop"})))
+	must.False(t, c.jobIn("default", "app").Stop)
+	must.MapNotContainsKey(t, c.jobIn("default", "app").Meta, structs.JobMetaOwner)
+
+	// With the right on the owner the stopped job runs again as the
+	// dependent, and then its mark is kept by whoever may update it.
+	must.NoError(t, controller.registerJob(markedJob("default", "app", shop)))
+	stop("app")
+	must.NoError(t, controller.registerJob(markedJob("default", "app", shop)))
+	running := c.jobIn("default", "app")
+	must.False(t, running.Stop)
+	must.True(t, structs.JobOwnedBy(running.Meta, testOwnerGroup, testOwnerKind, "default", "shop"))
+	update := markedJob("default", "app", shop)
+	update.Priority = 70
+	must.NoError(t, submitter.registerJob(update))
+	must.Eq(t, 70, c.jobIn("default", "app").Priority)
+}
+
+// windowConfigEntries runs a function when a registration writes the
+// configuration entry of its ingress gateway to Consul: after the endpoint
+// read the stored job and checked the registration against it, and before
+// the registration is applied.
+type windowConfigEntries struct {
+	ConsulConfigsAPI
+	inWindow atomic.Pointer[func()]
+}
+
+func (w *windowConfigEntries) SetIngressCE(context.Context, string, string, *structs.ConsulIngressConfigEntry) error {
+	if f := w.inWindow.Swap(nil); f != nil {
+		(*f)()
+	}
+	return nil
+}
+
+func (w *windowConfigEntries) SetTerminatingCE(context.Context, string, string, *structs.ConsulTerminatingConfigEntry) error {
+	return nil
+}
+
+func (w *windowConfigEntries) Stop() {}
+
+// A registration that keeps the mark of the stored job without the right on
+// the owner holds for the job the endpoint read: if the job is stopped, loses
+// its mark or is purged before the registration is applied, the registration
+// is refused, and writes nothing (review finding JOG-24, the window between
+// the snapshot of the endpoint and the apply). Before the fix it was applied
+// to whatever was stored then.
+func TestJobOwnerMark_KeptMarkHoldsForTheJobRead(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := jobOwnerMarkServer(t)
+	defer cleanup()
+	entries := &windowConfigEntries{}
+	c.s.consulConfigEntries = entries
+
+	submitter := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "submitter", `namespace "default" {
+  capabilities = ["submit-job", "read-job", "list-jobs"]
+}`))
+	controller := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "controller", `namespace "default" {
+  capabilities = ["submit-job", "read-job", "list-jobs"]
+  object "example.com/Database" { capabilities = ["manage-finalizers"] }
+}`))
+
+	shop := ownerMeta(testOwnerGroup, testOwnerKind, "default", "shop")
+	gateway := func(id string, meta map[string]string, priority int) *structs.Job {
+		job := mock.ConnectIngressGatewayJob("host", false)
+		job.ID, job.Name, job.Namespace = id, id, "default"
+		job.Meta = meta
+		job.Priority = priority
+		return job
+	}
+	deregister := func(id string, purge bool) {
+		var resp structs.JobDeregisterResponse
+		must.NoError(t, c.s.RPC("Job.Deregister", &structs.JobDeregisterRequest{JobID: id, Purge: purge, WriteRequest: c.write("default")}, &resp))
+	}
+	stored := func(id string) *structs.Job {
+		t.Helper()
+		job, err := c.s.State().JobByID(nil, "default", id)
+		must.NoError(t, err)
+		return job
+	}
+
+	tests := []struct {
+		name string
+		// change is what happens to the stored job in the window.
+		change func(id string)
+		// after checks the stored job: the change, and nothing of the
+		// registration.
+		after func(t *testing.T, job *structs.Job)
+	}{
+		{
+			name:   "stopped",
+			change: func(id string) { deregister(id, false) },
+			after: func(t *testing.T, job *structs.Job) {
+				must.NotNil(t, job)
+				must.True(t, job.Stop, must.Sprint("the stopped job runs again as the dependent"))
+				must.Eq(t, 50, job.Priority)
+			},
+		},
+		{
+			name: "mark removed",
+			change: func(id string) {
+				must.NoError(t, controller.registerJob(gateway(id, map[string]string{"team": "shop"}, 50)))
+			},
+			after: func(t *testing.T, job *structs.Job) {
+				must.NotNil(t, job)
+				must.MapNotContainsKey(t, job.Meta, structs.JobMetaOwner, must.Sprint("the mark is back"))
+				must.Eq(t, 50, job.Priority)
+			},
+		},
+		{
+			name:   "purged",
+			change: func(id string) { deregister(id, true) },
+			after: func(t *testing.T, job *structs.Job) {
+				must.Nil(t, job, must.Sprint("a new job was written with the mark"))
+			},
+		},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := fmt.Sprintf("gw-%d", i)
+			must.NoError(t, controller.registerJob(gateway(id, shop, 50)))
+
+			change := func() { tt.change(id) }
+			entries.inWindow.Store(&change)
+			err := submitter.registerJob(gateway(id, shop, 70))
+			must.Nil(t, entries.inWindow.Load(), must.Sprint("the registration did not reach the window"))
+			must.Error(t, err, must.Sprint("the registration was applied to a job that is not the one it was checked against"))
+			must.Eq(t, 409, errCode(t, err))
+			must.ErrorContains(t, err, structs.JobMetaOwner)
+			tt.after(t, stored(id))
+		})
+	}
+
+	// Nothing changes in the window: the registration is applied.
+	must.NoError(t, controller.registerJob(gateway("gw-kept", shop, 50)))
+	noChange := func() {}
+	entries.inWindow.Store(&noChange)
+	must.NoError(t, submitter.registerJob(gateway("gw-kept", shop, 70)))
+	must.Eq(t, 70, stored("gw-kept").Priority)
+
+	// A caller with the right on the owner needs no stored mark: its
+	// registration is applied to the job as it is then, as any registration.
+	must.NoError(t, controller.registerJob(gateway("gw-own", shop, 50)))
+	stop := func() { deregister("gw-own", false) }
+	entries.inWindow.Store(&stop)
+	must.NoError(t, controller.registerJob(gateway("gw-own", shop, 70)))
+	own := stored("gw-own")
+	must.False(t, own.Stop)
+	must.Eq(t, 70, own.Priority)
 }
 
 // A value that names no owner is refused: no right can be checked for it.

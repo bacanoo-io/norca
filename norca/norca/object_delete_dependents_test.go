@@ -543,6 +543,133 @@ namespace "*" {
 	}
 }
 
+// A tenant, a certificate, or a volume request that takes its volume away is
+// deleted with its owner only for a caller who may delete it itself: the
+// protection of a managed object (managed_by) is asked as a direct deletion
+// asks it (review finding JOG-25). Before the fix the right to write the kind
+// of a managed tenant was enough to have it collected through an owner,
+// though the direct deletion of the tenant was refused.
+func TestObjectDelete_DependentManagedByAnother(t *testing.T) {
+	ci.Parallel(t)
+	c, _, _, cleanup := dependentsTestServer(t)
+	defer cleanup()
+	c.s.objectGC.SetConfig(&objectgc.Config{Interval: 50 * time.Millisecond, IdleInterval: time.Second, TombstoneRetention: time.Second})
+
+	const tenantRef, requestRef = "norca.io/Tenant", "norca.io/CSIVolumeRequest"
+	const managedBy = structs.ManagedByPolicyPrefix + "platform-controller"
+	database := func(name string) *structs.ObjectOwnerReference {
+		return &structs.ObjectOwnerReference{Kind: structs.ObjectKindRef(testOwnerGroup, testOwnerKind), Namespace: "default", Name: name}
+	}
+	tenant := func(name, owner string) {
+		t.Helper()
+		_, err := c.applyObject(&structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: name,
+			Spec: map[string]any{}, ManagedBy: managedBy, Owners: []*structs.ObjectOwnerReference{database(owner)}})
+		must.NoError(t, err)
+		waitTenant(c, name, "ready", tenantReady)
+	}
+	request := func(name, owner string) {
+		t.Helper()
+		_, err := c.applyObject(&structs.CustomObject{Group: structs.OperatorsGroup, Kind: csiVolumeRequestKind, Name: name,
+			Spec:      volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }),
+			ManagedBy: managedBy, Owners: []*structs.ObjectOwnerReference{database(owner)}})
+		must.NoError(t, err)
+		c.waitRequest(name, "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+			return readyReason(obj) == "True" && slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+		})
+	}
+
+	for _, name := range []string{"org", "shop", "loose"} {
+		must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
+	}
+	tenant("team-m", "org")
+	request("shop-data", "shop")
+	tenant("team-loose", "loose")
+
+	// Every right a deletion of the dependents asks, with and without the
+	// right to read them; the last token is the manager.
+	rules := func(dependents string) string {
+		return `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+  object "norca.io/CSIVolumeRequest" { capabilities = [` + dependents + `] }
+  capabilities = ["csi-write-volume"]
+}
+namespace "*" {
+  object "norca.io/Tenant" { capabilities = [` + dependents + `] }
+}
+plugin { policy = "read" }`
+	}
+	writer := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "writer", rules(`"write"`)))
+	reader := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "reader", rules(`"read", "write"`)))
+	manager := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "platform-controller", rules(`"write"`)))
+
+	// The direct deletion of a managed object is refused to all but its
+	// manager.
+	err := writer.delete("", structs.TenantKind, "team-m")
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, "is managed by")
+	err = writer.delete("default", csiVolumeRequestKind, "shop-data")
+	must.Eq(t, 403, errCode(t, err))
+	must.ErrorContains(t, err, "is managed by")
+
+	// So is the deletion of an owner of it, in both modes that take the
+	// dependents, and nothing is marked.
+	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
+		for _, tt := range []struct{ owner, kind, dependent string }{
+			{"org", tenantRef, "team-m"},
+			{"shop", requestRef, "shop-data"},
+		} {
+			err := writer.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Error(t, err, must.Sprintf("%s was deleted by a caller who is not the manager of its dependent %s %q, mode %q",
+				tt.owner, tt.kind, tt.dependent, mode))
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, "is managed by another identity")
+			must.ErrorContains(t, err, `the propagation mode "orphan" deletes the object and keeps its dependents`)
+			// The caller may not read the dependent: neither it nor its
+			// manager is named.
+			must.StrNotContains(t, err.Error(), tt.dependent)
+			must.StrNotContains(t, err.Error(), "platform-controller")
+
+			err = reader.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, fmt.Sprintf("its dependent %s %q", tt.kind, tt.dependent))
+			must.ErrorContains(t, err, fmt.Sprintf("is managed by %q", managedBy))
+		}
+	}
+	var resp structs.CustomObjectWriteResponse
+	err = c.s.RPC("CustomObject.Delete", &structs.CustomObjectDeleteRequest{
+		Group: testOwnerGroup, Kind: testOwnerKind, Name: "org", DryRun: true,
+		WriteRequest: writer.write("default"),
+	}, &resp)
+	must.Eq(t, 403, errCode(t, err))
+	for _, obj := range []*structs.CustomObject{
+		c.object(testOwnerGroup, testOwnerKind, "org"),
+		c.get("", structs.TenantKind, "team-m"),
+		c.object(testOwnerGroup, testOwnerKind, "shop"),
+		c.get("default", csiVolumeRequestKind, "shop-data"),
+	} {
+		must.NotNil(t, obj)
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", obj.Name))
+	}
+
+	// The orphan mode takes no dependent, and asks nothing.
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "loose", structs.ObjectPropagationOrphan))
+	c.waitGone(testOwnerGroup, testOwnerKind, "loose")
+
+	// The manager deletes the owners, and the dependents go with them.
+	teamM := c.get("", structs.TenantKind, "team-m")
+	reply, err := manager.deleteReply(testOwnerGroup, testOwnerKind, "org", structs.ObjectPropagationForeground, false)
+	must.NoError(t, err)
+	must.Eq(t, []string{teamM.ID}, reply.Object.DeletionApproved)
+	must.NoError(t, manager.deleteWith(testOwnerGroup, testOwnerKind, "shop", ""))
+	waitTenantGone(c, "team-m")
+	c.waitGone(testOwnerGroup, testOwnerKind, "org")
+	c.waitGone(structs.OperatorsGroup, csiVolumeRequestKind, "shop-data")
+
+	kept := c.get("", structs.TenantKind, "team-loose")
+	must.NotNil(t, kept)
+	must.False(t, kept.Deleting())
+}
+
 // ownedJob registers a job of the default namespace whose meta names an
 // object of the default namespace as its owner, as the controller SDK
 // writes it, managed by its controller.
@@ -753,7 +880,7 @@ func TestCheckObjectDependentsDelete_Jobs(t *testing.T) {
 
 	snap, err := d.store.Snapshot()
 	must.NoError(t, err)
-	approved, err := checkObjectDependentsDelete(snap, nil, web)
+	approved, err := checkObjectDependentsDelete(snap, nil, nil, web)
 	must.NoError(t, err)
 	var expected []string
 	for _, job := range want {
@@ -765,7 +892,7 @@ func TestCheckObjectDependentsDelete_Jobs(t *testing.T) {
 	// Another owner is checked for its own job only.
 	other, err := snap.CustomObjectByName(nil, testOwnerGroup, testOwnerKind, "default", "other-part")
 	must.NoError(t, err)
-	approved, err = checkObjectDependentsDelete(snap, nil, other)
+	approved, err = checkObjectDependentsDelete(snap, nil, nil, other)
 	must.NoError(t, err)
 	must.Eq(t, []string{structs.ObjectApprovedJob("default", "unrelated", d.mustJob("unrelated").CreateIndex)}, approved)
 }
@@ -800,7 +927,7 @@ func BenchmarkCheckObjectDependentsDelete(b *testing.B) {
 			must.NoError(b, err)
 
 			for b.Loop() {
-				approved, err := checkObjectDependentsDelete(snap, nil, web)
+				approved, err := checkObjectDependentsDelete(snap, nil, nil, web)
 				if err != nil || len(approved) != 2 {
 					b.Fatalf("approved %v, error %v", approved, err)
 				}
