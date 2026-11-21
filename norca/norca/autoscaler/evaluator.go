@@ -345,6 +345,8 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 		if obj, err := store.CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", c.key.job); err == nil && obj != nil {
 			b, _ := nodeGroupBounds(obj.Spec, now) // a bad window is logged by the demand loop
 			c.policy.Min, c.policy.Max = b.min, b.max
+			// ... and by the limits of its pool (review finding ASC-3).
+			c.policy.Max = min(c.policy.Max, checkPoolCap(store, r.cfg.NodeScaling, obj))
 		}
 	}
 
