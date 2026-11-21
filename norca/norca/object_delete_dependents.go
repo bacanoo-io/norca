@@ -77,7 +77,7 @@ var (
 	}
 	certificateDeletionGuard = &deletionGuard{
 		unnamed: "a certificate that depends on it",
-		takes:   "the certificate the servers keep issued (its renewal, and its secret with delete_secret)",
+		takes:   "the certificate the servers keep issued (its renewal, its valid certificates, which are revoked unless keep_certificates is set, and its secret with delete_secret)",
 		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
 			structs.OperatorsGroup + "/" + structs.CertificateKind + " in that namespace",
 		allowed: allowObjectDeletion,
