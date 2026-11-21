@@ -49,6 +49,11 @@ var (
 	certificateRevokeOrderKeep = 24 * time.Hour
 )
 
+// certificateReasonRevocationPending is the reason of the condition Failed
+// of a certificate that is being deleted while its valid certificates are
+// not all revoked yet (review finding ATM-24f).
+const certificateReasonRevocationPending = "RevocationPending"
+
 // certificateAuthorityMinRemaining is the life the issuing CA must have left
 // for the built-in issuer to sign with it. A leaf ends with its CA at the
 // latest, and is renewed at two thirds of its validity: with a CA near its
@@ -379,21 +384,36 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 		}
 	}
 
-	// A certificate that deletes its secret needs the operator at its
-	// deletion.
+	// A certificate whose certificates are revoked at its deletion (review
+	// finding ATM-24f), or that deletes its secret, needs the operator
+	// then. The object endpoint puts the finalizer on when the object is
+	// written (checkCertificateApply); here it follows the spec.
 	finalizers := slices.Clone(obj.Finalizers)
 	hasFinalizer := slices.Contains(finalizers, structs.OperatorsFinalizer)
-	switch {
-	case spec.DeleteSecret && !hasFinalizer:
+	switch needed := spec.NeedsOperatorAtDeletion(); {
+	case needed && !hasFinalizer:
 		finalizers = append(finalizers, structs.OperatorsFinalizer)
-	case !spec.DeleteSecret && hasFinalizer:
+	case !needed && hasFinalizer:
 		finalizers = slices.DeleteFunc(finalizers, func(f string) bool { return f == structs.OperatorsFinalizer })
 	}
 
-	encoded, err := structs.EncodeObjectPart(&st)
+	encoded, err := o.encodeStatus(p, obj, &st, out)
 	if err != nil {
 		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
 		return st.Order
+	}
+	o.writeStatus(obj, encoded, &finalizers)
+	return st.Order
+}
+
+// encodeStatus returns the status of a certificate as a pass leaves it: what
+// it recorded (st), and the conditions for what it found out (out).
+func (o *certificateOperator) encodeStatus(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus,
+	out *certificateOutcome) (map[string]any, error) {
+
+	encoded, err := structs.EncodeObjectPart(st)
+	if err != nil {
+		return nil, err
 	}
 	conditions := newConditionSet(obj.Status, p.now)
 	conditions.set(structs.CertificateConditionReady, out.ready, "", "")
@@ -406,8 +426,7 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	conditions.set(structs.CertificateConditionDegraded, out.failedReason != "" || out.unavailable, "", "")
 	encoded[structs.ObjectStatusConditions] = conditions.list()
 	encoded[structs.ObjectStatusObservedGeneration] = obj.Generation
-	o.writeStatus(obj, encoded, &finalizers)
-	return st.Order
+	return encoded, nil
 }
 
 // certificateFailure returns the reason and the message of the Failed
@@ -811,7 +830,9 @@ func (o *certificateOperator) settleEarlier(p *certificatePass, obj *structs.Cus
 
 // revokeWithdrawn has a certificate a withdrawal takes back revoked, with
 // the reason cessationOfOperation, and reports whether that is over: done,
-// or no issuer is left to revoke it (unrevocable says why). st is the status
+// or no issuer is left to revoke it (unrevocable says why). The deletion of
+// a certificate has its certificates revoked the same way (revokeDeleted;
+// review finding ATM-24f). st is the status
 // of the certificate that is held, or for an earlier certificate
 // (withdrawEarlier) one with the serial, the issuer, the authority, the end,
 // the failures and the wait of that one; what names it in the messages
@@ -887,7 +908,7 @@ func (o *certificateOperator) revokeWithdrawn(p *certificatePass, obj *structs.C
 		// expires, without its key in the secret.
 		return true, fmt.Sprintf("%v; it stays valid until %s", err, st.NotAfter)
 	case err != nil:
-		o.logger.Warn("failed to revoke the certificate of a namespace that may no longer ask for it",
+		o.logger.Warn("failed to revoke a certificate that is taken back or deleted",
 			"namespace", obj.Namespace, "certificate", obj.Name, "serial", serial, "error", err)
 		out.failedMessage += fmt.Sprintf("; revoking the %s with the serial %s failed: %v", what, serial, err)
 		p.want(p.now.Add(operatorsRetry))
@@ -1469,37 +1490,54 @@ func checkOrderChain(chainPEM string, pub crypto.PublicKey, spec *structs.Certif
 }
 
 // finishDeletion does what the deletion of a certificate asks of the
-// operator: it drops the open order, deletes the secret if the spec says so,
-// and lets the object go.
+// operator, and lets the object go when that is over: it drops the open
+// order, has the certificates of the object revoked unless the spec keeps
+// them (revokeDeleted; review finding ATM-24f), and deletes the secret if the
+// spec says so.
+//
+// The object stays, with the finalizer of the servers, until the revocation
+// of each of its valid certificates is closed. While it waits, the status is
+// written as in any other pass: what is revoked, the failures and the waits,
+// and the condition Failed with the reason RevocationPending, whose message
+// says what the deletion waits for. The secret does not wait: with
+// delete_secret it is destroyed in the first pass.
+//
+// The spec is read in every pass: an object that waits goes at once when it
+// is changed to keep_certificates.
 func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec, status *structs.CertificateStatus) {
 	if !slices.Contains(obj.Finalizers, structs.OperatorsFinalizer) {
 		return
 	}
-	if spec.DeleteSecret {
-		secret, err := o.srv.State().SecretByPath(nil, obj.Namespace, spec.SecretPath)
-		if err != nil {
-			return
-		}
-		if secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name {
-			// Only the secret as read is destroyed: one changed since is
-			// read again by the next pass.
-			read := secret.ModifyIndex
-			args := &structs.SecretVersionsRequest{Path: spec.SecretPath, CheckIndex: &read}
-			args.Namespace = obj.Namespace
-			args.Region = o.srv.Region()
-			_, _, err := o.srv.secretVersionsOp(structs.SecretOpDestroy, args)
-			if errors.Is(err, structs.ErrSecretConflict) {
-				o.secretChanged(p, obj, spec)
-				return
-			}
-			if err != nil && !errors.Is(err, structs.ErrSecretNotFound) {
-				o.logger.Warn("failed to delete the secret of a deleted certificate", "namespace", obj.Namespace,
-					"path", spec.SecretPath, "error", err)
-				return
-			}
-		}
+	st := *status
+	st.Earlier = certificateEarlierValid(status.Earlier, p.now)
+	out := &certificateOutcome{}
+	o.dropOrder(p, &st)
+
+	closed := true
+	var unrevoked []string
+	if !spec.KeepCertificates {
+		closed, unrevoked = o.revokeDeleted(p, obj, &st, out)
 	}
+	if closed {
+		out.failedMessage = ""
+	} else {
+		out.failedReason = certificateReasonRevocationPending
+		out.failedMessage = "the certificate is being deleted, and its certificates that are still valid are revoked first" + out.failedMessage
+	}
+	secretGone := !spec.DeleteSecret || o.deleteSecret(p, obj, spec)
+
+	encoded, err := o.encodeStatus(p, obj, &st, out)
+	if err != nil {
+		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
+		return
+	}
+	if !closed || !secretGone {
+		o.writeStatus(obj, encoded, nil)
+		return
+	}
+
 	changed := obj.Copy()
+	changed.Status = encoded
 	changed.Finalizers = slices.DeleteFunc(changed.Finalizers, func(f string) bool { return f == structs.OperatorsFinalizer })
 	written, err := o.srv.writeOperatorObject(changed)
 	if err != nil {
@@ -1508,7 +1546,112 @@ func (o *certificateOperator) finishDeletion(p *certificatePass, obj *structs.Cu
 		}
 		return
 	}
+	if len(unrevoked) > 0 {
+		// The events of the object go with it: the log keeps what nobody
+		// could revoke.
+		o.logger.Warn("a deleted certificate leaves certificates that nobody could revoke; they stay valid until they expire",
+			"namespace", obj.Namespace, "certificate", obj.Name, "serials", strings.Join(unrevoked, ", "))
+	}
 	o.srv.finalizeObjectIfReady(written)
+}
+
+// revokeDeleted has the certificates of a certificate that is being deleted
+// revoked (review finding ATM-24f): the one that is held and the earlier
+// ones, as far as they are still valid and not revoked. With the object its
+// status goes, the only record of who signed them: nothing could revoke them
+// by their serial number afterwards. They are revoked as a withdrawal revokes
+// them, each on its own (revokeWithdrawn, withdrawEarlier): the built-in
+// issuer at once, an external one through a revocation order that is waited
+// for, counted when it fails and placed again after a wait that doubles.
+//
+// It reports whether the revocation is closed, which is what the object
+// waits for: every certificate is revoked, or has no issuer left to revoke it
+// (unrevoked names those), and the expired ones need none. A revocation that
+// fails is never given up while its certificate is valid and its issuer is
+// there. The event RevokedOnDelete tells what a pass has revoked, and what it
+// found without an issuer: an earlier certificate once, the held one when
+// the object goes.
+func (o *certificateOperator) revokeDeleted(p *certificatePass, obj *structs.CustomObject, st *structs.CertificateStatus,
+	out *certificateOutcome) (closed bool, unrevoked []string) {
+
+	// The failures and the wait of the status are those of this revocation,
+	// or of the withdrawal it carries on; earlier ones were of an issuance.
+	if prev, _ := certificateFailure(obj.Status); prev != certificateReasonRevocationPending && prev != "NamesNotAllowed" {
+		st.Failures, st.RetryAt = 0, ""
+	}
+
+	closed = true
+	var news []string
+	heldUnrevoked := ""
+	notAfter, _ := time.Parse(time.RFC3339, st.NotAfter)
+	if st.Serial != "" && p.now.Before(notAfter) {
+		before := st.Revoked
+		done, unrevocable := o.revokeWithdrawn(p, obj, st, "certificate", out)
+		switch {
+		case unrevocable != "":
+			unrevoked = append(unrevoked, st.Serial)
+			heldUnrevoked = fmt.Sprintf("the certificate with the serial %s is not revoked, %s", st.Serial, unrevocable)
+			out.failedMessage += "; " + heldUnrevoked
+		case !done:
+			closed = false
+		case !before:
+			news = append(news, fmt.Sprintf("the certificate with the serial %s is revoked", st.Serial))
+		}
+	}
+
+	news = append(news, o.withdrawEarlier(p, obj, st, out)...)
+	for _, e := range st.Earlier {
+		switch {
+		case e.Revoked:
+		case e.NotRevocable != "":
+			unrevoked = append(unrevoked, e.Serial)
+		default:
+			closed = false
+		}
+	}
+	if closed && heldUnrevoked != "" {
+		news = append(news, heldUnrevoked)
+	}
+	if len(news) > 0 {
+		eventType := structs.ObjectEventTypeNormal
+		if slices.ContainsFunc(news, func(text string) bool { return strings.Contains(text, "is not revoked") }) {
+			eventType = structs.ObjectEventTypeWarning
+		}
+		o.srv.operatorEvent(obj, eventType, "RevokedOnDelete", "the certificate is being deleted: "+strings.Join(news, "; "))
+	}
+	return closed, unrevoked
+}
+
+// deleteSecret destroys the secret of a deleted certificate, if it is the
+// certificate's own, and reports whether it is gone. One that could not be
+// destroyed is left to the next pass.
+func (o *certificateOperator) deleteSecret(p *certificatePass, obj *structs.CustomObject, spec *structs.CertificateSpec) bool {
+	secret, err := o.srv.State().SecretByPath(nil, obj.Namespace, spec.SecretPath)
+	if err != nil {
+		p.want(p.now.Add(operatorsRetry))
+		return false
+	}
+	if secret == nil || secret.Labels[structs.SecretLabelCertificate] != obj.Name {
+		return true
+	}
+	// Only the secret as read is destroyed: one changed since is read again
+	// by the next pass.
+	read := secret.ModifyIndex
+	args := &structs.SecretVersionsRequest{Path: spec.SecretPath, CheckIndex: &read}
+	args.Namespace = obj.Namespace
+	args.Region = o.srv.Region()
+	_, _, err = o.srv.secretVersionsOp(structs.SecretOpDestroy, args)
+	if errors.Is(err, structs.ErrSecretConflict) {
+		o.secretChanged(p, obj, spec)
+		return false
+	}
+	if err != nil && !errors.Is(err, structs.ErrSecretNotFound) {
+		o.logger.Warn("failed to delete the secret of a deleted certificate", "namespace", obj.Namespace,
+			"path", spec.SecretPath, "error", err)
+		p.want(p.now.Add(operatorsRetry))
+		return false
+	}
+	return true
 }
 
 // cleanOrders deletes orders nobody waits for: issuance orders that are not

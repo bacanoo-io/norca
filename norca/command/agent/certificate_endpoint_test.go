@@ -215,11 +215,12 @@ func TestCertificateAuthorityToAPI_Reason(t *testing.T) {
 	out := certificateAuthorityToAPI(&structs.CertificateAuthority{
 		ID: "ca",
 		Revoked: []*structs.CertificateRevocation{
-			{Serial: "01", Reason: structs.CertificateRevokeReasonKeyCompromise},
+			{Serial: "01", Object: "id-1", Reason: structs.CertificateRevokeReasonKeyCompromise},
 			{Serial: "02"},
 		},
 	})
 	must.Len(t, 2, out.Revoked)
+	must.Eq(t, "id-1", out.Revoked[0].Object)
 	must.Eq(t, "keyCompromise", out.Revoked[0].Reason)
 	must.Eq(t, "", out.Revoked[1].Reason)
 }

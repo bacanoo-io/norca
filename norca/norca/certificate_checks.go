@@ -5,6 +5,7 @@ package norca
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -80,6 +81,15 @@ func checkCertificateApply(snap *state.StateSnapshot, aclObj *acl.ACL, obj *stru
 	builtin := issuer != nil && issuer.Builtin != nil
 	if err := structs.CheckCertificateNames(spec, ns, builtin || issuer == nil); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusForbidden, "%v", err)
+	}
+
+	// The servers revoke the certificates of the object, and delete its
+	// secret if it says so, before it goes (review finding ATM-24f). The
+	// finalizer is on from the first write, as on a tenant: a deletion that
+	// comes before the next pass of the operator finds it. The operator
+	// takes it off when the spec no longer asks for either.
+	if !obj.Deleting() && spec.NeedsOperatorAtDeletion() && !slices.Contains(obj.Finalizers, structs.OperatorsFinalizer) {
+		obj.Finalizers = append(obj.Finalizers, structs.OperatorsFinalizer)
 	}
 	return nil
 }

@@ -30,8 +30,14 @@ type CertificateAuthority struct {
 type CertificateRevocation struct {
 	Serial      string
 	Certificate string
-	RevokedAt   time.Time
-	NotAfter    time.Time
+
+	// Object is the ID of the Certificate object the certificate was
+	// issued for: an object created again under the name of a deleted one
+	// has another ID.
+	Object string
+
+	RevokedAt time.Time
+	NotAfter  time.Time
 
 	// Reason is the reason of the revocation, the name of an RFC 5280
 	// CRLReason; empty for none (unspecified).

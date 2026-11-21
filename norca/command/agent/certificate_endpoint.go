@@ -33,6 +33,7 @@ func certificateAuthorityToAPI(ca *structs.CertificateAuthority) *api.Certificat
 		out.Revoked = append(out.Revoked, &api.CertificateRevocation{
 			Serial:      r.Serial,
 			Certificate: r.Certificate,
+			Object:      r.Object,
 			RevokedAt:   r.RevokedAt,
 			NotAfter:    r.NotAfter,
 			Reason:      r.Reason,
