@@ -484,10 +484,7 @@ func conditionsWith(status map[string]any, now string, conditionType string, on 
 		next["reason"] = reason
 	}
 	if message != "" {
-		if len(message) > 1000 {
-			message = message[:1000]
-		}
-		next["message"] = message
+		next["message"] = operatorMessage(message)
 	}
 	out := []any{}
 	found := false

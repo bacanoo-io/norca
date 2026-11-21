@@ -898,7 +898,7 @@ func (s *Server) migrateObjectsOnce(stopCh chan struct{}, failed map[string]stri
 					Type:   structs.ObjectEventTypeWarning,
 					Reason: structs.ObjectMigrationFailedReason,
 					Message: fmt.Sprintf("migration to schema version %d failed: %v", kind.SchemaVersion(),
-						truncateString(err.Error(), 512)),
+						cutMessage(err.Error(), 512)),
 					Meta: map[string]string{"from_version": fmt.Sprint(obj.SchemaVersion()), "to_version": fmt.Sprint(kind.SchemaVersion())},
 				}}, "server:migration")
 				continue
@@ -941,11 +941,4 @@ func (s *Server) migrateStoredObject(kind *structs.ObjectKind, obj *structs.Cust
 	}
 	_, _, err = s.raftApply(structs.CustomObjectUpsertRequestType|structs.IgnoreUnknownTypeFlag, req)
 	return err
-}
-
-func truncateString(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

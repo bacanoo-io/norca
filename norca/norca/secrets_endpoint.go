@@ -423,13 +423,16 @@ func (e *Secret) RecordAccess(args *structs.SecretRecordAccessRequest, reply *st
 		rec.Result = structs.SecretAccessResultError
 	}
 	if rec.Result != structs.SecretAccessResultOK {
-		rec.Error = in.Error
-		if len(rec.Error) > 1024 {
-			rec.Error = rec.Error[:1024]
-		}
+		// The error of the provider, as the client reports it: one that is
+		// too long is cut where its reader sees it (review finding MUK-37).
+		rec.Error = cutMessage(in.Error, secretAccessErrorMax)
 	}
 	return e.srv.secretAudit(rec, true)
 }
+
+// secretAccessErrorMax is the length in bytes of the longest error an audit
+// record of a secret access keeps.
+const secretAccessErrorMax = 1024
 
 // allowed checks a secret capability: granted by the ACL object, or, for
 // read-secret and list-secrets of a workload identity, by the secret_access
