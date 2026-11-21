@@ -30,8 +30,12 @@ jobs:
       matrix:
         # Nomad Pack is part of the norca module (norca/pack). The api client
         # is a separate module; the controller SDK depends only on the api
-        # module. tools holds the build tools (not shipped).
-        module: [norca, norca/api, norca/controller, norca/tools]
+        # module. tools holds the build tools (not shipped). rigger and
+        # rigger/cli are Rigger, the package manager, and its program.
+        module: [norca, norca/api, norca/controller, norca/tools, rigger, rigger/cli]
+    env:
+      # Each module on its own: rigger/ has a workspace for local work.
+      GOWORK: "off"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -63,6 +67,8 @@ jobs:
           #   api, controller and tools modules and the stand-in carry no
           #   LICENSE file of their own, and the step above rules out an
           #   upstream version.
+          # - github.com/bacanoo-io/norca/rigger/...: this repository (MPL 2.0,
+          #   rigger/LICENSE); rigger/cli has no LICENSE file of its own.
           # - packages whose license go-licenses cannot classify; each is a
           #   reviewed decision in norca/tools/thirdparty/overrides.go:
           #   vic/pkg/vsphere/tags (Apache-2.0, the LICENSE file is VMware's
@@ -71,6 +77,7 @@ jobs:
           go-licenses check ./... \
             --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC \
             --ignore github.com/bacanoo-io/norca/norca/ \
+            --ignore github.com/bacanoo-io/norca/rigger \
             --ignore github.com/hashicorp/nomad/api \
             --ignore github.com/hashicorp/vic/pkg/vsphere/tags \
             --ignore github.com/tj/go-spin \

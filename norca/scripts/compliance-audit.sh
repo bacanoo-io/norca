@@ -93,7 +93,7 @@ if [ -z "$up" ]; then
 else
 	fail "upstream commits adding a BUSL-1.1 header: $up"
 fi
-busl_files=$( (git grep -l 'SPDX-License-Identifier: BUSL' HEAD -- ':!*.md' ':!norca/scripts/compliance-audit.sh' ':!clean-room-audit/run.sh' || true) | grep -c . || true)
+busl_files=$( (git grep -l 'SPDX-License-Identifier: BUSL' HEAD -- ':!*.md' ':!norca/scripts/compliance-audit.sh' ':!clean-room-audit/run.sh' ':!rigger/scripts/check-licenses.sh' || true) | grep -c . || true)
 if [ "$busl_files" -eq 0 ]; then
 	pass "no file at HEAD carries a BUSL-1.1 header"
 else
@@ -133,10 +133,11 @@ else
 	sed 's/^/      /' "$t/missing"
 fi
 
-# 5. No upstream Nomad module comes from the module proxy.
+# 5. No upstream Nomad module comes from the module proxy. Each module on its
+#    own (GOWORK=off): rigger/ has a workspace of its two modules.
 if command -v go >/dev/null; then
-	for m in norca norca/api norca/controller norca/tools; do
-		mods=$(cd "$m" && go list -m all)
+	for m in norca norca/api norca/controller norca/tools rigger rigger/cli; do
+		mods=$(cd "$m" && GOWORK=off go list -m all)
 		bad=$(printf '%s\n' "$mods" | awk '
 			$1 == "github.com/hashicorp/nomad" { print; next }
 			index($1, "github.com/hashicorp/nomad/") == 1 || $1 == "github.com/bacanoo-io/norca/norca" || index($1, "github.com/bacanoo-io/norca/norca/") == 1 {

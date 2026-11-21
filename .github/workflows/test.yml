@@ -28,8 +28,12 @@ defaults:
     shell: bash
 
 env:
-  # The norca module and the separate modules inside it.
-  MODULES: norca norca/api norca/controller norca/tools
+  # The norca module and the separate modules inside it, and Rigger's two
+  # modules (design/rig-integration.md 3.2).
+  MODULES: norca norca/api norca/controller norca/tools rigger rigger/cli
+  # Every module on its own: rigger/ has a workspace (rigger/go.work) for
+  # local work, and nothing may build only through it.
+  GOWORK: "off"
 
 jobs:
   build:
@@ -50,6 +54,8 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            rigger/go.sum
+            rigger/cli/go.sum
       - name: go build ./...
         env:
           GOOS: ${{ matrix.goos }}
@@ -74,6 +80,8 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            rigger/go.sum
+            rigger/cli/go.sum
       - name: go vet ./...
         # Every package of every module was vet-clean when this job was added;
         # keep it that way rather than narrowing the package list.
@@ -100,6 +108,8 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            rigger/go.sum
+            rigger/cli/go.sum
       - name: Build norca for the tests that start an agent
         # The api and controller tests start a dev agent from the
         # norca binary on the PATH (they skip those tests without one).
@@ -133,10 +143,16 @@ jobs:
         # Its tests, including the fuzz and property tests in their normal,
         # non-fuzzing mode, run with ./secretstore/... above.
         run: go -C norca/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
-      - name: api, controller and tools modules
+      - name: api, controller, tools and Rigger modules
         run: |
-          for m in norca/api norca/controller norca/tools; do
+          for m in norca/api norca/controller norca/tools rigger rigger/cli; do
             echo "::group::$m"
             go -C "$m" test -count=1 -p 4 ./...
             echo "::endgroup::"
           done
+      - name: Rigger's copies of norca's decoders, licenses of its dependencies
+        # Until step 4.1 of design/rig-integration.md, rigger/cli carries
+        # copies of norca's jobspec2 and of a file of its resourcespec;
+        # check-copy fails when they differ from norca/. check-licenses
+        # refuses a dependency or a file under the Business Source License.
+        run: make -C rigger check-copy check-licenses
