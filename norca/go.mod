@@ -25,7 +25,11 @@ replace github.com/bacanoo-io/norca/norca/api => ./api
 
 // The decoders are modules of their own, so that other modules (rigger/cli)
 // use them without the program module (design/rig-integration.md, 4.1).
-replace github.com/bacanoo-io/norca/norca/jobspec2 => ./jobspec2
+replace (
+	github.com/bacanoo-io/norca/norca/helper/externalspec => ./helper/externalspec
+	github.com/bacanoo-io/norca/norca/helper/resourcespec => ./helper/resourcespec
+	github.com/bacanoo-io/norca/norca/jobspec2 => ./jobspec2
+)
 
 // consul-template imports the API module by its upstream path; the stand-in
 // aliases the Norca API types, so no upstream version comes from the proxy
@@ -39,6 +43,8 @@ require (
 	github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e
 	github.com/aws/aws-sdk-go v1.44.184
 	github.com/bacanoo-io/norca/norca/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/norca/helper/externalspec v0.0.0
+	github.com/bacanoo-io/norca/norca/helper/resourcespec v0.0.0
 	github.com/bacanoo-io/norca/norca/jobspec2 v0.0.0
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.23.2
@@ -82,7 +88,6 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.13
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-connlimit v0.3.0
-	github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840
 	github.com/hashicorp/go-discover v0.0.0-20220621183603-a413e131e836
 	github.com/hashicorp/go-envparse v0.0.0-20180119215841-310ca1881b22
 	github.com/hashicorp/go-getter v1.7.9
@@ -282,6 +287,7 @@ require (
 	github.com/gophercloud/gophercloud v0.1.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect

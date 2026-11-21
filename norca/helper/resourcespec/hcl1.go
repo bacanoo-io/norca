@@ -15,7 +15,6 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/bacanoo-io/norca/norca/api"
-	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
@@ -139,7 +138,7 @@ func parseQuotaSpecImpl(result *api.QuotaSpec, list *ast.ObjectList) error {
 		"task_max",
 		"enforce",
 	}
-	if err := helper.CheckHCLKeys(list, valid); err != nil {
+	if err := checkHCLKeys(list, valid); err != nil {
 		return err
 	}
 
@@ -193,7 +192,7 @@ func parseQuotaLimits(result *[]*api.QuotaLimit, list *ast.ObjectList) error {
 			"variables_limit",
 			"allocations",
 		}
-		if err := helper.CheckHCLKeys(o.Val, valid); err != nil {
+		if err := checkHCLKeys(o.Val, valid); err != nil {
 			return err
 		}
 
@@ -261,7 +260,7 @@ func parseQuotaResourceBlock(name string, result *api.Resources, list *ast.Objec
 	}
 
 	// Check for invalid keys
-	if err := helper.CheckHCLKeys(listVal, valid); err != nil {
+	if err := checkHCLKeys(listVal, valid); err != nil {
 		return multierror.Prefix(err, "resources ->")
 	}
 
@@ -316,7 +315,7 @@ func parseVariableSpecImpl(result *api.Variable, list *ast.ObjectList) error {
 		"modify_time",
 		"items",
 	}
-	if err := helper.CheckHCLKeys(list, valid); err != nil {
+	if err := checkHCLKeys(list, valid); err != nil {
 		return err
 	}
 
