@@ -1189,8 +1189,7 @@ func (r *NodeGetVolumeStatsRequest) Validate() error {
 }
 
 // NodeGetVolumeStatsResponse is the usage of a volume: bytes and inodes, each
-// with what the plugin reported (a value it did not report is 0 and its
-// Known flag false), and its condition.
+// nil when the plugin did not report that unit, and its condition.
 type NodeGetVolumeStatsResponse struct {
 	Bytes  *VolumeUsage
 	Inodes *VolumeUsage

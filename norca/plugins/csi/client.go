@@ -560,6 +560,8 @@ func (c *client) ControllerGetVolume(ctx context.Context, req *ControllerGetVolu
 			ExternalVolumeID:   vol.GetVolumeId(),
 			VolumeContext:      vol.GetVolumeContext(),
 			AccessibleTopology: newTopologies(vol.GetAccessibleTopology()),
+			// (Norca) It was dropped (review finding PLG-3).
+			ContentSource: newVolumeContentSource(vol.GetContentSource()),
 		}
 	}
 	if st := resp.GetStatus(); st != nil {
@@ -1053,6 +1055,10 @@ func (c *client) NodeExpandVolume(ctx context.Context, req *NodeExpandVolumeRequ
 
 // NodeGetVolumeStats returns the usage and the condition of a volume.
 func (c *client) NodeGetVolumeStats(ctx context.Context, req *NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*NodeGetVolumeStatsResponse, error) {
+	if req == nil {
+		// (Norca) Validate panicked on it (review finding PLG-4).
+		return nil, errors.New("missing NodeGetVolumeStats request")
+	}
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
@@ -1067,13 +1073,16 @@ func (c *client) NodeGetVolumeStats(ctx context.Context, req *NodeGetVolumeStats
 	}, opts...)
 	if err != nil {
 		switch status.Code(err) {
+		// (Norca) The error of the plugin is wrapped, so its status code
+		// and a context.DeadlineExceeded stay known to the caller (review
+		// finding PLG-4).
 		case codes.NotFound:
-			return nil, fmt.Errorf("%w: volume %q is not published at %q: %v",
+			return nil, fmt.Errorf("%w: volume %q is not published at %q: %w",
 				structs.ErrCSIClientRPCIgnorable, req.ExternalVolumeID, req.VolumePath, err)
 		case codes.Unimplemented:
-			return nil, fmt.Errorf("node plugin does not implement NodeGetVolumeStats: %v", err)
+			return nil, fmt.Errorf("node plugin does not implement NodeGetVolumeStats: %w", err)
 		default:
-			return nil, fmt.Errorf("node plugin returned an error: %v", err)
+			return nil, fmt.Errorf("node plugin returned an error: %w", err)
 		}
 	}
 
