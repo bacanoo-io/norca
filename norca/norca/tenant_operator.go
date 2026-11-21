@@ -1202,9 +1202,9 @@ func (o *tenantOperator) reportGivenBack(p *tenantPass, obj *structs.CustomObjec
 	}
 	message := "the deleted tenant gives back what it took over, " + how + ": " + strings.Join(back, "; ") +
 		". They stay: delete them by hand if they are not needed"
-	if len(message) > 1000 {
-		message = message[:1000]
-	}
+	// As the event will carry it (operatorEvent): the comparison below is
+	// with what is stored.
+	message = operatorMessage(message)
 	log, err := o.srv.State().ObjectEventLog(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
 	if err == nil && log != nil {
 		for _, e := range log.Events {
