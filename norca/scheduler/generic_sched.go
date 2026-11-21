@@ -541,6 +541,12 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 
 			var downgradedJob *structs.Job
 
+			// The deployment of this placement: a placement downgraded to an
+			// earlier version of the job takes the deployment of that
+			// version, without changing the one of the placements after it
+			// in this plan (Norca, review finding SCH-5).
+			placeDeploymentID := deploymentID
+
 			if missing.DowngradeNonCanary() {
 				jobDeploymentID, job, err := s.downgradedJobForPlacement(missing)
 				if err != nil {
@@ -551,7 +557,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 				if job != nil && job.Version >= missing.MinJobVersion() && job.LookupTaskGroup(tg.Name) != nil {
 					tg = job.LookupTaskGroup(tg.Name)
 					downgradedJob = job
-					deploymentID = jobDeploymentID
+					placeDeploymentID = jobDeploymentID
 				} else {
 					jobVersion := -1
 					if job != nil {
@@ -669,7 +675,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 					Metrics:            s.ctx.Metrics(),
 					NodeID:             option.Node.ID,
 					NodeName:           option.Node.Name,
-					DeploymentID:       placementDeploymentID(missing, deploymentID),
+					DeploymentID:       placementDeploymentID(missing, placeDeploymentID),
 					TaskResources:      resources.OldTaskResources(),
 					AllocatedResources: resources,
 					DesiredStatus:      structs.AllocDesiredStatusRun,
