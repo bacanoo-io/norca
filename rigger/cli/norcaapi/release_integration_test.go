@@ -61,8 +61,9 @@ func client(t *testing.T) *api.Client {
 }
 
 // request is what the rigger program would send for the module web of the
-// stack platform: the module in the pack fields, Rigger's digest in
-// ValuesHash, the owner in the description, and the evaluated resources.
+// stack platform: the module in the pack fields with the manager rigger,
+// Rigger's digest in InputDigest, the stack in Owner (and the description),
+// and the evaluated resources.
 func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *api.ReleaseApplyRequest {
 	t.Helper()
 
@@ -85,10 +86,12 @@ func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *
 			Digest:     moduleDigest,
 			Signatures: sigs,
 			Requires:   &api.ReleasePackRequires{Features: []string{}},
+			Manager:    api.ReleaseManagerRigger,
 		},
 		Description: owner,
+		Owner:       &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: "platform"},
 		Values:      map[string]any{"count": 2},
-		ValuesHash:  releaseDigest,
+		InputDigest: releaseDigest,
 		Resources: []*api.ReleaseResource{
 			{
 				Type: api.ReleaseResourceVariable,
@@ -127,10 +130,11 @@ func TestReleaseSpike_ApplyWithoutPackCatalog(t *testing.T) {
 	}
 
 	spec := rev.Spec
-	t.Logf("revision: pack %s %s digest %s, valuesHash %s, description %q, contentDigest %s, values %v",
-		spec.Pack.Name, spec.Pack.Version, spec.Pack.Digest, spec.ValuesHash, spec.Description, spec.ContentDigest, spec.Values)
+	t.Logf("revision: pack %s %s digest %s manager %s, inputDigest %s, owner %+v, contentDigest %s, values %v",
+		spec.Pack.Name, spec.Pack.Version, spec.Pack.Digest, spec.Pack.Manager, spec.InputDigest, spec.Owner, spec.ContentDigest, spec.Values)
 
-	if spec.Pack.Digest != moduleDigest || spec.ValuesHash != releaseDigest || spec.Description != owner {
+	if spec.Pack.Digest != moduleDigest || spec.InputDigest != releaseDigest || spec.Pack.Manager != api.ReleaseManagerRigger ||
+		spec.Owner == nil || spec.Owner.Name != "platform" {
 		t.Errorf("the revision does not keep what Rigger needs: %+v", spec)
 	}
 

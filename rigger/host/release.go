@@ -97,6 +97,11 @@ type ApplyRequest struct {
 	// of the resource: never recorded in a revision (design 6.3).
 	Secrets  map[string]map[string]Sensitive `json:"-"`
 	Settings Settings                        `json:"settings"`
+	// Adopt takes over a release whose newest revision another package
+	// manager applied (the pack manager); without it the server refuses
+	// the apply. It is a choice of one run, not part of what is applied,
+	// so it is not in the digest.
+	Adopt bool `json:"-"`
 }
 
 // Action is what a plan does to a resource.

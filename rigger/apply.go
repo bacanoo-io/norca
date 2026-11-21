@@ -24,6 +24,9 @@ type ApplyOptions struct {
 	// Prune uninstalls the releases the stack owns and no longer has
 	// (design 9.3); without it they are only shown.
 	Prune bool
+	// Adopt takes over releases another package manager applied
+	// (host.ApplyRequest.Adopt).
+	Adopt bool
 }
 
 // ReleaseOutcome is what an apply did to a release.
@@ -98,7 +101,10 @@ func (e *Engine) applyRelease(ctx context.Context, rp ReleasePlan, opts ApplyOpt
 		ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "release.apply",
 			"release", rp.Release.Name, "namespace", rp.Release.Namespace, "action", string(rp.Action))
 
-		rev, err := e.releases.Apply(ctx, rp.request)
+		req := rp.request
+		req.Adopt = opts.Adopt
+
+		rev, err := e.releases.Apply(ctx, req)
 		span.End(ctx, err)
 
 		if err != nil {
@@ -326,11 +332,12 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 	return &rp, diags
 }
 
-// ApplyInstall applies the plan of one release.
-func (e *Engine) ApplyInstall(ctx context.Context, rp *ReleasePlan) (ReleaseOutcome, error) {
+// ApplyInstall applies the plan of one release; of the options only Adopt
+// applies.
+func (e *Engine) ApplyInstall(ctx context.Context, rp *ReleasePlan, opts ApplyOptions) (ReleaseOutcome, error) {
 	if e.releases == nil {
 		return ReleaseOutcome{}, ErrNoCluster
 	}
 
-	return e.applyRelease(ctx, *rp, ApplyOptions{})
+	return e.applyRelease(ctx, *rp, ApplyOptions{Adopt: opts.Adopt})
 }

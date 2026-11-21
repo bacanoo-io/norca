@@ -20,13 +20,33 @@ import (
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
-// ownerPrefix marks the stack that owns a release in its description (the
-// spike of phase 0, design 12.2): "rigger stack <name>". A release installed
-// on its own is described as "rigger".
+// The description of a release: "rigger stack <name>" for the release of a
+// stack, "rigger" for one installed on its own. The owner is the field
+// Owner of the release API; a release written before it (the spike of
+// phase 0, design 12.2) has the owner only in the description, which is
+// read as the owner until the next apply writes the field.
 const (
 	ownerPrefix = "rigger stack "
 	ownDesc     = "rigger"
 )
+
+// ownerOf returns the stack that owns a release or a revision: its Owner,
+// or the description of one written before the field.
+func ownerOf(owner *api.ReleaseOwner, description string) string {
+	if owner != nil {
+		if owner.Kind == api.ReleaseOwnerKindStack {
+			return owner.Name
+		}
+
+		return ""
+	}
+
+	if name, ok := strings.CutPrefix(description, ownerPrefix); ok {
+		return name
+	}
+
+	return ""
+}
 
 // Releases is the release API of Norca (host.Releases).
 type Releases struct {
@@ -95,7 +115,7 @@ func (r *Releases) History(ctx context.Context, ref host.ReleaseRef) ([]host.Rev
 }
 
 // Owned returns the current revisions of the releases of every namespace
-// whose description names the stack.
+// the stack owns (ownerOf).
 func (r *Releases) Owned(ctx context.Context, owner string) ([]host.Revision, error) {
 	rels, _, err := r.client.Releases().List(query(ctx, "*"))
 	if err != nil {
@@ -105,7 +125,7 @@ func (r *Releases) Owned(ctx context.Context, owner string) ([]host.Revision, er
 	var out []host.Revision
 
 	for _, rel := range rels {
-		if rel.Spec == nil || rel.Spec.Description != ownerPrefix+owner {
+		if rel.Spec == nil || ownerOf(rel.Spec.Owner, rel.Spec.Description) != owner {
 			continue
 		}
 
@@ -221,12 +241,8 @@ func revision(ref host.ReleaseRef, rev *api.ReleaseRevision) host.Revision {
 
 	if s := rev.Spec; s != nil {
 		out.Module = moduleRef(s.Pack)
-		out.Digest = s.ValuesHash
-		out.Owner = strings.TrimPrefix(s.Description, ownerPrefix)
-
-		if !strings.HasPrefix(s.Description, ownerPrefix) {
-			out.Owner = ""
-		}
+		out.Digest = cmp.Or(s.InputDigest, s.ValuesHash)
+		out.Owner = ownerOf(s.Owner, s.Description)
 
 		if t, err := time.Parse(time.RFC3339, s.CreateTime); err == nil {
 			out.CreatedAt = t
@@ -254,26 +270,30 @@ func moduleRef(p *api.ReleasePack) host.ModuleRef {
 }
 
 // applyRequest maps a request of the engine onto the release API: the
-// module in the pack fields, the digest of the release in ValuesHash, the
-// owner in the description (design 12.2).
+// module in the pack fields with the manager rigger, the digest of the
+// release in InputDigest, the stack in Owner (step 4.4 of norca's
+// design/rig-integration.md).
 func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	out := &api.ReleaseApplyRequest{
 		Pack: &api.ReleasePack{
 			Name: req.Module.Name, Version: req.Module.Version, Source: req.Module.Source, Ref: req.Module.Ref, Digest: req.Module.Digest,
 			Requires:   requires(req.Module.Requires),
 			Signatures: signatures(req.Module.Signatures),
+			Manager:    api.ReleaseManagerRigger,
 		},
 		Description: ownDesc,
 		Values:      req.Values,
-		ValuesHash:  req.Digest,
+		InputDigest: req.Digest,
 		Atomic:      req.Settings.Atomic,
 		Wait:        req.Settings.Wait,
 		Timeout:     req.Settings.Timeout,
 		MaxHistory:  req.Settings.MaxHistory,
+		Adopt:       req.Adopt,
 	}
 
 	if req.Owner != "" {
 		out.Description = ownerPrefix + req.Owner
+		out.Owner = &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: req.Owner}
 	}
 
 	for _, r := range req.Resources {
@@ -329,11 +349,7 @@ func (r *Releases) List(ctx context.Context, namespace string) ([]host.Revision,
 
 		if rel.Spec != nil {
 			rev.Number, rev.Module = rel.Spec.Revision, moduleRef(rel.Spec.Pack)
-			rev.Owner = strings.TrimPrefix(rel.Spec.Description, ownerPrefix)
-
-			if !strings.HasPrefix(rel.Spec.Description, ownerPrefix) {
-				rev.Owner = ""
-			}
+			rev.Owner = ownerOf(rel.Spec.Owner, rel.Spec.Description)
 		}
 
 		if rel.Status != nil {
