@@ -26,8 +26,18 @@ import (
 // and a certificate (review finding JOG-22): the servers take down what the
 // tenant keeps, and stop keeping the certificate, so an owner of one is
 // deleted with it only by a caller who may delete the tenant or the
-// certificate itself. The collector also stops the jobs that depend on a
-// deleted object, which needs the right to stop a job in the same way.
+// certificate itself. And for a node group and a certificate issuer (review
+// finding JOG-26): the deletion of a node group is for the machines of the
+// group, which its operator (outside this tree) then acts on as the deletion
+// policy of the group says, and with an issuer gone the servers issue and
+// renew nothing for the certificates that name it (certificateOperator
+// refusal, IssuerNotFound). The collector also stops the jobs that depend on
+// a deleted object, which needs the right to stop a job in the same way.
+//
+// Not guarded on purpose (decision of the maintainer with JOG-26): the kinds
+// of operators outside this tree whose objects are typically the dependents
+// of an application, norca.io/LoadBalancer and norca.io/DNSRecord. They go
+// with the application they were made for, by whoever may delete that.
 
 // deletionGuard is what the deletion of an object takes with it beyond the
 // object, and the right the deletion needs for that, besides the right to
@@ -82,13 +92,33 @@ var (
 			structs.OperatorsGroup + "/" + structs.CertificateKind + " in that namespace",
 		allowed: allowObjectDeletion,
 	}
+	// What the operator of the group does with the machines is not in this
+	// tree: the text says what the kind says (spec.deletion.policy of
+	// nodeGroupKindSchema).
+	nodeGroupDeletionGuard = &deletionGuard{
+		unnamed: "a node group that depends on it",
+		takes:   "the nodes of the group (its operator acts on the machines of the group as the deletion policy of the group says: drain, the default, terminate or orphan)",
+		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
+			structs.NodeScalingGroup + "/" + structs.NodeGroupKind,
+		allowed: allowObjectDeletion,
+	}
+	// The issuing CA of the region is not deleted with the last built-in
+	// issuer: it stays and is still rotated, only none is created where
+	// there is none (certificateCA.reconcile).
+	certificateIssuerDeletionGuard = &deletionGuard{
+		unnamed: "a certificate issuer that depends on it",
+		takes:   "the issuing of the certificates that name it (nothing is issued or renewed for them any more; what they have stays until it expires)",
+		needs: "the object capability " + acl.ObjectCapabilityWrite + " on the kind " +
+			structs.OperatorsGroup + "/" + structs.CertificateIssuerKind,
+		allowed: allowObjectDeletion,
+	}
 )
 
 // objectDeletionGuard returns what the deletion of the object takes with it
 // beyond the object, or nil for an object whose deletion removes the object
-// and nothing else. Of the kinds of certificates only the certificate is
-// guarded: an order is the servers', and an issuer holds nothing that goes
-// with it.
+// and nothing else. Of the kinds of certificates the certificate and the
+// issuer are guarded: an order is the servers'. Of the kinds of node scaling
+// the node group is, the node provider is not (the decision names the group).
 func objectDeletionGuard(obj *structs.CustomObject) *deletionGuard {
 	switch {
 	case isVolumeRequestKind(obj.Group, obj.Kind):
@@ -103,13 +133,18 @@ func objectDeletionGuard(obj *structs.CustomObject) *deletionGuard {
 		return tenantDeletionGuard
 	case obj.Group == structs.OperatorsGroup && obj.Kind == structs.CertificateKind:
 		return certificateDeletionGuard
+	case obj.Group == structs.OperatorsGroup && obj.Kind == structs.CertificateIssuerKind:
+		return certificateIssuerDeletionGuard
+	case obj.Group == structs.NodeScalingGroup && obj.Kind == structs.NodeGroupKind:
+		return nodeGroupDeletionGuard
 	}
 	return nil
 }
 
 // objectDeletionDestroys reports whether the deletion of the object makes the
 // servers delete, or let go of, something beyond the object: data in the
-// storage, the resources of a tenant, a certificate.
+// storage, the resources of a tenant, a certificate, the certificates of an
+// issuer, the nodes of a node group.
 func objectDeletionDestroys(obj *structs.CustomObject) bool {
 	return objectDeletionGuard(obj) != nil
 }

@@ -361,8 +361,12 @@ func TestObjectDeletionDestroys(t *testing.T) {
 		{"snapshot schedule that keeps its snapshots", operators(volumeSnapshotScheduleKind, map[string]any{}), false},
 		{"tenant", operators(structs.TenantKind, map[string]any{}), true},
 		{"certificate", operators(structs.CertificateKind, map[string]any{"issuer": "internal", "secret_path": "certs/x"}), true},
-		{"certificate issuer", operators(structs.CertificateIssuerKind, map[string]any{"builtin": map[string]any{}}), false},
+		{"certificate issuer", operators(structs.CertificateIssuerKind, map[string]any{"builtin": map[string]any{}}), true},
 		{"certificate order", operators(structs.CertificateOrderKind, map[string]any{}), false},
+		{"node group", operators(structs.NodeGroupKind, validNodeGroupSpec()), true},
+		{"node provider", operators(structs.NodeProviderKind, map[string]any{}), false},
+		{"load balancer", operators("LoadBalancer", map[string]any{}), false},
+		{"DNS record", operators("DNSRecord", map[string]any{}), false},
 		{"tenant of another group", &structs.CustomObject{Group: testOwnerGroup, Kind: structs.TenantKind, Name: "x"}, false},
 		{"custom kind", &structs.CustomObject{Group: testOwnerGroup, Kind: testOwnerKind, Name: "x"}, false},
 	}
@@ -668,6 +672,159 @@ plugin { policy = "read" }`
 	kept := c.get("", structs.TenantKind, "team-loose")
 	must.NotNil(t, kept)
 	must.False(t, kept.Deleting())
+}
+
+// The deletion of a node group is for the machines of the group, and with a
+// certificate issuer gone the certificates that name it are no longer issued
+// or renewed. An owner of one is deleted with it only by a caller who may
+// delete the node group or the issuer itself, and the garbage collector takes
+// only the ones the deleter was checked for (review finding JOG-26). Before
+// the fix the right to write the kind of the owner was enough.
+func TestObjectDelete_DependentNodeGroupAndIssuer(t *testing.T) {
+	ci.Parallel(t)
+	c, _, _, cleanup := dependentsTestServer(t)
+	defer cleanup()
+	c.s.objectGC.SetConfig(&objectgc.Config{Interval: 50 * time.Millisecond, IdleInterval: time.Second, TombstoneRetention: time.Second})
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		kind, err := c.s.State().ObjectKindByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind)
+		return err == nil && kind != nil
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the kind of node groups is registered"))
+
+	const groupRef, issuerRef = "norca.io/NodeGroup", "norca.io/CertificateIssuer"
+	database := func(name string) *structs.ObjectOwnerReference {
+		return &structs.ObjectOwnerReference{Kind: structs.ObjectKindRef(testOwnerGroup, testOwnerKind), Namespace: "default", Name: name}
+	}
+	nodeGroup := func(name, owner string) {
+		t.Helper()
+		spec := validNodeGroupSpec()
+		spec["engine"] = "external" // the autoscaler leaves it alone
+		_, err := c.applyObject(&structs.CustomObject{Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: name,
+			Spec: spec, Owners: []*structs.ObjectOwnerReference{database(owner)}})
+		must.NoError(t, err)
+	}
+	issuer := func(name, owner string) {
+		t.Helper()
+		_, err := c.applyObject(&structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateIssuerKind, Name: name,
+			Spec: map[string]any{"builtin": map[string]any{}}, Owners: []*structs.ObjectOwnerReference{database(owner)}})
+		must.NoError(t, err)
+	}
+
+	for _, name := range []string{"fleet", "pki", "app", "loose", "early-fleet", "early-pki"} {
+		must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
+	}
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "app-part", map[string]any{}, database("app")))
+	nodeGroup("workers", "fleet")
+	issuer("internal", "pki")
+	nodeGroup("app-workers", "app-part")
+	issuer("loose-ca", "loose")
+
+	rules := func(dependents string) string {
+		return `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+}
+namespace "*" {
+  object "norca.io/NodeGroup" { capabilities = [` + dependents + `] }
+  object "norca.io/CertificateIssuer" { capabilities = [` + dependents + `] }
+}`
+	}
+	noRight := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1001, "databases", `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+}`))
+	reader := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "reader", rules(`"read"`)))
+	writer := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "writer", rules(`"write"`)))
+
+	// Without the right to delete the dependent itself: refused in both
+	// modes that take the dependents, and nothing is marked.
+	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
+		for _, tt := range []struct{ owner, kind, dependent, takes string }{
+			{"fleet", groupRef, "workers", "the nodes of the group"},
+			{"pki", issuerRef, "internal", "the issuing of the certificates that name it"},
+			{"app", groupRef, "app-workers", "the nodes of the group"},
+		} {
+			err := noRight.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Error(t, err, must.Sprintf("%s was deleted without the right on its dependent %s %q, mode %q",
+				tt.owner, tt.kind, tt.dependent, mode))
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, "the object capability write on the kind "+tt.kind)
+			must.ErrorContains(t, err, tt.takes)
+			// The caller may not read the dependent: it is not named.
+			must.StrNotContains(t, err.Error(), `"`+tt.dependent+`"`)
+
+			err = reader.deleteWith(testOwnerGroup, testOwnerKind, tt.owner, mode)
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", tt.owner, mode))
+			must.ErrorContains(t, err, fmt.Sprintf("its dependent %s %q", tt.kind, tt.dependent))
+		}
+	}
+	for _, obj := range []*structs.CustomObject{
+		c.object(testOwnerGroup, testOwnerKind, "fleet"),
+		c.get("", structs.NodeGroupKind, "workers"),
+		c.object(testOwnerGroup, testOwnerKind, "pki"),
+		c.get("", structs.CertificateIssuerKind, "internal"),
+		c.object(testOwnerGroup, testOwnerKind, "app"),
+		c.get("", structs.NodeGroupKind, "app-workers"),
+	} {
+		must.NotNil(t, obj)
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", obj.Name))
+	}
+
+	// The orphan mode takes no dependent: the right on the owner is enough.
+	must.NoError(t, noRight.deleteWith(testOwnerGroup, testOwnerKind, "loose", structs.ObjectPropagationOrphan))
+	c.waitGone(testOwnerGroup, testOwnerKind, "loose")
+
+	// A node group and an issuer written as the dependents of an owner
+	// after the owner was deleted: nobody was checked for them, so the
+	// collector lets go of them and says why.
+	must.NoError(t, noRight.deleteWith(testOwnerGroup, testOwnerKind, "early-fleet", ""))
+	must.NoError(t, noRight.deleteWith(testOwnerGroup, testOwnerKind, "early-pki", ""))
+	c.waitGone(testOwnerGroup, testOwnerKind, "early-fleet")
+	c.waitGone(testOwnerGroup, testOwnerKind, "early-pki")
+	nodeGroup("late-workers", "early-fleet")
+	issuer("late-ca", "early-pki")
+	for _, late := range []struct{ kind, name, takes string }{
+		{structs.NodeGroupKind, "late-workers", "the nodes of the group"},
+		{structs.CertificateIssuerKind, "late-ca", "the issuing of the certificates that name it"},
+	} {
+		var obj *structs.CustomObject
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			obj = c.get("", late.kind, late.name)
+			return obj == nil || obj.Deleting() || len(obj.Owners) == 0
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of", late.name))
+		must.NotNil(t, obj, must.Sprintf("%s was deleted with its owner", late.name))
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", late.name))
+		messages := c.eventMessages("", late.kind, late.name, objectEventDependentKept)
+		must.Len(t, 1, messages)
+		must.StrContains(t, messages[0], late.takes)
+	}
+
+	// With the right on the dependents the same deletions go through, the
+	// dependents are recorded with the deletion, and they go with their
+	// owners.
+	workers := c.get("", structs.NodeGroupKind, "workers")
+	reply, err := writer.deleteReply(testOwnerGroup, testOwnerKind, "fleet", structs.ObjectPropagationForeground, false)
+	must.NoError(t, err)
+	must.Eq(t, []string{workers.ID}, reply.Object.DeletionApproved)
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "pki", ""))
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "app", ""))
+	for _, gone := range []struct{ kind, name string }{
+		{structs.NodeGroupKind, "workers"},
+		{structs.CertificateIssuerKind, "internal"},
+		{structs.NodeGroupKind, "app-workers"},
+	} {
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			return c.get("", gone.kind, gone.name) == nil
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is gone", gone.name))
+	}
+	c.waitGone(testOwnerGroup, testOwnerKind, "fleet")
+
+	// What was let go of, or kept by the orphan mode, is still there.
+	for _, kept := range []*structs.CustomObject{
+		c.get("", structs.CertificateIssuerKind, "loose-ca"),
+		c.get("", structs.NodeGroupKind, "late-workers"),
+		c.get("", structs.CertificateIssuerKind, "late-ca"),
+	} {
+		must.NotNil(t, kept)
+		must.False(t, kept.Deleting())
+	}
 }
 
 // ownedJob registers a job of the default namespace whose meta names an
