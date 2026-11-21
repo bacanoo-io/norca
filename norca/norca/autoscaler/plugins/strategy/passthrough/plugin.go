@@ -140,12 +140,19 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 
 // calculateDirection is used to calculate the direction of scaling that should
 // occur, if any at all.
+//
+// Norca: the direction is of the count the metric gives, truncated as the
+// new count is: from the metric itself, 3.5 against a count of 3 was a scale
+// up to 3, a vote that went before another check's scale down (review
+// finding ASP-4).
 func (s *StrategyPlugin) calculateDirection(count int64, metric float64) sdk.ScaleDirection {
-	if metric > float64(count) {
+	newCount := sdk.CountFromFloat(metric)
+	switch {
+	case newCount > count:
 		return sdk.ScaleDirectionUp
-	} else if metric < float64(count) {
+	case newCount < count:
 		return sdk.ScaleDirectionDown
-	} else {
+	default:
 		return sdk.ScaleDirectionNone
 	}
 }

@@ -237,6 +237,11 @@ func TestStrategyPlugin_calculateDirection(t *testing.T) {
 		{inputCount: 0, inputMetric: 1, expectedOutput: sdk.ScaleDirectionUp},
 		{inputCount: 5, inputMetric: 5, expectedOutput: sdk.ScaleDirectionNone},
 		{inputCount: 4, inputMetric: 0, expectedOutput: sdk.ScaleDirectionDown},
+		// (Norca) The direction is of the truncated count (review finding
+		// ASP-4).
+		{inputCount: 3, inputMetric: 3.5, expectedOutput: sdk.ScaleDirectionNone},
+		{inputCount: 3, inputMetric: 2.9, expectedOutput: sdk.ScaleDirectionDown},
+		{inputCount: 3, inputMetric: 4.1, expectedOutput: sdk.ScaleDirectionUp},
 	}
 
 	s := &StrategyPlugin{}
