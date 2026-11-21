@@ -37,8 +37,10 @@ func TestCSIVolume_SingleNodeModes(t *testing.T) {
 		must.NoError(t, v.Claim(claim("a3", "n1", CSIVolumeClaimRead, m), alloc("a3")))
 		must.MapLen(t, 2, v.WriteClaims)
 
-		must.ErrorIs(t, v.Claim(claim("a4", "n2", CSIVolumeClaimWrite, m), alloc("a4")), ErrCSIVolumeMaxClaims)
-		must.ErrorIs(t, v.Claim(claim("a5", "n2", CSIVolumeClaimRead, m), alloc("a5")), ErrCSIVolumeMaxClaims)
+		// Another node is refused with its own error, which the client
+		// does not retry (review finding SCH-7).
+		must.ErrorIs(t, v.Claim(claim("a4", "n2", CSIVolumeClaimWrite, m), alloc("a4")), ErrCSIVolumeClaimedOnOtherNode)
+		must.ErrorIs(t, v.Claim(claim("a5", "n2", CSIVolumeClaimRead, m), alloc("a5")), ErrCSIVolumeClaimedOnOtherNode)
 		must.True(t, v.ClaimedOnOtherNode("n2"))
 		must.False(t, v.ClaimedOnOtherNode("n1"))
 		must.True(t, v.HasFreeWriteClaimsOnNode("n1"))

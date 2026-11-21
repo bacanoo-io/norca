@@ -81,6 +81,13 @@ var (
 	ErrCSIClientRPCRetryable  = errors.New("CSI client error (retryable)")
 	ErrCSIVolumeMaxClaims     = errors.New("volume max claims reached")
 	ErrCSIVolumeUnschedulable = errors.New("volume is currently unschedulable")
+
+	// ErrCSIVolumeClaimedOnOtherNode (Norca) refuses a claim of a
+	// single-node-multi-writer volume that another node holds a claim on.
+	// Unlike ErrCSIVolumeMaxClaims it is not retried by the client: the
+	// allocation was placed on the wrong node and has to be placed again
+	// (review finding SCH-7).
+	ErrCSIVolumeClaimedOnOtherNode = errors.New("volume is single-node-multi-writer and claimed on another node")
 )
 
 // IsErrNoLeader returns whether the error is due to there being no leader.

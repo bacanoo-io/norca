@@ -692,6 +692,9 @@ func (v *CSIVolume) claimRead(claim *CSIVolumeClaim, alloc *Allocation) error {
 		return ErrCSIVolumeUnschedulable
 	}
 
+	if v.ClaimedOnOtherNode(claim.NodeID) {
+		return ErrCSIVolumeClaimedOnOtherNode
+	}
 	if !v.HasFreeReadClaimsOnNode(claim.NodeID) {
 		return ErrCSIVolumeMaxClaims
 	}
@@ -722,6 +725,9 @@ func (v *CSIVolume) claimWrite(claim *CSIVolumeClaim, alloc *Allocation) error {
 		return ErrCSIVolumeUnschedulable
 	}
 
+	if v.ClaimedOnOtherNode(claim.NodeID) {
+		return ErrCSIVolumeClaimedOnOtherNode
+	}
 	if !v.HasFreeWriteClaimsOnNode(claim.NodeID) {
 		return ErrCSIVolumeMaxClaims
 	}

@@ -229,6 +229,11 @@ type CSIVolumeChecker struct {
 	namespace string
 	jobID     string
 	volumes   map[string]*structs.VolumeRequest
+
+	// pinned is the node of the allocations of the job that use a
+	// single-node-multi-writer volume without a claim on it yet, by volume
+	// source (Norca, csi_snmw.go).
+	pinned map[string]string
 }
 
 func NewCSIVolumeChecker(ctx Context) *CSIVolumeChecker {
@@ -264,6 +269,7 @@ func (c *CSIVolumeChecker) SetVolumes(allocName string, volumes map[string]*stru
 		}
 	}
 	c.volumes = xs
+	c.pinned = c.singleNodeVolumeNodes(xs)
 }
 
 func (c *CSIVolumeChecker) Feasible(n *structs.Node) bool {
@@ -350,6 +356,13 @@ func (c *CSIVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 		}
 		// A single-node-multi-writer volume stays on the node of its claims.
 		if vol.ClaimedOnOtherNode(n.ID) {
+			return false, fmt.Sprintf(FilterConstraintCSIVolumeOtherNodeTemplate, vol.ID)
+		}
+		// ... and on the node of the allocations placed before that have
+		// not claimed it yet (review finding SCH-7).
+		// The request is in that mode: a volume no allocation claimed yet
+		// has no mode of its own.
+		if node, ok := c.pinned[req.Source]; ok && node != n.ID {
 			return false, fmt.Sprintf(FilterConstraintCSIVolumeOtherNodeTemplate, vol.ID)
 		}
 
