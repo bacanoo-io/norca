@@ -4663,9 +4663,14 @@ func (s *StateStore) UpdateDeploymentStatus(msgType structs.MessageType, index u
 		return err
 	}
 
-	// Upsert the job if necessary
+	// Upsert the job if necessary: the rollback of a deployment (Norca: it
+	// keeps the counts a scaling policy set, review finding ASC-4).
 	if req.Job != nil {
-		if err := s.upsertJobImpl(index, nil, req.Job, false, txn); err != nil {
+		job, err := rollbackKeepsScaledCounts(txn, req.Job)
+		if err != nil {
+			return err
+		}
+		if err := s.upsertJobImpl(index, nil, job, false, txn); err != nil {
 			return err
 		}
 	}
@@ -4979,9 +4984,14 @@ func (s *StateStore) UpdateDeploymentAllocHealth(msgType structs.MessageType, in
 		}
 	}
 
-	// Upsert the job if necessary
+	// Upsert the job if necessary: the rollback of a deployment (Norca: it
+	// keeps the counts a scaling policy set, review finding ASC-4).
 	if req.Job != nil {
-		if err := s.upsertJobImpl(index, nil, req.Job, false, txn); err != nil {
+		job, err := rollbackKeepsScaledCounts(txn, req.Job)
+		if err != nil {
+			return err
+		}
+		if err := s.upsertJobImpl(index, nil, job, false, txn); err != nil {
 			return err
 		}
 	}
