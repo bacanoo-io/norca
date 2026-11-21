@@ -173,12 +173,14 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 		}
 
 		// If TLS is enabled, wrap the listener with a TLS listener
+		var listenerTLS *tls.Config
 		if config.TLSConfig.EnableHTTP {
 			tlsConfig, err := tlsConf.IncomingTLSConfig()
 			if err != nil {
 				serverInitializationErrors = multierror.Append(serverInitializationErrors, err)
 				continue
 			}
+			listenerTLS = tlsConfig
 			// HTTP/2: the requests of a client share one connection. A
 			// browser opens at most six HTTP/1.1 connections to a host,
 			// and the blocking queries and event streams of the web UI
@@ -211,7 +213,7 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 		httpServer := http.Server{
 			Addr:      srv.Addr,
 			Handler:   handlers.CompressHandler(srv.mux),
-			ConnState: makeConnState(config.TLSConfig.EnableHTTP, handshakeTimeout, maxConns, srv.logger),
+			ConnState: makeConnState(config.TLSConfig.EnableHTTP, handshakeTimeout, maxConns, listenerTLS, srv.logger),
 			ErrorLog:  newHTTPServerLogger(srv.logger),
 		}
 
@@ -298,8 +300,11 @@ func http2CipherSuites(suites []uint16) bool {
 //
 // If limit > 0, a per-address connection limit will be enabled regardless of
 // TLS. If connLimit == 0 there is no connection limit.
-func makeConnState(isTLS bool, handshakeTimeout time.Duration, connLimit int, logger log.Logger) func(conn net.Conn, state http.ConnState) {
-	connLimiter := connLimiter(connLimit, logger)
+//
+// tlsConfig is the configuration of the TLS listener, nil without TLS: the
+// connection limiter answers a refused TLS connection with it (Norca).
+func makeConnState(isTLS bool, handshakeTimeout time.Duration, connLimit int, tlsConfig *tls.Config, logger log.Logger) func(conn net.Conn, state http.ConnState) {
+	connLimiter := connLimiter(connLimit, handshakeTimeout, tlsConfig, logger)
 	if !isTLS || handshakeTimeout == 0 {
 		if connLimit > 0 {
 			// Still return the connection limiter
@@ -352,7 +357,13 @@ func makeConnState(isTLS bool, handshakeTimeout time.Duration, connLimit int, lo
 // connLimiter returns a connection-limiter function with a rate-limited 429-response error handler.
 // The rate-limit prevents the TLS handshake necessary to write the HTTP response
 // from consuming too many server resources.
-func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state http.ConnState) {
+//
+// Norca: a TLS connection (tlsConfig is not nil) is answered after its
+// handshake by tooManyConnsTLS, within handshakeTimeout, and not here: the
+// http.Server waits for this function before it accepts the next
+// connection, and the 10ms it has here were not enough for a handshake
+// with any client that is not next to an idle server.
+func connLimiter(connLimit int, handshakeTimeout time.Duration, tlsConfig *tls.Config, logger log.Logger) func(conn net.Conn, state http.ConnState) {
 	// Global rate-limit of 10 responses per second with a 100-response burst.
 	limiter := rate.NewLimiter(10, 100)
 
@@ -361,6 +372,7 @@ func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state htt
 		"Content-Type: text/plain\r\n"+
 		"Content-Length: %d\r\n"+
 		"Connection: close\r\n\r\n%s", len(tooManyConnsMsg), tooManyConnsMsg))
+	tlsAnswer := newTooManyConnsTLS(tlsConfig, handshakeTimeout, tooManyRequestsResponse, tooManyConnsWriters)
 	// Norca: an IPv6 client is counted by its /64.
 	return connprefix.HTTPConnState(connlimit.NewLimiter(connlimit.Config{
 		MaxConnsPerClientIP: connLimit,
@@ -370,8 +382,20 @@ func connLimiter(connLimit int, logger log.Logger) func(conn net.Conn, state htt
 			metrics.IncrCounter([]string{"nomad", "agent", "http", "exceeded"}, 1)
 			if n := limiter.Reserve(); n.Delay() == 0 {
 				logger.Warn("Too many concurrent connections", "address", conn.RemoteAddr().String(), "limit", connLimit)
-				conn.SetDeadline(time.Now().Add(10 * time.Millisecond))
-				conn.Write(tooManyRequestsResponse)
+				// Norca: the answer to a TLS connection is written on its
+				// network connection, which the server no longer has
+				// then: what the server serves and closes after this is
+				// a closed connection.
+				var netConn net.Conn
+				if tlsAnswer != nil {
+					netConn = connprefix.Detach(conn)
+				}
+				if netConn != nil {
+					tlsAnswer.answer(netConn)
+				} else {
+					conn.SetDeadline(time.Now().Add(10 * time.Millisecond))
+					conn.Write(tooManyRequestsResponse)
+				}
 			} else {
 				n.Cancel()
 			}

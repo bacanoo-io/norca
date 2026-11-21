@@ -75,6 +75,34 @@ type testFakeCtx struct {
 	Workload      *serviceregistration.WorkloadServices
 }
 
+// registered returns the IDs of the services and of the checks the fake
+// Consul has in the default namespace. It reads them under the lock of the
+// fake: the loop of ServiceClient.Run writes them from its own goroutine.
+func (t *testFakeCtx) registered() (services, checks []string) {
+	t.FakeConsul.mu.Lock()
+	defer t.FakeConsul.mu.Unlock()
+
+	for id := range t.FakeConsul.services["default"] {
+		services = append(services, id)
+	}
+	for id := range t.FakeConsul.checks["default"] {
+		checks = append(checks, id)
+	}
+	return services, checks
+}
+
+// waitAgentRegistered waits until the fake Consul has the one service and
+// the one check of the agent. Contact with Consul (hasSeen) is not enough to
+// wait for: the loop of ServiceClient.Run marks it before the sync that
+// registers them.
+func (t *testFakeCtx) waitAgentRegistered(tt *testing.T) {
+	tt.Helper()
+	require.Eventually(tt, func() bool {
+		services, checks := t.registered()
+		return len(services) == 1 && len(checks) == 1
+	}, 10*time.Second, 10*time.Millisecond, "expected agent service and check to be registered")
+}
+
 var errNoOps = fmt.Errorf("testing error: no pending operations")
 
 // syncOps simulates one iteration of the ServiceClient.Run loop and returns
@@ -360,17 +388,18 @@ func TestConsul_ShutdownOK(t *testing.T) {
 		},
 	}
 	require.NoError(ctx.ServiceClient.RegisterAgent("client", agentServices))
-	require.Eventually(ctx.ServiceClient.hasSeen, time.Second, 10*time.Millisecond)
 
 	// assert successful registration
-	require.Len(ctx.FakeConsul.services["default"], 1, "expected agent service to be registered")
-	require.Len(ctx.FakeConsul.checks["default"], 1, "expected agent check to be registered")
-	require.Contains(ctx.FakeConsul.services["default"], makeAgentServiceID("client", agentServices[0]))
+	ctx.waitAgentRegistered(t)
+	require.True(ctx.ServiceClient.hasSeen())
+	services, _ := ctx.registered()
+	require.Contains(services, makeAgentServiceID("client", agentServices[0]))
 
 	// Shutdown() should block until Nomad agent service/check is deregistered
 	require.NoError(ctx.ServiceClient.Shutdown())
-	require.Len(ctx.FakeConsul.services["default"], 0, "expected agent service to be deregistered")
-	require.Len(ctx.FakeConsul.checks["default"], 0, "expected agent check to be deregistered")
+	services, checks := ctx.registered()
+	require.Len(services, 0, "expected agent service to be deregistered")
+	require.Len(checks, 0, "expected agent check to be deregistered")
 }
 
 // TestConsul_ShutdownBlocked tests the blocked past deadline path for the
@@ -404,9 +433,8 @@ func TestConsul_ShutdownBlocked(t *testing.T) {
 		},
 	}
 	require.NoError(ctx.ServiceClient.RegisterAgent("client", agentServices))
-	require.Eventually(ctx.ServiceClient.hasSeen, time.Second, 10*time.Millisecond)
-	require.Len(ctx.FakeConsul.services["default"], 1, "expected agent service to be registered")
-	require.Len(ctx.FakeConsul.checks["default"], 1, "expected agent check to be registered")
+	ctx.waitAgentRegistered(t)
+	require.True(ctx.ServiceClient.hasSeen())
 
 	// prevent normal shutdown by blocking Consul. the shutdown should wait
 	// until agent deregistration has finished
@@ -434,10 +462,9 @@ func TestConsul_ShutdownBlocked(t *testing.T) {
 		"expected shutdown to take >200ms and <1s")
 	require.Greater(shutdownTime, 200*time.Millisecond.Seconds(),
 		"expected shutdown to take >200ms and <1s")
-	require.Len(ctx.FakeConsul.services["default"], 0,
-		"expected agent service to be deregistered")
-	require.Len(ctx.FakeConsul.checks["default"], 0,
-		"expected agent check to be deregistered")
+	services, checks := ctx.registered()
+	require.Len(services, 0, "expected agent service to be deregistered")
+	require.Len(checks, 0, "expected agent check to be deregistered")
 }
 
 // TestConsul_DriverNetwork_AutoUse asserts that if a driver network has

@@ -5,7 +5,6 @@ package agent
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -94,9 +93,7 @@ func newHijackTestServer(t *testing.T, limit int, useTLS bool) *hijackTestServer
 	return h
 }
 
-// dial opens a connection. With TLS the error may be that of the handshake
-// with a server that refuses the connection: the server gives itself 10ms
-// for the handshake and its answer.
+// dial opens a connection, with TLS after its handshake.
 func (h *hijackTestServer) dial() (net.Conn, error) {
 	addr := h.agent.Server.Addr
 	if h.useTLS {
@@ -157,25 +154,15 @@ func (h *hijackTestServer) hijack() (client, server net.Conn) {
 }
 
 // refused asserts that a new connection gets the answer of a client over
-// its connection limit: 429, or with TLS a connection closed in or after
-// the handshake, when the 10ms the server gives its answer were not enough.
-// A connection the server accepted stays open and silent, and the read
-// fails with a timeout.
+// its connection limit: 429, with TLS too (the server gave itself 10ms for
+// the handshake and its answer, and this accepted a connection closed in or
+// after the handshake as well; review finding MUK-34). A connection the
+// server accepted stays open and silent, and the read fails with a timeout.
 func (h *hijackTestServer) refused() {
 	h.t.Helper()
 	conn, err := h.dial()
-	if err != nil {
-		must.True(h.t, h.useTLS, must.Sprintf("dial: %v", err))
-		var nerr net.Error
-		must.False(h.t, errors.As(err, &nerr) && nerr.Timeout(), must.Sprintf("dial: %v", err))
-		return
-	}
-	status := h.status(conn, 5*time.Second)
-	if h.useTLS && status != "HTTP/1.1 429" {
-		must.StrNotContains(h.t, status, "timeout")
-		return
-	}
-	must.Eq(h.t, "HTTP/1.1 429", status)
+	must.NoError(h.t, err)
+	must.Eq(h.t, "HTTP/1.1 429", h.status(conn, 5*time.Second))
 }
 
 // A connection that a handler hijacked, as the websocket of alloc exec is,
@@ -296,7 +283,7 @@ func TestHTTP_ConnLimit_Hijacked(t *testing.T) {
 func TestHTTP_ConnLimit_IPv6Prefix(t *testing.T) {
 	ci.Parallel(t)
 
-	connState := makeConnState(false, 0, 1, testlog.HCLogger(t))
+	connState := makeConnState(false, 0, 1, nil, testlog.HCLogger(t))
 	must.NotNil(t, connState)
 
 	open := func(ip string) *limitTestConn {
