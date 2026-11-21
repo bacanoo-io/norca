@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package fetch is the fetcher of the rigger program (source.Fetcher): git
-// repositories through the git program, directories, and the modules built
-// into the program. What it fetches is kept in a cache directory, a version
+// Package fetch is the fetcher of Rigger (source.Fetcher): git repositories
+// through go-git (no git program), OCI registries, directories, the global
+// registry, and the built-in modules. What it fetches is kept in a cache directory, a version
 // of a repository by its commit (design 12.6).
 package fetch
 
@@ -19,12 +19,13 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	git "github.com/go-git/go-git/v5"
 
 	"github.com/bacanoo-io/norca/rigger/builtin"
 	"github.com/bacanoo-io/norca/rigger/oci"
@@ -44,6 +45,10 @@ type Fetcher struct {
 
 	mu      sync.Mutex
 	updated map[string]bool // mirrors fetched in this run
+
+	// credentials returns the credentials of a git repository; nil reads
+	// every repository anonymously (SetCredentials).
+	credentials CredentialsFunc
 }
 
 var _ source.Fetcher = (*Fetcher)(nil)
@@ -118,7 +123,7 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 	}
 }
 
-// repositoryURL is the URL git reads a repository by: a host and a path is
+// repositoryURL is the URL a repository is read by: a host and a path is
 // https.
 func repositoryURL(repo string) string {
 	for _, s := range []string{"https://", "http://", "ssh://", "file://", "/"} {
@@ -130,37 +135,6 @@ func repositoryURL(repo string) string {
 	return "https://" + repo
 }
 
-// mirror returns the bare mirror of a repository in the cache, made or
-// fetched once per run.
-func (f *Fetcher) mirror(ctx context.Context, repo string) (string, error) {
-	url, dir := repositoryURL(repo), f.mirrorDir(repo)
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.updated[dir] {
-		return dir, nil
-	}
-
-	if _, err := os.Stat(dir); err == nil {
-		if _, err := git(ctx, dir, "fetch", "--prune", "--prune-tags", "--tags", "--quiet", "origin"); err != nil {
-			return "", err
-		}
-	} else {
-		if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
-			return "", err
-		}
-
-		if _, err := git(ctx, "", "clone", "--mirror", "--quiet", url, dir); err != nil {
-			return "", err
-		}
-	}
-
-	f.updated[dir] = true
-
-	return dir, nil
-}
-
 // mirrorDir is the directory of the bare mirror of a repository in the
 // cache.
 func (f *Fetcher) mirrorDir(repo string) string {
@@ -169,54 +143,23 @@ func (f *Fetcher) mirrorDir(repo string) string {
 	return filepath.Join(f.cache, "git", hex.EncodeToString(sum[:12])+".git")
 }
 
-// git runs the git program, in the repository dir when it is set.
-func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	if dir != "" {
-		args = append([]string{"--git-dir", dir}, args...)
-	}
-
-	var stderr bytes.Buffer
-
-	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // G204: the arguments are git's, the repository the stack's
-	cmd.Stderr = &stderr
-
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", args[len(args)-1], err, strings.TrimSpace(stderr.String()))
-	}
-
-	return out, nil
-}
-
 // gitVersions lists the tags of the module: <prefix><version>.
 func (f *Fetcher) gitVersions(ctx context.Context, req source.Request) ([]source.Available, error) {
-	dir, err := f.mirror(ctx, req.Repository)
+	r, err := f.openRepo(ctx, req.Repository)
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := git(ctx, dir, "for-each-ref", "--format=%(refname:strip=2) %(objectname) %(*objectname)", "refs/tags/"+req.TagPrefix+"*")
+	tags, err := tagCommits(r, req.TagPrefix)
 	if err != nil {
 		return nil, err
 	}
 
-	var versions []source.Available
+	versions := make([]source.Available, 0, len(tags))
 
-	for line := range strings.Lines(string(out)) {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-
-		commit := fields[1]
-		if len(fields) > 2 {
-			commit = fields[2] // the commit of an annotated tag
-		}
-
+	for _, tag := range tags {
 		versions = append(versions, source.Available{
-			Version: strings.TrimPrefix(fields[0], req.TagPrefix), Ref: fields[0], Commit: commit,
+			Version: strings.TrimPrefix(tag.Name, req.TagPrefix), Ref: tag.Name, Commit: tag.Commit,
 		})
 	}
 
@@ -264,7 +207,7 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 // the repository can't be reached, a cached tree of the commit the lock
 // file records serves (an install without a network, from a bundle).
 func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
-	dir, err := f.mirror(ctx, req.Repository)
+	r, err := f.openRepo(ctx, req.Repository)
 	if err != nil {
 		if cached, ok := f.cachedTree(req); ok {
 			return cached, nil
@@ -278,14 +221,9 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 		ref = req.TagPrefix + req.Version
 	}
 
-	out, err := git(ctx, dir, "rev-parse", "--verify", "--quiet", "refs/tags/"+ref+"^{commit}")
+	commit, err := tagCommit(r, ref)
 	if err != nil {
 		return source.Fetched{}, fmt.Errorf("%s has no tag %s: %w", req.Repository, ref, fs.ErrNotExist)
-	}
-
-	commit := strings.TrimSpace(string(out))
-	if !commitPattern.MatchString(commit) {
-		return source.Fetched{}, fmt.Errorf("git: %q is not a commit", commit)
 	}
 
 	if req.Commit != "" && req.Commit != commit {
@@ -294,7 +232,7 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	tree := filepath.Join(f.cache, "trees", commit)
 	if _, err := os.Stat(tree); err != nil {
-		if err := f.extract(ctx, dir, commit, tree); err != nil {
+		if err := extract(r, commit, tree); err != nil {
 			return source.Fetched{}, err
 		}
 	}
@@ -422,12 +360,7 @@ func (f *Fetcher) extractLayer(ctx context.Context, repository, digest, dir stri
 
 // extract writes the tree of a commit into dir, through a directory of its
 // own that is renamed into place when complete.
-func (f *Fetcher) extract(ctx context.Context, repo, commit, dir string) error {
-	data, err := git(ctx, repo, "archive", "--format=tar", commit)
-	if err != nil {
-		return err
-	}
-
+func extract(r *git.Repository, commit, dir string) error {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
 		return err
 	}
@@ -437,7 +370,7 @@ func (f *Fetcher) extract(ctx context.Context, repo, commit, dir string) error {
 		return err
 	}
 
-	if err := untar(data, tmp); err != nil {
+	if err := writeTree(r, commit, tmp); err != nil {
 		_ = os.RemoveAll(tmp)
 
 		return err

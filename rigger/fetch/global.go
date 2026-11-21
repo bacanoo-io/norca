@@ -10,7 +10,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+
+	git "github.com/go-git/go-git/v5"
 
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/source"
@@ -72,27 +73,25 @@ func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
 		return os.DirFS(f.global), nil
 	}
 
-	dir, err := f.mirror(ctx, f.global)
+	r, err := f.openRepo(ctx, f.global)
 	if err != nil {
-		dir = f.mirrorDir(f.global)
-		if _, statErr := os.Stat(dir); statErr != nil {
+		// Without a network the mirror of an earlier run serves.
+		cached, openErr := git.PlainOpen(f.mirrorDir(f.global))
+		if openErr != nil {
 			return nil, err
 		}
+
+		r = cached
 	}
 
-	out, err := git(ctx, dir, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+	commit, err := headCommit(r)
 	if err != nil {
 		return nil, err
 	}
 
-	commit := strings.TrimSpace(string(out))
-	if !commitPattern.MatchString(commit) {
-		return nil, fmt.Errorf("git: %q is not a commit", commit)
-	}
-
 	tree := filepath.Join(f.cache, "index", commit)
 	if _, err := os.Stat(tree); err != nil {
-		if err := f.extract(ctx, dir, commit, tree); err != nil {
+		if err := extract(r, commit, tree); err != nil {
 			return nil, err
 		}
 	}
@@ -214,35 +213,16 @@ type Tag struct {
 	Commit string
 }
 
-// Tags lists the tags of a git repository, from its mirror in the cache.
+// Tags lists the tags of a git repository and their commits, from its
+// mirror in the cache (or in place, for a repository on the local file
+// system).
 func (f *Fetcher) Tags(ctx context.Context, repository string) ([]Tag, error) {
-	dir, err := f.mirror(ctx, repository)
+	r, err := f.openRepo(ctx, repository)
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := git(ctx, dir, "for-each-ref", "--format=%(refname:strip=2) %(objectname) %(*objectname)", "refs/tags/")
-	if err != nil {
-		return nil, err
-	}
-
-	var tags []Tag
-
-	for line := range strings.Lines(string(out)) {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-
-		commit := fields[1]
-		if len(fields) > 2 {
-			commit = fields[2] // the commit of an annotated tag
-		}
-
-		tags = append(tags, Tag{Name: fields[0], Commit: commit})
-	}
-
-	return tags, nil
+	return tagCommits(r, "")
 }
 
 // Tree returns the files of a git repository at a tag, and the commit of
