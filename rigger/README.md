@@ -50,7 +50,7 @@ Two Go modules in one repository (design 12.1):
 | Path | Module | Holds |
 | --- | --- | --- |
 | `/` | `github.com/bacanoo-io/norca/rigger` | the library: package `rigger` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `module` (the metadata of a module as plain data), `resource` (evaluated resources and hooks), `runref` (runtime references a host resolves), `oplog` (the log as a tree of operations), `sign` (keys, signatures), `version` (semver and constraints), `index` (the format of the global registry); `internal/lang` loads modules, `internal/eval` evaluates them |
-| `cli/` | `github.com/bacanoo-io/norca/rigger/cli` | the `rigger` program, the first host of the library; `norcaapi` (the ports over Norca); until phase 7 a copy of norca's job decoder (`internal/jobspec2`, see its `SOURCE.md`) |
+| `cli/` | `github.com/bacanoo-io/norca/rigger/cli` | the `rigger` program, the first host of the library; `norcaapi` (the ports over Norca, with norca's decoders `norca/jobspec2` and `norca/helper/resourcespec`) |
 
 The library imports nothing of Norca. A host builds the engine from its
 adapters:
@@ -75,9 +75,7 @@ make build        # bin/rigger
 ```
 
 `go.work` joins the two modules for development. The CLI module builds
-against the norca checkout next to this repository (`../norca`);
-`make check-copy` checks that the copy of norca's job decoder still matches
-it.
+against norca's api and decoder modules in this repository (`../norca`).
 
 ## License
 

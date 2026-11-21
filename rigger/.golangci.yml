@@ -110,12 +110,6 @@ linters:
       - vendor$
       - third_party$
       - examples$
-      # The copy of norca's jobspec2 stays as norca has it (SOURCE.md);
-      # Rigger's own files there (rigger_*.go) are linted.
-      - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
-      - internal/resourcespec/object\.go$
-      # The copy of a file of norca's resourcespec, likewise.
-      - internal/resourcespec/object\.go$
     rules:
       # Tests read and write the files of their own temporary directories,
       # and run git there.

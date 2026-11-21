@@ -11,18 +11,18 @@ import (
 	"slices"
 
 	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/bacanoo-io/norca/norca/helper/resourcespec"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/bacanoo-io/norca/rigger/cli/internal/resourcespec"
 	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 // ResourceDecoder decodes object kinds and objects with the parsers of
-// Norca (the copy in cli/internal/resourcespec): a kind of a module is the
+// Norca (its module helper/resourcespec): a kind of a module is the
 // kind the same file makes with norca object-kind apply and with the pack
 // manager, its columns and webhooks in their order.
 //

@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/bacanoo-io/norca/norca/jobspec2"
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/bacanoo-io/norca/rigger/cli/internal/jobspec2"
 	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/resource"
 	"github.com/bacanoo-io/norca/rigger/runref"

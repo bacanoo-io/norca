@@ -26,7 +26,7 @@ then phase 7, which changes norca.
 | Loading (design 4.5, 7.4) | files classified by name; one resource per file, labelled like the file; limits on module size, file size, nesting; child modules from local sources inside the root they were loaded from |
 | Values (design 6.1, 6.2) | types with optional attributes and defaults; validation (`pattern`, lengths, ranges, `integer`, items, `unique`/`unique_by`, `one_of`, `key_pattern`, `attribute`/`item` blocks); `rule` blocks; sensitive values shown as `(sensitive)`; hints for misspelled names |
 | Evaluation (design 4.2) | `rigger.*` facts; locals and child modules in the order of their references; `check`; resources with `enabled`, `for_each`, `count`; outputs; `Engine.Evaluate` returns plain data |
-| Jobs | decoded by Norca's own decoder (a copy of `jobspec2` with `DecodeJob` in `cli/internal/jobspec2` until phase 7); meta-arguments and the `hook` block taken off first |
+| Jobs | decoded by Norca's own decoder (`DecodeJob` of the module `norca/jobspec2`); meta-arguments and the `hook` block taken off first |
 | Runtime values (design 4.2) | `runtime`, `runtime_env`, `secret_ref`, `variable_ref`, `service_address`, `service_addresses` and the runtime references of a job are placeholders (package `runref`); the host writes them as `${...}` in a job's attributes and as `{{ env }}` / `norcaSecret` / `nomadVar` / `nomadService` in task templates |
 | Secrets (design 6.3) | a sensitive value goes only into an item of a Variable, where it becomes a secret item; anywhere else it is an error |
 | Functions | the HCL standard set under the usual names (`coalesce` skips empty strings, `length` counts objects), `issensitive`, `file`, `templatefile` (inside the module only), `image_ref`; the encoders `jsonencode`, `yamlencode`, `tomlencode`, `natsconf` written for Rigger, runtime values quoted where they sit |
@@ -70,7 +70,7 @@ then phase 7, which changes norca.
   secret store and the Variable but never in a revision; runtime references
   in the job as written; one release installed, listed and uninstalled;
   and phase 0's spike of the release API.
-- `make vet race lint check-copy check-licenses` is clean; golangci-lint v2
+- `make vet race lint check-licenses` is clean; golangci-lint v2
   with the configuration of the Go skills. No dependency is under the
   Business Source License: Rigger takes over no code that is not open source.
 

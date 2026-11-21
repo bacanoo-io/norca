@@ -30,9 +30,11 @@ jobs:
       matrix:
         # Nomad Pack is part of the norca module (norca/pack). The api client
         # is a separate module; the controller SDK depends only on the api
-        # module. tools holds the build tools (not shipped). rigger and
-        # rigger/cli are Rigger, the package manager, and its program.
-        module: [norca, norca/api, norca/controller, norca/tools, rigger, rigger/cli]
+        # module. tools holds the build tools (not shipped). jobspec2,
+        # helper/resourcespec and helper/externalspec are the decoders
+        # Rigger shares with norca. rigger and rigger/cli are Rigger, the
+        # package manager, and its program.
+        module: [norca, norca/api, norca/controller, norca/tools, norca/jobspec2, norca/helper/resourcespec, norca/helper/externalspec, rigger, rigger/cli]
     env:
       # Each module on its own: rigger/ has a workspace for local work.
       GOWORK: "off"

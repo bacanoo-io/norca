@@ -28,9 +28,10 @@ defaults:
     shell: bash
 
 env:
-  # The norca module and the separate modules inside it, and Rigger's two
-  # modules (design/rig-integration.md 3.2).
-  MODULES: norca norca/api norca/controller norca/tools rigger rigger/cli
+  # The norca module and the separate modules inside it (the api client,
+  # the controller SDK, the build tools and the decoders), and Rigger's two
+  # modules (design/rig-integration.md 3.2, 4.1).
+  MODULES: norca norca/api norca/controller norca/tools norca/jobspec2 norca/helper/resourcespec norca/helper/externalspec rigger rigger/cli
   # Every module on its own: rigger/ has a workspace (rigger/go.work) for
   # local work, and nothing may build only through it.
   GOWORK: "off"
@@ -54,6 +55,9 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            norca/jobspec2/go.sum
+            norca/helper/resourcespec/go.sum
+            norca/helper/externalspec/go.sum
             rigger/go.sum
             rigger/cli/go.sum
       - name: go build ./...
@@ -80,6 +84,9 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            norca/jobspec2/go.sum
+            norca/helper/resourcespec/go.sum
+            norca/helper/externalspec/go.sum
             rigger/go.sum
             rigger/cli/go.sum
       - name: go vet ./...
@@ -108,6 +115,9 @@ jobs:
             norca/api/go.sum
             norca/controller/go.sum
             norca/tools/go.sum
+            norca/jobspec2/go.sum
+            norca/helper/resourcespec/go.sum
+            norca/helper/externalspec/go.sum
             rigger/go.sum
             rigger/cli/go.sum
       - name: Build norca for the tests that start an agent
@@ -130,7 +140,6 @@ jobs:
             ./client/mtlsproxy \
             ./helper/... \
             ./jobspec/... \
-            ./jobspec2/... \
             ./lib/... \
             ./norca/state/... \
             ./norca/structs/... \
@@ -143,16 +152,13 @@ jobs:
         # Its tests, including the fuzz and property tests in their normal,
         # non-fuzzing mode, run with ./secretstore/... above.
         run: go -C norca/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
-      - name: api, controller, tools and Rigger modules
+      - name: api, controller, tools, decoder and Rigger modules
         run: |
-          for m in norca/api norca/controller norca/tools rigger rigger/cli; do
+          for m in norca/api norca/controller norca/tools norca/jobspec2 norca/helper/resourcespec norca/helper/externalspec rigger rigger/cli; do
             echo "::group::$m"
             go -C "$m" test -count=1 -p 4 ./...
             echo "::endgroup::"
           done
-      - name: Rigger's copies of norca's decoders, licenses of its dependencies
-        # Until step 4.1 of design/rig-integration.md, rigger/cli carries
-        # copies of norca's jobspec2 and of a file of its resourcespec;
-        # check-copy fails when they differ from norca/. check-licenses
-        # refuses a dependency or a file under the Business Source License.
-        run: make -C rigger check-copy check-licenses
+      - name: Licenses of Rigger's dependencies
+        # Refuses a dependency or a file under the Business Source License.
+        run: make -C rigger check-licenses

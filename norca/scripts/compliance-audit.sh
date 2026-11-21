@@ -136,7 +136,7 @@ fi
 # 5. No upstream Nomad module comes from the module proxy. Each module on its
 #    own (GOWORK=off): rigger/ has a workspace of its two modules.
 if command -v go >/dev/null; then
-	for m in norca norca/api norca/controller norca/tools rigger rigger/cli; do
+	for m in norca norca/api norca/controller norca/tools norca/jobspec2 norca/helper/resourcespec norca/helper/externalspec rigger rigger/cli; do
 		mods=$(cd "$m" && GOWORK=off go list -m all)
 		bad=$(printf '%s\n' "$mods" | awk '
 			$1 == "github.com/hashicorp/nomad" { print; next }

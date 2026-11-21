@@ -55,13 +55,11 @@ file points to it instead of repeating it.
   of the host resolves them where they land (design 4.2). Template functions
   of Norca: `norcaSecret` (`nomadSecret` is an alias), `nomadVar`,
   `nomadService`, environment `NORCA_*`.
-- `cli/internal/jobspec2` is a copy of norca's jobspec2 until phase 7
-  (design, question 4): never edit the copied files; Rigger's code there is
-  `rigger_*.go`. `make check-copy` compares the copy with `../norca`; when
-  norca changes them, copy them again and update `SOURCE.md`.
-- The CLI module imports norca through `replace` to the checkout next to
-  this repository (`../../norca/norca`), with norca's own replacements
-  repeated in `cli/go.mod`.
+- Jobs, object kinds and objects are decoded by norca's own modules
+  `norca/jobspec2` (`DecodeJob`) and `norca/helper/resourcespec`; the CLI
+  module imports them, `norca/api` and `norca/helper/externalspec` through
+  `replace` lines to their paths in this repository (`../../norca/...`),
+  never the norca program module.
 - Logging (design 9.5): a `*slog.Logger`, always the `Context` variants;
   each operation is an `oplog` span (`oplog.Start` / `Span.End`), so the
   log is a tree. An error is returned, not logged on the way up.
