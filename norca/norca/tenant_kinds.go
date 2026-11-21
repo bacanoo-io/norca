@@ -101,7 +101,8 @@ const tenantKindSchema = `{
               "creating": {"type": "string"},
               "adopted": {"type": "boolean"},
               "original": {"type": "object"},
-              "writing": {"type": "string"}
+              "writing": {"type": "string"},
+              "create_index": {"type": "integer", "minimum": 0}
             },
             "additionalProperties": false
           }
@@ -233,6 +234,14 @@ type tenantResourceRef struct {
 	Adopted  bool            `json:"adopted,omitempty"`
 	Original *tenantOriginal `json:"original,omitempty"`
 
+	// CreateIndex is the create index of an adopted resource when the
+	// tenant took it over. A namespace, a quota, an ACL policy and a network
+	// policy are known by their name alone: a resource of the name with
+	// another create index was created by somebody else after the one the
+	// tenant took over was deleted, and is not the tenant's (replaced;
+	// review finding ATM-26e). An ACL role has its ID for that.
+	CreateIndex uint64 `json:"create_index,omitempty"`
+
 	// Writing is, for an adopted resource the tenant has not written yet,
 	// the fingerprint of what the resource will hold once the tenant wrote
 	// it. Until then nothing of the tenant is in the resource, and Original
@@ -244,6 +253,14 @@ type tenantResourceRef struct {
 }
 
 func (r tenantResourceRef) key() string { return r.Type + "/" + r.Namespace + "/" + r.Name }
+
+// replaced reports whether the resource that has the name of an adopted
+// resource now, of the create index given, is another one than the tenant
+// took over (CreateIndex). A resource taken over before the tenant recorded
+// create indexes can't be told apart.
+func (r tenantResourceRef) replaced(createIndex uint64) bool {
+	return r.Adopted && r.CreateIndex != 0 && createIndex != 0 && r.CreateIndex != createIndex
+}
 
 func (r tenantResourceRef) String() string {
 	if r.Namespace != "" {

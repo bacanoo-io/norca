@@ -217,6 +217,251 @@ func TestTenant_RoleGivenBackByRecordedID(t *testing.T) {
 	})
 }
 
+// replacePolicy deletes the ACL policy of the name and creates another
+// policy of the name: somebody else's, with the rules it returns.
+func replacePolicy(t *testing.T, s *Server, name string) string {
+	t.Helper()
+	const rules = `agent { policy = "read" }`
+	raftWrite(t, s, structs.ACLPolicyDeleteRequestType, &structs.ACLPolicyDeleteRequest{Names: []string{name}})
+	policy := &structs.ACLPolicy{Name: name, Description: "made by somebody else", Rules: rules}
+	policy.SetHash()
+	raftWrite(t, s, structs.ACLPolicyUpsertRequestType, &structs.ACLPolicyUpsertRequest{Policies: []*structs.ACLPolicy{policy}})
+	return rules
+}
+
+// A resource a tenant took over that somebody deleted and created again
+// under its name is not the resource the tenant took over (review finding
+// ATM-26e): a namespace, a quota, an ACL policy and a network policy have no
+// ID, so the tenant records the create index of what it takes over. The
+// tenant treats the other resource as any resource it finds, and never
+// writes what it found in the deleted one onto it. It went on as if nothing
+// had happened: it wrote the other resource as its own, and gave it "back"
+// holding what the deleted one had held.
+func TestTenant_AdoptedReplacedUnderItsName(t *testing.T) {
+	ci.Parallel(t)
+
+	// The tenant still adopts the type: it takes the other policy over as
+	// it is now, and gives that back.
+	t.Run("adopt kept", func(t *testing.T) {
+		ci.Parallel(t)
+		c, armed := newTenantArmedTest(t, "namespace//team-e")
+		tenantByHand{c}.policyAndRole("team-e-dev")
+		spec := map[string]any{
+			"namespace": map[string]any{"description": "E1"},
+			"roles":     map[string]any{"dev": []any{"submit-job"}},
+			"adopt":     []any{"acl-policy", "acl-role"},
+		}
+		_, err := c.apply("", structs.TenantKind, "team-e", spec)
+		must.NoError(t, err)
+		obj := waitGeneration(c, "team-e")
+		must.SliceContains(t, tenantAdopted(obj), "acl-policy//team-e-dev")
+
+		// While the next pass writes the namespace, after it read the
+		// policy, somebody replaces the policy.
+		var foreign string
+		replace := func(s *Server) { foreign = replacePolicy(t, s, "team-e-dev") }
+		armed.Store(&replace)
+		spec["namespace"] = map[string]any{"description": "E2"}
+		_, err = c.apply("", structs.TenantKind, "team-e", spec)
+		must.NoError(t, err)
+		waitTenant(c, "team-e", "the policy written by the tenant again", func(o *structs.CustomObject) bool {
+			policy, err := c.s.State().ACLPolicyByName(nil, "team-e-dev")
+			return err == nil && policy != nil && strings.Contains(policy.Rules, "submit-job") &&
+				armed.Load() == nil && tenantReady(o)
+		})
+		ref := tenantRefs(c.get("", structs.TenantKind, "team-e"))["acl-policy//team-e-dev"]
+		must.True(t, ref.Adopted)
+		must.NotNil(t, ref.Original)
+		must.Eq(t, foreign, ref.Original.Rules,
+			must.Sprint("the tenant kept what the deleted policy held as the original of the policy of somebody else"))
+
+		must.NoError(t, c.delete("", structs.TenantKind, "team-e"))
+		waitTenantGone(c, "team-e")
+		policy, err := c.s.State().ACLPolicyByName(nil, "team-e-dev")
+		must.NoError(t, err)
+		must.NotNil(t, policy)
+		must.Eq(t, foreign, policy.Rules, must.Sprint("the tenant gave the policy back holding what the deleted policy had held"))
+		must.Eq(t, "made by somebody else", policy.Description)
+	})
+
+	// The tenant no longer adopts the type: the other policy is a conflict,
+	// and stays as it is.
+	t.Run("adopt dropped", func(t *testing.T) {
+		ci.Parallel(t)
+		c, armed := newTenantArmedTest(t, "namespace//team-j")
+		tenantByHand{c}.policyAndRole("team-j-dev")
+		roles := map[string]any{"dev": []any{"submit-job"}}
+		_, err := c.apply("", structs.TenantKind, "team-j", map[string]any{
+			"namespace": map[string]any{"description": "J1"}, "roles": roles,
+			"adopt": []any{"acl-policy", "acl-role"},
+		})
+		must.NoError(t, err)
+		waitGeneration(c, "team-j")
+
+		var foreign string
+		replace := func(s *Server) { foreign = replacePolicy(t, s, "team-j-dev") }
+		armed.Store(&replace)
+		_, err = c.apply("", structs.TenantKind, "team-j", map[string]any{
+			"namespace": map[string]any{"description": "J2"}, "roles": roles,
+		})
+		must.NoError(t, err)
+		obj := waitTenant(c, "team-j", "in conflict", func(o *structs.CustomObject) bool {
+			return objectConditionTrue(o.Status, structs.TenantConditionConflict)
+		})
+		must.Nil(t, armed.Load(), must.Sprint("the policy was not replaced during the pass"))
+		must.SliceNotContains(t, tenantResources(obj), "acl-policy//team-j-dev")
+		policy, err := c.s.State().ACLPolicyByName(nil, "team-j-dev")
+		must.NoError(t, err)
+		must.NotNil(t, policy)
+		must.Eq(t, foreign, policy.Rules, must.Sprint("the tenant wrote a policy it did not take over"))
+
+		must.NoError(t, c.delete("", structs.TenantKind, "team-j"))
+		waitTenantGone(c, "team-j")
+		policy, err = c.s.State().ACLPolicyByName(nil, "team-j-dev")
+		must.NoError(t, err)
+		must.NotNil(t, policy)
+		must.Eq(t, foreign, policy.Rules, must.Sprint("the deleted tenant wrote a policy it did not take over"))
+	})
+
+	// The tenant is deleted, driven by hand on what it listed: the four
+	// types that are known by their name.
+	t.Run("tenant deleted", func(t *testing.T) {
+		ci.Parallel(t)
+		c, _ := newTenantArmedTest(t, "")
+		store := c.s.State()
+		hand := tenantByHand{c}
+		hand.quota("team-k-quota")
+		hand.namespace("team-k-ns", "", nil)
+		hand.policy("team-k-dev", `node { policy = "read" }`)
+		handNP := hand.networkPolicy("team-k-ns")
+		_, err := c.apply("", structs.TenantKind, "team-k", map[string]any{
+			"namespace": map[string]any{"description": "K1"},
+		})
+		must.NoError(t, err)
+		stored := waitGeneration(c, "team-k")
+
+		ns, _ := store.NamespaceByName(nil, "team-k-ns")
+		quota, _ := store.QuotaSpecByName(nil, "team-k-quota")
+		policy, _ := store.ACLPolicyByName(nil, "team-k-dev")
+		np, _ := store.NetworkPolicyByName(nil, "team-k-ns", structs.TenantNetworkPolicyName)
+		was := handNP.Copy()
+		was.Description = "as the tenant found it"
+		netOriginal, err := structs.EncodeObjectPart(&tenantOriginal{Description: was.Description, NetworkPolicy: was})
+		must.NoError(t, err)
+
+		// What the tenant took over had other create indexes: it was
+		// deleted, and these were created under its names.
+		deleting := stored.Copy()
+		deleting.DeletionTime = time.Now().UnixNano()
+		deleting.Finalizers = []string{structs.OperatorsFinalizer}
+		deleting.Status = map[string]any{"resources": []any{
+			map[string]any{"type": structs.TenantResourceNamespace, "name": "team-k-ns", "adopted": true,
+				"create_index": ns.CreateIndex - 1, "original": map[string]any{"description": "as the tenant found it"}},
+			map[string]any{"type": structs.TenantResourceQuota, "name": "team-k-quota", "adopted": true,
+				"create_index": quota.CreateIndex - 1, "original": map[string]any{"description": "as the tenant found it"}},
+			map[string]any{"type": structs.TenantResourceACLPolicy, "name": "team-k-dev", "adopted": true,
+				"create_index": policy.CreateIndex - 1,
+				"original":     map[string]any{"description": "as the tenant found it", "rules": `node { policy = "write" }`}},
+			map[string]any{"type": structs.TenantResourceNetworkPolicy, "namespace": "team-k-ns", "name": structs.TenantNetworkPolicyName,
+				"adopted": true, "create_index": np.CreateIndex - 1, "original": netOriginal},
+		}}
+		o := newTenantOperator(c.s, c.s.logger)
+		o.finishDeletion(newTenantPass(t, c.s), deleting)
+
+		const wrote = "the deleted tenant gave back onto a resource it did not take over"
+		ns, _ = store.NamespaceByName(nil, "team-k-ns")
+		must.Eq(t, "made by hand", ns.Description, must.Sprint(wrote))
+		quota, _ = store.QuotaSpecByName(nil, "team-k-quota")
+		must.Eq(t, "made by hand", quota.Description, must.Sprint(wrote))
+		policy, _ = store.ACLPolicyByName(nil, "team-k-dev")
+		must.Eq(t, "made by hand", policy.Description, must.Sprint(wrote))
+		must.Eq(t, `node { policy = "read" }`, policy.Rules, must.Sprint(wrote))
+		np, _ = store.NetworkPolicyByName(nil, "team-k-ns", structs.TenantNetworkPolicyName)
+		must.Eq(t, "made by hand", np.Description, must.Sprint(wrote))
+		for _, name := range []string{"namespace team-k-ns", "quota team-k-quota", "acl-policy team-k-dev",
+			"network-policy team-k-ns/" + structs.TenantNetworkPolicyName} {
+			mustHaveEvent(t, c, stored, "Released", name+": it no longer exists")
+		}
+	})
+}
+
+// A tenant does not give an ACL role it took over back under a name that is
+// somebody else's now (review finding ATM-26f). The role is the one of the ID
+// the tenant recorded and is written under the name it has now (ATM-14); when
+// it was renamed, that is not the name the tenant lists and claims, and
+// another tenant may have taken the role over under it. The tenant then
+// keeps the role in its list (RestoreFailed) and writes nothing. It wrote
+// what it had found onto the role of the other tenant.
+func TestTenant_RoleNotGivenBackOntoAnotherOwner(t *testing.T) {
+	ci.Parallel(t)
+	c, _ := newTenantArmedTest(t, "")
+	_, err := c.apply("", structs.TenantKind, "team-f", map[string]any{
+		"namespace": map[string]any{"description": "F1"},
+	})
+	must.NoError(t, err)
+	stored := waitGeneration(c, "team-f")
+	claims := c.s.releases.claims
+
+	cases := []struct {
+		name string
+		role string
+		// owned makes the name of the role somebody else's, and returns
+		// what undoes it.
+		owned func(p *tenantPass, key string) func()
+		want  string
+	}{
+		{
+			name: "of another tenant", role: "ops-a",
+			owned: func(p *tenantPass, key string) func() {
+				p.tenants[key] = "team-o"
+				return func() {}
+			},
+			want: "acl-role ops-a belongs to the tenant team-o",
+		},
+		{
+			name: "being written", role: "ops-b",
+			owned: func(_ *tenantPass, key string) func() {
+				other := claims.claimant(claimTenant, "team-o")
+				claims.claim(other, []string{key})
+				return func() { claims.release(other) }
+			},
+			want: `acl-role ops-b is being written by tenant "team-o"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// The role the tenant took over as team-f-dev has another name
+			// now, and links another policy than the tenant found.
+			tenantByHand{c}.policyAndRole(tc.role)
+			role, err := c.s.State().GetACLRoleByName(nil, tc.role)
+			must.NoError(t, err)
+			must.NotNil(t, role)
+
+			p := newTenantPass(t, c.s)
+			undo := tc.owned(p, tenantResourceRef{Type: structs.TenantResourceACLRole, Name: tc.role}.key())
+			defer undo()
+
+			deleting := stored.Copy()
+			deleting.DeletionTime = time.Now().UnixNano()
+			deleting.Finalizers = []string{structs.OperatorsFinalizer}
+			deleting.Status = map[string]any{"resources": []any{
+				map[string]any{"type": structs.TenantResourceACLRole, "name": "team-f-dev", "id": role.ID, "adopted": true,
+					"original": map[string]any{"description": "as the tenant found it", "policies": []any{tc.role}}},
+			}}
+			o := newTenantOperator(c.s, c.s.logger)
+			o.finishDeletion(p, deleting)
+
+			live, err := c.s.State().GetACLRoleByID(nil, role.ID)
+			must.NoError(t, err)
+			must.NotNil(t, live)
+			must.Eq(t, "made by hand", live.Description, must.Sprint("the tenant gave its role back under a name that is somebody else's"))
+			must.Eq(t, tc.role+"-other", live.Policies[0].Name)
+			mustHaveEvent(t, c, stored, "RestoreFailed", tc.want)
+			must.NotNil(t, c.get("", structs.TenantKind, "team-f"), must.Sprint("the tenant let go of a role it could not give back"))
+		})
+	}
+}
+
 // A tenant does not delete a resource it lists that a release owns, or that
 // a release operation is writing (review finding ATM-13): one a release
 // owns is dropped from the tenant's list with an event, one being written

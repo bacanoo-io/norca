@@ -270,6 +270,13 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // what the status says the tenant was writing, which the tenant wrote down
 // before the write, as it does for a creation. For an existing resource
 // creating is what it will hold once the tenant wrote it.
+//
+// A resource the tenant took over that was deleted, and whose name another
+// resource has now (another create index than the tenant recorded at the
+// adoption), is not the one the tenant took over: what the tenant found in
+// the deleted one is forgotten, never written onto this one, and the
+// resource is treated as any resource the tenant finds, a conflict or with
+// spec.adopt an adoption as it is now (review finding ATM-26e).
 func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOriginal) bool {
 	exists := original != nil
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
@@ -297,7 +304,12 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 				w.claimsChanged = true
 			}
 			mine.Pending, mine.Creating = true, want
-			mine.Adopted, mine.Original, mine.Writing = false, nil, ""
+			mine.Adopted, mine.Original, mine.Writing, mine.CreateIndex = false, nil, "", 0
+		case mine.replaced(original.CreateIndex):
+			// Not the resource the tenant took over: that one was deleted,
+			// and somebody else made this one under its name.
+			delete(w.owned, ref.key())
+			ok = false
 		case mine.Pending && (mine.Creating == "" || mine.Creating != original.fingerprint()):
 			// Not what the tenant was creating: somebody else made it.
 			delete(w.owned, ref.key())
@@ -351,6 +363,7 @@ func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOrigi
 		}
 		w.adopted = append(w.adopted, ref)
 		ref.Original, ref.Writing = original, creating.fingerprint()
+		ref.CreateIndex = original.CreateIndex
 	} else {
 		ref.Creating = creating.fingerprint()
 	}
@@ -441,6 +454,11 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 	if existed {
 		reason, what = "Updated", "set back "
 	}
+	w.record(ref, reason, what+ref.String())
+}
+
+// record records a write of a resource that was made, with its event.
+func (w *tenantWork) record(ref tenantResourceRef, reason, message string) {
 	if mine, ok := w.owned[ref.key()]; ok && (mine.Pending || mine.Writing != "") {
 		// Created, or written for the first time since the tenant took it
 		// over: from now on the original of an adopted resource is frozen.
@@ -448,7 +466,7 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 		w.owned[ref.key()] = mine
 	}
 	w.changed = append(w.changed, ref.String())
-	w.o.event(w.p, w.obj, structs.ObjectEventTypeNormal, reason, what+ref.String())
+	w.o.event(w.p, w.obj, structs.ObjectEventTypeNormal, reason, message)
 	operatorCount(structs.TenantKind, "writes")
 }
 
@@ -652,9 +670,49 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			// take the one that has the name (review finding ATM-26c). One
 			// that can't be given back keeps its entry, and the tenant
 			// makes no role of the name until it can be (RestoreFailed).
+			//
+			// A role the tenant created that no longer has the name (it was
+			// renamed by hand) is still the tenant's role, by its ID: the
+			// tenant renames it back and sets it back to the spec, as it
+			// sets back any change made by hand, and makes no second role
+			// (review finding ATM-26d). When somebody else has one of the
+			// two names by then (another role has the tenant's name, or
+			// another tenant lists the name the role has now), the tenant
+			// writes nothing and keeps its role in its list: a conflict,
+			// until the name is free. A deleted tenant deletes the role by
+			// its ID, whatever its name. A role the tenant created that is
+			// gone is made again, without the ID of the old one.
+			renamedFrom := ""
 			if mine, ok := w.owned[roleRef.key()]; ok && mine.ID != "" && (liveRole == nil || liveRole.ID != mine.ID) {
+				var own *structs.ACLRole
+				if !mine.Adopted {
+					if own, err = p.store.GetACLRoleByID(p.ws, mine.ID); err != nil {
+						w.failures = append(w.failures, err.Error())
+						continue
+					}
+				}
+				if own != nil {
+					now := tenantResourceRef{Type: structs.TenantResourceACLRole, Name: own.Name}
+					if liveRole != nil {
+						w.conflicts = append(w.conflicts, fmt.Sprintf(
+							"%s has the name %q now, and another role has its name: the tenant does not rename it back", roleRef, own.Name))
+						continue
+					}
+					if owner, ok := p.othersResource(obj.Name, now); ok {
+						w.conflicts = append(w.conflicts, fmt.Sprintf(
+							"%s has the name %q now, and %s belongs to the tenant %s: the tenant does not rename it back",
+							roleRef, own.Name, now, owner))
+						continue
+					}
+					liveRole, renamedFrom = own, own.Name
+				} else if !mine.Adopted && liveRole == nil {
+					mine.ID = ""
+					w.owned[roleRef.key()] = mine
+				}
+			}
+			if mine, ok := w.owned[roleRef.key()]; ok && renamedFrom == "" && mine.ID != "" && (liveRole == nil || liveRole.ID != mine.ID) {
 				if mine.Adopted {
-					if _, err := o.giveBack(p, obj, mine, spec.ReleaseWithoutRestore); err != nil {
+					if _, err := o.giveBack(p, obj, w.claimant, mine, spec.ReleaseWithoutRestore); err != nil {
 						w.restoreFailures = append(w.restoreFailures, err.Error())
 						o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 							fmt.Sprintf("giving %s back failed: %v", mine, err))
@@ -672,7 +730,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				w.setRoleID(roleRef, liveRole.ID)
 			}
 			writes = append(writes, func() bool {
-				if liveRole == nil || !roleMatches(liveRole, role) {
+				if liveRole == nil || renamedFrom != "" || !roleMatches(liveRole, role) {
 					o.beforeWrite(roleRef)
 					if !w.mayWrite(roleRef) {
 						return false
@@ -680,6 +738,10 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 					id, err := o.upsertRole(p, liveRole, role)
 					if err == nil {
 						w.setRoleID(roleRef, id)
+					}
+					if err == nil && renamedFrom != "" {
+						w.record(roleRef, "Renamed", fmt.Sprintf("renamed %s back: it had the name %s", roleRef, renamedFrom))
+						return true
 					}
 					w.wrote(roleRef, liveRole != nil, err)
 				}
@@ -749,7 +811,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		}
 		if ref.Adopted {
 			// On loan: given back as it was found, not deleted.
-			if _, err := o.giveBack(p, obj, ref, spec.ReleaseWithoutRestore); err != nil {
+			if _, err := o.giveBack(p, obj, w.claimant, ref, spec.ReleaseWithoutRestore); err != nil {
 				w.restoreFailures = append(w.restoreFailures, err.Error())
 				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
@@ -862,6 +924,9 @@ func statusRefs(owned map[string]tenantResourceRef) []any {
 		}
 		if ref.Writing != "" {
 			m["writing"] = ref.Writing
+		}
+		if ref.CreateIndex != 0 {
+			m["create_index"] = ref.CreateIndex
 		}
 		refs = append(refs, m)
 	}
@@ -1034,7 +1099,7 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 			continue
 		}
 		if ref.Adopted {
-			if _, err := o.giveBack(p, obj, ref, asIs); err != nil {
+			if _, err := o.giveBack(p, obj, claimant, ref, asIs); err != nil {
 				o.event(p, obj, structs.ObjectEventTypeWarning, "RestoreFailed",
 					fmt.Sprintf("giving %s back failed: %v", ref, err))
 				p.want(p.now.Add(operatorsRetry))

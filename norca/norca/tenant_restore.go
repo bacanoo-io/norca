@@ -58,6 +58,12 @@ type tenantOriginal struct {
 
 	// NetworkPolicy is a network policy as it was, without its indexes.
 	NetworkPolicy *structs.NetworkPolicy `json:"network_policy,omitempty"`
+
+	// CreateIndex is the create index of the resource this was read from, 0
+	// for what a tenant wants to create. It is not what the resource held
+	// and is not kept with it (nor in the fingerprint and the size): an
+	// adoption records it beside the original (tenantResourceRef).
+	CreateIndex uint64 `json:"-"`
 }
 
 // size returns the size of the original in the status.
@@ -97,14 +103,15 @@ func namespaceOriginal(ns *structs.Namespace) *tenantOriginal {
 	if ns == nil {
 		return nil
 	}
-	return &tenantOriginal{Description: ns.Description, Meta: maps.Clone(nilIfEmpty(ns.Meta)), Quota: ns.Quota}
+	return &tenantOriginal{Description: ns.Description, Meta: maps.Clone(nilIfEmpty(ns.Meta)), Quota: ns.Quota,
+		CreateIndex: ns.CreateIndex}
 }
 
 func quotaOriginal(q *structs.QuotaSpec) *tenantOriginal {
 	if q == nil {
 		return nil
 	}
-	out := &tenantOriginal{Description: q.Description, Enforce: q.Enforce}
+	out := &tenantOriginal{Description: q.Description, Enforce: q.Enforce, CreateIndex: q.CreateIndex}
 	for _, l := range q.Limits {
 		if l == nil {
 			continue
@@ -133,14 +140,14 @@ func policyOriginal(p *structs.ACLPolicy) *tenantOriginal {
 	if p == nil {
 		return nil
 	}
-	return &tenantOriginal{Description: p.Description, Rules: p.Rules}
+	return &tenantOriginal{Description: p.Description, Rules: p.Rules, CreateIndex: p.CreateIndex}
 }
 
 func roleOriginal(r *structs.ACLRole) *tenantOriginal {
 	if r == nil {
 		return nil
 	}
-	out := &tenantOriginal{Description: r.Description}
+	out := &tenantOriginal{Description: r.Description, CreateIndex: r.CreateIndex}
 	for _, link := range r.Policies {
 		if link != nil {
 			out.Policies = append(out.Policies, link.Name)
@@ -155,7 +162,7 @@ func networkPolicyOriginal(np *structs.NetworkPolicy) *tenantOriginal {
 	}
 	saved := np.Copy()
 	saved.CreateIndex, saved.ModifyIndex = 0, 0
-	return &tenantOriginal{Description: np.Description, NetworkPolicy: saved}
+	return &tenantOriginal{Description: np.Description, NetworkPolicy: saved, CreateIndex: np.CreateIndex}
 }
 
 // quotaLimits returns the limits of a quota from the limits by region.
@@ -203,9 +210,10 @@ const (
 // tenant saved at the adoption over what the tenant wrote, or with asIs
 // leaves the resource as it is. It returns how the resource was given back.
 // An error means the resource can't be given back as it was found; the
-// tenant then keeps it, and the error says what is missing.
-func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
-	how, err := o.restore(p, obj, ref, asIs)
+// tenant then keeps it, and the error says what is missing. claimant is the
+// pass over the tenant in the claims registry.
+func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, ref tenantResourceRef, asIs bool) (string, error) {
+	how, err := o.restore(p, obj, claimant, ref, asIs)
 	if err != nil {
 		return "", err
 	}
@@ -226,7 +234,7 @@ func (o *tenantOperator) giveBack(p *tenantPass, obj *structs.CustomObject, ref 
 	return how, nil
 }
 
-func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref tenantResourceRef, asIs bool) (string, error) {
+func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, ref tenantResourceRef, asIs bool) (string, error) {
 	store := o.srv.State()
 	orig := ref.Original
 	// Without a saved original there is nothing to write back.
@@ -241,18 +249,23 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live != nil && live.fingerprint() != ref.Writing {
+		if live != nil && !ref.replaced(live.CreateIndex) && live.fingerprint() != ref.Writing {
 			return tenantGivenBackUnwritten, nil
 		}
 	}
 
+	// The resource is the one the tenant took over: a namespace, a quota,
+	// an ACL policy or a network policy that has its name now with another
+	// create index was created by somebody else after the tenant's was
+	// deleted. The tenant's is gone, and what it found in it is not written
+	// onto the other one (review finding ATM-26e).
 	switch ref.Type {
 	case structs.TenantResourceNamespace:
 		live, err := store.NamespaceByName(nil, ref.Name)
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -285,7 +298,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -304,7 +317,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs {
@@ -356,6 +369,17 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if roleMatches(live, want) {
 			return tenantGivenBackRestored, nil
 		}
+		// The role is written under the name it has now, which is not the
+		// name the tenant lists and claims when the role was renamed:
+		// somebody else may have that name by now, and then the role is
+		// theirs to write (review finding ATM-26f).
+		taken, err := o.roleNameTaken(p, obj, claimant, live.Name)
+		if err != nil {
+			return "", err
+		}
+		if taken != "" {
+			return "", fmt.Errorf("%s can't be given back: %s", ref, taken)
+		}
 		// A check-and-set on the role as read here: a rename in between
 		// is not written back (review finding ATM-26).
 		o.beforeWrite(ref)
@@ -368,7 +392,7 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		if err != nil {
 			return "", err
 		}
-		if live == nil {
+		if live == nil || ref.replaced(live.CreateIndex) {
 			return tenantGivenBackGone, nil
 		}
 		if asIs || orig.NetworkPolicy == nil {
@@ -395,6 +419,28 @@ func (o *tenantOperator) restore(p *tenantPass, obj *structs.CustomObject, ref t
 		return "", fmt.Errorf("unknown resource type %q", ref.Type)
 	}
 	return tenantGivenBackRestored, nil
+}
+
+// roleNameTaken says, right before a tenant gives an ACL role back, who else
+// has the name of the role: another tenant that lists it, as the pass knows
+// (take), the release operation or the pass over another tenant that claims
+// it now, or a release that lists it (releaseHas, which claims the name for
+// the pass of the tenant first). "" when the name is free.
+func (o *tenantOperator) roleNameTaken(p *tenantPass, obj *structs.CustomObject, claimant resourceClaimant, name string) (string, error) {
+	named := tenantResourceRef{Type: structs.TenantResourceACLRole, Name: name}
+	if owner, ok := p.othersResource(obj.Name, named); ok {
+		return fmt.Sprintf("%s belongs to the tenant %s", named, owner), nil
+	}
+	owner, writer, err := o.releaseHas(claimant, named)
+	switch {
+	case err != nil:
+		return "", err
+	case writer != "":
+		return fmt.Sprintf("%s is being written by %s", named, writer), nil
+	case owner != "":
+		return fmt.Sprintf("%s belongs to the release %s", named, owner), nil
+	}
+	return "", nil
 }
 
 // liveOriginal returns what a resource of a tenant holds now in the fields a
