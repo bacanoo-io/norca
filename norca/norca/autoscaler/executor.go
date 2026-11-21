@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	metrics "github.com/hashicorp/go-metrics"
@@ -53,6 +54,10 @@ type executor struct {
 
 	// suspended tracks the oscillation suspensions decided by this leader.
 	suspended map[targetKey]time.Time
+
+	// state reads the state the scale of an object is checked against
+	// before it is written (Norca, executor_object.go); nil skips the check.
+	state func() *state.StateStore
 }
 
 func newExecutor(logger hclog.Logger, cfg *Config, scaler JobScaler, objects ObjectScaler, events EventPublisher) *executor {

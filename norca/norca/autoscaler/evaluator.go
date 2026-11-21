@@ -156,7 +156,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			nomadAPMs:                 host.nomadAPMs,
 			strategyDriver:            cfg.StrategyDriver,
 		},
-		exec:   newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
+		exec:   newObjectCheckedExecutor(newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent), deps.State),
 		settle: newSettleTracker(),
 		status: newStatusBook(cfg.HoldWarn, deps.PublishEvent),
 

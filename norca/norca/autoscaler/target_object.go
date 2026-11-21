@@ -158,8 +158,9 @@ func readObjectTarget(store *state.StateStore, key targetKey, o *objectTarget) (
 	}
 
 	t := &targetState{
-		status:  &sdk.TargetStatus{Ready: !obj.Deleting(), Count: count, Meta: map[string]string{}},
-		desired: scale.Replicas,
+		status:      &sdk.TargetStatus{Ready: !obj.Deleting(), Count: count, Meta: map[string]string{}},
+		desired:     scale.Replicas,
+		modifyIndex: obj.ModifyIndex,
 	}
 
 	if key.kind == "" {

@@ -87,6 +87,10 @@ type targetState struct {
 	// while allocations start, wait for capacity, migrate or are replaced.
 	desired int64
 
+	// modifyIndex is the ModifyIndex of an object target as it was read
+	// (Norca); 0 for a task group.
+	modifyIndex uint64
+
 	// isMigrating is set while allocations of the group are marked to
 	// migrate (a node drain) and have not stopped yet: the running count is
 	// about to drop.

@@ -1141,6 +1141,9 @@ func (r *runner) groupTarget(g *demandGroup) (*compiledPolicy, *targetState, err
 	if err != nil || t == nil {
 		return nil, nil, fmt.Errorf("reading the group: %v", err)
 	}
+	// The look decided on the scale it read at its start: the executor
+	// writes only if it is still that one (review finding ASC-7).
+	t.desired = g.spec
 
 	sp := parsePolicy(g.policy)
 	sp.Target = parseTarget(nil, g.policy.Target)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	metrics "github.com/hashicorp/go-metrics"
@@ -52,14 +53,26 @@ func (e *executor) executeObject(c *compiledPolicy, t *targetState, action sdk.S
 		return nil
 	}
 
+	// (Norca) Two deciders write the scale of an object as an absolute value
+	// from their own reading: the evaluation of a policy and the blocked work
+	// loop of a node group. The scale is written only if it is still the
+	// one the decision was made on, and with the index it was checked at;
+	// otherwise the decision is made again on the next look (review finding
+	// ASC-7).
+	cas, err := e.checkObjectScale(c, t)
+	if err != nil {
+		return err
+	}
+
 	start := time.Now()
-	_, err := e.objects.ScaleObject(&structs.CustomObjectScaleRequest{
+	_, err = e.objects.ScaleObject(&structs.CustomObjectScaleRequest{
 		Group:        o.group,
 		Kind:         o.kind,
 		Name:         o.name,
 		Replicas:     action.Count,
 		Message:      action.Reason,
 		Meta:         meta,
+		CAS:          cas,
 		WriteRequest: namespace,
 	})
 	metrics.MeasureSince([]string{"nomad", "autoscaler", "scale", "invoke"}, start)
@@ -120,4 +133,33 @@ func (e *executor) suspendObject(c *compiledPolicy, until time.Time, logger hclo
 	if err != nil {
 		logger.Error("failed to record the oscillation warning event", "error", err)
 	}
+}
+
+// newObjectCheckedExecutor gives the executor the state to check the scale of
+// an object against before it writes it.
+func newObjectCheckedExecutor(e *executor, st func() *state.StateStore) *executor {
+	e.state = st
+	return e
+}
+
+// checkObjectScale reads the object again and returns its index for the
+// check-and-set of the scale, or an error when its scale is not the one the
+// decision was made on any more.
+func (e *executor) checkObjectScale(c *compiledPolicy, t *targetState) (*uint64, error) {
+	if e.state == nil || t == nil {
+		return nil, nil
+	}
+	cur, err := readObjectTarget(e.state(), c.key, c.object)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s before scaling it: %w", c.object, err)
+	}
+	if cur == nil {
+		return nil, fmt.Errorf("%s is gone", c.object)
+	}
+	if cur.desired != t.desired {
+		return nil, fmt.Errorf("the scale of %s changed from %d to %d since the decision; it is decided again",
+			c.object, t.desired, cur.desired)
+	}
+	index := cur.modifyIndex
+	return &index, nil
 }
