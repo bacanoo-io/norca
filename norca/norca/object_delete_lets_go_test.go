@@ -123,6 +123,7 @@ func TestObjectDelete_OrphanLetsGoOfAForegroundDeletion(t *testing.T) {
 	resp, err := victim.deleteReply(testOwnerGroup, testOwnerKind, "shop", structs.ObjectPropagationOrphan, true)
 	must.NoError(t, err)
 	must.False(t, resp.Unchanged)
+	must.False(t, resp.Object.Deleting(), must.Sprint("the dry run reply of a removal is an object marked for deletion (review finding MUK-31)"))
 	must.Eq(t, marked.ModifyIndex, c.object(testOwnerGroup, testOwnerKind, "shop").ModifyIndex)
 
 	// The repeated deletion in the orphan mode: the owner has no finalizer
@@ -131,6 +132,15 @@ func TestObjectDelete_OrphanLetsGoOfAForegroundDeletion(t *testing.T) {
 	must.NoError(t, err)
 	must.False(t, resp.Unchanged, must.Sprint("a deletion in the orphan mode changed nothing of a foreground deletion"))
 	must.Nil(t, c.object(testOwnerGroup, testOwnerKind, "shop"))
+	// The reply tells a removal as the reply of a first deletion does: the
+	// object without the mark of a deletion (review finding MUK-31). With
+	// the mark of the foreground deletion in it the caller read "marked for
+	// deletion (foreground)" of an object that was gone.
+	must.NotNil(t, resp.Object)
+	must.False(t, resp.Object.Deleting(), must.Sprint("the reply of a removal is an object marked for deletion"))
+	must.Eq(t, "", resp.Object.DeletionPropagation)
+	must.SliceEmpty(t, resp.Object.DeletionApproved)
+	must.Eq(t, marked.ID, resp.Object.ID)
 	tomb := c.tombstone(testOwnerGroup, testOwnerKind, "shop")
 	must.NotNil(t, tomb)
 	must.Eq(t, structs.ObjectPropagationOrphan, tomb.Propagation)

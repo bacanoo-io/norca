@@ -621,7 +621,9 @@ func (o *Objects) UpdateStatus(group, kind, name string, status map[string]any, 
 	return &resp, wm, nil
 }
 
-// Delete deletes an object. It returns the deleted object.
+// Delete deletes an object. It returns the object: marked for deletion
+// (Deleting reports true) if it waits for its finalizers or, in the
+// foreground mode, for what it owns, and without the mark if it was removed.
 func (o *Objects) Delete(group, kind, name string, opts *ObjectWriteOptions, w *WriteOptions) (*CustomObject, *WriteMeta, error) {
 	endpoint, err := objectPath(group, kind, name)
 	if err != nil {
