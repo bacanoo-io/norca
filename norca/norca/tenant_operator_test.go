@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -788,5 +789,102 @@ func TestTenantOperator_AdoptedRoleRenamed(t *testing.T) {
 
 		tenantByHand{c}.policy("team-n3-dev-other", `agent { policy = "read" }`)
 		givenBack(t, c, "team-n3", byHand)
+	})
+}
+
+// An ACL role a tenant created, renamed by hand, is renamed back: the role of
+// the tenant is the one of the ID it recorded, so the tenant writes that role
+// back to its name and to its spec, and makes no second role (review finding
+// ATM-26d). The tenant took a role missing under its name for a role to make
+// again: it made a new one, and the renamed role stayed behind, unlisted,
+// linking the policy of the tenant.
+func TestTenantOperator_OwnRoleRenamed(t *testing.T) {
+	ci.Parallel(t)
+
+	create := func(t *testing.T, c *certTest, tenant string) *structs.ACLRole {
+		t.Helper()
+		_, err := c.apply("", structs.TenantKind, tenant, map[string]any{
+			"namespace": map[string]any{"description": "Tenant"},
+			"roles":     map[string]any{"dev": []any{"submit-job"}},
+		})
+		must.NoError(t, err)
+		obj := waitGeneration(c, tenant)
+		own, err := c.s.State().GetACLRoleByName(nil, tenant+"-dev")
+		must.NoError(t, err)
+		must.NotNil(t, own)
+		must.Eq(t, own.ID, tenantRefs(obj)["acl-role//"+tenant+"-dev"].ID)
+		return own
+	}
+
+	t.Run("renamed", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		own := create(t, c, "team-o1")
+		renameRole(t, c.s, "team-o1-dev", "ops-dev")
+
+		obj := waitTenant(c, "team-o1", "ready with a role of its name", func(o *structs.CustomObject) bool {
+			role, err := c.s.State().GetACLRoleByName(nil, "team-o1-dev")
+			return err == nil && role != nil && tenantReady(o) && !tenantRefs(o)["acl-role//team-o1-dev"].Pending
+		})
+		role, err := c.s.State().GetACLRoleByName(nil, "team-o1-dev")
+		must.NoError(t, err)
+		must.Eq(t, own.ID, role.ID, must.Sprint("the tenant made a second role instead of renaming its role back"))
+		must.Eq(t, "team-o1-dev", role.Policies[0].Name)
+		left, err := c.s.State().GetACLRoleByName(nil, "ops-dev")
+		must.NoError(t, err)
+		must.Nil(t, left, must.Sprint("the renamed role of the tenant stayed behind"))
+		must.Eq(t, own.ID, tenantRefs(c.get("", structs.TenantKind, "team-o1"))["acl-role//team-o1-dev"].ID)
+		mustHaveEvent(t, c, obj, "Renamed", "renamed acl-role team-o1-dev back: it had the name ops-dev")
+
+		must.NoError(t, c.delete("", structs.TenantKind, "team-o1"))
+		waitTenantGone(c, "team-o1")
+		role, err = c.s.State().GetACLRoleByID(nil, own.ID)
+		must.NoError(t, err)
+		must.Nil(t, role, must.Sprint("the role of the deleted tenant stayed"))
+	})
+
+	// Somebody else's role has the name by the time the tenant looks: the
+	// tenant writes neither role and makes none, and keeps its own role, by
+	// its ID, in its list; a deleted tenant deletes that one.
+	t.Run("renamed and the name taken", func(t *testing.T) {
+		ci.Parallel(t)
+		c, cleanup := newTenantTest(t)
+		defer cleanup()
+		tenantByHand{c}.policy("ops-read", `node { policy = "read" }`)
+		own := create(t, c, "team-o2")
+		renamed := own.Copy()
+		renamed.Name = "ops-dev"
+		renamed.SetHash()
+		other := &structs.ACLRole{ID: uuid.Generate(), Name: "team-o2-dev", Description: "somebody else's",
+			Policies: []*structs.ACLRolePolicyLink{{Name: "ops-read"}}}
+		other.SetHash()
+		raftWrite(t, c.s, structs.ACLRolesUpsertRequestType, &structs.ACLRolesUpsertRequest{ACLRoles: []*structs.ACLRole{renamed, other}})
+
+		obj := waitTenant(c, "team-o2", "in conflict", func(o *structs.CustomObject) bool {
+			return objectConditionTrue(o.Status, structs.TenantConditionConflict)
+		})
+		must.Eq(t, own.ID, tenantRefs(obj)["acl-role//team-o2-dev"].ID,
+			must.Sprint("the tenant no longer lists the role it created"))
+		conflicts := fmt.Sprint(obj.Status["conflicts"])
+		must.StrContains(t, conflicts, `acl-role team-o2-dev has the name "ops-dev" now, and another role has its name`)
+		role, err := c.s.State().GetACLRoleByID(nil, own.ID)
+		must.NoError(t, err)
+		must.NotNil(t, role)
+		must.Eq(t, "ops-dev", role.Name)
+		role, err = c.s.State().GetACLRoleByName(nil, "team-o2-dev")
+		must.NoError(t, err)
+		must.NotNil(t, role)
+		must.Eq(t, other.ID, role.ID)
+		must.Eq(t, "somebody else's", role.Description, must.Sprint("the tenant wrote the role of somebody else"))
+
+		must.NoError(t, c.delete("", structs.TenantKind, "team-o2"))
+		waitTenantGone(c, "team-o2")
+		role, err = c.s.State().GetACLRoleByID(nil, own.ID)
+		must.NoError(t, err)
+		must.Nil(t, role, must.Sprint("the role the deleted tenant created stayed, under the name it was given"))
+		role, err = c.s.State().GetACLRoleByID(nil, other.ID)
+		must.NoError(t, err)
+		must.NotNil(t, role, must.Sprint("the deleted tenant deleted the role of somebody else"))
 	})
 }
