@@ -322,13 +322,18 @@ func TestHTTP_AgentMonitor(t *testing.T) {
 			// send the same log until monitor sink is set up
 			maxLogAttempts := 10
 			tried := 0
+			got := ""
 			testutil.WaitForResult(func() (bool, error) {
 				if tried < maxLogAttempts {
 					s.Server.logger.Warn("log that should be sent")
 					tried++
 				}
 
-				got := resp.Body.String()
+				output, err := io.ReadAll(resp)
+				if err != nil {
+					return false, err
+				}
+				got += string(output)
 				want := `{"Data":"`
 				if strings.Contains(got, want) {
 					return true, nil
@@ -356,13 +361,18 @@ func TestHTTP_AgentMonitor(t *testing.T) {
 			// send the same log until monitor sink is set up
 			maxLogAttempts := 10
 			tried := 0
+			got := ""
 			testutil.WaitForResult(func() (bool, error) {
 				if tried < maxLogAttempts {
 					s.Server.logger.Debug("log that should be sent")
 					tried++
 				}
 
-				got := resp.Body.String()
+				output, err := io.ReadAll(resp)
+				if err != nil {
+					return false, err
+				}
+				got += string(output)
 				want := `[DEBUG] http: log that should be sent`
 				if strings.Contains(got, want) {
 					return true, nil
@@ -397,7 +407,7 @@ func TestHTTP_AgentMonitor(t *testing.T) {
 					s.Server.logger.Warn("log that should be sent")
 					tried++
 				}
-				output, err := io.ReadAll(resp.Body)
+				output, err := io.ReadAll(resp)
 				if err != nil {
 					return false, err
 				}
@@ -438,7 +448,7 @@ func TestHTTP_AgentMonitor(t *testing.T) {
 					s.Agent.logger.Warn("log that should be sent")
 					tried++
 				}
-				output, err := io.ReadAll(resp.Body)
+				output, err := io.ReadAll(resp)
 				if err != nil {
 					return false, err
 				}
@@ -637,13 +647,17 @@ func TestAgent_PprofRequest(t *testing.T) {
 	}
 }
 
+// closableRecorder records the response of a streaming handler. The handler
+// goes on writing while the test reads, so it is built on the recorder of
+// testutil, which may be written and read at the same time; a read takes
+// what was written since the read before.
 type closableRecorder struct {
-	*httptest.ResponseRecorder
+	*testutil.ResponseRecorder
 	closer chan bool
 }
 
 func newClosableRecorder() *closableRecorder {
-	r := httptest.NewRecorder()
+	r := testutil.NewResponseRecorder()
 	closer := make(chan bool)
 	return &closableRecorder{r, closer}
 }

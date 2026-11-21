@@ -7,8 +7,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -35,7 +35,7 @@ func TestEventStream(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/v1/event/stream", nil)
 		require.Nil(t, err)
-		resp := httptest.NewRecorder()
+		resp := testutil.NewResponseRecorder()
 
 		respErrCh := make(chan error)
 		go func() {
@@ -48,8 +48,13 @@ func TestEventStream(t *testing.T) {
 		require.NoError(t, err)
 		pub.Publish(&structs.Events{Index: 100, Events: []structs.Event{{Payload: testEvent{ID: "123"}}}})
 
+		got := ""
 		testutil.WaitForResult(func() (bool, error) {
-			got := resp.Body.String()
+			output, err := io.ReadAll(resp)
+			if err != nil {
+				return false, err
+			}
+			got += string(output)
 			want := `{"ID":"123"}`
 			if strings.Contains(got, want) {
 				return true, nil
@@ -82,7 +87,7 @@ func TestEventStream_NamespaceQuery(t *testing.T) {
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/v1/event/stream?namespace=foo", nil)
 		require.Nil(t, err)
-		resp := httptest.NewRecorder()
+		resp := testutil.NewResponseRecorder()
 
 		respErrCh := make(chan error)
 		go func() {
@@ -98,8 +103,13 @@ func TestEventStream_NamespaceQuery(t *testing.T) {
 		pub.Publish(&structs.Events{Index: 100, Events: []structs.Event{{Namespace: "bar", Payload: testEvent{ID: badID}}}})
 		pub.Publish(&structs.Events{Index: 101, Events: []structs.Event{{Namespace: "foo", Payload: testEvent{ID: "456"}}}})
 
+		got := ""
 		testutil.WaitForResult(func() (bool, error) {
-			got := resp.Body.String()
+			output, err := io.ReadAll(resp)
+			if err != nil {
+				return false, err
+			}
+			got += string(output)
 			want := `"Namespace":"foo"`
 			if strings.Contains(got, badID) {
 				return false, fmt.Errorf("expected non matching namespace to be filtered, got:%v", got)
