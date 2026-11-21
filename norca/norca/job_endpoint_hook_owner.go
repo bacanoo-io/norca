@@ -13,13 +13,75 @@ import (
 
 // jobReservedMetaKeys are the meta keys of a job that the servers act on:
 // the owner mark (the deletion of the owner stops the job, and asks the
-// deleter for the right to stop it) and the identity that manages the job
-// (nobody else changes it). A registration sets them, with the checks of
-// checkJobOwnerMark and checkManagedJob; a dispatch does not.
+// deleter for the right to stop it), the identity that manages the job
+// (nobody else changes it), and the marks of a job of a release (the release
+// operations take such a job as their own). A registration sets them, with
+// the checks of checkJobMarks and checkManagedJob; a dispatch does not.
 var jobReservedMetaKeys = []string{
 	structs.JobMetaOwner,
 	structs.JobMetaOwnerKind,
 	structs.JobMetaManagedBy,
+	structs.ReleaseMetaRelease,
+	structs.ReleaseMetaReleaseNamespace,
+}
+
+// checkJobMarks checks the marks of a job a registration sets: the owner mark
+// (checkJobOwnerMark) and the release marks (checkJobReleaseMark). kept
+// reports that the registration is let through only because it keeps a mark
+// of the stored job; Job.Register then applies it only to that stored job
+// (pinJobOwnerMark).
+func checkJobMarks(aclObj *acl.ACL, existing, job *structs.Job) (kept bool, err error) {
+	ownerKept, err := checkJobOwnerMark(aclObj, existing, job)
+	if err != nil {
+		return false, err
+	}
+	releaseKept, err := checkJobReleaseMark(aclObj, existing, job)
+	if err != nil {
+		return false, err
+	}
+	return ownerKept || releaseKept, nil
+}
+
+// checkJobReleaseMark refuses a registration that marks a job as a job of a
+// release (the meta structs.ReleaseMetaRelease with
+// structs.ReleaseMetaReleaseNamespace) unless the caller may write the
+// releases of the namespace the marks name: "write" on packs.norca.io/Release
+// there (review finding JOG-23). The release operations take a job with the
+// marks as their own: as one of their hooks (runHook, waitHookJob,
+// purgeHookJob), as a job a failed apply left (leftByOperation), as a hook
+// job the deletion of the release removes. With the right to submit jobs
+// alone a caller would have passed a job of their own for one of these.
+//
+// As for the owner mark, the marks are checked when they are new: a
+// registration that keeps the marks of the stored job, which is not stopped,
+// is let through (kept), and removing them takes no right. The two marks go
+// together; one alone is refused. Management tokens (the release engine runs
+// as the leader, or with the token of the caller of the release operation,
+// who may write its releases) and clusters without ACLs are not restricted.
+func checkJobReleaseMark(aclObj *acl.ACL, existing, job *structs.Job) (kept bool, err error) {
+	name, hasName := job.Meta[structs.ReleaseMetaRelease]
+	namespace, hasNamespace := job.Meta[structs.ReleaseMetaReleaseNamespace]
+	if !hasName && !hasNamespace {
+		return false, nil
+	}
+	if hasName != hasNamespace || name == "" || namespace == "" {
+		return false, structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"job %q: the meta %q and %q mark a job of a release and go together, neither empty",
+			job.ID, structs.ReleaseMetaRelease, structs.ReleaseMetaReleaseNamespace)
+	}
+	if aclObj == nil || aclObj.IsManagement() ||
+		aclObj.AllowObjectOperation(namespace, structs.ReleaseKindRef, acl.ObjectCapabilityWrite) {
+		return false, nil
+	}
+	if existing != nil && !existing.Stop &&
+		existing.Meta[structs.ReleaseMetaRelease] == name &&
+		existing.Meta[structs.ReleaseMetaReleaseNamespace] == namespace {
+		return true, nil
+	}
+	return false, structs.NewErrRPCCodedf(http.StatusForbidden,
+		"job %q: release %q in namespace %q: the meta %q and %q mark a job of a release and "+
+			"require the write capability on %s in that namespace",
+		job.ID, name, namespace, structs.ReleaseMetaRelease, structs.ReleaseMetaReleaseNamespace, structs.ReleaseKindRef)
 }
 
 // checkJobOwnerMark refuses a registration that marks a job as the dependent
@@ -79,9 +141,10 @@ func checkJobOwnerMark(aclObj *acl.ACL, existing, job *structs.Job) (kept bool, 
 	return false, err
 }
 
-// pinJobOwnerMark makes a registration that keeps the owner mark of the
-// stored job without the right on the owner (checkJobOwnerMark) one that is
-// applied only if the stored job is still the one the endpoint read: the FSM
+// pinJobOwnerMark makes a registration that keeps the owner mark or the
+// release marks of the stored job without the right a new mark takes
+// (checkJobMarks) one that is applied only if the stored job is still the
+// one the endpoint read: the FSM
 // checks the JobModifyIndex of the job when it applies the registration
 // (checkJobEnforceIndex), and every registration and every stop of a job
 // moves that index. Without it a job that is stopped, loses its mark or is
@@ -99,13 +162,13 @@ func pinJobOwnerMark(args *structs.JobRegisterRequest, existing *structs.Job) bo
 }
 
 // errJobOwnerMarkStale is the error of a registration that kept the owner
-// mark of a stored job that changed before the registration was applied
-// (pinJobOwnerMark). Nothing was written.
+// mark or the release marks of a stored job that changed before the
+// registration was applied (pinJobOwnerMark). Nothing was written.
 func errJobOwnerMarkStale(job *structs.Job) error {
 	return structs.NewErrRPCCodedf(http.StatusConflict,
-		"job %q changed while it was registered: keeping the owner in its meta %q without the write or "+
-			"manage-finalizers capability on the owner holds only for the job as it was read; register it again",
-		job.ID, structs.JobMetaOwner)
+		"job %q changed while it was registered: keeping the owner (meta %q) or the release (meta %q) "+
+			"of a job without the capability a new one takes holds only for the job as it was read; register it again",
+		job.ID, structs.JobMetaOwner, structs.ReleaseMetaRelease)
 }
 
 // checkNewJobOwnerMark checks the owner mark of a job as one that is new
