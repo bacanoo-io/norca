@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -85,6 +87,32 @@ func TestRiggerHosts_ClusterSecretsStore(t *testing.T) {
 	// is no engine.
 	_, err = s.RiggerEngine(root.SecretID, structs.DefaultNamespace)
 	must.ErrorContains(t, err, "can't be converted")
+}
+
+// The data of Rigger is in <data_dir>/rigger, or for a server without a data
+// directory (a dev agent) in a temporary directory made once: never relative
+// to the working directory of the agent, where a dev agent wrote it before.
+func TestServer_RiggerDir(t *testing.T) {
+	ci.Parallel(t)
+
+	dataDir := t.TempDir()
+	withData := &Server{config: &Config{DataDir: dataDir}}
+
+	dir, err := withData.riggerDir()
+	must.NoError(t, err)
+	must.Eq(t, filepath.Join(dataDir, "rigger"), dir)
+
+	dev := &Server{config: &Config{}}
+
+	dir, err = dev.riggerDir()
+	must.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	must.True(t, filepath.IsAbs(dir), must.Sprintf("%s is not absolute", dir))
+	must.StrHasPrefix(t, filepath.Clean(os.TempDir()), dir)
+
+	again, err := dev.riggerDir()
+	must.NoError(t, err)
+	must.Eq(t, dir, again, must.Sprint("the temporary directory is made once"))
 }
 
 // The log of Rigger goes into the hclog logger of the server.

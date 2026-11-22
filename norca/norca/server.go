@@ -353,6 +353,12 @@ type Server struct {
 	riggerRegistries     *riggerRegistries
 	riggerRegistriesOnce sync.Once
 
+	// riggerDirPath is the directory of the data of Rigger, set once
+	// (riggerDir).
+	riggerDirOnce sync.Once
+	riggerDirPath string
+	riggerDirErr  error
+
 	// objectGC is the garbage collector of custom objects, running on the
 	// leader.
 	objectGC *objectgc.Collector

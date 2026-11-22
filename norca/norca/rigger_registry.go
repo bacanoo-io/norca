@@ -50,10 +50,10 @@ type riggerRegistryIndex struct {
 	items          []catalog.Item
 }
 
-func newRiggerRegistries(srv *Server) *riggerRegistries {
+func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 	r := &riggerRegistries{
 		srv:     srv,
-		fetcher: fetch.New(filepath.Join(srv.config.DataDir, "rigger", "cache")),
+		fetcher: fetch.New(filepath.Join(dir, "cache")),
 		indexes: map[string]*riggerRegistryIndex{},
 	}
 	r.fetcher.SetCredentials(r.credentials)
@@ -127,18 +127,26 @@ func (s *Server) riggerRegistryCredentials(a *RiggerRegistryAuthSecret) (*fetch.
 }
 
 // riggerRegistriesOf returns the registries of the server, made at the first
-// use (the data directory is known then).
-func (s *Server) riggerRegistriesOf() *riggerRegistries {
-	s.riggerRegistriesOnce.Do(func() { s.riggerRegistries = newRiggerRegistries(s) })
+// use in the directory of Rigger (riggerDir).
+func (s *Server) riggerRegistriesOf() (*riggerRegistries, error) {
+	dir, err := s.riggerDir()
+	if err != nil {
+		return nil, fmt.Errorf("the directory of Rigger: %w", err)
+	}
 
-	return s.riggerRegistries
+	s.riggerRegistriesOnce.Do(func() { s.riggerRegistries = newRiggerRegistries(s, dir) })
+
+	return s.riggerRegistries, nil
 }
 
 // syncRiggerRegistry syncs a registry and writes its status. It runs on the
 // leader. A failed sync is written as the phase Error with its message and
 // keeps what the last good sync found; it is an error of the call too.
 func (s *Server) syncRiggerRegistry(name string) (*RiggerRegistry, uint64, error) {
-	r := s.riggerRegistriesOf()
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return nil, 0, err
+	}
 
 	r.syncMu.Lock()
 	defer r.syncMu.Unlock()
@@ -323,7 +331,12 @@ func (s *Server) searchRiggerRegistry(name string, q catalog.Query) ([]catalog.I
 	ctx, cancel := context.WithTimeout(context.Background(), riggerRegistrySyncTimeout)
 	defer cancel()
 
-	idx, err := s.riggerRegistriesOf().read(ctx, reg.Spec.Type, reg.Status.Source, reg.Status.Commit)
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	idx, err := r.read(ctx, reg.Spec.Type, reg.Status.Source, reg.Status.Commit)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("the registry %q at %s: %w", name, reg.Status.Commit, err)
 	}

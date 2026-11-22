@@ -66,7 +66,10 @@ func (s *Server) riggerEngine(h *riggerHosts, opts ...rigger.Option) (*rigger.En
 		return nil, errors.New("the release requests of Rigger can't be converted on this server")
 	}
 
-	dir := filepath.Join(s.config.DataDir, "rigger")
+	dir, err := s.riggerDir()
+	if err != nil {
+		return nil, err
+	}
 
 	base := []rigger.Option{
 		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
@@ -80,6 +83,24 @@ func (s *Server) riggerEngine(h *riggerHosts, opts ...rigger.Option) (*rigger.En
 	}
 
 	return rigger.New(append(base, opts...)...)
+}
+
+// riggerDir returns the directory of the data of Rigger on this server:
+// <data_dir>/rigger, or for a server without a data directory (a dev agent,
+// tests) a temporary directory made once. Never a path relative to the
+// working directory of the agent.
+func (s *Server) riggerDir() (string, error) {
+	s.riggerDirOnce.Do(func() {
+		if s.config.DataDir != "" {
+			s.riggerDirPath = filepath.Join(s.config.DataDir, "rigger")
+
+			return
+		}
+
+		s.riggerDirPath, s.riggerDirErr = os.MkdirTemp("", "norca-rigger-")
+	})
+
+	return s.riggerDirPath, s.riggerDirErr
 }
 
 func (h *riggerHosts) write(namespace string) structs.WriteRequest {
