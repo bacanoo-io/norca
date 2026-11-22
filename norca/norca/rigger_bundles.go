@@ -90,7 +90,9 @@ type RiggerBundleListResponse struct {
 // ImportBundle checks a bundle and keeps it in the object store of the bus.
 // It needs write on the kind of registries: a bundle is a source of modules
 // for the whole cluster.
-func (r *Rigger) ImportBundle(args *RiggerBundleImportRequest, reply *RiggerBundleResponse) error {
+func (r *Rigger) ImportBundle(args *RiggerBundleImportRequest, reply *RiggerBundleResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.ImportBundle", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.ImportBundle", args, args, reply); done {
 		return err
@@ -120,7 +122,9 @@ func (r *Rigger) ImportBundle(args *RiggerBundleImportRequest, reply *RiggerBund
 
 // ListBundles lists the bundles kept in the cluster. It needs read on the
 // kind of registries.
-func (r *Rigger) ListBundles(args *RiggerBundleListRequest, reply *RiggerBundleListResponse) error {
+func (r *Rigger) ListBundles(args *RiggerBundleListRequest, reply *RiggerBundleListResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.ListBundles", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.ListBundles", args, args, reply); done {
 		return err
@@ -151,7 +155,9 @@ func (r *Rigger) ListBundles(args *RiggerBundleListRequest, reply *RiggerBundleL
 // DeleteBundle removes a bundle from the cluster. The trees it brought stay
 // in the caches of the servers, where nothing uses them unless a lock file
 // names their commits. It needs write on the kind of registries.
-func (r *Rigger) DeleteBundle(args *RiggerBundleNameRequest, reply *structs.GenericResponse) error {
+func (r *Rigger) DeleteBundle(args *RiggerBundleNameRequest, reply *structs.GenericResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.DeleteBundle", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.DeleteBundle", args, args, reply); done {
 		return err

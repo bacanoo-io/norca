@@ -177,7 +177,9 @@ func (o *riggerOperations) isRunning(namespace, stack, name string) bool {
 
 // StackPlan plans a stack: what an apply would do to each release. It runs
 // on the leader with the caller's token.
-func (r *Rigger) StackPlan(args *RiggerStackRequest, reply *RiggerStackPlanResponse) error {
+func (r *Rigger) StackPlan(args *RiggerStackRequest, reply *RiggerStackPlanResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.StackPlan", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.StackPlan", args, args, reply); done {
 		return err
@@ -208,7 +210,9 @@ func (r *Rigger) StackPlan(args *RiggerStackRequest, reply *RiggerStackPlanRespo
 
 // StackStatus answers with the releases a stack owns, their revision and
 // their drift.
-func (r *Rigger) StackStatus(args *RiggerStackRequest, reply *RiggerStackStatusResponse) error {
+func (r *Rigger) StackStatus(args *RiggerStackRequest, reply *RiggerStackStatusResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.StackStatus", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.StackStatus", args, args, reply); done {
 		return err
@@ -239,13 +243,17 @@ func (r *Rigger) StackStatus(args *RiggerStackRequest, reply *RiggerStackStatusR
 
 // StackApply plans a stack and runs its apply as an operation on the
 // leader; it answers with the operation at once.
-func (r *Rigger) StackApply(args *RiggerStackRequest, reply *RiggerOperationResponse) error {
+func (r *Rigger) StackApply(args *RiggerStackRequest, reply *RiggerOperationResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.StackApply", &retErr)
+
 	return r.stackOperation(args, reply, riggerOperationApply, "Rigger.StackApply")
 }
 
 // StackDestroy runs the uninstall of the releases of a stack as an
 // operation on the leader; it answers with the operation at once.
-func (r *Rigger) StackDestroy(args *RiggerStackRequest, reply *RiggerOperationResponse) error {
+func (r *Rigger) StackDestroy(args *RiggerStackRequest, reply *RiggerOperationResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.StackDestroy", &retErr)
+
 	return r.stackOperation(args, reply, riggerOperationDestroy, "Rigger.StackDestroy")
 }
 
@@ -272,7 +280,9 @@ func (r *Rigger) stackOperation(args *RiggerStackRequest, reply *RiggerOperation
 
 // CancelOperation asks a running operation to stop before its next
 // release. It needs the right to write releases in the namespace.
-func (r *Rigger) CancelOperation(args *RiggerOperationNameRequest, reply *RiggerOperationResponse) error {
+func (r *Rigger) CancelOperation(args *RiggerOperationNameRequest, reply *RiggerOperationResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.CancelOperation", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.CancelOperation", args, args, reply); done {
 		return err
@@ -300,7 +310,9 @@ func (r *Rigger) CancelOperation(args *RiggerOperationNameRequest, reply *Rigger
 
 // OperationLog reads a page of the log of an operation from the bus. It
 // needs read on operations in the namespace.
-func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOperationLogResponse) error {
+func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOperationLogResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.OperationLog", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.OperationLog", args, args, reply); done {
 		return err
@@ -510,6 +522,16 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	subject := s.riggerLogSubject(opID)
 	w := s.newRiggerLogWriter(subject)
 
+	// Until the goroutine of the operation takes them over, the log and the
+	// place of the stack are let go on every way out, a panic too.
+	started := false
+
+	defer func() {
+		if !started {
+			w.close()
+		}
+	}()
+
 	logger := slog.New(teeHandler{a: &hclogHandler{logger: s.logger.Named("rigger")}, b: &busLogHandler{w: w}})
 
 	planCtx, cancelPlan := context.WithTimeout(context.Background(), riggerInstallTimeout)
@@ -517,7 +539,6 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 
 	eng, st, values, err := s.riggerStack(planCtx, args, rpcCtx, rigger.WithLogger(logger))
 	if err != nil {
-		w.close()
 		return nil, err
 	}
 
@@ -527,12 +548,16 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	// Reserved before the plan, so that two calls do not both start.
 	run, err := s.riggerOps.reserve(key, st.Name())
 	if err != nil {
-		w.close()
-
 		return nil, err
 	}
 
 	release := func() { s.riggerOps.release(key) }
+
+	defer func() {
+		if !started {
+			release()
+		}
+	}()
 
 	var (
 		plan  *rigger.StackPlan
@@ -544,9 +569,6 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 		var diags hcl.Diagnostics
 
 		if plan, diags = eng.PlanStack(planCtx, st, values); diags.HasErrors() {
-			release()
-			w.close()
-
 			return nil, riggerDiagsError(diags)
 		}
 
@@ -556,9 +578,6 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	default:
 		owned, err := eng.StackStatus(planCtx, st)
 		if err != nil {
-			release()
-			w.close()
-
 			return nil, err
 		}
 
@@ -596,11 +615,11 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	obj, err := s.writeRiggerOperation(nil, op)
 	if err != nil {
 		cancel()
-		release()
-		w.close()
 
 		return nil, err
 	}
+
+	started = true
 
 	go s.runRiggerOperation(ctx, cancel, run, release, w, eng, st, plan, op, obj)
 
@@ -631,6 +650,32 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 	w *riggerLogWriter, eng *rigger.Engine, st *rigger.Stack, plan *rigger.StackPlan, op *RiggerOperation, obj *structs.CustomObject) {
 	defer release()
 	defer cancel()
+
+	// Nobody waits for the error of this goroutine: after a panic it ends
+	// the log and writes the end of the operation itself, before its place
+	// is let go.
+	var panicked error
+
+	logClosed := false
+
+	defer func() {
+		if panicked == nil {
+			return
+		}
+
+		if !logClosed {
+			w.close()
+		}
+
+		s.finishRiggerOperation(op.Namespace, op.Name, func(status *RiggerOperationStatus) {
+			if status.Phase == riggerOpRunning {
+				status.Phase = riggerOpFailed
+				status.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+				status.Error = rigger.ErrInternal.Error()
+			}
+		})
+	}()
+	defer s.recoverRigger("operation "+op.Name, &panicked)
 
 	var deposed sync.Once
 
@@ -680,6 +725,7 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 		runErr = err
 	}
 
+	logClosed = true
 	dropped := w.close()
 
 	select {

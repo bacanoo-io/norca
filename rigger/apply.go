@@ -49,7 +49,9 @@ var ErrGeneratedMeanwhile = errors.New("the generated values of the stack were w
 // dependencies, each waiting until it is ready, and with prune the removals.
 // The first failure stops the rest; a second apply goes on where it
 // stopped, because its plan skips what is done.
-func (e *Engine) ApplyStack(ctx context.Context, plan *StackPlan, opts ApplyOptions) ([]ReleaseOutcome, hcl.Diagnostics) {
+func (e *Engine) ApplyStack(ctx context.Context, plan *StackPlan, opts ApplyOptions) (_ []ReleaseOutcome, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.apply", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.apply", "stack", plan.Stack, "region", plan.Region)
 
 	out, err := e.applyStack(ctx, plan, opts)
@@ -198,7 +200,9 @@ type ReleaseStatus struct {
 
 // StackStatus returns the releases a stack owns, their current revision
 // and their drift (design 9.3).
-func (e *Engine) StackStatus(ctx context.Context, s *Stack) ([]ReleaseStatus, error) {
+func (e *Engine) StackStatus(ctx context.Context, s *Stack) (_ []ReleaseStatus, retErr error) {
+	defer e.recoverErr(ctx, "stack.status", &retErr)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.status", "stack", s.Name())
 
 	out, err := e.stackStatus(ctx, s.Name())
@@ -239,7 +243,9 @@ func (e *Engine) stackStatus(ctx context.Context, stack string) ([]ReleaseStatus
 // DestroyStack uninstalls the releases a stack owns, the releases that
 // others depend on last. It keeps the secrets and the generated values: a
 // later apply finds them again.
-func (e *Engine) DestroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef, error) {
+func (e *Engine) DestroyStack(ctx context.Context, s *Stack) (_ []host.ReleaseRef, retErr error) {
+	defer e.recoverErr(ctx, "stack.destroy", &retErr)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.destroy", "stack", s.Name())
 
 	out, err := e.destroyStack(ctx, s)
@@ -300,7 +306,9 @@ func (e *Engine) destroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef,
 
 // PlanInstall plans one release of a module on its own (rigger install): a
 // stack of one, owned by no stack.
-func (e *Engine) PlanInstall(ctx context.Context, m *Module, in Install, set host.Settings) (*ReleasePlan, hcl.Diagnostics) {
+func (e *Engine) PlanInstall(ctx context.Context, m *Module, in Install, set host.Settings) (_ *ReleasePlan, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "release.plan", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "release.plan", "release", in.Release, "namespace", in.Namespace)
 
 	rp, diags := e.planInstall(ctx, m, in, set)
@@ -377,7 +385,9 @@ func installOrigin(m *Module, in Install) (moduleOrigin, error) {
 
 // ApplyInstall applies the plan of one release; of the options only Adopt
 // applies.
-func (e *Engine) ApplyInstall(ctx context.Context, rp *ReleasePlan, opts ApplyOptions) (ReleaseOutcome, error) {
+func (e *Engine) ApplyInstall(ctx context.Context, rp *ReleasePlan, opts ApplyOptions) (_ ReleaseOutcome, retErr error) {
+	defer e.recoverErr(ctx, "release.apply", &retErr)
+
 	if e.releases == nil {
 		return ReleaseOutcome{}, ErrNoCluster
 	}

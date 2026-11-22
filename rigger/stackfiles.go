@@ -191,7 +191,9 @@ func writeArchiveFile(tw *tar.Writer, name string, data []byte) error {
 // file or whose name is not a valid path is refused, and the archive is
 // bounded in size and number of files. The stack is then loaded as from a
 // directory (LoadStack), so it reads nothing but these files.
-func (e *Engine) LoadStackFiles(ctx context.Context, archive []byte) (*Stack, hcl.Diagnostics) {
+func (e *Engine) LoadStackFiles(ctx context.Context, archive []byte) (_ *Stack, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.load_files", &retDiags)
+
 	files, dir, err := readStackArchive(archive)
 	if err != nil {
 		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Invalid files of a stack", Detail: err.Error() + "."}}
@@ -203,7 +205,9 @@ func (e *Engine) LoadStackFiles(ctx context.Context, archive []byte) (*Stack, hc
 // LoadModuleFiles loads a module from the files a client packed with
 // Module.Archive, bounded and checked as LoadStackFiles does; it reads
 // nothing but these files.
-func (e *Engine) LoadModuleFiles(ctx context.Context, archive []byte) (*Module, hcl.Diagnostics) {
+func (e *Engine) LoadModuleFiles(ctx context.Context, archive []byte) (_ *Module, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.load_files", &retDiags)
+
 	files, dir, err := readStackArchive(archive)
 	if err != nil {
 		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Invalid files of a module", Detail: err.Error() + "."}}

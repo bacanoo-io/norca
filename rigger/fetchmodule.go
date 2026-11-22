@@ -39,7 +39,9 @@ type ModuleOrigin struct {
 // its namespace; with trusted keys (those of a registry repository) a
 // signature by one of them is required. A version nothing signs is taken
 // with a warning.
-func (e *Engine) FetchModule(ctx context.Context, req source.Request, trustedKeys []string) (*Module, hcl.Diagnostics) {
+func (e *Engine) FetchModule(ctx context.Context, req source.Request, trustedKeys []string) (_ *Module, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.fetch_verified", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.fetch_verified", "source", req.Source, "version", req.Version)
 
 	m, err := e.fetchVerified(ctx, req, trustedKeys)

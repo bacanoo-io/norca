@@ -94,7 +94,9 @@ func moduleDirs(m *lang.Module) []string {
 
 // ModuleDigest loads the module in the directory dir of root and returns
 // its tree digest: how an imported bundle is checked.
-func (e *Engine) ModuleDigest(ctx context.Context, root fs.FS, dir string) (string, error) {
+func (e *Engine) ModuleDigest(ctx context.Context, root fs.FS, dir string) (_ string, retErr error) {
+	defer e.recoverErr(ctx, "module.digest", &retErr)
+
 	m, diags := lang.LoadAt(ctx, root, dir, e.langLimits())
 	if diags.HasErrors() {
 		return "", diags

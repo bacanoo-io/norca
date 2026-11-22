@@ -97,7 +97,14 @@ type Values map[string]Value
 
 // ParseValues parses a file of values (a *.vars.hcl): one attribute per
 // variable, each a constant expression.
-func ParseValues(filename string, src []byte) (Values, hcl.Diagnostics) {
+func ParseValues(filename string, src []byte) (_ Values, retDiags hcl.Diagnostics) {
+	defer func() {
+		// No engine, so no log: the diagnostic is all there is.
+		if r := recover(); r != nil {
+			retDiags = errorDiags("Internal error", ErrInternal)
+		}
+	}()
+
 	inputs, diags := eval.ParseValues(filename, src)
 	values := make(Values, len(inputs))
 
@@ -111,7 +118,9 @@ func ParseValues(filename string, src []byte) (Values, hcl.Diagnostics) {
 // LoadModule loads the module whose files fsys holds, with the module's
 // directory as its root (design 4.5). It reads nothing outside fsys and
 // stops when ctx is cancelled; the limits of the engine bound what it reads.
-func (e *Engine) LoadModule(ctx context.Context, fsys fs.FS) (*Module, hcl.Diagnostics) {
+func (e *Engine) LoadModule(ctx context.Context, fsys fs.FS) (_ *Module, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.load", &retDiags)
+
 	return e.LoadModuleAt(ctx, fsys, ".")
 }
 
@@ -119,7 +128,9 @@ func (e *Engine) LoadModule(ctx context.Context, fsys fs.FS) (*Module, hcl.Diagn
 // modules (design 6.5). A child module comes from a local source, a
 // directory relative to the module that calls it (../lib/placement), and is
 // read from root too: nothing outside root is read.
-func (e *Engine) LoadModuleAt(ctx context.Context, root fs.FS, dir string) (*Module, hcl.Diagnostics) {
+func (e *Engine) LoadModuleAt(ctx context.Context, root fs.FS, dir string) (_ *Module, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.load", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.load", "dir", dir)
 
 	mod, diags := lang.LoadAt(ctx, root, dir, lang.Limits{
@@ -132,7 +143,9 @@ func (e *Engine) LoadModuleAt(ctx context.Context, root fs.FS, dir string) (*Mod
 
 // CheckValues checks values against the variables of m: undeclared names,
 // missing values, types, validations and rules (design 6.1, 6.2).
-func (e *Engine) CheckValues(ctx context.Context, m *Module, values Values) hcl.Diagnostics {
+func (e *Engine) CheckValues(ctx context.Context, m *Module, values Values) (retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.values", &retDiags)
+
 	_, diags := e.variables(ctx, m, values)
 
 	return diags
@@ -161,7 +174,9 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 // has a default, and a warning for each variable that changes
 // nothing (design 14.1). A module with a job is evaluated only by an engine
 // with a job decoder.
-func (e *Engine) ValidateModule(ctx context.Context, m *Module) hcl.Diagnostics {
+func (e *Engine) ValidateModule(ctx context.Context, m *Module) (retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.validate", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.validate",
 		"module", m.mod.Metadata.Name, "version", m.mod.Metadata.Version)
 

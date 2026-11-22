@@ -40,7 +40,9 @@ type StackOrigin struct {
 // its lock file pins. A stack of the global registry is taken only with the
 // digest its entry lists and signed by a key of its namespace; the modules
 // are verified by the digests of its lock file and its own trust.
-func (e *Engine) FetchStack(ctx context.Context, address, constraint string) (*Stack, hcl.Diagnostics) {
+func (e *Engine) FetchStack(ctx context.Context, address, constraint string) (_ *Stack, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.fetch", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.fetch", "source", address, "version", constraint)
 
 	s, diags := e.fetchStack(ctx, address, constraint)

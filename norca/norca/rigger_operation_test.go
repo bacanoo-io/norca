@@ -160,3 +160,46 @@ func TestRigger_CancelOperation(t *testing.T) {
 	}, &wresp)
 	must.ErrorContains(t, err, "written by the servers")
 }
+
+// A panic in the goroutine of an operation, outside the engine, ends the
+// operation Failed: nothing else would write its end, and it would stay
+// Running.
+func TestRiggerOperations_PanicFails(t *testing.T) {
+	ci.Parallel(t)
+
+	r := riggerOpTest(t)
+
+	const name = "shop-panics"
+
+	key := riggerStackKey(structs.DefaultNamespace, "shop")
+
+	run, err := r.s.riggerOps.reserve(key, "shop")
+	must.NoError(t, err)
+
+	// Named before it is written: else the operator takes it as Interrupted.
+	r.s.riggerOps.mu.Lock()
+	run.name = name
+	r.s.riggerOps.mu.Unlock()
+
+	op := r.runningOperation(name)
+
+	_, obj, err := r.s.riggerOperation(op.Namespace, name)
+	must.NoError(t, err)
+
+	w := r.s.newRiggerLogWriter(r.s.riggerLogSubject(name))
+	ctx, cancel := context.WithCancel(t.Context())
+
+	// Without an engine the operation panics.
+	r.s.runRiggerOperation(ctx, cancel, run, func() { r.s.riggerOps.release(key) }, w, nil, nil, nil, op, obj)
+
+	phase, ended := r.operationPhase(name)
+	must.Eq(t, riggerOpFailed, phase)
+	must.StrContains(t, ended.Status.Error, "internal error")
+	must.False(t, r.s.riggerOps.isRunning(op.Namespace, "shop", name))
+
+	select {
+	case <-w.done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the writer of the log is still open")
+	}
+}

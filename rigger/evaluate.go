@@ -71,7 +71,9 @@ type Output struct {
 // engine) and its outputs (design 4.2). It is a pure function of the module,
 // the install and the decoder: the same input gives the same result. The
 // limits of the engine bound the time and the number of resources.
-func (e *Engine) Evaluate(ctx context.Context, m *Module, in Install) (*Result, hcl.Diagnostics) {
+func (e *Engine) Evaluate(ctx context.Context, m *Module, in Install) (_ *Result, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.evaluate", &retDiags)
+
 	md := m.mod.Metadata
 
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.evaluate",

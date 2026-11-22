@@ -90,7 +90,9 @@ func (s *Stack) LockedModules() []LockedModule {
 
 // LoadStack loads the stack in the directory dir of root, and the modules
 // of its local sources, inside root (design 6.4).
-func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (*Stack, hcl.Diagnostics) {
+func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (_ *Stack, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.load", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "stack.load", "dir", dir)
 
 	s, diags := lang.LoadStack(ctx, root, dir, e.langLimits())
@@ -105,7 +107,9 @@ func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (*Stack,
 
 // ReadStack loads the stack in the directory dir of root without fetching
 // the modules of its sources: for its metadata and its digest.
-func (e *Engine) ReadStack(ctx context.Context, root fs.FS, dir string) (*Stack, hcl.Diagnostics) {
+func (e *Engine) ReadStack(ctx context.Context, root fs.FS, dir string) (_ *Stack, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.read", &retDiags)
+
 	s, diags := lang.LoadStack(ctx, root, dir, e.langLimits())
 
 	return &Stack{s: s}, diags
@@ -206,7 +210,9 @@ var ErrNoCluster = errors.New("the engine has no release API or secret store (ri
 // revision records, else install or upgrade with the server's plan, and
 // remove for a release the stack owns and no longer has. It changes
 // nothing.
-func (e *Engine) PlanStack(ctx context.Context, s *Stack, values Values) (*StackPlan, hcl.Diagnostics) {
+func (e *Engine) PlanStack(ctx context.Context, s *Stack, values Values) (_ *StackPlan, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.plan", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.plan", "stack", s.Name(), "region", s.Region())
 
 	plan, diags := e.planStack(ctx, s, values)
@@ -541,7 +547,9 @@ func (s *Stack) Namespace() string { return eval.StackNamespace(s.s) }
 // validate): its variables, rules, locals, the values and modules of its
 // releases, its checks, secrets and outputs. Generated values stand as
 // fresh random values.
-func (e *Engine) ValidateStack(ctx context.Context, s *Stack, values Values) hcl.Diagnostics {
+func (e *Engine) ValidateStack(ctx context.Context, s *Stack, values Values) (retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.validate", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.validate", "stack", s.Name())
 
 	vars, diags := eval.Variables(s.s.Vars, inputs(values))

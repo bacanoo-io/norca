@@ -117,7 +117,9 @@ type RiggerIconResponse struct {
 // verifies a module of a synced registry (or loads a local one), evaluates
 // it with the values and plans or applies its release with the caller's
 // token. It runs on the leader.
-func (r *Rigger) Install(args *RiggerInstallRequest, reply *RiggerInstallResponse) error {
+func (r *Rigger) Install(args *RiggerInstallRequest, reply *RiggerInstallResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.Install", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.Install", args, args, reply); done {
 		return err
@@ -134,7 +136,9 @@ func (r *Rigger) Install(args *RiggerInstallRequest, reply *RiggerInstallRespons
 // registry: its metadata, README, variables and form, the versions of the
 // module, and whether the cluster meets its requirements. It needs read on
 // the kind of registries.
-func (r *Rigger) Detail(args *RiggerDetailRequest, reply *RiggerDetailResponse) error {
+func (r *Rigger) Detail(args *RiggerDetailRequest, reply *RiggerDetailResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.Detail", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.Detail", args, args, reply); done {
 		return err
@@ -153,7 +157,9 @@ func (r *Rigger) Detail(args *RiggerDetailRequest, reply *RiggerDetailResponse) 
 
 // Icon returns the icon of a version of a module of a registry. It needs
 // read on the kind of registries.
-func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) error {
+func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.Icon", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.Icon", args, args, reply); done {
 		return err

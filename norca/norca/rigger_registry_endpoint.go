@@ -60,7 +60,9 @@ type RiggerRegistrySearchResponse struct {
 // SyncRegistry fetches the source of a registry now, reads its index and
 // writes what it found into its status. It needs write on the kind of
 // registries. The sync runs on the leader.
-func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegistryResponse) error {
+func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegistryResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.SyncRegistry", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.SyncRegistry", args, args, reply); done {
 		return err
@@ -89,7 +91,9 @@ func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegi
 // never synced offers nothing. It needs read on the kind of registries. The
 // display of the registry does not matter: what is selected for the UI is
 // in its status, a search finds everything.
-func (r *Rigger) SearchRegistry(args *RiggerRegistrySearchRequest, reply *RiggerRegistrySearchResponse) error {
+func (r *Rigger) SearchRegistry(args *RiggerRegistrySearchRequest, reply *RiggerRegistrySearchResponse) (retErr error) {
+	defer r.srv.recoverRigger("Rigger.SearchRegistry", &retErr)
+
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if done, err := r.srv.forward("Rigger.SearchRegistry", args, args, reply); done {
 		return err

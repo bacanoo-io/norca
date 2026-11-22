@@ -362,7 +362,9 @@ func moduleName(req source.Request) string {
 // fetches and verifies them, and returns the stack loaded with them and the
 // new lock file (design 8.3, rigger stack sync). A locked version that still
 // meets its constraint is kept unless upgrade is set.
-func (e *Engine) SyncStack(ctx context.Context, root fs.FS, dir string, upgrade bool) (*Stack, []byte, hcl.Diagnostics) {
+func (e *Engine) SyncStack(ctx context.Context, root fs.FS, dir string, upgrade bool) (_ *Stack, _ []byte, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "stack.sync", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.sync", "dir", dir)
 
 	s, lock, diags := e.syncStack(ctx, root, dir, upgrade)

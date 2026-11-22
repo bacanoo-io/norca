@@ -37,7 +37,9 @@ func (r TestResult) Passed() bool {
 // output.<name>, or expects an error. No cluster is needed; jobs go through
 // the job decoder of the engine. The diagnostics are those of test files
 // that do not parse.
-func (e *Engine) TestModule(ctx context.Context, m *Module) ([]TestResult, hcl.Diagnostics) {
+func (e *Engine) TestModule(ctx context.Context, m *Module) (_ []TestResult, retDiags hcl.Diagnostics) {
+	defer e.recoverDiags(ctx, "module.test", &retDiags)
+
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.test",
 		"module", m.mod.Metadata.Name, "version", m.mod.Metadata.Version)
 
