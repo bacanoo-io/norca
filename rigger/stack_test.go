@@ -150,6 +150,9 @@ func stackFiles(stack string) fstest.MapFS {
 	}
 }
 
+// bothInstalled is the plan of twoReleases on an empty cluster.
+const bothInstalled = "db:install app:install"
+
 const twoReleases = `rigger {
   name      = "shop"
   region    = "eu"
@@ -220,7 +223,7 @@ func TestStack_PlanApply(t *testing.T) {
 	fsys := stackFiles(twoReleases)
 
 	plan := planOf(t, e, fsys, nil)
-	if got := actions(plan); got != "db:install app:install" {
+	if got := actions(plan); got != bothInstalled {
 		t.Fatalf("plan = %s, want db then app installed", got)
 	}
 
@@ -263,7 +266,7 @@ func checkApplied(t *testing.T, f *fakeCluster) {
 	}
 
 	app := f.releases[host.ReleaseRef{Namespace: testNamespace, Name: "app"}][0]
-	if !strings.Contains(string(app.Resources[0].Spec), `"db":"db-svc"`) || app.Owner != "shop" {
+	if !strings.Contains(string(app.Resources[0].Spec), `"db":"db-svc"`) || app.Owner != "apps/shop" {
 		t.Errorf("app = %s, owner %q", app.Resources[0].Spec, app.Owner)
 	}
 }
@@ -426,7 +429,7 @@ func TestStack_DestroyOrder(t *testing.T) {
 	e := stackEngine(t, f)
 
 	plan := planOf(t, e, stackFiles(twoReleases), nil)
-	if got := actions(plan); got != "db:install app:install" {
+	if got := actions(plan); got != bothInstalled {
 		t.Fatalf("plan = %s", got)
 	}
 
@@ -435,7 +438,7 @@ func TestStack_DestroyOrder(t *testing.T) {
 	}
 
 	// A release of the stack that it no longer has.
-	if _, err := f.Apply(t.Context(), host.ApplyRequest{Release: host.ReleaseRef{Namespace: testNamespace, Name: "old"}, Owner: "shop"}); err != nil {
+	if _, err := f.Apply(t.Context(), host.ApplyRequest{Release: host.ReleaseRef{Namespace: testNamespace, Name: "old"}, Owner: host.StackOwner(testNamespace, "shop")}); err != nil {
 		t.Fatal(err)
 	}
 

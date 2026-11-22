@@ -20,7 +20,7 @@ func TestApplyRequest_OwnerManagerDigest(t *testing.T) {
 		Release: host.ReleaseRef{Namespace: "default", Name: "web"},
 		Module:  host.ModuleRef{Name: "web", Version: "0.1.0", Digest: "sha256:module"},
 		Digest:  "sha256:release",
-		Owner:   "platform",
+		Owner:   stackNamespace + "/platform",
 		Adopt:   true,
 	}
 
@@ -33,7 +33,8 @@ func TestApplyRequest_OwnerManagerDigest(t *testing.T) {
 		t.Errorf("manager %q, input digest %q, values hash %q, adopt %v", out.Pack.Manager, out.InputDigest, out.ValuesHash, out.Adopt)
 	}
 
-	if out.Owner == nil || out.Owner.Kind != api.ReleaseOwnerKindStack || out.Owner.Name != "platform" {
+	want := api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Namespace: stackNamespace, Name: "platform"}
+	if out.Owner == nil || *out.Owner != want {
 		t.Errorf("owner %+v", out.Owner)
 	}
 
@@ -49,27 +50,28 @@ func TestApplyRequest_OwnerManagerDigest(t *testing.T) {
 	}
 }
 
-// shop is the stack of the tests of ownerOf.
-const shop = "shop"
+// shop is the stack of the tests of ownerOf, stackNamespace its namespace.
+const (
+	shop           = "shop"
+	stackNamespace = "apps"
+)
 
-// The owner is the field Owner; a release written before it has the owner
-// in its description, and the digest of such a revision is its ValuesHash.
+// The owner is the field Owner, by namespace and name; a description is
+// not read. The digest of a revision without InputDigest is its ValuesHash.
 func TestOwnerOfAndRevision(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		owner       *api.ReleaseOwner
-		description string
-		want        string
+		name  string
+		owner *api.ReleaseOwner
+		want  string
 	}{
-		{"field", &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: shop}, "rigger stack other", shop},
-		{"description before the field", nil, "rigger stack shop", shop},
-		{"installed alone", nil, "rigger", ""},
-		{"another kind", &api.ReleaseOwner{Kind: "other", Name: "x"}, "", ""},
+		{"stack", &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Namespace: stackNamespace, Name: shop}, stackNamespace + "/" + shop},
+		{"installed alone", nil, ""},
+		{"another kind", &api.ReleaseOwner{Kind: "other", Namespace: stackNamespace, Name: "x"}, ""},
 	}
 	for _, tc := range cases {
-		if got := ownerOf(tc.owner, tc.description); got != tc.want {
+		if got := ownerOf(tc.owner); got != tc.want {
 			t.Errorf("%s: owner %q, want %q", tc.name, got, tc.want)
 		}
 	}
@@ -77,15 +79,15 @@ func TestOwnerOfAndRevision(t *testing.T) {
 	ref := host.ReleaseRef{Namespace: "default", Name: "web"}
 
 	old := revision(ref, &api.ReleaseRevision{Revision: 1, Spec: &api.ReleaseRevisionSpec{ValuesHash: "sha256:old", Description: "rigger stack shop"}})
-	if old.Digest != "sha256:old" || old.Owner != shop {
-		t.Errorf("a revision written before the fields: digest %q, owner %q", old.Digest, old.Owner)
+	if old.Digest != "sha256:old" || old.Owner != "" {
+		t.Errorf("a revision without the fields: digest %q, owner %q", old.Digest, old.Owner)
 	}
 
 	now := revision(ref, &api.ReleaseRevision{Revision: 2, Spec: &api.ReleaseRevisionSpec{
 		ValuesHash: "sha256:pack", InputDigest: "sha256:new",
-		Owner: &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: shop},
+		Owner: &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Namespace: stackNamespace, Name: shop},
 	}})
-	if now.Digest != "sha256:new" || now.Owner != shop {
+	if now.Digest != "sha256:new" || now.Owner != stackNamespace+"/"+shop {
 		t.Errorf("digest %q, owner %q", now.Digest, now.Owner)
 	}
 }

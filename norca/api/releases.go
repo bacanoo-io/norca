@@ -93,11 +93,13 @@ type ReleaseSpec struct {
 // ReleaseOwner is the owner of a release: the Rigger stack that installed
 // it. Kind is ReleaseOwnerKindStack.
 type ReleaseOwner struct {
-	Kind    string `json:"kind"`
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-	Source  string `json:"source,omitempty"`
-	Part    string `json:"part,omitempty"`
+	Kind string `json:"kind"`
+	// Namespace and Name are those of the stack.
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Version   string `json:"version,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Part      string `json:"part,omitempty"`
 }
 
 // ReleaseOwnerKindStack is the kind of an owner that is a Rigger stack.
@@ -348,8 +350,8 @@ type ReleaseApplyRequest struct {
 	Owner       *ReleaseOwner `json:",omitempty"`
 	InputDigest string        `json:",omitempty"`
 
-	// Adopt lets the manager of Pack take over a release another manager
-	// applied.
+	// Adopt lets the request take over a release another manager applied
+	// or another stack owns.
 	Adopt bool `json:",omitempty"`
 }
 
@@ -400,7 +402,8 @@ type ReleaseRollbackRequest struct {
 	Wait     bool
 	Timeout  time.Duration
 	DryRun   bool
-	// Adopt lets the rollback restore a revision of another manager.
+	// Adopt lets the rollback restore a revision of another manager or
+	// owner.
 	Adopt bool `json:",omitempty"`
 }
 

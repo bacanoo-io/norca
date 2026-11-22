@@ -20,33 +20,24 @@ import (
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
-// The description of a release: "rigger stack <name>" for the release of a
-// stack, "rigger" for one installed on its own. The owner is the field
-// Owner of the release API; a release written before it (the spike of
-// phase 0, design 12.2) has the owner only in the description, which is
-// read as the owner until the next apply writes the field.
+// The description of a release is for people: its owner is the field Owner
+// of the release API, and nothing is read from the description.
 const (
 	ownerPrefix = "rigger stack "
 	ownDesc     = "rigger"
 )
 
-// ownerOf returns the stack that owns a release or a revision: its Owner,
-// or the description of one written before the field.
-func ownerOf(owner *api.ReleaseOwner, description string) string {
-	if owner != nil {
-		if owner.Kind == api.ReleaseOwnerKindStack {
-			return owner.Name
-		}
-
+// ownerOf returns the stack that owns a release or a revision, as
+// host.StackOwner.
+func ownerOf(owner *api.ReleaseOwner) string {
+	if owner == nil || owner.Kind != api.ReleaseOwnerKindStack {
 		return ""
 	}
 
-	if name, ok := strings.CutPrefix(description, ownerPrefix); ok {
-		return name
-	}
-
-	return ""
+	return host.StackOwner(owner.Namespace, owner.Name)
 }
+
+var errOwner = errors.New("the owner of a release is <namespace>/<stack>")
 
 // Releases is the release API of Norca (host.Releases).
 type Releases struct {
@@ -126,13 +117,12 @@ func (r *Releases) Owned(ctx context.Context, owner string) ([]host.Revision, er
 }
 
 // OwnedOf returns the current revisions of the releases of the list that
-// the stack owns (by Owner, or the description of a release written before
-// the field).
+// the stack owns.
 func OwnedOf(rels []*api.Release, owner string) []host.Revision {
 	var out []host.Revision
 
 	for _, rel := range rels {
-		if rel.Spec == nil || ownerOf(rel.Spec.Owner, rel.Spec.Description) != owner {
+		if rel.Spec == nil || ownerOf(rel.Spec.Owner) != owner {
 			continue
 		}
 
@@ -160,7 +150,7 @@ func CurrentOf(rel *api.Release) host.Revision {
 	if rel.Spec != nil {
 		rev.Number, rev.Module = rel.Spec.Revision, moduleRef(rel.Spec.Pack)
 		rev.ForeignManager = foreignManager(rel.Spec.Pack)
-		rev.Owner = ownerOf(rel.Spec.Owner, rel.Spec.Description)
+		rev.Owner = ownerOf(rel.Spec.Owner)
 	}
 
 	if rel.Status != nil {
@@ -244,9 +234,18 @@ func (r *Releases) Apply(ctx context.Context, req host.ApplyRequest) (host.Revis
 	return rev, nil
 }
 
-// Rollback makes an earlier revision current again.
+// Rollback makes an earlier revision current again, when that is of the
+// same manager and owner.
 func (r *Releases) Rollback(ctx context.Context, ref host.ReleaseRef, number uint64) (host.Revision, error) {
-	resp, _, err := r.client.Releases().Rollback(ref.Name, &api.ReleaseRollbackRequest{Revision: number, Wait: true}, write(ctx, ref.Namespace))
+	return r.RollbackRevision(ctx, ref, number, false)
+}
+
+// RollbackRevision is Rollback; with adopt it restores a revision of
+// another manager or owner too.
+func (r *Releases) RollbackRevision(ctx context.Context, ref host.ReleaseRef, number uint64, adopt bool) (host.Revision, error) {
+	req := &api.ReleaseRollbackRequest{Revision: number, Wait: true, Adopt: adopt}
+
+	resp, _, err := r.client.Releases().Rollback(ref.Name, req, write(ctx, ref.Namespace))
 	if err != nil {
 		return host.Revision{}, notFound(err)
 	}
@@ -283,7 +282,7 @@ func revision(ref host.ReleaseRef, rev *api.ReleaseRevision) host.Revision {
 		out.Module = moduleRef(s.Pack)
 		out.ForeignManager = foreignManager(s.Pack)
 		out.Digest = cmp.Or(s.InputDigest, s.ValuesHash)
-		out.Owner = ownerOf(s.Owner, s.Description)
+		out.Owner = ownerOf(s.Owner)
 
 		if t, err := time.Parse(time.RFC3339, s.CreateTime); err == nil {
 			out.CreatedAt = t
@@ -339,8 +338,13 @@ func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	}
 
 	if req.Owner != "" {
+		namespace, name, ok := strings.Cut(req.Owner, "/")
+		if !ok || namespace == "" || name == "" {
+			return nil, fmt.Errorf("%w: %q", errOwner, req.Owner)
+		}
+
 		out.Description = ownerPrefix + req.Owner
-		out.Owner = &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: req.Owner}
+		out.Owner = &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Namespace: namespace, Name: name}
 	}
 
 	for _, r := range req.Resources {

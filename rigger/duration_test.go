@@ -64,7 +64,7 @@ func TestPlanStack_DurationLeavesTheCluster(t *testing.T) {
 	f := slowReleases{newFakeCluster()}
 	e := shortEngine(t, rigger.WithReleases(f), rigger.WithSecrets(f))
 
-	if got := actions(planOf(t, e, stackFiles(twoReleases), nil)); got != "db:install app:install" {
+	if got := actions(planOf(t, e, stackFiles(twoReleases), nil)); got != bothInstalled {
 		t.Errorf("plan = %s", got)
 	}
 }

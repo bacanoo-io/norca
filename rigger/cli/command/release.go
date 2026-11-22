@@ -40,6 +40,7 @@ func runRelease(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	flags.SetOutput(stderr)
 	namespace := flags.String("namespace", "default", "namespace of the release (list: * for all)")
 	region := flags.String("region", "", "the region to talk to")
+	adopt := flags.Bool("adopt", false, "rollback: restore a revision of another manager or stack")
 
 	if err := flags.Parse(args); err != nil {
 		return exitError
@@ -53,11 +54,11 @@ func runRelease(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 			return err
 		}
 
-		return releaseCommand(ctx, stdout, norcaapi.NewReleases(client), cmd, *namespace, positional)
+		return releaseCommand(ctx, stdout, norcaapi.NewReleases(client), cmd, *namespace, positional, *adopt)
 	})
 }
 
-func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Releases, cmd, namespace string, args []string) error {
+func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Releases, cmd, namespace string, args []string, adopt bool) error {
 	if cmd == "list" {
 		revs, err := releases.List(ctx, namespace)
 		if err != nil {
@@ -84,7 +85,7 @@ func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Release
 
 		return writeRevisions(w, revs)
 	case "rollback":
-		return releaseRollback(ctx, w, releases, ref, args[1:])
+		return releaseRollback(ctx, w, releases, ref, args[1:], adopt)
 	case "uninstall":
 		if err := releases.Uninstall(ctx, ref); err != nil {
 			return err
@@ -125,7 +126,7 @@ func releaseStatus(ctx context.Context, w io.Writer, releases *norcaapi.Releases
 
 // releaseRollback makes a revision current again: the one given, else the
 // previous one.
-func releaseRollback(ctx context.Context, w io.Writer, releases *norcaapi.Releases, ref host.ReleaseRef, args []string) error {
+func releaseRollback(ctx context.Context, w io.Writer, releases *norcaapi.Releases, ref host.ReleaseRef, args []string, adopt bool) error {
 	var number uint64
 
 	if len(args) > 0 {
@@ -137,7 +138,7 @@ func releaseRollback(ctx context.Context, w io.Writer, releases *norcaapi.Releas
 		number = n
 	}
 
-	rev, err := releases.Rollback(ctx, ref, number)
+	rev, err := releases.RollbackRevision(ctx, ref, number, adopt)
 	if err != nil {
 		return err
 	}

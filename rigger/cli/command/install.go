@@ -48,7 +48,7 @@ func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	flags.StringVar(&f.namespace, "namespace", "default", "namespace of the release")
 	flags.StringVar(&f.region, "region", "", "region of the release (default: the region of the cluster)")
 	flags.DurationVar(&f.timeout, "timeout", 0, "how long to wait until the release is ready (default: the server's)")
-	flags.BoolVar(&f.adopt, "adopt", false, "take over a release the pack manager applied")
+	flags.BoolVar(&f.adopt, "adopt", false, "take over a release the pack manager applied or a stack owns")
 	flags.BoolVar(&f.server, "server", serverDefault(), serverUsage)
 
 	if err := flags.Parse(args); err != nil {

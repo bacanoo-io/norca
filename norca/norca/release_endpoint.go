@@ -975,3 +975,18 @@ func checkReleaseManager(rel *structs.Release, pack *structs.ReleasePack, adopt 
 		"release %q is managed by %s: %s takes it over only when asked to (adopt; the flag -adopt)",
 		rel.Name, current, wanted)
 }
+
+// checkReleaseOwner refuses an operation that gives the release of a stack
+// to another owner (another stack, also one of the same name in another
+// namespace, or none), unless the request adopts it: a stack prunes and
+// destroys what it owns. A release no stack owns may become a stack's. rel
+// is the release as read under the release lock, owner that of the
+// operation (for a rollback, that of the revision it restores).
+func checkReleaseOwner(rel *structs.Release, owner *structs.ReleaseOwner, adopt bool) error {
+	if rel == nil || rel.Spec == nil || rel.Spec.Owner == nil || adopt || rel.Spec.Owner.Same(owner) {
+		return nil
+	}
+	return structs.NewErrRPCCodedf(http.StatusConflict,
+		"release %q belongs to the stack %s/%s: it is taken over only when asked to (adopt; the flag -adopt)",
+		rel.Name, rel.Spec.Owner.Namespace, rel.Spec.Owner.Name)
+}

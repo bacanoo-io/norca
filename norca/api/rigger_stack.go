@@ -71,8 +71,9 @@ type RiggerRevision struct {
 	Release RiggerReleaseRef `json:"release"`
 	Number  uint64           `json:"number"`
 	Module  RiggerModuleRef  `json:"module"`
-	Owner   string           `json:"owner,omitempty"`
-	Status  string           `json:"status"`
+	// Owner is the stack: <namespace>/<name>.
+	Owner  string `json:"owner,omitempty"`
+	Status string `json:"status"`
 }
 
 // RiggerDrift is what differs of a resource of a release.

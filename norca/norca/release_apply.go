@@ -144,8 +144,8 @@ type applyInput struct {
 
 	// owner is the owner of the release (a Rigger stack), inputDigest
 	// Rigger's digest of what it applies, both stored in the revision;
-	// adopt lets the manager of pack take over a release of another manager
-	// (checkReleaseManager).
+	// adopt lets the operation take over a release of another manager or
+	// owner (checkReleaseManager, checkReleaseOwner).
 	owner       *structs.ReleaseOwner
 	inputDigest string
 	adopt       bool
@@ -446,6 +446,9 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		in.pack = &structs.ReleasePack{}
 	}
 	if err := checkReleaseManager(rel, in.pack, in.adopt); err != nil {
+		return err
+	}
+	if err := checkReleaseOwner(rel, in.owner, in.adopt); err != nil {
 		return err
 	}
 	in.pack.Manager = in.pack.ManagerName()

@@ -38,7 +38,7 @@ func ownedApply(stack, version, manager, digest string) *structs.ReleaseApplyReq
 		InputDigest: digest,
 	}
 	if stack != "" {
-		req.Owner = &structs.ReleaseOwner{Kind: structs.ReleaseOwnerKindStack, Name: stack, Version: "1.0.0", Part: "front"}
+		req.Owner = &structs.ReleaseOwner{Kind: structs.ReleaseOwnerKindStack, Namespace: "default", Name: stack, Version: "1.0.0", Part: "front"}
 	}
 	return req
 }
@@ -60,7 +60,7 @@ func TestRelease_OwnerAndInputDigest(t *testing.T) {
 	must.NoError(t, err)
 
 	rel := c.get("default", "web")
-	must.Eq(t, &structs.ReleaseOwner{Kind: "stack", Name: "shop", Version: "1.0.0", Part: "front"}, rel.Spec.Owner)
+	must.Eq(t, &structs.ReleaseOwner{Kind: "stack", Namespace: "default", Name: "shop", Version: "1.0.0", Part: "front"}, rel.Spec.Owner)
 	must.Eq(t, structs.ReleaseManagerRigger, rel.Spec.Pack.Manager)
 	rev := c.revision("default", "web", 1)
 	must.Eq(t, "sha256:one", rev.Spec.InputDigest)
@@ -71,18 +71,20 @@ func TestRelease_OwnerAndInputDigest(t *testing.T) {
 	must.Nil(t, c.get("default", "other").Spec.Owner)
 
 	// The list filters by owner.
-	owned := c.list("default", "stack/shop")
+	owned := c.list("default", "stack/default/shop")
 	must.Len(t, 1, owned)
 	must.Eq(t, "web", owned[0].Name)
-	must.Len(t, 0, c.list("default", "stack/other-shop"))
+	must.Len(t, 0, c.list("default", "stack/default/other-shop"))
 	must.Len(t, 2, c.list("default", ""))
 
-	// An upgrade by another stack and digest, then a rollback restores the
-	// owner and the digest of revision 1.
-	_, err = c.apply("default", "web", ownedApply("mall", "1.1.0", structs.ReleaseManagerRigger, "sha256:two"))
+	// An upgrade by another stack and digest, which adopts the release, then
+	// a rollback that does, restores the owner and the digest of revision 1.
+	byMall := ownedApply("mall", "1.1.0", structs.ReleaseManagerRigger, "sha256:two")
+	byMall.Adopt = true
+	_, err = c.apply("default", "web", byMall)
 	must.NoError(t, err)
 	must.Eq(t, "mall", c.get("default", "web").Spec.Owner.Name)
-	_, err = c.rollback("default", "web", 1)
+	_, err = c.rollbackAdopt("default", "web", 1, true)
 	must.NoError(t, err)
 	rel = c.get("default", "web")
 	must.Eq(t, "shop", rel.Spec.Owner.Name)
@@ -93,6 +95,9 @@ func TestRelease_OwnerAndInputDigest(t *testing.T) {
 	bad.Owner.Kind = "module"
 	_, err = c.apply("default", "web", bad)
 	must.Eq(t, 400, errCode(t, err))
+	bad.Owner = &structs.ReleaseOwner{Kind: structs.ReleaseOwnerKindStack, Name: "shop"}
+	_, err = c.apply("default", "web", bad)
+	must.Eq(t, 400, errCode(t, err), must.Sprint("no namespace"))
 	bad.Owner = &structs.ReleaseOwner{Kind: structs.ReleaseOwnerKindStack}
 	_, err = c.apply("default", "web", bad)
 	must.Eq(t, 400, errCode(t, err))

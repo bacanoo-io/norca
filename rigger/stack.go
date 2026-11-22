@@ -302,6 +302,7 @@ func (e *Engine) readGenerated(ctx context.Context, plan *StackPlan) (map[string
 
 // planReleases compares the releases of the stack with the cluster.
 func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.StackResult) error {
+	owner := host.StackOwner(plan.namespace, plan.Stack)
 	inStack := map[host.ReleaseRef]bool{}
 
 	for _, rr := range res.Releases {
@@ -314,7 +315,7 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 
 		if rr.Enabled {
 			inStack[ref] = true
-			rp, err = e.planRelease(ctx, ref, plan.Stack, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
+			rp, err = e.planRelease(ctx, ref, owner, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
 		} else {
 			rp = ReleasePlan{Release: ref, Action: ActionDisabled}
 		}
@@ -327,7 +328,7 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 		plan.Releases = append(plan.Releases, rp)
 	}
 
-	owned, err := e.releases.Owned(ctx, plan.Stack)
+	owned, err := e.releases.Owned(ctx, owner)
 	if err != nil {
 		return err
 	}
@@ -397,11 +398,16 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 
 	rp.Revision = current.Number
 
-	if current.ForeignManager != "" {
+	switch {
+	case current.ForeignManager != "":
 		rp.TakesOver = "the package manager " + current.ForeignManager
+	case current.Owner != "" && current.Owner != owner:
+		rp.TakesOver = "the stack " + current.Owner
 	}
 
-	if rp.TakesOver == "" && current.Digest == req.Digest && current.Module.Digest == req.Module.Digest {
+	// A release of the same content that no stack owns becomes the stack's.
+	unchanged := current.Digest == req.Digest && current.Module.Digest == req.Module.Digest && current.Owner == owner
+	if unchanged && rp.TakesOver == "" {
 		rp.Action = ActionUnchanged
 
 		return rp, nil

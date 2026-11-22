@@ -57,8 +57,8 @@ type Revision struct {
 	// revision was applied with. The engine compares it with its own to
 	// decide that a release is unchanged (design 9.2, 9.3).
 	Digest string `json:"digest"`
-	// Owner is the name of the stack that installed the release; empty for
-	// a release installed on its own.
+	// Owner is the stack that installed the release (StackOwner); empty
+	// for a release installed on its own.
 	Owner string `json:"owner,omitempty"`
 	// ForeignManager is the package manager that applied the revision when
 	// that is not this one; a take-over of it is asked for (Adopt).
@@ -67,6 +67,12 @@ type Revision struct {
 	Status string `json:"status"`
 	// CreatedAt is when the server made the revision.
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// StackOwner is a stack as the owner of releases: "<namespace>/<name>".
+// Two namespaces may each have a stack of one name.
+func StackOwner(namespace, name string) string {
+	return namespace + "/" + name
 }
 
 // Settings are the settings of a release that a stack may set (design 6.4).
@@ -89,7 +95,7 @@ type ApplyRequest struct {
 	Module  ModuleRef  `json:"module"`
 	// Digest is recorded in the revision; see Revision.Digest.
 	Digest string `json:"digest"`
-	// Owner is the name of the stack; see Revision.Owner.
+	// Owner is the stack (StackOwner); see Revision.Owner.
 	Owner string `json:"owner,omitempty"`
 	// Values are the values of the variables of the module, without the
 	// sensitive ones: they are recorded in the revision (design 6.3).
@@ -101,9 +107,9 @@ type ApplyRequest struct {
 	Secrets  map[string]map[string]Sensitive `json:"-"`
 	Settings Settings                        `json:"settings"`
 	// Adopt takes over a release whose newest revision another package
-	// manager applied (the pack manager); without it the server refuses
-	// the apply. It is a choice of one run, not part of what is applied,
-	// so it is not in the digest.
+	// manager applied (the pack manager) or another stack owns; without it
+	// the server refuses the apply. It is a choice of one run, not part of
+	// what is applied, so it is not in the digest.
 	Adopt bool `json:"-"`
 }
 

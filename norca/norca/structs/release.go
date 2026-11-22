@@ -314,6 +314,9 @@ type ReleaseSpec struct {
 type ReleaseOwner struct {
 	// Kind is the kind of the owner: ReleaseOwnerKindStack.
 	Kind string `json:"kind"`
+	// Namespace is the namespace of the stack: two namespaces may each have
+	// a stack of one name.
+	Namespace string `json:"namespace"`
 	// Name is the name of the stack.
 	Name string `json:"name"`
 	// Version and Source are those of a published stack; Part the part
@@ -343,7 +346,8 @@ func (o *ReleaseOwner) Copy() *ReleaseOwner {
 	return &c
 }
 
-// Validate checks an owner given in a request: a known kind and a name.
+// Validate checks an owner given in a request: a known kind, a namespace
+// and a name.
 func (o *ReleaseOwner) Validate() error {
 	if o == nil {
 		return nil
@@ -354,15 +358,28 @@ func (o *ReleaseOwner) Validate() error {
 	if o.Name == "" {
 		return fmt.Errorf("owner of kind %q without a name", o.Kind)
 	}
+	if o.Namespace == "" {
+		return fmt.Errorf("owner of kind %q without a namespace", o.Kind)
+	}
 	return nil
 }
 
-// String is the owner as the release list filters it: "<kind>/<name>".
+// Same reports whether two owners are one: none, or a stack of the same
+// namespace and name, whatever its version, source and part.
+func (o *ReleaseOwner) Same(other *ReleaseOwner) bool {
+	if o == nil || other == nil {
+		return o == nil && other == nil
+	}
+	return o.Kind == other.Kind && o.Namespace == other.Namespace && o.Name == other.Name
+}
+
+// String is the owner as the release list filters it:
+// "<kind>/<namespace>/<name>".
 func (o *ReleaseOwner) String() string {
 	if o == nil {
 		return ""
 	}
-	return o.Kind + "/" + o.Name
+	return o.Kind + "/" + o.Namespace + "/" + o.Name
 }
 
 // ReleaseMultiregion describes a multi-region install: the same pack
@@ -1475,7 +1492,7 @@ type ReleaseDriftEvent struct {
 
 // ReleaseListRequest lists releases in a namespace ("*" for all).
 type ReleaseListRequest struct {
-	// Owner lists only the releases of an owner, "<kind>/<name>" (as
+	// Owner lists only the releases of an owner, "<kind>/<namespace>/<name>" (as
 	// ReleaseOwner.String); empty lists all.
 	Owner string
 

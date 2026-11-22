@@ -87,7 +87,7 @@ Commands:
                           an apply or a destroy the servers run
   install <dir> -name release [-namespace ns] [-f values] [-var name=value]
                           install or upgrade one release of a module
-  release list|status|history|rollback|uninstall [name] [-namespace ns]
+  release list|status|history|rollback|uninstall [name] [-namespace ns] [-adopt]
                           one release, without a stack
   registry list|status|sync [name]
                           the registries of the cluster; sync fetches the

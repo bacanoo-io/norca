@@ -253,11 +253,14 @@ func (r riggerReleases) History(ctx context.Context, ref host.ReleaseRef) ([]hos
 }
 
 func (r riggerReleases) Owned(ctx context.Context, owner string) ([]host.Revision, error) {
-	// Every release of every namespace the token may read: a release
-	// written before the owner field has the owner only in its
-	// description, which the list of the server does not filter by.
+	// The releases of the stack in every namespace the token may read.
+	req := &structs.ReleaseListRequest{
+		Owner:        structs.ReleaseOwnerKindStack + "/" + owner,
+		QueryOptions: r.h.query(structs.AllNamespacesSentinel),
+	}
+
 	var resp structs.ReleaseListResponse
-	if err := r.h.srv.RPC("Release.List", &structs.ReleaseListRequest{QueryOptions: r.h.query(structs.AllNamespacesSentinel)}, &resp); err != nil {
+	if err := r.h.srv.RPC("Release.List", req, &resp); err != nil {
 		return nil, err
 	}
 

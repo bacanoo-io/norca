@@ -89,7 +89,7 @@ func request(t *testing.T, namespace string, sigs []*api.ReleasePackSignature) *
 			Manager:    api.ReleaseManagerRigger,
 		},
 		Description: owner,
-		Owner:       &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Name: "platform"},
+		Owner:       &api.ReleaseOwner{Kind: api.ReleaseOwnerKindStack, Namespace: namespace, Name: "platform"},
 		Values:      map[string]any{"count": 2},
 		InputDigest: releaseDigest,
 		Resources: []*api.ReleaseResource{

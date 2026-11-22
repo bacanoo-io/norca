@@ -25,8 +25,8 @@ type ApplyOptions struct {
 	// Prune uninstalls the releases the stack owns and no longer has
 	// (design 9.3); without it they are only shown.
 	Prune bool
-	// Adopt takes over releases another package manager applied
-	// (host.ApplyRequest.Adopt).
+	// Adopt takes over releases another package manager applied or
+	// another stack owns (host.ApplyRequest.Adopt).
 	Adopt bool
 }
 
@@ -234,18 +234,18 @@ func (e *Engine) StackStatus(ctx context.Context, s *Stack) (_ []ReleaseStatus, 
 
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.status", "stack", s.Name())
 
-	out, err := e.stackStatus(ctx, s.Name())
+	out, err := e.stackStatus(ctx, host.StackOwner(s.Namespace(), s.Name()))
 	span.End(ctx, err)
 
 	return out, err
 }
 
-func (e *Engine) stackStatus(ctx context.Context, stack string) ([]ReleaseStatus, error) {
+func (e *Engine) stackStatus(ctx context.Context, owner string) ([]ReleaseStatus, error) {
 	if e.releases == nil {
 		return nil, ErrNoCluster
 	}
 
-	owned, err := e.releases.Owned(ctx, stack)
+	owned, err := e.releases.Owned(ctx, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (e *Engine) destroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef,
 		return nil, ErrNoCluster
 	}
 
-	owned, err := e.releases.Owned(ctx, s.Name())
+	owned, err := e.releases.Owned(ctx, host.StackOwner(s.Namespace(), s.Name()))
 	if err != nil {
 		return nil, err
 	}
