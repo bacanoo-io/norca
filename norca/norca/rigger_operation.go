@@ -394,27 +394,37 @@ func (s *Server) authorizeNamespaceObject(args structs.RequestWithIdentity, name
 	return nil
 }
 
+// authorizeRiggerStack checks what a stack request needs before the
+// servers do anything for it: its form, write on releases in its namespace,
+// and read on the kind of registries for a published stack.
+func (s *Server) authorizeRiggerStack(args *RiggerStackRequest) error {
+	local := len(args.Files) > 0
+	if local == (args.Source != "") {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "a stack is either published (a source) or sent as files")
+	}
+
+	if err := s.authorizeNamespaceObject(args, args.RequestNamespace(), structs.ReleaseKindRef, acl.ObjectCapabilityWrite); err != nil {
+		return err
+	}
+
+	if local {
+		return nil
+	}
+
+	return s.authorizeNamespaceObject(args, acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead)
+}
+
 // riggerStack checks the rights of a stack request and loads the stack and
 // its values with an engine of the caller's token: a published stack from
 // its source, a local one from its files, both with the sources a server
 // fetches from (rigger_sources.go). The stack is in the namespace of the request.
 func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcCtx *RPCContext, opts ...rigger.Option) (*rigger.Engine, *rigger.Stack, rigger.Values, error) {
-	namespace := args.RequestNamespace()
-	local := len(args.Files) > 0
-
-	if local == (args.Source != "") {
-		return nil, nil, nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "a stack is either published (a source) or sent as files")
-	}
-
-	if err := s.authorizeNamespaceObject(args, namespace, structs.ReleaseKindRef, acl.ObjectCapabilityWrite); err != nil {
+	if err := s.authorizeRiggerStack(args); err != nil {
 		return nil, nil, nil, err
 	}
 
-	if !local {
-		if err := s.authorizeNamespaceObject(args, acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead); err != nil {
-			return nil, nil, nil, err
-		}
-	}
+	namespace := args.RequestNamespace()
+	local := len(args.Files) > 0
 
 	src, err := s.newRiggerSources(args)
 	if err != nil {
@@ -478,6 +488,12 @@ func (r *riggerRegistries) noGlobalDir() (string, error) {
 // startRiggerOperation plans an apply or a destroy of a stack, records it as
 // an operation and runs it on this server, the leader.
 func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, rpcCtx *RPCContext) (*RiggerOperation, error) {
+	// Before the log: its writer connects to the bus and may wait for it
+	// and make its stream.
+	if err := s.authorizeRiggerStack(args); err != nil {
+		return nil, err
+	}
+
 	opID := uuid.Generate()
 	subject := s.riggerLogSubject(opID)
 	w := s.newRiggerLogWriter(subject)
