@@ -9,10 +9,14 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 )
 
 // archiveNames lists the entries of an archive of a stack.
@@ -92,6 +96,66 @@ func TestStack_ArchiveAndLoadStackFiles(t *testing.T) {
 
 	if got != want || loaded.Name() != s.Name() {
 		t.Errorf("loaded %s digest %s, want %s digest %s", loaded.Name(), got, s.Name(), want)
+	}
+}
+
+// A stack whose modules are partly of a source (here built in) packs only
+// its own files and its local modules: the server fetches the others.
+func TestStack_ArchiveWithSourcedModule(t *testing.T) {
+	t.Parallel()
+
+	root := fstest.MapFS{
+		"s/stack.hcl": {Data: []byte(`rigger {
+  name      = "shop"
+  region    = "eu"
+  namespace = "apps"
+}
+
+module "cache" {
+  source = "builtin/redis"
+}
+
+module "app" {
+  source = "./modules/app"
+}
+`)},
+		"s/modules/app/metadata.hcl": {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
+	}
+
+	e, err := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(fetch.New(t.TempDir())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, lock, diags := e.SyncStack(t.Context(), root, "s", false)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	root["s/rigger.lock.hcl"] = &fstest.MapFile{Data: lock}
+
+	s, diags := e.LoadStack(t.Context(), root, "s")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	archive, err := s.Archive()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	names := archiveNames(t, archive)
+	if !containsAll(names, "s/stack.hcl", "s/rigger.lock.hcl", "s/modules/app/metadata.hcl") || len(names) != 4 {
+		t.Errorf("entries %v", names)
+	}
+
+	loaded, diags := e.LoadStackFiles(t.Context(), archive)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if len(loaded.SourcedModules()) != len(s.SourcedModules()) {
+		t.Errorf("loaded %d modules of sources, want %d", len(loaded.SourcedModules()), len(s.SourcedModules()))
 	}
 }
 

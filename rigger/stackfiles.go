@@ -58,8 +58,10 @@ func (s *Stack) Archive() ([]byte, error) {
 
 	dirs := []string{s.s.Dir}
 
+	// The modules of a source (git, the global registry, built in) are not
+	// files of the stack: the server fetches them as the lock file pins them.
 	for _, r := range s.s.Releases {
-		if r.Module != nil {
+		if r.Module != nil && r.Address == nil {
 			dirs = append(dirs, moduleDirs(r.Module)...)
 		}
 	}
