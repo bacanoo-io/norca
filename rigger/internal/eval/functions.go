@@ -18,6 +18,16 @@ import (
 // other HCL tools. None of them reads a file, the environment or the
 // network.
 func Functions() map[string]function.Function {
+	funcs := standardFunctions()
+	for name, f := range funcs {
+		funcs[name] = hideSensitive(f)
+	}
+
+	return funcs
+}
+
+// standardFunctions are the functions of Functions, as they are written.
+func standardFunctions() map[string]function.Function {
 	return map[string]function.Function{
 		"abs": stdlib.AbsoluteFunc, "ceil": stdlib.CeilFunc, "floor": stdlib.FloorFunc,
 		"log": stdlib.LogFunc, "max": stdlib.MaxFunc, "min": stdlib.MinFunc,

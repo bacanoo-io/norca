@@ -23,18 +23,23 @@ import (
 // nowhere else (design 12.4).
 func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	funcs := Functions()
-	funcs["file"] = fileFunc(fsys, fileBytes)
-	funcs["image_ref"] = imageRef
-	funcs["runtime"] = runtimeFunc
-	funcs["runtime_env"] = runtimeEnvFunc
-	funcs["secret_ref"] = itemFunc(runref.KindSecret)
-	funcs["variable_ref"] = itemFunc(runref.KindVariable)
-	funcs["service_address"] = serviceAddress
-	funcs["service_addresses"] = serviceAddresses
+	for name, f := range map[string]function.Function{
+		"file":              fileFunc(fsys, fileBytes),
+		"image_ref":         imageRef,
+		"runtime":           runtimeFunc,
+		"runtime_env":       runtimeEnvFunc,
+		"secret_ref":        itemFunc(runref.KindSecret),
+		"variable_ref":      itemFunc(runref.KindVariable),
+		"service_address":   serviceAddress,
+		"service_addresses": serviceAddresses,
+	} {
+		funcs[name] = hideSensitive(f)
+	}
+
 	// Last, with a copy of the functions before it: a template has no
 	// templatefile. A template that renders itself would end the process
 	// with a stack overflow, which no recover catches.
-	funcs["templatefile"] = templateFileFunc(fsys, fileBytes, maps.Clone(funcs))
+	funcs["templatefile"] = hideSensitive(templateFileFunc(fsys, fileBytes, maps.Clone(funcs)))
 
 	return funcs
 }

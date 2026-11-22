@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -578,7 +579,12 @@ func (r *stackRun) forms(v cty.Value) (cty.Value, bool, error) {
 		}
 
 		if !validGeneratedName(name) {
-			return cty.NilVal, fmt.Errorf("%q is not a name of a generated value: letters, digits, - and _", name)
+			shown := strconv.Quote(name)
+			if len(marks) > 0 {
+				shown = hidden
+			}
+
+			return cty.NilVal, fmt.Errorf("%s is not a name of a generated value: letters, digits, - and _", shown)
 		}
 
 		r.used[name] = true

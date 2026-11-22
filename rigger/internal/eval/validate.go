@@ -32,10 +32,14 @@ func (k *checker) fail(path, format string, args ...any) {
 	})
 }
 
-// show is how a value appears in a message: never a sensitive one.
+// hidden stands for a sensitive value in a message.
+const hidden = "(sensitive)"
+
+// show is how a value appears in a message: never a sensitive one, whether
+// the variable says so or the value it was given.
 func (k *checker) show(v cty.Value) string {
-	if k.sensitive {
-		return "(sensitive)"
+	if k.sensitive || v.ContainsMarked() {
+		return hidden
 	}
 
 	return showValue(v)
@@ -46,6 +50,14 @@ func (k *checker) show(v cty.Value) string {
 func (k *checker) check(c *lang.Constraint, v cty.Value, path string) {
 	if c == nil || v.IsNull() || !v.IsKnown() {
 		return
+	}
+
+	if v.IsMarked() {
+		// What is in a sensitive value is sensitive, the keys of a map too.
+		outer := k.sensitive
+		k.sensitive = true
+
+		defer func() { k.sensitive = outer }()
 	}
 
 	v, _ = v.Unmark()
@@ -120,7 +132,7 @@ func (k *checker) checkCollection(c *lang.Constraint, v cty.Value, path string) 
 
 	for it := v.ElementIterator(); it.Next(); {
 		key, item := it.Element()
-		itemPath := path + index(key)
+		itemPath := path + k.index(key)
 
 		k.checkItem(c, key, item, itemPath, path, seen)
 	}
@@ -130,7 +142,7 @@ func (k *checker) checkCollection(c *lang.Constraint, v cty.Value, path string) 
 // others, and its own constraints.
 func (k *checker) checkItem(c *lang.Constraint, key, item cty.Value, itemPath, path string, seen map[string]string) {
 	if c.KeyPattern != nil && key.Type() == cty.String && !c.KeyPattern.MatchString(key.AsString()) {
-		k.fail(path, "has the key %q, which does not match %s", key.AsString(), c.KeyPattern)
+		k.fail(path, "has the key %s, which does not match %s", k.show(key), c.KeyPattern)
 	}
 
 	if c.ItemOf != nil && !containsValue(c.ItemOf, item) {
@@ -188,10 +200,11 @@ func containsValue(values []cty.Value, v cty.Value) bool {
 	return false
 }
 
-// index returns the index expression of a key: [1] or ["name"].
-func index(key cty.Value) string {
+// index returns the index expression of a key: [1] or ["name"], the name
+// hidden in a sensitive map.
+func (k *checker) index(key cty.Value) string {
 	if key.Type() == cty.String {
-		return "[" + strconv.Quote(key.AsString()) + "]"
+		return "[" + k.show(key) + "]"
 	}
 
 	return "[" + key.AsBigFloat().Text('f', -1) + "]"

@@ -165,7 +165,42 @@ func writeDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 		return err
 	}
 
-	return hcl.NewDiagnosticTextWriter(w, sources(dir, diags), 0, false).WriteDiagnostics(diags)
+	return hcl.NewDiagnosticTextWriter(w, sources(dir, diags), 0, false).WriteDiagnostics(withoutSensitive(diags))
+}
+
+// withoutSensitive returns diags without the context of those whose
+// expression reads a sensitive value: the writer of HCL prints the values an
+// expression reads, and panics on a marked one.
+func withoutSensitive(diags hcl.Diagnostics) hcl.Diagnostics {
+	out := make(hcl.Diagnostics, 0, len(diags))
+
+	for _, d := range diags {
+		if readsSensitive(d) {
+			c := *d
+			c.EvalContext = nil
+			d = &c
+		}
+
+		out = append(out, d)
+	}
+
+	return out
+}
+
+// readsSensitive reports whether the expression of d reads a sensitive
+// value in its context.
+func readsSensitive(d *hcl.Diagnostic) bool {
+	if d.Expression == nil || d.EvalContext == nil {
+		return false
+	}
+
+	for _, t := range d.Expression.Variables() {
+		if v, diags := t.TraverseAbs(d.EvalContext); !diags.HasErrors() && v.ContainsMarked() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // sources reads the files diagnostics name, for the lines they show: the
