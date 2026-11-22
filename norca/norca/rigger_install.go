@@ -1,0 +1,572 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package norca
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"path"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/hcl/v2"
+
+	"github.com/bacanoo-io/norca/norca/acl"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/catalog"
+	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/host"
+	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/source"
+	"github.com/bacanoo-io/norca/rigger/version"
+)
+
+// One module installed by the server (design/rig-integration.md 4.6a): a
+// module of a synced registry, fetched and verified by the server, or a
+// local module sent as files. The server evaluates it with the engine of
+// its hosts (rigger_host.go) and applies the release with the caller's
+// token; a module of a registry is applied as rendered by the server, a
+// local one as a client's.
+
+// riggerInstallTimeout bounds an install: the fetch of the module, its
+// evaluation and the apply of its release.
+const riggerInstallTimeout = 10 * time.Minute
+
+// riggerLocalSource is the source a release records for a local module.
+const riggerLocalSource = "local"
+
+// RiggerModuleRequest names the module of an install or of a detail: a
+// module of a synced registry, or (an install only) a local module.
+type RiggerModuleRequest struct {
+	// Registry and Module name a module of a synced registry:
+	// <namespace>/<name> in the global registry, <name> in a registry
+	// repository. Version is a version constraint; empty takes the newest.
+	Registry, Module, Version string
+	// Files is a local module sent as files (rigger Module.Archive); no
+	// registry then.
+	Files []byte
+}
+
+// RiggerInstallRequest installs or upgrades one release of a module.
+type RiggerInstallRequest struct {
+	Release string
+	RiggerModuleRequest
+	// Values are the values of the variables, as a values file (HCL).
+	Values string
+	// Plan returns what an apply would do and applies nothing.
+	Plan bool
+	// Adopt takes over a release another manager applied.
+	Adopt bool
+	structs.WriteRequest
+}
+
+// RiggerInstallResponse is the plan of an install, and the revision an
+// apply made.
+type RiggerInstallResponse struct {
+	Action   string
+	Module   host.ModuleRef
+	Changes  []host.Change
+	Revision uint64
+	// Origin is where a module of a registry came from and what verified
+	// it; nil for a local module.
+	Origin   *rigger.ModuleOrigin
+	Warnings []string
+	structs.WriteMeta
+}
+
+// RiggerDetailRequest asks for a version of a module of a registry.
+type RiggerDetailRequest struct {
+	RiggerModuleRequest
+	structs.QueryOptions
+}
+
+// RiggerDetailResponse is what an install form needs of a version.
+type RiggerDetailResponse struct {
+	Origin     *rigger.ModuleOrigin
+	Metadata   module.Metadata
+	Readme     string
+	Variables  []module.Variable
+	Tabs       []module.Tab
+	FormSchema map[string]any
+	// Versions are the versions of the module in the registry, the newest
+	// first.
+	Versions []string
+	// Meets reports whether the cluster meets the requirements of the
+	// version; Unmet lists what it lacks.
+	Meets bool
+	Unmet []string
+	// Icon reports whether the version has an icon (Rigger.Icon).
+	Icon bool
+	structs.QueryMeta
+}
+
+// RiggerIconResponse is the icon of a version: a PNG of 64x64 pixels.
+type RiggerIconResponse struct {
+	Icon []byte
+	structs.QueryMeta
+}
+
+// Install installs or upgrades one release of a module: it fetches and
+// verifies a module of a synced registry (or loads a local one), evaluates
+// it with the values and plans or applies its release with the caller's
+// token. It runs on the leader.
+func (r *Rigger) Install(args *RiggerInstallRequest, reply *RiggerInstallResponse) error {
+	authErr := r.srv.Authenticate(r.ctx, args)
+	if done, err := r.srv.forward("Rigger.Install", args, args, reply); done {
+		return err
+	}
+
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+
+	return r.srv.riggerInstall(args, reply, r.ctx)
+}
+
+// Detail returns what an install form needs of a version of a module of a
+// registry: its metadata, README, variables and form, the versions of the
+// module, and whether the cluster meets its requirements. It needs read on
+// the kind of registries.
+func (r *Rigger) Detail(args *RiggerDetailRequest, reply *RiggerDetailResponse) error {
+	authErr := r.srv.Authenticate(r.ctx, args)
+	if done, err := r.srv.forward("Rigger.Detail", args, args, reply); done {
+		return err
+	}
+
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+
+	if err := r.authorize(args, acl.ObjectCapabilityRead); err != nil {
+		return err
+	}
+
+	return r.srv.riggerDetail(args, reply)
+}
+
+// Icon returns the icon of a version of a module of a registry. It needs
+// read on the kind of registries.
+func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) error {
+	authErr := r.srv.Authenticate(r.ctx, args)
+	if done, err := r.srv.forward("Rigger.Icon", args, args, reply); done {
+		return err
+	}
+
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+
+	if err := r.authorize(args, acl.ObjectCapabilityRead); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
+	defer cancel()
+
+	eng, err := r.srv.riggerFetchEngine()
+	if err != nil {
+		return err
+	}
+
+	m, _, err := r.srv.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest)
+	if err != nil {
+		return err
+	}
+
+	icon, err := moduleFile(m, "icon.png")
+	if errors.Is(err, fs.ErrNotExist) {
+		return structs.NewErrRPCCodedf(http.StatusNotFound, "%s %s has no icon", args.Module, m.Metadata().Version)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	reply.Icon = icon
+	reply.Index = max(1, r.srv.raft.AppliedIndex())
+
+	return nil
+}
+
+// riggerInstall installs a module (Rigger.Install), on the leader.
+func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallResponse, rpcCtx *RPCContext) error {
+	namespace := args.RequestNamespace()
+	local := len(args.Files) > 0
+
+	if err := s.authorizeRiggerInstall(args, namespace, local); err != nil {
+		return err
+	}
+
+	if err := structs.ValidateReleaseName(args.Release); err != nil {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid release name: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
+	defer cancel()
+
+	// A module of a registry is fetched and verified by the server: its
+	// release is admitted as rendered by the server. A local one is a
+	// client's.
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx)
+	if err != nil {
+		return err
+	}
+
+	in := rigger.Install{Release: args.Release, Namespace: namespace, Region: s.Region()}
+
+	var (
+		m     *rigger.Module
+		diags hcl.Diagnostics
+	)
+
+	if local {
+		if args.Registry != "" || args.Module != "" {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "a local module is sent as files, without a registry")
+		}
+
+		m, diags = eng.LoadModuleFiles(ctx, args.Files)
+		if diags.HasErrors() {
+			return riggerDiagsError(diags)
+		}
+
+		in.Source = riggerLocalSource
+	} else {
+		if m, _, err = s.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest); err != nil {
+			return err
+		}
+	}
+
+	if args.Values != "" {
+		if in.Values, diags = rigger.ParseValues("values.vars.hcl", []byte(args.Values)); diags.HasErrors() {
+			return riggerDiagsError(diags)
+		}
+	}
+
+	rp, diags := eng.PlanInstall(ctx, m, in, host.Settings{})
+	if diags.HasErrors() {
+		return riggerDiagsError(diags)
+	}
+
+	reply.Action, reply.Module, reply.Changes, reply.Origin = string(rp.Action), rp.Module, rp.Changes, m.Origin()
+	reply.Warnings = riggerWarnings(m, diags)
+	reply.Revision = rp.Revision
+
+	if !args.Plan {
+		outcome, err := eng.ApplyInstall(ctx, rp, rigger.ApplyOptions{Adopt: args.Adopt})
+		if err != nil {
+			return err
+		}
+
+		reply.Revision = outcome.Revision
+	}
+
+	reply.Index = max(1, s.raft.AppliedIndex())
+
+	return nil
+}
+
+// authorizeRiggerInstall checks what an install needs before anything is
+// fetched: write on releases in the namespace, and read on the kind of
+// registries for a module of a registry. The release API checks the write
+// again, with everything else of an apply.
+func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace string, local bool) error {
+	aclObj, err := s.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+
+	if aclObj == nil {
+		return nil
+	}
+
+	if !aclObj.AllowObjectOperation(namespace, structs.ReleaseKindRef, acl.ObjectCapabilityWrite) {
+		return structs.ErrPermissionDenied
+	}
+
+	if !local && !aclObj.AllowObjectOperation(acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead) {
+		return structs.ErrPermissionDenied
+	}
+
+	return nil
+}
+
+// riggerServerEngine returns an engine with the hosts of this server and the
+// fetcher of its registries; the releases are applied as rendered by the
+// server or not.
+func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext) (*rigger.Engine, error) {
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return nil, err
+	}
+
+	h := &riggerHosts{srv: s, token: token, namespace: namespace}
+	h.apply = func(req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse) error {
+		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered, "")
+	}
+
+	return s.riggerEngine(h, rigger.WithFetcher(r.fetcher))
+}
+
+// riggerFetchEngine returns an engine that only fetches and loads modules,
+// with the fetcher of the registries and the decoders of the hosts and no
+// cluster: what Rigger.Detail and Rigger.Icon need.
+func (s *Server) riggerFetchEngine() (*rigger.Engine, error) {
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return nil, err
+	}
+
+	return rigger.New(
+		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithFetcher(r.fetcher),
+	)
+}
+
+// riggerRegistryModule fetches and verifies the version of a module of a
+// registry that the request names: the newest the last good sync of the
+// registry offers that meets the constraint.
+func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, req RiggerModuleRequest) (*rigger.Module, []string, error) {
+	reg, items, err := s.syncedRegistry(ctx, req.Registry)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ref := catalog.Ref{Kind: index.KindModule, Name: req.Module}
+	if reg.Spec.Type == riggerRegistryTypeGlobal {
+		ns, name, ok := strings.Cut(req.Module, "/")
+		if !ok {
+			return nil, nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "a module of the global registry is <namespace>/<name>, not %q", req.Module)
+		}
+
+		ref.Namespace, ref.Name = ns, name
+	}
+
+	versions, err := itemVersions(items, ref)
+	if err != nil {
+		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s of the registry %q: %v", ref, reg.Name, err)
+	}
+
+	v, err := newestMeeting(versions, req.Version)
+	if err != nil {
+		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s of the registry %q at its last sync: %v (rigger registry sync %s fetches newer versions)", ref, reg.Name, err, reg.Name)
+	}
+
+	sreq, keys, err := s.moduleSourceRequest(ctx, reg, ref, v)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	m, diags := eng.FetchModule(ctx, sreq, keys)
+	if diags.HasErrors() {
+		return nil, nil, riggerDiagsError(diags)
+	}
+
+	return m, versions, nil
+}
+
+// syncedRegistry returns a registry with a good sync and what it offers at
+// its commit.
+func (s *Server) syncedRegistry(ctx context.Context, name string) (*RiggerRegistry, []catalog.Item, error) {
+	obj, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", name)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if obj == nil {
+		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", structs.RiggerRegistryKindRef, name)
+	}
+
+	reg, err := riggerRegistryFromObject(obj)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if reg.Status.Commit == "" {
+		return nil, nil, errRiggerRegistryNotSynced(name)
+	}
+
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	idx, err := r.read(ctx, reg.Spec.Type, reg.Status.Source, reg.Status.Commit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return reg, idx.items, nil
+}
+
+// moduleSourceRequest is the request of the fetcher for a version of a
+// module of a registry, and the keys that must sign it: the global registry
+// read at the commit of its sync, a registry repository at the tag of the
+// version in the history of that commit.
+func (s *Server) moduleSourceRequest(ctx context.Context, reg *RiggerRegistry, ref catalog.Ref, v string) (source.Request, []string, error) {
+	r, err := s.riggerRegistriesOf()
+	if err != nil {
+		return source.Request{}, nil, err
+	}
+
+	if reg.Spec.Type == riggerRegistryTypeGlobal {
+		if err := r.useGlobal(ctx, reg); err != nil {
+			return source.Request{}, nil, err
+		}
+
+		return source.Request{
+			Source: ref.Namespace + "/" + ref.Name, Kind: source.KindGlobal,
+			Namespace: ref.Namespace, Name: ref.Name, Path: ".", Version: v,
+		}, nil, nil
+	}
+
+	prefix := ref.Name + "/v"
+
+	tags, err := r.fetcher.TagsAt(ctx, reg.Status.Source, reg.Status.Commit, prefix)
+	if err != nil {
+		return source.Request{}, nil, err
+	}
+
+	for _, tag := range tags {
+		if tag.Name == prefix+v {
+			return source.Request{
+				Source: reg.Name + "/" + ref.Name, Kind: source.KindGit, Registry: reg.Name,
+				Repository: reg.Status.Source, Path: path.Join("modules", ref.Name), TagPrefix: prefix,
+				Version: v, Ref: tag.Name, Commit: tag.Commit,
+			}, reg.Spec.TrustedKeys, nil
+		}
+	}
+
+	return source.Request{}, nil, fmt.Errorf("the registry %q has no tag %s%s at %s", reg.Name, prefix, v, reg.Status.Commit)
+}
+
+// useGlobal points the fetcher of the registries at the index of the global
+// registry at the commit of its last good sync.
+func (r *riggerRegistries) useGlobal(ctx context.Context, reg *RiggerRegistry) error {
+	dir, err := r.fetcher.Checkout(ctx, reg.Status.Source, reg.Status.Commit)
+	if err != nil {
+		return err
+	}
+
+	r.globalMu.Lock()
+	defer r.globalMu.Unlock()
+
+	if r.globalDir != dir {
+		r.fetcher.SetGlobalRegistry(dir)
+		r.globalDir = dir
+	}
+
+	return nil
+}
+
+// itemVersions returns the versions of a module or stack of a registry, the
+// newest first.
+func itemVersions(items []catalog.Item, ref catalog.Ref) ([]string, error) {
+	for _, item := range items {
+		if item.Ref == ref {
+			if len(item.Versions) == 0 {
+				return nil, errors.New("no version is tagged")
+			}
+
+			return item.Versions, nil
+		}
+	}
+
+	return nil, errors.New("not in the registry")
+}
+
+// newestMeeting returns the newest of versions (the newest first) that
+// meets the constraint; an empty constraint takes the newest.
+func newestMeeting(versions []string, constraint string) (string, error) {
+	if constraint == "" {
+		return versions[0], nil
+	}
+
+	c, err := version.ParseConstraint(constraint)
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range versions {
+		parsed, err := version.Parse(v)
+		if err == nil && c.Check(parsed) {
+			return v, nil
+		}
+	}
+
+	return "", fmt.Errorf("no version meets %q", constraint)
+}
+
+// riggerDetail answers Rigger.Detail.
+func (s *Server) riggerDetail(args *RiggerDetailRequest, reply *RiggerDetailResponse) error {
+	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
+	defer cancel()
+
+	eng, err := s.riggerFetchEngine()
+	if err != nil {
+		return err
+	}
+
+	m, versions, err := s.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest)
+	if err != nil {
+		return err
+	}
+
+	md := m.Metadata()
+	reply.Origin, reply.Metadata, reply.Versions = m.Origin(), md, versions
+	reply.Variables, reply.Tabs, reply.FormSchema = m.Variables(), m.Tabs(), m.FormSchema()
+
+	if readme, err := moduleFile(m, "README.md"); err == nil {
+		reply.Readme = string(readme)
+	}
+
+	if _, err := moduleFile(m, "icon.png"); err == nil {
+		reply.Icon = true
+	}
+
+	reply.Meets, reply.Unmet = s.evaluatePackCompatibility(&structs.ReleasePackRequires{
+		Norca: md.Requires.Norca, Features: md.Requires.Features,
+	})
+	reply.Index = max(1, s.raft.AppliedIndex())
+
+	return nil
+}
+
+// moduleFile reads a file of the directory of a module.
+func moduleFile(m *rigger.Module, name string) ([]byte, error) {
+	root, _ := m.Files()
+
+	return fs.ReadFile(root, path.Join(m.Dir(), name))
+}
+
+// riggerWarnings are the warnings of an install: those of the origin of the
+// module and those of its evaluation.
+func riggerWarnings(m *rigger.Module, diags hcl.Diagnostics) []string {
+	var out []string
+
+	if o := m.Origin(); o != nil {
+		out = append(out, o.Warnings...)
+	}
+
+	for _, d := range diags {
+		if d.Severity == hcl.DiagWarning {
+			out = append(out, strings.TrimSpace(d.Summary+": "+d.Detail))
+		}
+	}
+
+	return out
+}
+
+// riggerDiagsError is the error of the diagnostics of a module, a request
+// the client can correct.
+func riggerDiagsError(diags hcl.Diagnostics) error {
+	return structs.NewErrRPCCodedf(http.StatusBadRequest, "%s", diags.Error())
+}

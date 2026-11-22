@@ -6,6 +6,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 )
@@ -247,4 +248,131 @@ func (r *Rigger) SearchRegistry(name string, query *RiggerRegistryQuery, q *Quer
 	}
 
 	return &out, qm, nil
+}
+
+// RiggerInstallRequest installs or upgrades one release of a module: one of
+// a synced registry (Registry, Module, Version constraint), or a local one
+// sent as files (Files, the archive of rigger Module.Archive).
+type RiggerInstallRequest struct {
+	Release  string
+	Registry string
+	// Module is <namespace>/<name> in the global registry, <name> in a
+	// registry repository.
+	Module  string
+	Version string
+	Files   []byte
+	// Values are the values of the variables, as a values file (HCL).
+	Values string
+	Adopt  bool
+}
+
+// RiggerModuleRef is the module a release records.
+type RiggerModuleRef struct {
+	Name    string   `json:"name"`
+	Source  string   `json:"source"`
+	Version string   `json:"version"`
+	Ref     string   `json:"ref,omitempty"`
+	Digest  string   `json:"digest"`
+	Signers []string `json:"signers,omitempty"`
+}
+
+// RiggerChange is what an apply would change of a resource.
+type RiggerChange struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Action string `json:"action"`
+}
+
+// RiggerModuleOrigin is where a module of a registry came from and what
+// verified it.
+type RiggerModuleOrigin struct {
+	Source     string   `json:"source"`
+	Version    string   `json:"version"`
+	Repository string   `json:"repository,omitempty"`
+	Ref        string   `json:"ref,omitempty"`
+	Commit     string   `json:"commit,omitempty"`
+	Digest     string   `json:"digest"`
+	Signers    []string `json:"signers,omitempty"`
+	Warnings   []string `json:"warnings,omitempty"`
+}
+
+// RiggerInstallResponse is the plan of an install, and the revision an apply
+// made.
+type RiggerInstallResponse struct {
+	Action   string
+	Module   RiggerModuleRef
+	Changes  []RiggerChange
+	Revision uint64
+	// Origin is nil for a local module.
+	Origin   *RiggerModuleOrigin
+	Warnings []string
+}
+
+// RiggerModuleDetail is what an install form needs of a version of a module
+// of a registry.
+type RiggerModuleDetail struct {
+	Origin     *RiggerModuleOrigin
+	Metadata   map[string]any
+	Readme     string
+	Variables  []map[string]any
+	Tabs       []map[string]any
+	FormSchema map[string]any
+	// Versions are the versions of the module, the newest first.
+	Versions []string
+	// Meets reports whether the cluster meets the requirements of the
+	// version; Unmet lists what it lacks.
+	Meets bool
+	Unmet []string
+	Icon  bool
+}
+
+// Install plans (plan) or applies one release of a module.
+func (r *Rigger) Install(req *RiggerInstallRequest, plan bool, w *WriteOptions) (*RiggerInstallResponse, *WriteMeta, error) {
+	path := "/v1/rigger/install"
+	if plan {
+		path += "?plan=true"
+	}
+
+	var out RiggerInstallResponse
+
+	wm, err := r.client.put(path, req, &out, w)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &out, wm, nil
+}
+
+// ModuleDetail reads a version of a module of a registry: the newest that
+// meets the constraint version (empty: the newest).
+func (r *Rigger) ModuleDetail(registry, module, version string, q *QueryOptions) (*RiggerModuleDetail, *QueryMeta, error) {
+	var out RiggerModuleDetail
+
+	qm, err := r.client.query(riggerModulePath(registry, "module", module, version), &out, q)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &out, qm, nil
+}
+
+// Icon reads the icon of a version of a module of a registry: a PNG.
+func (r *Rigger) Icon(registry, module, version string, q *QueryOptions) ([]byte, error) {
+	body, err := r.client.rawQuery(riggerModulePath(registry, "icon", module, version), q)
+	if err != nil {
+		return nil, err
+	}
+
+	defer body.Close()
+
+	return io.ReadAll(body)
+}
+
+func riggerModulePath(registry, action, module, version string) string {
+	v := url.Values{"name": {module}}
+	if version != "" {
+		v.Set("version", version)
+	}
+
+	return "/v1/rigger/registry/" + url.PathEscape(registry) + "/" + action + "?" + v.Encode()
 }

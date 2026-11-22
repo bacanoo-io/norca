@@ -42,6 +42,11 @@ type riggerRegistries struct {
 	// once.
 	mu      sync.Mutex
 	indexes map[string]*riggerRegistryIndex
+
+	// globalMu guards globalDir, the index of the global registry the
+	// fetcher reads (useGlobal).
+	globalMu  sync.Mutex
+	globalDir string
 }
 
 // riggerRegistryIndex is what a registry offers at a commit.
