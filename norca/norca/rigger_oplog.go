@@ -263,7 +263,16 @@ func addLogAttr(m map[string]any, a slog.Attr) {
 		return
 	}
 
-	m[a.Key] = v.Any()
+	// A duration and a time read as text, as a person reads them, not as
+	// the nanoseconds JSON would make of them.
+	switch v.Kind() {
+	case slog.KindDuration:
+		m[a.Key] = v.Duration().String()
+	case slog.KindTime:
+		m[a.Key] = v.Time().UTC().Format(time.RFC3339Nano)
+	default:
+		m[a.Key] = v.Any()
+	}
 }
 
 // teeHandler writes a record to two handlers.
