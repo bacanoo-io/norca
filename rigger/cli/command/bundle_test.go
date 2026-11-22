@@ -64,8 +64,8 @@ module "hello" {
 	riggerRun(t, exitOK, []string{isValid}, "stack", "validate", dir)
 }
 
-// wrongVersion is the version of the modules of a wrong bundle.
-const wrongVersion = "1.0.0"
+// bundledVersion is the version of the modules of the test bundles.
+const bundledVersion = "1.0.0"
 
 // A bundle with a module whose content is not its digest is refused and
 // leaves nothing in the cache, not even the modules that were right.
@@ -74,7 +74,7 @@ func TestRun_BundleImport_WrongDigest(t *testing.T) {
 	t.Setenv("RIGGER_CACHE_DIR", cache)
 
 	module := func(name string) fstest.MapFS {
-		return fstest.MapFS{"modules/" + name + "/metadata.hcl": {Data: []byte("module {\n  name    = \"" + name + "\"\n  version = \"" + wrongVersion + "\"\n}\n")}}
+		return fstest.MapFS{"modules/" + name + "/metadata.hcl": {Data: []byte("module {\n  name    = \"" + name + "\"\n  version = \"" + bundledVersion + "\"\n}\n")}}
 	}
 
 	eng, err := rigger.New()
@@ -91,8 +91,8 @@ func TestRun_BundleImport_WrongDigest(t *testing.T) {
 
 	var buf bytes.Buffer
 	if err := bundle.Write(&buf, "s", []rigger.SourcedModule{
-		{Source: "a/good", Version: wrongVersion, Path: "modules/good", Commit: strings.Repeat("a", 40), Digest: digest, Dirs: []string{"modules/good"}, Root: good},
-		{Source: "a/bad", Version: wrongVersion, Path: "modules/bad", Commit: strings.Repeat("b", 40), Digest: digest, Dirs: []string{"modules/bad"}, Root: bad},
+		{Source: "a/good", Version: bundledVersion, Path: "modules/good", Commit: strings.Repeat("a", 40), Digest: digest, Dirs: []string{"modules/good"}, Root: good},
+		{Source: "a/bad", Version: bundledVersion, Path: "modules/bad", Commit: strings.Repeat("b", 40), Digest: digest, Dirs: []string{"modules/bad"}, Root: bad},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestRun_BundleImport_WrongDigest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	riggerRunErr(t, "a/bad "+wrongVersion+": the bundle holds content of the digest", "bundle", "import", p)
+	riggerRunErr(t, "a/bad "+bundledVersion+": the bundle holds content of the digest", "bundle", "import", p)
 
 	_ = filepath.WalkDir(cache, func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {

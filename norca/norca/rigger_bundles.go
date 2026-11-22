@@ -326,9 +326,10 @@ func (s *Server) checkRiggerBundle(ctx context.Context, data []byte) (*bundle.Ma
 	}
 	defer os.RemoveAll(tmp)
 
+	// The tree of each module, as it is unpacked (what ReadBounded bounds).
 	for i, mod := range m.Modules {
 		dir := fmt.Sprintf("%s/%d", tmp, i)
-		if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
+		if err := bundle.WriteTree(dir, bundle.ModuleFiles(mod, files)); err != nil {
 			return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "%s %s: %v", mod.Source, mod.Version, err)
 		}
 
@@ -376,7 +377,7 @@ func (s *Server) listRiggerBundles(ctx context.Context) ([]*RiggerBundle, error)
 }
 
 // unpackBundles unpacks into the cache of this server the bundles of the
-// object store it has not unpacked yet, by the commit of each module. A
+// object store it has not unpacked yet, a tree for each module. A
 // bundle that can't be read is skipped (it was checked when it was
 // imported). Without a bus there is nothing to unpack. It returns the
 // modules of the bundles that are in the object store now: a bundle that
@@ -426,12 +427,12 @@ func (r *riggerRegistries) unpackBundles(ctx context.Context) ([]riggerBundledMo
 					repository: fetch.CanonicalRepository(mod.Repository), commit: mod.Commit, digest: mod.Digest, dir: mod.Path,
 				})
 
-				dir := r.fetcher.BundleDir(mod.Repository, mod.Commit)
+				dir := r.fetcher.BundleDir(mod.Repository, mod.Commit, mod.Path, mod.Digest)
 				if _, err := os.Stat(dir); err == nil {
 					continue
 				}
 
-				if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
+				if err := bundle.WriteTree(dir, bundle.ModuleFiles(mod, files)); err != nil {
 					return err
 				}
 			}

@@ -26,6 +26,8 @@ func TestFetcher_CacheOfARepository(t *testing.T) {
 
 	commit, manifest := strings.Repeat("a", 40), "sha256:"+strings.Repeat("b", 64)
 
+	bundled := "sha256:" + strings.Repeat("d", 64)
+
 	const (
 		gitRepo = "https://127.0.0.1:1/private"
 		ociRepo = "127.0.0.1:1/private"
@@ -43,8 +45,8 @@ func TestFetcher_CacheOfARepository(t *testing.T) {
 		},
 		{
 			name: "bundle",
-			req:  source.Request{Kind: source.KindGit, Repository: gitRepo, Ref: testRef, Commit: commit, Path: testDir},
-			dir:  func(f *Fetcher) string { return f.BundleDir(gitRepo, commit) },
+			req:  source.Request{Kind: source.KindGit, Repository: gitRepo, Ref: testRef, Commit: commit, Path: testDir, Digest: bundled},
+			dir:  func(f *Fetcher) string { return f.BundleDir(gitRepo, commit, testDir, bundled) },
 		},
 		{
 			name: "layer",

@@ -37,7 +37,7 @@ func (s *Stack) SourcedModules() []SourcedModule {
 	var out []SourcedModule
 
 	add := func(m SourcedModule) {
-		if !slices.ContainsFunc(out, func(o SourcedModule) bool { return o.Commit == m.Commit && o.Path == m.Path }) {
+		if !slices.ContainsFunc(out, m.isSame) {
 			out = append(out, m)
 		}
 	}
@@ -74,6 +74,11 @@ func (s *Stack) SourcedModules() []SourcedModule {
 	}
 
 	return out
+}
+
+// isSame reports whether two are one version of one module.
+func (m SourcedModule) isSame(o SourcedModule) bool {
+	return o.Repository == m.Repository && o.Commit == m.Commit && o.Path == m.Path
 }
 
 func moduleDirs(m *lang.Module) []string {

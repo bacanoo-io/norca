@@ -224,11 +224,14 @@ func (f *Fetcher) TreeDir(repository, commit string) string {
 	return filepath.Join(f.cache, "trees", repositoryKey(repository), commit)
 }
 
-// BundleDir is the directory of the files of a commit of a repository
-// imported from a bundle: the directories of its modules only, kept apart
-// from the full trees.
-func (f *Fetcher) BundleDir(repository, commit string) string {
-	return filepath.Join(f.cache, "bundles", repositoryKey(repository), commit)
+// BundleDir is the directory of a module imported from a bundle: the tree
+// of its directories at a commit of a repository, by the directory and the
+// digest of the module. A commit may have many modules, and their bundles
+// don't have each other's; the full trees are apart.
+func (f *Fetcher) BundleDir(repository, commit, dir, digest string) string {
+	sum := sha256.Sum256([]byte(path.Clean(dir) + "\x00" + digest))
+
+	return filepath.Join(f.cache, "bundles", repositoryKey(repository), commit, hex.EncodeToString(sum[:12]))
 }
 
 // cachedTree returns a tree of the commit the request locks when the
@@ -238,7 +241,7 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 		return source.Fetched{}, false
 	}
 
-	for _, dir := range []string{f.TreeDir(req.Repository, req.Commit), f.BundleDir(req.Repository, req.Commit)} {
+	for _, dir := range []string{f.TreeDir(req.Repository, req.Commit), f.BundleDir(req.Repository, req.Commit, req.Path, req.Digest)} {
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(req.Path), "metadata.hcl")); err == nil {
 			return source.Fetched{
 				FS: os.DirFS(dir), Dir: req.Path,

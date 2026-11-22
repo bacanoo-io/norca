@@ -42,7 +42,7 @@ func TestImportBundle_TwoRepositories(t *testing.T) {
 	mods := make([]rigger.SourcedModule, 0, len(repositories))
 	for _, repo := range repositories {
 		mods = append(mods, rigger.SourcedModule{
-			Source: repo + "//mod", Version: "1.0.0", Repository: repo, Path: "mod", Ref: "mod/v1.0.0",
+			Source: repo + "//mod", Version: bundledVersion, Repository: repo, Path: "mod", Ref: "mod/v1.0.0",
 			Commit: commit, Digest: digest, Dirs: []string{"mod"}, Root: root,
 		})
 	}
@@ -66,7 +66,7 @@ func TestImportBundle_TwoRepositories(t *testing.T) {
 	dirs := map[string]bool{}
 
 	for _, repo := range repositories {
-		dir := f.BundleDir(repo, commit)
+		dir := f.BundleDir(repo, commit, "mod", digest)
 		dirs[dir] = true
 
 		if _, err := os.Stat(filepath.Join(dir, "mod", "metadata.hcl")); err != nil {

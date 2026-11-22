@@ -558,7 +558,7 @@ func (src *riggerSources) fromBundle(req source.Request) (source.Fetched, bool) 
 	src.mu.Unlock()
 
 	return source.Fetched{
-		FS: os.DirFS(src.registries.fetcher.BundleDir(mod.repository, mod.commit)), Dir: path.Clean(mod.dir),
+		FS: os.DirFS(src.registries.fetcher.BundleDir(mod.repository, mod.commit, mod.dir, mod.digest)), Dir: path.Clean(mod.dir),
 		Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: req.Ref, Commit: req.Commit},
 	}, true
 }

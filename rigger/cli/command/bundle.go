@@ -174,7 +174,8 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	// Every module is checked in a directory beside the trees of the cache
 	// first; only a bundle whose modules all have their digests is placed,
 	// so a wrong one leaves nothing in the cache.
-	bundles := filepath.Dir(filepath.Dir(fetcher.BundleDir(m.Modules[0].Repository, m.Modules[0].Commit)))
+	// Above the key of the module, the commit and the key of the repository.
+	bundles := filepath.Dir(filepath.Dir(filepath.Dir(fetcher.BundleDir(m.Modules[0].Repository, m.Modules[0].Commit, "", ""))))
 	if err := os.MkdirAll(bundles, 0o750); err != nil {
 		return err
 	}
@@ -193,7 +194,7 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	}
 
 	for _, mod := range m.Modules {
-		checked, dir := staged.BundleDir(mod.Repository, mod.Commit), fetcher.BundleDir(mod.Repository, mod.Commit)
+		checked, dir := staged.BundleDir(mod.Repository, mod.Commit, mod.Path, mod.Digest), fetcher.BundleDir(mod.Repository, mod.Commit, mod.Path, mod.Digest)
 		if err := placeTree(checked, dir); err != nil {
 			return err
 		}
@@ -206,14 +207,13 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	return nil
 }
 
-// checkBundle writes the tree of each commit of each repository of a bundle
-// into the staging cache and checks that each module has the digest its
-// manifest says.
+// checkBundle writes the tree of each module of a bundle into the staging
+// cache and checks that each module has the digest its manifest says.
 func checkBundle(ctx context.Context, eng *rigger.Engine, staged *fetch.Fetcher, m *bundle.Manifest, files map[string]map[string][]byte) error {
 	for _, mod := range m.Modules {
-		dir := staged.BundleDir(mod.Repository, mod.Commit)
+		dir := staged.BundleDir(mod.Repository, mod.Commit, mod.Path, mod.Digest)
 		if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
-			if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
+			if err := bundle.WriteTree(dir, bundle.ModuleFiles(mod, files)); err != nil {
 				return err
 			}
 		}
@@ -232,7 +232,7 @@ func checkBundle(ctx context.Context, eng *rigger.Engine, staged *fetch.Fetcher,
 }
 
 // placeTree moves a checked tree to dir. A tree already at dir is kept, and
-// a commit placed already (two modules of one commit) is done.
+// a module the bundle names twice is done.
 func placeTree(checked, dir string) error {
 	if _, err := os.Stat(checked); errors.Is(err, fs.ErrNotExist) {
 		return nil

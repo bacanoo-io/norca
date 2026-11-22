@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -187,13 +188,85 @@ func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string]
 		return nil, nil, fmt.Errorf("%w: no manifest of format %d", ErrBundle, format)
 	}
 
-	for _, m := range manifest.Modules {
-		if !commitPattern.MatchString(m.Commit) {
-			return nil, nil, fmt.Errorf("%w: module %s %s: commit %q", ErrBundle, m.Source, m.Version, m.Commit)
-		}
+	if err := checkManifest(manifest, files, maxBytes); err != nil {
+		return nil, nil, err
 	}
 
 	return manifest, files, nil
+}
+
+// The bounds of a manifest: maxModules are as many as a stack may have, and
+// entryBytes is what a file costs a disk beside its data, as a tar has it.
+const (
+	maxModules = 1000
+	entryBytes = 512
+)
+
+// checkManifest checks what a manifest has written to a disk: each module
+// has a tree of its own (ModuleFiles), so a manifest that names one tree
+// again and again would multiply it past the bound of the archive.
+func checkManifest(manifest *Manifest, files map[string]map[string][]byte, maxBytes int64) error {
+	if len(manifest.Modules) > maxModules {
+		return fmt.Errorf("%w: %d modules, more than %d", ErrBundle, len(manifest.Modules), maxModules)
+	}
+
+	sorted := map[string][]string{}
+	for commit, tree := range files {
+		sorted[commit] = slices.Sorted(maps.Keys(tree))
+	}
+
+	var total int64
+
+	for _, m := range manifest.Modules {
+		if !commitPattern.MatchString(m.Commit) {
+			return fmt.Errorf("%w: module %s %s: commit %q", ErrBundle, m.Source, m.Version, m.Commit)
+		}
+
+		for _, dir := range m.Dirs {
+			for _, p := range inDir(sorted[m.Commit], dir) {
+				total += int64(len(files[m.Commit][p])) + entryBytes
+				if total > maxBytes {
+					return fmt.Errorf("%w (%d bytes, with the tree of each module)", ErrTooLarge, maxBytes)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// inDir returns the paths of sorted that are in dir, "." for all.
+func inDir(sorted []string, dir string) []string {
+	if dir == "." {
+		return sorted
+	}
+
+	prefix := dir + "/"
+	from, _ := slices.BinarySearch(sorted, prefix)
+	to := from
+
+	for to < len(sorted) && strings.HasPrefix(sorted[to], prefix) {
+		to++
+	}
+
+	return sorted[from:to]
+}
+
+// ModuleFiles returns the tree of a module of a bundle that Read returned:
+// the files of its directories at its commit. An import keeps each apart,
+// as two modules of one commit come in bundles of their own.
+func ModuleFiles(m rigger.SourcedModule, files map[string]map[string][]byte) map[string][]byte {
+	tree := files[m.Commit]
+	sorted := slices.Sorted(maps.Keys(tree))
+	out := map[string][]byte{}
+
+	for _, dir := range m.Dirs {
+		for _, p := range inDir(sorted, dir) {
+			out[p] = tree[p]
+		}
+	}
+
+	return out
 }
 
 // commitPattern is a commit of git: SHA-1 or SHA-256 in hex. A commit names

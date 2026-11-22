@@ -151,7 +151,7 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 		if req.Commit != "" && req.Repository != "" {
 			return f.gitFetch(ctx, source.Request{
 				Source: req.Source, Kind: source.KindGit, Repository: req.Repository, Path: req.Path,
-				Version: req.Version, Ref: req.Ref, Commit: req.Commit,
+				Version: req.Version, Ref: req.Ref, Commit: req.Commit, Digest: req.Digest,
 			})
 		}
 
@@ -180,7 +180,7 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 
 	fetched, err := f.gitFetch(ctx, source.Request{
 		Source: req.Source, Kind: source.KindGit, Repository: v.Repository, Path: v.Path,
-		Version: v.Version, Ref: v.Tag, Commit: v.Commit,
+		Version: v.Version, Ref: v.Tag, Commit: v.Commit, Digest: v.Digest,
 	})
 	if err != nil {
 		return source.Fetched{}, err
