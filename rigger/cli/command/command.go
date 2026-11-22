@@ -15,6 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 
 	"github.com/bacanoo-io/norca/rigger/cli/internal/logging"
 	"github.com/bacanoo-io/norca/rigger/oplog"
@@ -138,12 +139,27 @@ var commands = map[string]command{
 	cmdIndex: runIndex,
 }
 
+// Program is the program that runs the commands: the name its usage shows
+// and the version it prints. The rigger program is "rigger" with the version
+// of its module; norca runs the same commands as "norca rigger" with its own
+// version, the commit Rigger was built from (design/rig-integration.md 4.7).
+type Program struct {
+	Name    string
+	Version string
+}
+
 // Run runs the rigger program with its arguments, without the program name,
 // and returns the exit code.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("rigger", flag.ContinueOnError)
+	return RunProgram(ctx, Program{Name: "rigger", Version: version()}, args, stdout, stderr)
+}
+
+// RunProgram runs the commands as prog, with the arguments that follow its
+// name, and returns the exit code.
+func RunProgram(ctx context.Context, prog Program, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet(prog.Name, flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	flags.Usage = func() { printUsage(flags) }
+	flags.Usage = func() { printUsage(flags, prog) }
 
 	logFormat := flags.String("log-format", "text", "format of the log on standard error: text (a tree of operations) or json")
 	logLevel := flags.String("log-level", "info", "lowest level logged: debug, info, warn or error")
@@ -171,22 +187,22 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	switch name {
 	case cmdVersion:
 		return run(ctx, logger, stderr, name, func(context.Context) error {
-			_, err := fmt.Fprintf(stdout, "rigger %s\n", version())
+			_, err := fmt.Fprintf(stdout, "rigger %s\n", prog.Version)
 
 			return err
 		})
 	case cmdHelp:
 		flags.SetOutput(stdout)
-		printUsage(flags)
+		printUsage(flags, prog)
 
 		return exitOK
 	case "":
-		printUsage(flags)
+		printUsage(flags, prog)
 
 		return exitError
 	default:
 		warn(stderr, "unknown command %q", name)
-		printUsage(flags)
+		printUsage(flags, prog)
 
 		return exitError
 	}
@@ -246,9 +262,11 @@ func version() string {
 	return info.Main.Version
 }
 
-func printUsage(flags *flag.FlagSet) {
+// printUsage writes the usage, with the name of the program that runs the
+// commands.
+func printUsage(flags *flag.FlagSet, prog Program) {
 	w := flags.Output()
-	if _, err := io.WriteString(w, usage); err != nil {
+	if _, err := io.WriteString(w, strings.Replace(usage, "Usage: rigger", "Usage: "+prog.Name, 1)); err != nil {
 		return
 	}
 

@@ -1176,6 +1176,9 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
+		"rigger": func() (cli.Command, error) {
+			return &RiggerCommand{}, nil
+		},
 		"run": func() (cli.Command, error) {
 			return &JobRunCommand{
 				Meta: meta,

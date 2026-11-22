@@ -62,6 +62,41 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// norca runs the commands as "norca rigger": the usage names it, and the
+// version is the one norca gives.
+func TestRunProgram(t *testing.T) {
+	t.Parallel()
+
+	prog := Program{Name: "norca rigger", Version: "(norca 1.2.3)"}
+
+	tests := []struct {
+		name           string
+		args           []string
+		expectedCode   int
+		expectedStdout string
+	}{
+		{name: "version", args: []string{cmdVersion}, expectedCode: exitOK, expectedStdout: "rigger (norca 1.2.3)\n"},
+		{name: "help", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage: norca rigger [flags] <command>"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := RunProgram(t.Context(), prog, tt.args, &stdout, &stderr)
+			if code != tt.expectedCode {
+				t.Errorf("RunProgram() = %d, want %d (stderr %q)", code, tt.expectedCode, stderr.String())
+			}
+
+			if !strings.Contains(stdout.String(), tt.expectedStdout) {
+				t.Errorf("stdout = %q, want it to contain %q", stdout.String(), tt.expectedStdout)
+			}
+		})
+	}
+}
+
 func TestRun_Log(t *testing.T) {
 	t.Parallel()
 
