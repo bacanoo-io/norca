@@ -94,6 +94,50 @@ func EvaluateStack(ctx context.Context, s *lang.Stack, vars cty.Value, generated
 	return res, diags
 }
 
+// StackReleaseOrder returns the names of the releases of a stack in the
+// order an apply installs them, each after those it reads or names in
+// depends_on, the releases of a part (<part>-<name>) where the part is. It
+// evaluates nothing: the order comes from the references of the blocks, as
+// EvaluateStack takes it. A part whose stack was not fetched contributes
+// nothing.
+func StackReleaseOrder(s *lang.Stack) ([]string, hcl.Diagnostics) {
+	return stackReleaseOrder(s, "")
+}
+
+func stackReleaseOrder(s *lang.Stack, prefix string) ([]string, hcl.Diagnostics) {
+	r := &stackRun{stack: s, prefix: prefix}
+
+	nodes, diags := r.nodes()
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	order, moreDiags := orderNodes(nodes)
+	if diags = append(diags, moreDiags...); moreDiags.HasErrors() {
+		return nil, diags
+	}
+
+	var out []string
+
+	for _, key := range order {
+		n := nodes[key]
+
+		switch {
+		case n.release != nil:
+			out = append(out, prefix+n.release.Name)
+		case n.part != nil && n.part.Stack != nil:
+			inner, moreDiags := stackReleaseOrder(n.part.Stack, prefix+n.part.Name+"-")
+			if diags = append(diags, moreDiags...); moreDiags.HasErrors() {
+				return nil, diags
+			}
+
+			out = append(out, inner...)
+		}
+	}
+
+	return out, diags
+}
+
 func newStackRun(ctx context.Context, s *lang.Stack, vars cty.Value, generated Generated, cfg Config, prefix string) *stackRun {
 	return &stackRun{
 		ctx: ctx, stack: s, cfg: cfg, generated: generated, res: &StackResult{}, used: map[string]bool{},

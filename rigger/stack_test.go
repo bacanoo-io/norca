@@ -26,6 +26,8 @@ type fakeCluster struct {
 	mu       sync.Mutex
 	releases map[host.ReleaseRef][]host.ApplyRequest
 	secrets  map[string]map[string]host.Sensitive
+	// removed are the releases uninstalled, in order.
+	removed []string
 }
 
 func newFakeCluster() *fakeCluster {
@@ -102,6 +104,7 @@ func (f *fakeCluster) Uninstall(_ context.Context, ref host.ReleaseRef) error {
 	defer f.mu.Unlock()
 
 	delete(f.releases, ref)
+	f.removed = append(f.removed, ref.Name)
 
 	return nil
 }
@@ -404,5 +407,42 @@ func TestStack_CancelBetweenReleases(t *testing.T) {
 	removed, err := e.DestroyStack(ctx, s)
 	if !errors.Is(err, context.Canceled) || len(removed) != 0 || len(f.releases) != 1 {
 		t.Fatalf("DestroyStack() with a cancelled context = %v, %v; want nothing removed", removed, err)
+	}
+}
+
+// A destroy removes the releases in the reverse of the order of an apply:
+// app reads db, so app goes first, whatever the order of the blocks; a
+// release no longer in the stack goes before them.
+func TestStack_DestroyOrder(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+	e := stackEngine(t, f)
+
+	plan := planOf(t, e, stackFiles(twoReleases), nil)
+	if got := actions(plan); got != "db:install app:install" {
+		t.Fatalf("plan = %s", got)
+	}
+
+	if _, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{}); diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	// A release of the stack that it no longer has.
+	if _, err := f.Apply(t.Context(), host.ApplyRequest{Release: host.ReleaseRef{Namespace: testNamespace, Name: "old"}, Owner: "shop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	s, diags := e.LoadStack(t.Context(), stackFiles(twoReleases), "s")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if _, err := e.DestroyStack(t.Context(), s); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := strings.Join(f.removed, " "); got != "old app db" {
+		t.Errorf("removed %s, want old, then app, then db", got)
 	}
 }

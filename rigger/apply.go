@@ -4,6 +4,7 @@
 package rigger
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -257,15 +258,22 @@ func (e *Engine) destroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef,
 		return nil, err
 	}
 
-	// The order of the stack, reversed: a release is removed before those
-	// it reads. Releases no longer in the stack go first.
-	rank := map[string]int{}
-	for i, r := range s.s.Releases {
-		rank[r.Name] = i + 1
+	// The order of an apply, reversed: a release is removed before those it
+	// reads. Releases no longer in the stack go first.
+	order, diags := eval.StackReleaseOrder(s.s)
+	if diags.HasErrors() {
+		return nil, diags
 	}
 
+	rank := map[string]int{}
+	for i, name := range order {
+		rank[name] = i + 1
+	}
+
+	gone := len(order) + 1
+
 	slices.SortStableFunc(owned, func(a, b host.Revision) int {
-		return rank[b.Release.Name] - rank[a.Release.Name]
+		return cmp.Or(rank[b.Release.Name], gone) - cmp.Or(rank[a.Release.Name], gone)
 	})
 
 	var removed []host.ReleaseRef
