@@ -4,9 +4,10 @@
 repository with its history (step 4.0 of norca's `design/rig-integration.md`,
 phase 7). Nothing else changed; the state below is that of 2026-11-18.
 
-2026-11-22: the findings of the review of 2026-11-22 are fixed, but for
-the binding of `RIGGER_OCI_*` to one registry, which waits for a decision;
-what changed holds over what is below. The owner of a release is a field (the namespace and
+2026-11-22: the findings of the review of 2026-11-22 are fixed; what
+changed holds over what is below. A credential of the rigger program goes
+to its host only: `rigger login`, or `RIGGER_OCI_*` and `RIGGER_GIT_*`
+with their `_HOST`. The owner of a release is a field (the namespace and
 name of a stack), and `-adopt` takes one over. The servers fetch only from
 registered sources and bundles, with credentials that go with the right to
 read their Variable. Hidden paths are no content of a module. A plan
