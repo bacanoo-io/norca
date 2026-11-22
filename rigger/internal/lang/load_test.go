@@ -147,6 +147,11 @@ func loadErrorCases() []loadErrorCase {
 			expected: "The default is not a number",
 		},
 		{
+			name:     "a category of no list",
+			files:    fstest.MapFS{metadataHCL: {Data: []byte("module {\n  name     = \"app\"\n  version  = \"1.0.0\"\n  category = \"databases\"\n}\n")}},
+			expected: `"databases" is not a category: application, database,`,
+		},
+		{
 			name: "a file too large",
 			files: fstest.MapFS{
 				metadataHCL: {Data: []byte(metadata)},

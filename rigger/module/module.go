@@ -28,6 +28,14 @@ type Metadata struct {
 	Requires Requires `json:"requires"`
 }
 
+// Categories are the categories a module or a stack may have
+// (design/rig-integration.md 4.8 of norca): a catalog filters on them and
+// shows an icon of each.
+var Categories = []string{
+	"application", "database", "messaging", "observability", "platform",
+	"networking", "security", "storage", "developer-tools", "ai", "other",
+}
+
 // Requires are the requirements of a module on the cluster and on other
 // modules (design 6.5).
 type Requires struct {

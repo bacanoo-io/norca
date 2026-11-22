@@ -6,6 +6,8 @@ package lang
 import (
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -103,6 +105,12 @@ func (b *moduleBlock) metadata(rng hcl.Range, what string) (module.Metadata, hcl
 	if b.Version != "" && !semver.MatchString(b.Version) {
 		diags = append(diags, errorAt(rng, "Invalid version",
 			fmt.Sprintf("%q is not a semver version such as 1.2.0.", b.Version)))
+	}
+
+	// A catalog filters on the category and shows an icon of each.
+	if b.Category != "" && !slices.Contains(module.Categories, b.Category) {
+		diags = append(diags, errorAt(rng, "Invalid category",
+			fmt.Sprintf("%q is not a category: %s.", b.Category, strings.Join(module.Categories, ", "))))
 	}
 
 	md := module.Metadata{
