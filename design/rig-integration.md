@@ -691,6 +691,43 @@ blocks before).
   durations as nanoseconds and the CLI's tree logger panicked on the
   float depth of JSON.
 
+**4.6 after the review of 2026-11-22 (as built, branch fix/rigger-review).**
+The maintainer's decisions of that day:
+
+1. The owner of a release is a stack by namespace and name; another takes
+   it over only with adopt (409 without). The description is not read.
+2. The servers fetch only from registered sources: built in, the global
+   registry at its sync, registered git registries at their sync with their
+   `trustedKeys`. `oci://` and `dir://` are refused there.
+3. A registry with an `authSecret` is used only with read on that Variable,
+   on every use, also from the cache or a bundle.
+4. A hidden path is no content of a module and no module source.
+5. A bundle is a source only for the repository, commit and digest of a
+   lock; what only a bundle vouches for is not rendered by the server.
+   Without the index the signers of a lock of the global registry can't be
+   checked: the digest and the trust of the stack are.
+6. `required_version` is checked against the Norca version of the cluster
+   before a plan.
+7. `requires { module }` is checked before a plan: in the stack, or
+   installed in the namespace.
+8. The limits are in now; evaluation in a child process is a step of its
+   own (4.6d).
+
+Beside them: an install by the servers waits until the release is ready;
+the log of an operation answers with the phase where the bus can't be
+read, and is purged with its operation; the end of an operation is written
+again for up to a minute.
+
+**4.6d Evaluation in a child process (planned, not built).** A server
+evaluates the code of others in its own process. The limits bound nesting,
+sizes, counts, modules and time, and a panic becomes the error of its
+operation. They can't hold a stack overflow or an allocation past the
+memory of the server: Go ends the process for both, and with it the
+leader. Until this step that is the residual risk of `-server`, open to
+whoever may write a release. The step evaluates in a child process with a
+bound of memory and time, the host ports answered over a pipe, so that
+only the child dies.
+
 
 `command/rigger.go` registers the commands of `rigger/command` under `norca rigger`
 with `rigger/cli/norcaapi`, beside `norca pack`. A flag (or the configuration)
@@ -873,6 +910,10 @@ them learnt from the review fix rounds of 2026-11-17 and 18:
 
 - The lab case of Rigger's phase 5 (a stack on the lab) is not written; it
   is written for `rigger` after 4.0.
+- Closed 2026-11-22 (RIG-44, RIG-46): a credential of the rigger program
+  goes to its host only, from `rigger login` (a file by host) or from
+  `RIGGER_OCI_*` / `RIGGER_GIT_*` with their `_HOST`, over https. Reading
+  the credentials of docker and of git's helpers is left for later.
 - The operation object of a stack apply (4.6): its fields, how long it is
   kept, how a client reattaches.
 - Whether a stack apply holds one lock for the stack besides the per-release
