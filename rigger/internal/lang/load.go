@@ -23,6 +23,60 @@ type Limits struct {
 	FileBytes int64
 	// Depth bounds the nesting of child modules; 0 is no bound.
 	Depth int
+	// Modules bounds the modules of one load, each counted as often as it
+	// is called; 0 is no bound.
+	Modules int
+
+	// loaded counts over one load: the limits are passed down by value.
+	loaded *loaded
+}
+
+// parsedFactor is how many times ModuleBytes the parsed files of all
+// modules of one load may have.
+const parsedFactor = 4
+
+// loaded is what one load has read.
+type loaded struct {
+	modules int
+	bytes   int64
+	// over is set once a bound is passed: the loops of the load stop.
+	over bool
+}
+
+// start returns the limits of a new load.
+func (l Limits) start() Limits {
+	l.loaded = &loaded{}
+
+	return l
+}
+
+// takeModule counts one more module, and reports whether it is within the
+// bound.
+func (l Limits) takeModule() bool {
+	l.loaded.modules++
+	if l.Modules > 0 && l.loaded.modules > l.Modules {
+		l.loaded.over = true
+	}
+
+	return !l.loaded.over
+}
+
+// takeBytes counts n more parsed bytes, and reports whether they are within
+// the bound.
+func (l Limits) takeBytes(n int) bool {
+	l.loaded.bytes += int64(n)
+	if l.ModuleBytes > 0 && l.loaded.bytes > parsedFactor*l.ModuleBytes {
+		l.loaded.over = true
+	}
+
+	return !l.loaded.over
+}
+
+func tooManyModules(limit int) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError, Summary: "Too many modules",
+		Detail: fmt.Sprintf("They are more than %d modules with their child modules, the limit of the engine.", limit),
+	}
 }
 
 // topDirs are the directories a module may have.
@@ -64,12 +118,16 @@ func Load(ctx context.Context, fsys fs.FS, limits Limits) (*Module, hcl.Diagnost
 // modules. A child module comes from a local source, a directory relative
 // to the module that calls it, inside root: nothing outside root is read.
 func LoadAt(ctx context.Context, root fs.FS, dir string, limits Limits) (*Module, hcl.Diagnostics) {
-	return loadTree(ctx, root, path.Clean(dir), "", limits, nil)
+	return loadTree(ctx, root, path.Clean(dir), "", limits.start(), nil)
 }
 
 // loadTree loads the module in dir and its children; stack holds the
 // directories of the modules that call it.
 func loadTree(ctx context.Context, root fs.FS, dir, prefix string, limits Limits, stack []string) (*Module, hcl.Diagnostics) {
+	if !limits.takeModule() {
+		return &Module{Sources: map[string][]byte{}}, hcl.Diagnostics{tooManyModules(limits.Modules)}
+	}
+
 	fsys, err := fs.Sub(root, dir)
 	if err != nil {
 		return &Module{Sources: map[string][]byte{}}, hcl.Diagnostics{{
@@ -231,6 +289,16 @@ func (l *loader) parse(p string, kind FileKind, rt ResourceType, name string) er
 		return err
 	}
 
+	if !l.limits.takeBytes(len(src)) {
+		l.diags = append(l.diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError, Summary: "Modules too large",
+			Detail: fmt.Sprintf("The files of the modules together have more than %d bytes to parse, the limit of the engine.",
+				parsedFactor*l.limits.ModuleBytes),
+		})
+
+		return errLimitStop
+	}
+
 	l.mod.Sources[l.name(p)] = src
 
 	file, diags := syntax.ParseConfig(src, l.name(p))
@@ -312,5 +380,5 @@ func (m *Module) decodeResource(file *hcl.File, rt ResourceType, name string) hc
 // naming its files with prefix in diagnostics: a module fetched from a
 // source, named after its address and version.
 func LoadAs(ctx context.Context, root fs.FS, dir, prefix string, limits Limits) (*Module, hcl.Diagnostics) {
-	return loadTree(ctx, root, path.Clean(dir), prefix, limits, nil)
+	return loadTree(ctx, root, path.Clean(dir), prefix, limits.start(), nil)
 }

@@ -34,6 +34,9 @@ func (f repoFetcher) Fetch(_ context.Context, req source.Request) (source.Fetche
 	}, nil
 }
 
+// publishedVersion is the version of what the test repositories publish.
+const publishedVersion = "1.0.0"
+
 // publishedData is a repository with the published stack data 1.0.0: a
 // database of its own module, its service as an output.
 func publishedData() fstest.MapFS {
@@ -81,7 +84,7 @@ func TestStack_Parts(t *testing.T) {
 	cluster := newFakeCluster()
 
 	e, err := rigger.New(rigger.WithReleases(cluster), rigger.WithSecrets(cluster), rigger.WithLogger(slog.New(slog.DiscardHandler)),
-		rigger.WithFetcher(repoFetcher{tree: publishedData(), version: "1.0.0"}))
+		rigger.WithFetcher(repoFetcher{tree: publishedData(), version: publishedVersion}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +127,7 @@ func TestStack_Parts(t *testing.T) {
 	tampered := publishedData()
 	tampered["stacks/data/outputs.hcl"] = &fstest.MapFile{Data: []byte("output \"service\" {\n  value = \"x\"\n}\n")}
 
-	e2, _ := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(repoFetcher{tree: tampered, version: "1.0.0"}))
+	e2, _ := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(repoFetcher{tree: tampered, version: publishedVersion}))
 	if _, diags := e2.LoadStack(t.Context(), files, "s"); !strings.Contains(diags.Error(), "is not what the lock file records") {
 		t.Fatalf("a changed part: %v", diags)
 	}
@@ -138,7 +141,7 @@ func TestPlanStack_SensitivePartValues(t *testing.T) {
 		f := newFakeCluster()
 
 		e, err := rigger.New(rigger.WithReleases(f), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)),
-			rigger.WithFetcher(repoFetcher{tree: publishedData(), version: "1.0.0"}))
+			rigger.WithFetcher(repoFetcher{tree: publishedData(), version: publishedVersion}))
 		if err != nil {
 			t.Fatal(err)
 		}

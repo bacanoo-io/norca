@@ -18,7 +18,7 @@ import (
 // file records them: the version and its digest, which must match, signed
 // as the trust of the stack asks; and the modules of each part as its own
 // lock file pins them.
-func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []eval.TrustRule) hcl.Diagnostics {
+func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []eval.TrustRule, total *int) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, p := range s.Parts {
@@ -49,7 +49,11 @@ func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []
 			continue
 		}
 
-		diags = append(diags, e.resolveLocked(ctx, fs.stack)...)
+		diags = append(diags, e.resolveCounted(ctx, fs.stack, total)...)
+		if *total > e.limits.Modules {
+			return diags
+		}
+
 		diags = append(diags, fs.advisories(rng)...)
 		p.Stack, p.Locked, p.Signatures = fs.stack, entry, fs.signatures
 	}

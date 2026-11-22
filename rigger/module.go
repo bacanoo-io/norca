@@ -133,9 +133,7 @@ func (e *Engine) LoadModuleAt(ctx context.Context, root fs.FS, dir string) (_ *M
 
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.load", "dir", dir)
 
-	mod, diags := lang.LoadAt(ctx, root, dir, lang.Limits{
-		ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth,
-	})
+	mod, diags := lang.LoadAt(ctx, root, dir, e.langLimits())
 	span.End(ctx, diagsErr(diags))
 
 	return &Module{mod: mod, fsys: mod.FS}, diags

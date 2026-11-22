@@ -117,7 +117,9 @@ func (e *Engine) ReadStack(ctx context.Context, root fs.FS, dir string) (_ *Stac
 
 // langLimits are the limits of the engine for loading.
 func (e *Engine) langLimits() lang.Limits {
-	return lang.Limits{ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth}
+	return lang.Limits{
+		ModuleBytes: e.limits.ModuleBytes, FileBytes: e.limits.FileBytes, Depth: e.limits.Depth, Modules: e.limits.Modules,
+	}
 }
 
 // ReleaseAction is what a plan does to a release (design 9.2).

@@ -21,6 +21,10 @@ type Limits struct {
 	Resources int
 	// Depth bounds the nesting of child modules.
 	Depth int
+	// Modules bounds the modules of one module or stack, child modules
+	// included, each counted as often as it is called: their depth does not
+	// bound their number.
+	Modules int
 	// Duration bounds the time of one evaluation.
 	Duration time.Duration
 }
@@ -34,6 +38,7 @@ func DefaultLimits() Limits {
 		FileBytes:   1 << 20,
 		Resources:   1000,
 		Depth:       8,
+		Modules:     1000,
 		Duration:    30 * time.Second,
 	}
 }
@@ -55,6 +60,10 @@ func (l Limits) validate() error {
 
 	if l.Depth <= 0 {
 		errs = append(errs, fmt.Errorf("depth %d is not positive", l.Depth))
+	}
+
+	if l.Modules <= 0 {
+		errs = append(errs, fmt.Errorf("modules %d is not positive", l.Modules))
 	}
 
 	if l.Duration <= 0 {

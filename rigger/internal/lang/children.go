@@ -40,6 +40,10 @@ func loadChildren(ctx context.Context, root fs.FS, m *Module, prefix string, lim
 		if child != nil {
 			m.Children = append(m.Children, child)
 		}
+
+		if limits.loaded.over || ctx.Err() != nil {
+			break
+		}
 	}
 
 	return diags

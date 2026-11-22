@@ -189,8 +189,20 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 
 	s.Vars.Metadata.Name = s.Rigger.Name
 
+	// Before any is loaded or fetched: the modules of sources come later,
+	// one fetch for each.
+	if limits.Modules > 0 && len(s.Releases)+len(s.Parts) > limits.Modules {
+		return s, append(diags, tooManyModules(limits.Modules))
+	}
+
+	limits = limits.start()
+
 	for _, r := range s.Releases {
 		diags = append(diags, s.loadRelease(ctx, root, r, limits)...)
+
+		if limits.loaded.over {
+			return s, diags
+		}
 	}
 
 	for _, p := range s.Parts {

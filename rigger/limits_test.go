@@ -29,6 +29,7 @@ func TestLimits_validate(t *testing.T) {
 		{name: "file bytes", change: func(l *Limits) { l.FileBytes = -1 }, expected: "file bytes -1"},
 		{name: "resources", change: func(l *Limits) { l.Resources = 0 }, expected: "resources 0"},
 		{name: "depth", change: func(l *Limits) { l.Depth = 0 }, expected: "depth 0"},
+		{name: "modules", change: func(l *Limits) { l.Modules = 0 }, expected: "modules 0"},
 		{name: "duration", change: func(l *Limits) { l.Duration = -time.Second }, expected: "duration -1s"},
 	}
 

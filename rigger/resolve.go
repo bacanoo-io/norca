@@ -29,12 +29,30 @@ var ErrNoFetcher = errors.New("the engine has no fetcher of modules (rigger.With
 // file of the stack records them (design 8.3): the version, the tag and its
 // commit, and the tree digest, which must match.
 func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnostics {
+	var total int
+
+	return e.resolveCounted(ctx, s, &total)
+}
+
+// resolveCounted is resolveLocked of a stack or of the stack of a part;
+// total counts the modules of them all against Limits.Modules.
+func (e *Engine) resolveCounted(ctx context.Context, s *lang.Stack, total *int) hcl.Diagnostics {
 	rules, diags := eval.StackTrust(s, e.limits.FileBytes)
 	if diags.HasErrors() {
 		return diags
 	}
 
 	for _, r := range s.Releases {
+		if r.Address == nil && r.Module != nil {
+			*total += moduleCount(r.Module)
+		}
+	}
+
+	for _, r := range s.Releases {
+		if *total > e.limits.Modules {
+			return append(diags, e.tooManyModules(r.Block.DefRange))
+		}
+
 		if r.Address == nil {
 			continue
 		}
@@ -69,9 +87,34 @@ func (e *Engine) resolveLocked(ctx context.Context, s *lang.Stack) hcl.Diagnosti
 		diags = append(diags, advisories(rng, r.Source, fm)...)
 
 		r.Module, r.Locked = fm.module, entry
+
+		*total += moduleCount(fm.module)
+		if *total > e.limits.Modules {
+			return append(diags, e.tooManyModules(rng))
+		}
 	}
 
-	return append(diags, e.resolveLockedParts(ctx, s, rules)...)
+	return append(diags, e.resolveLockedParts(ctx, s, rules, total)...)
+}
+
+// moduleCount is the number of modules of a tree, as often as each is
+// called.
+func moduleCount(m *lang.Module) int {
+	n := 1
+
+	for _, c := range m.Children {
+		if c.Module != nil {
+			n += moduleCount(c.Module)
+		}
+	}
+
+	return n
+}
+
+// tooManyModules is the diagnostic of a stack over Limits.Modules.
+func (e *Engine) tooManyModules(rng hcl.Range) *hcl.Diagnostic {
+	return diagAt(rng, "Too many modules", fmt.Sprintf(
+		"The stack has more than %d modules with their child modules, the limit of the engine.", e.limits.Modules))
 }
 
 // trustRule is the rule of a registry, else the default rule (a trust

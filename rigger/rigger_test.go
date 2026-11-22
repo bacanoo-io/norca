@@ -136,7 +136,7 @@ func TestNew_Options(t *testing.T) {
 
 	logger := slog.New(slog.DiscardHandler)
 	clock := fixedClock{now: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)}
-	limits := Limits{ModuleBytes: 1, FileBytes: 1, Resources: 1, Depth: 1, Duration: time.Second}
+	limits := Limits{ModuleBytes: 1, FileBytes: 1, Resources: 1, Depth: 1, Modules: 1, Duration: time.Second}
 
 	tests := []struct {
 		name  string
@@ -188,7 +188,7 @@ func TestNew_InvalidOptions(t *testing.T) {
 		{name: "nil clock", opt: WithClock(nil), expected: "rigger: invalid option: nil clock"},
 		{name: "nil logger", opt: WithLogger(nil), expected: "rigger: invalid option: nil logger"},
 		{name: "zero limits", opt: WithLimits(Limits{}), expected: "rigger: invalid option: module bytes 0 is not positive\n" +
-			"file bytes 0 is not positive\nresources 0 is not positive\ndepth 0 is not positive\nduration 0s is not positive"},
+			"file bytes 0 is not positive\nresources 0 is not positive\ndepth 0 is not positive\nmodules 0 is not positive\nduration 0s is not positive"},
 	}
 
 	for _, tt := range tests {
