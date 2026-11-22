@@ -257,3 +257,48 @@ func TestFollowOperation_Cancel(t *testing.T) {
 		t.Errorf("stderr %q", stderr.String())
 	}
 }
+
+// Where the log can't be read the command follows the phase, says so once
+// and has the result of the operation.
+func TestFollowOperation_WithoutLog(t *testing.T) {
+	t.Parallel()
+
+	var reads atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/v1/rigger/operation/op1/log":
+			phase, finished := "Running", "false"
+			if reads.Add(1) > 2 {
+				phase, finished = "Succeeded", "true"
+			}
+
+			_, _ = w.Write([]byte(`{"Lines":[],"Phase":"` + phase + `","Finished":` + finished + `,"LogUnavailable":"the bus is not ready"}`))
+		case "/v1/object/rigger.norca.io/Operation/op1":
+			_, _ = w.Write([]byte(`{"Namespace":"shop","Name":"op1","Spec":{"stack":"shop","action":"apply"},"Status":{"phase":"Succeeded"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := api.DefaultConfig()
+	cfg.Address = srv.URL
+
+	client, err := api.NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+
+	if err := followOperation(t.Context(), slog.New(slog.DiscardHandler), &stdout, &stderr, client, "shop", "op1"); err != nil {
+		t.Errorf("followOperation() = %v", err)
+	}
+
+	if strings.Count(stderr.String(), "the bus is not ready") != 1 {
+		t.Errorf("stderr %q, want the reason once", stderr.String())
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -260,7 +261,10 @@ func followOperation(ctx context.Context, logger *slog.Logger, stdout, stderr io
 		}
 	}()
 
-	var after uint64
+	var (
+		after uint64
+		noLog sync.Once
+	)
 
 	for {
 		page, _, err := client.Rigger().OperationLog(name, after, 0, operationLogWait, (&api.QueryOptions{}).WithContext(follow))
@@ -272,6 +276,12 @@ func followOperation(ctx context.Context, logger *slog.Logger, stdout, stderr io
 			}
 
 			return err
+		}
+
+		if page.LogUnavailable != "" {
+			noLog.Do(func() {
+				warn(stderr, "the log of the operation %s can't be read (%s): following its phase", name, page.LogUnavailable)
+			})
 		}
 
 		for _, line := range page.Lines {

@@ -153,6 +153,9 @@ type RiggerOperationLog struct {
 	// will follow.
 	Phase    string
 	Finished bool
+	// LogUnavailable says why this page has no records: the log could not
+	// be read (a server without a bus), and Finished is of the phase alone.
+	LogUnavailable string
 }
 
 // StackPlan plans a stack.

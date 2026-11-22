@@ -117,6 +117,9 @@ type RiggerOperationLogResponse struct {
 	Lines    []RiggerLogLine
 	Phase    string
 	Finished bool
+	// LogUnavailable says why this page has no records: the log could not
+	// be read (a server without a bus), and Finished is of the phase alone.
+	LogUnavailable string `json:",omitempty"`
 	structs.QueryMeta
 }
 
@@ -308,7 +311,8 @@ func (r *Rigger) CancelOperation(args *RiggerOperationNameRequest, reply *Rigger
 }
 
 // OperationLog reads a page of the log of an operation from the bus. It
-// needs read on operations in the namespace.
+// needs read on operations in the namespace. The log is beside the
+// operation: without it a reader still follows the phase.
 func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOperationLogResponse) (retErr error) {
 	defer r.srv.recoverRigger("Rigger.OperationLog", &retErr)
 
@@ -352,8 +356,11 @@ func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOper
 		},
 	}
 
-	if reply.Lines, reply.Phase, reply.Finished, err = page.next(wait); err != nil {
-		return err
+	var unavailable error
+
+	reply.Lines, reply.Phase, reply.Finished, unavailable = page.next(wait)
+	if unavailable != nil {
+		reply.LogUnavailable = operatorMessage(unavailable.Error())
 	}
 
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
@@ -809,7 +816,9 @@ type riggerLogPage struct {
 	read  func(after uint64, limit int, wait time.Duration) ([]RiggerLogLine, error)
 }
 
-// next returns the records, the phase and whether the log ends with them.
+// next returns the records, the phase, whether the log ends with them, and
+// why there are none when the log can't be read: then it waits by the
+// phase and ends with it, as nothing more can be read.
 // The log ends with a page that is not full and was read after the phase
 // was seen final: the last records are written before the end, so a read
 // before it may miss them. The wait goes in slices, the phase read between
@@ -829,12 +838,16 @@ func (p riggerLogPage) next(wait time.Duration) ([]RiggerLogLine, string, bool, 
 		}
 
 		lines, err := p.read(p.after, p.limit, slice)
-		if err != nil {
-			return nil, phase, false, err
+		if len(lines) > 0 && err != nil {
+			return lines, phase, false, nil // the rest is read again
 		}
 
 		if ended {
-			return lines, phase, len(lines) < p.limit, nil
+			return lines, phase, len(lines) < p.limit, err
+		}
+
+		if err != nil {
+			time.Sleep(slice) // a read that fails doesn't wait
 		}
 
 		phase = p.phase()
@@ -842,7 +855,7 @@ func (p riggerLogPage) next(wait time.Duration) ([]RiggerLogLine, string, bool, 
 		// With records the reader asks again; without, what came before
 		// the end is read now.
 		if len(lines) > 0 || (slice == 0 && !isFinishedRiggerOperation(phase)) {
-			return lines, phase, false, nil
+			return lines, phase, false, err
 		}
 	}
 }
