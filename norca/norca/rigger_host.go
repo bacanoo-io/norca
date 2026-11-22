@@ -387,9 +387,22 @@ func (s riggerSecrets) Ensure(ctx context.Context, secret host.Secret) (bool, er
 	}
 
 	req := &structs.SecretUpsertRequest{Path: secret.Path, Items: items, WriteRequest: s.h.write(s.h.namespace)}
-	if !secret.Overwrite {
+	switch {
+	case !secret.Overwrite:
 		zero := uint64(0)
 		req.CheckIndex = &zero
+	case secret.Replaces != nil:
+		// A check and set on the items the caller read.
+		var now structs.SecretReadResponse
+		if err := s.h.srv.RPC("Secret.Read", &structs.SecretReadRequest{Path: secret.Path, QueryOptions: s.h.query(s.h.namespace)}, &now); err != nil {
+			return false, err
+		}
+
+		if now.Secret == nil || !secret.ReplacesOnly(sensitiveItems(now.Items)) {
+			return false, nil
+		}
+
+		req.CheckIndex = &now.Secret.ModifyIndex
 	}
 
 	var resp structs.SecretWriteResponse
@@ -416,12 +429,16 @@ func (s riggerSecrets) Read(ctx context.Context, path string) (map[string]host.S
 		return nil, fmt.Errorf("%w: secret %s", host.ErrNotFound, path)
 	}
 
-	out := make(map[string]host.Sensitive, len(resp.Items))
-	for k, v := range resp.Items {
+	return sensitiveItems(resp.Items), nil
+}
+
+func sensitiveItems(items structs.SecretItems) map[string]host.Sensitive {
+	out := make(map[string]host.Sensitive, len(items))
+	for k, v := range items {
 		out[k] = host.NewSensitive(v)
 	}
 
-	return out, nil
+	return out
 }
 
 // riggerStore is host.Store in a directory of the data dir of the server.

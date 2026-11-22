@@ -116,7 +116,7 @@ func (f *fakeCluster) Ensure(_ context.Context, s host.Secret) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if _, ok := f.secrets[s.Path]; ok && !s.Overwrite {
+	if now, ok := f.secrets[s.Path]; ok && (!s.Overwrite || (s.Replaces != nil && !s.ReplacesOnly(now))) {
 		return false, nil
 	}
 

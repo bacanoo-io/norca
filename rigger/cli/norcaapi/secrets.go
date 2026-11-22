@@ -36,6 +36,10 @@ func (s *Secrets) Ensure(ctx context.Context, secret host.Secret) (bool, error) 
 
 	w := &api.SecretWrite{Items: items}
 
+	if secret.Overwrite && secret.Replaces != nil {
+		return s.replace(ctx, secret, w)
+	}
+
 	if secret.Overwrite {
 		_, _, err := s.client.Secrets().Write(secret.Path, w, write(ctx, s.namespace))
 
@@ -52,6 +56,28 @@ func (s *Secrets) Ensure(ctx context.Context, secret host.Secret) (bool, error) 
 			return false, nil
 		}
 	}
+
+	return err == nil, err
+}
+
+// replace writes over the items the caller read (host.Secret.Replaces),
+// checked by the index they have now.
+func (s *Secrets) replace(ctx context.Context, secret host.Secret, w *api.SecretWrite) (bool, error) {
+	v, _, err := s.client.Secrets().Read(secret.Path, 0, query(ctx, s.namespace))
+	if err != nil {
+		return false, err
+	}
+
+	now := make(map[string]host.Sensitive, len(v.Items))
+	for k, item := range v.Items {
+		now[k] = host.NewSensitive(item)
+	}
+
+	if v.Secret == nil || !secret.ReplacesOnly(now) {
+		return false, nil
+	}
+
+	_, _, err = s.client.Secrets().CheckedWrite(secret.Path, v.Secret.ModifyIndex, w, write(ctx, s.namespace))
 
 	return err == nil, err
 }

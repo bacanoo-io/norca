@@ -186,9 +186,9 @@ func (e *Engine) applyGenerated(ctx context.Context, plan *StackPlan) error {
 		return err
 	}
 
-	items := map[string]host.Sensitive{}
+	items, read := map[string]host.Sensitive{}, map[string]host.Sensitive{}
 	for k, v := range existing {
-		items[k] = host.NewSensitive(v)
+		items[k], read[k] = host.NewSensitive(v), host.NewSensitive(v)
 	}
 
 	for _, name := range plan.Generate {
@@ -199,9 +199,22 @@ func (e *Engine) applyGenerated(ctx context.Context, plan *StackPlan) error {
 		items[name] = host.NewSensitive(plan.generated[name])
 	}
 
-	_, err = e.secrets.Ensure(ctx, host.Secret{Path: generatedPath(plan.Stack), Items: items, Overwrite: len(existing) > 0})
+	secret := host.Secret{Path: generatedPath(plan.Stack), Items: items}
+	if len(existing) > 0 {
+		secret.Overwrite, secret.Replaces = true, read
+	}
 
-	return err
+	written, err := e.secrets.Ensure(ctx, secret)
+	if err != nil {
+		return err
+	}
+
+	// The values of this plan are stored, or none of it is applied.
+	if !written {
+		return ErrGeneratedMeanwhile
+	}
+
+	return nil
 }
 
 // applySecrets creates the secrets of the stack, or overwrites those that

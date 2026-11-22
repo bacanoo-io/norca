@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 )
 
 // redacted is what a Sensitive value shows instead of itself.
@@ -73,6 +74,16 @@ type Secret struct {
 	// Overwrite replaces the items when the secret exists. Without it an
 	// existing secret is left as it is.
 	Overwrite bool
+	// Replaces, with Overwrite, are the items the caller read: the write
+	// replaces only those, as a check and set. A secret that has others by
+	// then stays, and Ensure reports that it wrote nothing.
+	Replaces map[string]Sensitive
+}
+
+// ReplacesOnly reports whether a write of the secret may replace the items
+// the store has now (Replaces).
+func (s Secret) ReplacesOnly(now map[string]Sensitive) bool {
+	return maps.EqualFunc(s.Replaces, now, func(a, b Sensitive) bool { return a.Reveal() == b.Reveal() })
 }
 
 // Secrets is the secret store of the cluster.
