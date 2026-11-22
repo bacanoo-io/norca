@@ -122,6 +122,13 @@ func (r *Releases) Owned(ctx context.Context, owner string) ([]host.Revision, er
 		return nil, err
 	}
 
+	return OwnedOf(rels, owner), nil
+}
+
+// OwnedOf returns the current revisions of the releases of the list that
+// the stack owns (by Owner, or the description of a release written before
+// the field).
+func OwnedOf(rels []*api.Release, owner string) []host.Revision {
 	var out []host.Revision
 
 	for _, rel := range rels {
@@ -129,21 +136,27 @@ func (r *Releases) Owned(ctx context.Context, owner string) ([]host.Revision, er
 			continue
 		}
 
-		rev := host.Revision{
-			Release: host.ReleaseRef{Namespace: rel.Namespace, Name: rel.Name},
-			Number:  rel.Spec.Revision,
-			Owner:   owner,
-			Module:  moduleRef(rel.Spec.Pack),
-		}
-
-		if rel.Status != nil {
-			rev.Status = rel.Status.Phase
-		}
-
-		out = append(out, rev)
+		out = append(out, CurrentOf(rel))
 	}
 
-	return out, nil
+	return out
+}
+
+// CurrentOf is the current revision of a release, as a list shows it: its
+// number, module, owner and phase.
+func CurrentOf(rel *api.Release) host.Revision {
+	rev := host.Revision{Release: host.ReleaseRef{Namespace: rel.Namespace, Name: rel.Name}}
+
+	if rel.Spec != nil {
+		rev.Number, rev.Module = rel.Spec.Revision, moduleRef(rel.Spec.Pack)
+		rev.Owner = ownerOf(rel.Spec.Owner, rel.Spec.Description)
+	}
+
+	if rel.Status != nil {
+		rev.Status = rel.Status.Phase
+	}
+
+	return rev
 }
 
 // Plan returns what the server would change for the request.
@@ -158,7 +171,13 @@ func (r *Releases) Plan(ctx context.Context, req host.ApplyRequest) (host.Plan, 
 		return host.Plan{}, err
 	}
 
-	plan := host.Plan{Release: req.Release}
+	return PlanOf(req.Release, resp), nil
+}
+
+// PlanOf is the plan of a release from the answer of a dry run: the
+// resources it would change.
+func PlanOf(ref host.ReleaseRef, resp *api.ReleaseApplyResponse) host.Plan {
+	plan := host.Plan{Release: ref}
 
 	for _, ch := range resp.Changes {
 		if ch == nil || ch.Action == "unchanged" || ch.Action == "" {
@@ -168,7 +187,7 @@ func (r *Releases) Plan(ctx context.Context, req host.ApplyRequest) (host.Plan, 
 		plan.Changes = append(plan.Changes, host.Change{Kind: resource.Kind(ch.Type), Name: ch.Name, Action: host.Action(ch.Action)})
 	}
 
-	return plan, nil
+	return plan
 }
 
 // Drift returns the resources of a release that differ in the cluster.
@@ -178,12 +197,17 @@ func (r *Releases) Drift(ctx context.Context, ref host.ReleaseRef) (host.Drift, 
 		return host.Drift{}, notFound(err)
 	}
 
+	return DriftOf(ref, resp), nil
+}
+
+// DriftOf is the drift of a release from the answer of the release API.
+func DriftOf(ref host.ReleaseRef, resp *api.ReleaseDriftResponse) host.Drift {
 	d := host.Drift{Release: ref}
 	for _, e := range resp.Resources {
 		d.Entries = append(d.Entries, host.DriftEntry{Kind: resource.Kind(e.Type), Name: e.Name, Detail: e.Reason})
 	}
 
-	return d, nil
+	return d
 }
 
 // Apply applies the request as a new revision.
@@ -235,6 +259,11 @@ func (r *Releases) revisionOf(ctx context.Context, ref host.ReleaseRef, number u
 	return revision(ref, rev), nil
 }
 
+// RevisionOf maps a revision of the release API.
+func RevisionOf(ref host.ReleaseRef, rev *api.ReleaseRevision) host.Revision {
+	return revision(ref, rev)
+}
+
 // revision maps a revision of the API.
 func revision(ref host.ReleaseRef, rev *api.ReleaseRevision) host.Revision {
 	out := host.Revision{Release: ref, Number: rev.Revision}
@@ -267,6 +296,12 @@ func moduleRef(p *api.ReleasePack) host.ModuleRef {
 	}
 
 	return ref
+}
+
+// ApplyRequest maps a request of the engine onto a request of the release
+// API (applyRequest).
+func ApplyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
+	return applyRequest(req)
 }
 
 // applyRequest maps a request of the engine onto the release API: the
@@ -345,18 +380,7 @@ func (r *Releases) List(ctx context.Context, namespace string) ([]host.Revision,
 	out := make([]host.Revision, 0, len(rels))
 
 	for _, rel := range rels {
-		rev := host.Revision{Release: host.ReleaseRef{Namespace: rel.Namespace, Name: rel.Name}}
-
-		if rel.Spec != nil {
-			rev.Number, rev.Module = rel.Spec.Revision, moduleRef(rel.Spec.Pack)
-			rev.Owner = ownerOf(rel.Spec.Owner, rel.Spec.Description)
-		}
-
-		if rel.Status != nil {
-			rev.Status = rel.Status.Phase
-		}
-
-		out = append(out, rev)
+		out = append(out, CurrentOf(rel))
 	}
 
 	slices.SortFunc(out, func(a, b host.Revision) int {
