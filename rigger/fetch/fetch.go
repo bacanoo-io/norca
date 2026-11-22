@@ -45,7 +45,10 @@ type Fetcher struct {
 	indexMu sync.Mutex
 	index   *globalIndex
 
-	mu      sync.Mutex
+	// repos serializes the fetches of one mirror, by its directory.
+	repos keyedLock
+
+	mu      sync.Mutex      // guards updated, never held over the network
 	updated map[string]bool // mirrors fetched in this run
 
 	// credentials returns the credentials of a git repository; nil reads

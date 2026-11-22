@@ -35,8 +35,11 @@ type riggerRegistries struct {
 	srv     *Server
 	fetcher *fetch.Fetcher
 
-	// syncMu makes the syncs of this server one at a time.
-	syncMu sync.Mutex
+	// syncsMu guards syncs: the syncs of one registry run one at a time,
+	// by its name. One lock for all would let a registry that does not
+	// answer hold up the syncs of the others.
+	syncsMu sync.Mutex
+	syncs   map[string]*sync.Mutex
 
 	// mu guards indexes: what a registry offers at a source and commit, read
 	// once.
@@ -64,6 +67,7 @@ func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 		srv:      srv,
 		fetcher:  fetch.New(filepath.Join(dir, "cache")),
 		indexes:  map[string]*riggerRegistryIndex{},
+		syncs:    map[string]*sync.Mutex{},
 		unpacked: map[string]bool{},
 	}
 	r.fetcher.SetCredentials(r.credentials)
@@ -158,9 +162,21 @@ func (s *Server) syncRiggerRegistry(name string) (*RiggerRegistry, uint64, error
 		return nil, 0, err
 	}
 
-	r.syncMu.Lock()
-	defer r.syncMu.Unlock()
+	// A lock only for a name that is a registry, so that the names of
+	// requests don't fill the map.
+	found, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", name)
+	if err != nil {
+		return nil, 0, err
+	}
 
+	if found == nil {
+		return nil, 0, structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", structs.RiggerRegistryKindRef, name)
+	}
+
+	unlock := r.lockSync(name)
+	defer unlock()
+
+	// Read again: the sync that held the lock wrote it.
 	obj, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", name)
 	if err != nil {
 		return nil, 0, err
@@ -205,6 +221,23 @@ func (s *Server) syncRiggerRegistry(name string) (*RiggerRegistry, uint64, error
 	out, err := riggerRegistryFromObject(written)
 
 	return out, written.ModifyIndex, err
+}
+
+// lockSync takes the lock of the syncs of a registry, and returns what
+// gives it back.
+func (r *riggerRegistries) lockSync(name string) func() {
+	r.syncsMu.Lock()
+
+	mu := r.syncs[name]
+	if mu == nil {
+		mu = &sync.Mutex{}
+		r.syncs[name] = mu
+	}
+
+	r.syncsMu.Unlock()
+	mu.Lock()
+
+	return mu.Unlock
 }
 
 // riggerRegistryStatusOf is the status of a good sync.

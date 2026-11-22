@@ -4,9 +4,12 @@
 package norca
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -395,4 +398,57 @@ func TestRiggerRegistry_Checks(t *testing.T) {
 		"type": "git", "source": "https://example.com/r", "authSecret": map[string]any{"path": "creds/r"},
 	})
 	must.ErrorContains(t, err, `can't read the Variable "creds/r"`)
+}
+
+// A registry that does not answer holds up its own syncs, not those of the
+// others.
+func TestRiggerRegistry_SyncBesideHanging(t *testing.T) {
+	ci.Parallel(t)
+
+	accepted, release := make(chan struct{}), make(chan struct{})
+
+	var once sync.Once
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		once.Do(func() { close(accepted) })
+		<-release
+	}))
+	t.Cleanup(srv.Close)
+
+	r := newRegistryTest(t)
+	must.NoError(t, r.apply("slow", map[string]any{"type": "git", "source": srv.URL + "/hang"}))
+	must.NoError(t, r.apply("acme", map[string]any{"type": "git", "source": registryRepo(t).dir}))
+
+	slow := make(chan error, 1)
+
+	go func() {
+		_, err := r.sync("slow")
+		slow <- err
+	}()
+
+	<-accepted
+
+	synced := make(chan error, 1)
+
+	go func() {
+		_, err := r.sync("acme")
+		synced <- err
+	}()
+
+	var waited bool
+
+	select {
+	case err := <-synced:
+		must.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		waited = true
+	}
+
+	close(release)
+	must.Error(t, <-slow)
+
+	if waited {
+		<-synced
+		t.Fatal("the sync of acme waited for the registry that does not answer")
+	}
 }

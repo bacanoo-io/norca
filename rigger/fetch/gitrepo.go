@@ -180,10 +180,13 @@ func (f *Fetcher) openRepo(ctx context.Context, repo string) (*git.Repository, e
 
 	url, dir := repositoryURL(repo), f.mirrorDir(repo)
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	unlock, err := f.repos.lock(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 
-	if f.updated[dir] {
+	if f.isUpdated(dir) {
 		return git.PlainOpen(dir)
 	}
 
@@ -197,9 +200,25 @@ func (f *Fetcher) openRepo(ctx context.Context, repo string) (*git.Repository, e
 		return nil, err
 	}
 
-	f.updated[dir] = true
+	f.setUpdated(dir)
 
 	return r, nil
+}
+
+// isUpdated reports whether the mirror in dir was fetched in this run.
+func (f *Fetcher) isUpdated(dir string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.updated[dir]
+}
+
+// setUpdated records that the mirror in dir was fetched in this run.
+func (f *Fetcher) setUpdated(dir string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.updated[dir] = true
 }
 
 // updateMirror fetches the mirror in dir, or clones it when there is none.

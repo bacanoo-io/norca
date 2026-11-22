@@ -104,8 +104,11 @@ func (f *Fetcher) refresh(ctx context.Context, repository string) (*git.Reposito
 
 	url, dir := repositoryURL(repository), f.mirrorDir(repository)
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	unlock, err := f.repos.lock(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 
 	auth, err := f.auth(ctx, repository, url)
 	if err != nil {
@@ -117,7 +120,7 @@ func (f *Fetcher) refresh(ctx context.Context, repository string) (*git.Reposito
 		return nil, err
 	}
 
-	f.updated[dir] = true
+	f.setUpdated(dir)
 
 	return r, nil
 }
