@@ -65,6 +65,13 @@ const (
 	// DefaultConsulKVMaxBytes bounds the bucket of the Consul KV.
 	DefaultConsulKVMaxBytes = 256 << 20
 
+	// DefaultRiggerLogsMaxBytes and DefaultRiggerLogsMaxAge bound the stream
+	// of the logs of the operations of Rigger (design/rig-integration.md
+	// 4.6b): the full log of each stack apply or destroy, a subject per
+	// operation.
+	DefaultRiggerLogsMaxBytes = 256 << 20
+	DefaultRiggerLogsMaxAge   = 30 * 24 * time.Hour
+
 	// TelemetryStorageShare is the part of the storage the stream of the
 	// usage reports may take: MaxStorage divided by it.
 	TelemetryStorageShare = 16
@@ -106,6 +113,12 @@ type Config struct {
 	// ConsulKVMaxBytes bounds the bucket of the Consul KV of the compat
 	// API. A write beyond it fails; nothing is dropped.
 	ConsulKVMaxBytes int64
+
+	// RiggerLogsMaxBytes and RiggerLogsMaxAge bound the stream of the logs
+	// of the operations of Rigger; the oldest logs go first. Zero takes the
+	// defaults (RiggerLogsBytes, RiggerLogsAge).
+	RiggerLogsMaxBytes int64
+	RiggerLogsMaxAge   time.Duration
 
 	// MaxPayload bounds the size of a message in bytes.
 	MaxPayload int32
@@ -259,10 +272,10 @@ func (c *Config) Validate() error {
 	if c.MaxStorage > 0 && c.ConsulKVMaxBytes > 0 {
 		if planned := c.PlannedStorage(); planned > c.MaxStorage {
 			errs = append(errs, fmt.Errorf("the streams of the bus need %dMiB (events %dMiB, pack push notices %dMiB, "+
-				"usage reports %dMiB, Consul KV %dMiB) and bus.max_storage is %dMiB: raise it, or lower "+
-				"bus.events.max_bytes or bus.consul_kv_max_bytes",
+				"usage reports %dMiB, Consul KV %dMiB, Rigger logs %dMiB) and bus.max_storage is %dMiB: raise it, or lower "+
+				"bus.events.max_bytes, bus.consul_kv_max_bytes or bus.rigger_logs_max_bytes",
 				planned>>20, c.eventsStorage()>>20, c.pushStorage()>>20, c.TelemetryMaxBytes()>>20,
-				c.ConsulKVMaxBytes>>20, c.MaxStorage>>20))
+				c.ConsulKVMaxBytes>>20, c.RiggerLogsBytes()>>20, c.MaxStorage>>20))
 		}
 	}
 	return errors.Join(errs...)
@@ -306,5 +319,26 @@ func (c *Config) pushStorage() int64 {
 
 // PlannedStorage is what the streams of the bus may take on disk together.
 func (c *Config) PlannedStorage() int64 {
-	return c.eventsStorage() + c.pushStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes
+	return c.eventsStorage() + c.pushStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes + c.RiggerLogsBytes()
+}
+
+// RiggerLogsBytes is the size limit of the stream of the logs of the
+// operations of Rigger: RiggerLogsMaxBytes, else DefaultRiggerLogsMaxBytes
+// or a sixteenth of the storage when that is less.
+func (c *Config) RiggerLogsBytes() int64 {
+	if c.RiggerLogsMaxBytes > 0 {
+		return c.RiggerLogsMaxBytes
+	}
+
+	return min(DefaultRiggerLogsMaxBytes, c.MaxStorage/16)
+}
+
+// RiggerLogsAge is how long the log of an operation of Rigger is kept:
+// RiggerLogsMaxAge, else DefaultRiggerLogsMaxAge.
+func (c *Config) RiggerLogsAge() time.Duration {
+	if c.RiggerLogsMaxAge > 0 {
+		return c.RiggerLogsMaxAge
+	}
+
+	return DefaultRiggerLogsMaxAge
 }

@@ -101,7 +101,12 @@ func consumerNameToken(s string) string {
 // With them goes the subject the servers store the pack push notices on
 // (busGrantSubjects adds it, it lies under the event prefix).
 var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>",
-	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>"}
+	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>", riggerLogsAllRegions}
+
+// riggerLogsAllRegions are the subjects of the logs of the Rigger
+// operations of every region: the servers write them, and they are read
+// through the HTTP API, with the right to read operations, not from the bus.
+const riggerLogsAllRegions = "norca.rigger.oplog.>"
 
 // busGrantSubjects builds the subjects of a connection without every right
 // from its bus and cdc rules:
@@ -216,6 +221,7 @@ func (s *Server) busNonChangeDeny() []string {
 	prefix := s.busEventsPrefix()
 	return []string{
 		"norca.telemetry.>",
+		riggerLogsAllRegions,
 		prefix + "." + bus.PushSubject,
 		prefix + "." + bus.PushSubject + ".>",
 		prefix + "." + bus.PushStoredSubject,

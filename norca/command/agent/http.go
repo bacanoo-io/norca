@@ -523,6 +523,8 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/packs", s.wrap(s.PacksCatalogRequest))
 	s.mux.HandleFunc("/v1/rigger/registry/", s.wrap(s.RiggerRegistryRequest))
 	s.mux.HandleFunc("/v1/rigger/install", s.wrap(s.RiggerInstallRequest))
+	s.mux.HandleFunc("/v1/rigger/stack/", s.wrap(s.RiggerStackRequest))
+	s.mux.HandleFunc("/v1/rigger/operation/", s.wrap(s.RiggerOperationRequest))
 	s.mux.HandleFunc("/v1/pack/", s.wrap(s.PackDetailRequest))
 	s.mux.HandleFunc("/v1/pack-upload", s.wrap(s.PackUploadRequest))
 	s.mux.HandleFunc("/v1/pack-upload/", s.wrap(s.PackUploadRequest))

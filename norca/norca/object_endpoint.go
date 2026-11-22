@@ -1162,6 +1162,10 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 					return nil, "", err
 				}
 			}
+			// An operation of Rigger: the servers write it.
+			if isRiggerOperationKind(kind.Group, kind.Kind) {
+				return nil, "", checkRiggerOperationWrite()
+			}
 			return obj, operation, nil
 		},
 	}
@@ -1221,6 +1225,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 			}
 			if isRiggerRegistryKind(kind.Group, kind.Kind) {
 				return nil, "", checkRiggerRegistryStatusWrite()
+			}
+			if isRiggerOperationKind(kind.Group, kind.Kind) {
+				return nil, "", checkRiggerOperationWrite()
 			}
 			obj := existing.Copy()
 			obj.ModifyTime = time.Now().UnixNano()

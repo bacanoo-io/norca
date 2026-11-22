@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca"
 )
@@ -156,6 +157,144 @@ func (s *HTTPServer) riggerRegistrySearch(resp http.ResponseWriter, req *http.Re
 
 	var out norca.RiggerRegistrySearchResponse
 	if err := s.agent.RPC("Rigger.SearchRegistry", &args, &out); err != nil {
+		return nil, err
+	}
+
+	setMeta(resp, &out.QueryMeta)
+
+	return &out, nil
+}
+
+// RiggerStackRequest handles /v1/rigger/stack/<action> (PUT or POST): plan
+// and status answer at once, apply and destroy start an operation and answer
+// with it. The body names a published stack (Source, Version) or sends a
+// local one (Files); the namespace of the request is that of the stack.
+func (s *HTTPServer) RiggerStackRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	if req.Method != http.MethodPut && req.Method != http.MethodPost {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	var args norca.RiggerStackRequest
+	if err := decodeBody(req, &args); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	switch strings.TrimPrefix(req.URL.Path, "/v1/rigger/stack/") {
+	case "plan":
+		var out norca.RiggerStackPlanResponse
+		if err := s.agent.RPC("Rigger.StackPlan", &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return &out, nil
+	case "status":
+		var out norca.RiggerStackStatusResponse
+		if err := s.agent.RPC("Rigger.StackStatus", &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return &out, nil
+	case "apply", "destroy":
+		method := "Rigger.StackApply"
+		if strings.HasSuffix(req.URL.Path, "/destroy") {
+			method = "Rigger.StackDestroy"
+		}
+
+		var out norca.RiggerOperationResponse
+		if err := s.agent.RPC(method, &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return out.Operation, nil
+	default:
+		return nil, CodedError(http.StatusNotFound, "unknown Rigger stack path")
+	}
+}
+
+// RiggerOperationRequest handles /v1/rigger/operation/<name>/cancel (PUT or
+// POST: stop the operation before its next release) and
+// /v1/rigger/operation/<name>/log (GET: a page of its log; query after,
+// limit, wait). The operations themselves are objects of the kind
+// rigger.norca.io/Operation (/v1/object/rigger.norca.io/Operation/...).
+func (s *HTTPServer) RiggerOperationRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	name, action, ok := strings.Cut(strings.TrimPrefix(req.URL.Path, "/v1/rigger/operation/"), "/")
+	if !ok || name == "" {
+		return nil, CodedError(http.StatusNotFound, "unknown Rigger operation path")
+	}
+
+	switch action {
+	case "cancel":
+		if req.Method != http.MethodPut && req.Method != http.MethodPost {
+			return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+		}
+
+		args := norca.RiggerOperationNameRequest{Name: name}
+		s.parseWriteRequest(req, &args.WriteRequest)
+
+		var out norca.RiggerOperationResponse
+		if err := s.agent.RPC("Rigger.CancelOperation", &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return out.Operation, nil
+	case "log":
+		return s.riggerOperationLog(resp, req, name)
+	default:
+		return nil, CodedError(http.StatusNotFound, "unknown Rigger operation path")
+	}
+}
+
+func (s *HTTPServer) riggerOperationLog(resp http.ResponseWriter, req *http.Request, name string) (any, error) {
+	if req.Method != http.MethodGet {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	args := norca.RiggerOperationLogRequest{Name: name}
+	query := req.URL.Query()
+
+	if v := query.Get("after"); v != "" {
+		n, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, "invalid after: "+v)
+		}
+
+		args.After = n
+	}
+
+	if v := query.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, "invalid limit: "+v)
+		}
+
+		args.Limit = n
+	}
+
+	if v := query.Get("wait"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, "invalid wait: "+v)
+		}
+
+		args.Wait = d
+	}
+
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out norca.RiggerOperationLogResponse
+	if err := s.agent.RPC("Rigger.OperationLog", &args, &out); err != nil {
 		return nil, err
 	}
 

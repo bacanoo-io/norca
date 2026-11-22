@@ -140,6 +140,7 @@ func TestBus_CheckSubjects(t *testing.T) {
 
 	for _, ok := range [][2]string{
 		{"norca", "global"}, {"norca", "eu-west"}, {"events", "telemetry"}, {"norca", "packs-eu"},
+		{"events", "rigger"}, {"norca", "rigger-eu"},
 	} {
 		must.NoError(t, bus.CheckSubjects(ok[0], ok[1]), must.Sprint(ok))
 	}
@@ -148,6 +149,8 @@ func TestBus_CheckSubjects(t *testing.T) {
 		{"norca", "packs"},            // norca.packs.> and norca.packs.pushed
 		{"events", "packs"},           // events.packs.> and events.packs.pushed
 		{"norca.telemetry", "global"}, // norca.telemetry.global.> and norca.telemetry.global.*
+		{"norca", "rigger"},           // norca.rigger.> and norca.rigger.oplog.rigger.*
+		{"norca.rigger.oplog", "eu"},  // norca.rigger.oplog.eu.> and norca.rigger.oplog.eu.*
 	} {
 		must.Error(t, bus.CheckSubjects(bad[0], bad[1]), must.Sprint(bad))
 	}

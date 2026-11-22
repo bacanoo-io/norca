@@ -19,4 +19,11 @@ const (
 	// RiggerGlobalRegistry is the name of the registry the servers create:
 	// the global registry, the only one of the type global.
 	RiggerGlobalRegistry = "global"
+
+	// RiggerOperationKind is the kind of an operation on a stack (an apply
+	// or a destroy) that the servers run (design/rig-integration.md 4.6b).
+	RiggerOperationKind = "Operation"
+
+	// RiggerOperationKindRef is its kind reference, as ACL rules name it.
+	RiggerOperationKindRef = RiggerObjectGroup + "/" + RiggerOperationKind
 )

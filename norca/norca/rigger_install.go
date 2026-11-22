@@ -300,7 +300,7 @@ func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace st
 // riggerServerEngine returns an engine with the hosts of this server and the
 // fetcher of its registries; the releases are applied as rendered by the
 // server or not.
-func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext) (*rigger.Engine, error) {
+func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext, opts ...rigger.Option) (*rigger.Engine, error) {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool
 		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered, "")
 	}
 
-	return s.riggerEngine(h, rigger.WithFetcher(r.fetcher))
+	return s.riggerEngine(h, append([]rigger.Option{rigger.WithFetcher(r.fetcher)}, opts...)...)
 }
 
 // riggerFetchEngine returns an engine that only fetches and loads modules,

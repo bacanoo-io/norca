@@ -183,11 +183,11 @@ func TestObjectKindEndpoint_CRUD(t *testing.T) {
 	var listResp structs.ObjectKindListResponse
 	// The two kinds above and the built-in ones: NodeGroup and NodeProvider,
 	// the kinds of certificates, of snapshot schedules, of volume requests,
-	// Tenant and the Registry of Rigger. The leader registers the built-in
+	// Tenant and the Registry and Operation of Rigger. The leader registers the built-in
 	// kinds after it is elected, on its own time: wait for them instead of
 	// counting on them.
 	want := 2 + len(builtinNodeScalingKinds()) + len(builtinCertificateKinds()) + len(builtinSnapshotKinds()) +
-		len(builtinVolumeRequestKinds()) + len(builtinTenantKinds()) + len(builtinRiggerRegistryKinds())
+		len(builtinVolumeRequestKinds()) + len(builtinTenantKinds()) + len(builtinRiggerRegistryKinds()) + len(builtinRiggerOperationKinds())
 	testutil.WaitForResult(func() (bool, error) {
 		if err := msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp); err != nil {
 			return false, err

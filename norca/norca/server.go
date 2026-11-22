@@ -353,6 +353,10 @@ type Server struct {
 	riggerRegistries     *riggerRegistries
 	riggerRegistriesOnce sync.Once
 
+	// riggerOps are the operations of Rigger this server runs as the
+	// leader.
+	riggerOps riggerOperations
+
 	// riggerDirPath is the directory of the data of Rigger, set once
 	// (riggerDir).
 	riggerDirOnce sync.Once

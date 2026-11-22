@@ -29,6 +29,8 @@ import (
 //	  max_connections = 10000
 //
 //	  consul_kv_max_bytes      = "256MiB"
+//	  rigger_logs_max_bytes    = "256MiB"
+//	  rigger_logs_max_age      = "720h"
 //	  reader_compact_threshold = 2000
 //
 //	  events {
@@ -59,6 +61,12 @@ type BusConfig struct {
 	// on the bus; a write beyond it fails. Default 256MiB, or an eighth of
 	// max_storage when that is less.
 	ConsulKVMaxBytes string `hcl:"consul_kv_max_bytes"`
+
+	// RiggerLogsMaxBytes and RiggerLogsMaxAge bound the stream of the logs
+	// of the stack operations of Rigger; the oldest logs go first. Default
+	// 256MiB (or a sixteenth of max_storage when that is less) and 720h.
+	RiggerLogsMaxBytes string `hcl:"rigger_logs_max_bytes"`
+	RiggerLogsMaxAge   string `hcl:"rigger_logs_max_age"`
 
 	// MaxConnections bounds the client connections of a server.
 	MaxConnections int `hcl:"max_connections"`
@@ -222,6 +230,12 @@ func (a *BusConfig) Merge(b *BusConfig) *BusConfig {
 	if b.ConsulKVMaxBytes != "" {
 		result.ConsulKVMaxBytes = b.ConsulKVMaxBytes
 	}
+	if b.RiggerLogsMaxBytes != "" {
+		result.RiggerLogsMaxBytes = b.RiggerLogsMaxBytes
+	}
+	if b.RiggerLogsMaxAge != "" {
+		result.RiggerLogsMaxAge = b.RiggerLogsMaxAge
+	}
 	if b.MaxConnections != 0 {
 		result.MaxConnections = b.MaxConnections
 	}
@@ -305,6 +319,23 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 			return nil, fmt.Errorf("bus.consul_kv_max_bytes can't parse size %s", b.ConsulKVMaxBytes)
 		}
 		cfg.ConsulKVMaxBytes = int64(v)
+	}
+
+	// The logs of the operations of Rigger take at most a sixteenth of the
+	// storage unless their limit is set (bus.Config.RiggerLogsBytes).
+	if b.RiggerLogsMaxBytes != "" {
+		v, err := humanize.ParseBytes(b.RiggerLogsMaxBytes)
+		if err != nil || v > math.MaxInt64 {
+			return nil, fmt.Errorf("bus.rigger_logs_max_bytes can't parse size %s", b.RiggerLogsMaxBytes)
+		}
+		cfg.RiggerLogsMaxBytes = int64(v)
+	}
+	if b.RiggerLogsMaxAge != "" {
+		d, err := time.ParseDuration(b.RiggerLogsMaxAge)
+		if err != nil || d <= 0 {
+			return nil, fmt.Errorf("bus.rigger_logs_max_age must be a positive duration, not %s", b.RiggerLogsMaxAge)
+		}
+		cfg.RiggerLogsMaxAge = d
 	}
 
 	// The event stream takes at most a quarter of the storage unless its

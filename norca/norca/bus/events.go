@@ -236,6 +236,12 @@ func TelemetryStreamName(region string) string {
 	return regionStreamName("NORCA_TELEMETRY_", region)
 }
 
+// RiggerLogStreamName is the name of the stream of the logs of the
+// operations of Rigger of a region.
+func RiggerLogStreamName(region string) string {
+	return regionStreamName("NORCA_RIGGER_LOGS_", region)
+}
+
 // regionStreamName is prefix followed by the region, with the characters a
 // stream name can't contain replaced.
 func regionStreamName(prefix, region string) string {
@@ -450,22 +456,45 @@ func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64,
 	return index, found, err
 }
 
+// RiggerLogSubjects are the subjects of the logs of the operations of
+// Rigger of a region; RiggerLogSubject is the subject of one.
+func RiggerLogSubjects(region string) string {
+	return "norca.rigger.oplog." + SubjectToken(region) + ".*"
+}
+
+// RiggerLogSubject is the subject of the log of the operation id.
+func RiggerLogSubject(region, id string) string {
+	return "norca.rigger.oplog." + SubjectToken(region) + "." + SubjectToken(id)
+}
+
 // CheckSubjects checks that the subjects of the streams of a region do not
 // overlap: the events on <prefix>.<region>.>, the admin events on
 // <prefix>.admin.<region>.>, the pack push notices on <prefix>.packs.pushed,
-// and the usage reports on norca.telemetry.<region>.*. JetStream refuses a
+// the usage reports on norca.telemetry.<region>.* and the logs of the
+// operations of Rigger on norca.rigger.oplog.<region>.*. JetStream refuses a
 // stream whose subjects another stream has. With the default prefix a
-// region named "telemetry", "packs" or "admin" collides.
+// region named "telemetry", "packs", "admin" or "rigger" collides.
 func CheckSubjects(prefix, region string) error {
 	events := prefix + "." + SubjectToken(region) + ".>"
 	admin := prefix + "." + AdminSubjectToken + "." + SubjectToken(region) + ".>"
 	telemetry := "norca.telemetry." + SubjectToken(region) + ".*"
+	riggerLogs := RiggerLogSubjects(region)
 	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>", prefix + "." + PushStoredSubject}
 	if natsserver.SubjectsCollide(events, admin) {
 		return fmt.Errorf("the events of region %q (%s) and its admin events (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, admin)
 	}
-	for _, other := range append([]string{telemetry}, pushes...) {
+	if natsserver.SubjectsCollide(events, riggerLogs) {
+		return fmt.Errorf("the events of region %q (%s) and the logs of the Rigger operations (%s) would share subjects: "+
+			"use another region name or another bus.events.subject_prefix", region, events, riggerLogs)
+	}
+	for _, push := range pushes {
+		if natsserver.SubjectsCollide(riggerLogs, push) {
+			return fmt.Errorf("the logs of the Rigger operations of region %q (%s) and the pack push notices (%s) would share subjects: "+
+				"use another bus.events.subject_prefix", region, riggerLogs, push)
+		}
+	}
+	for _, other := range append([]string{telemetry, riggerLogs}, pushes...) {
 		if natsserver.SubjectsCollide(admin, other) {
 			return fmt.Errorf("the admin events of region %q (%s) and %s would share subjects: "+
 				"use another bus.events.subject_prefix", region, admin, other)
