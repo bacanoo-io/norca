@@ -50,6 +50,10 @@ const (
 	riggerLogDefaultLimit = 500
 	riggerLogMaxLimit     = 1000
 	riggerLogMaxWait      = 30 * time.Second
+
+	// riggerLogWaitSlice is how long a wait for records goes before it
+	// reads the phase of the operation again.
+	riggerLogWaitSlice = time.Second
 )
 
 // RiggerStackRequest names a stack and what to do with it: a published
@@ -323,18 +327,42 @@ func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOper
 	ctx, cancel := context.WithTimeout(context.Background(), wait+10*time.Second)
 	defer cancel()
 
-	lines, err := r.srv.readRiggerLog(ctx, op.Status.LogSubject, args.After, limit, wait)
-	if err != nil {
-		return err
+	// The wait goes in slices, the phase read between them: the end of an
+	// operation writes no record, and a reader that has read its last one
+	// learns of the end within a slice, not after the whole wait.
+	var lines []RiggerLogLine
+
+	deadline := time.Now().Add(wait)
+
+	for {
+		slice := min(time.Until(deadline), riggerLogWaitSlice)
+		if isFinishedRiggerOperation(op.Status.Phase) || slice < 0 {
+			slice = 0
+		}
+
+		finished := isFinishedRiggerOperation(op.Status.Phase)
+
+		if lines, err = r.srv.readRiggerLog(ctx, op.Status.LogSubject, args.After, limit, slice); err != nil {
+			return err
+		}
+
+		if len(lines) > 0 || finished || slice == 0 {
+			break
+		}
+
+		if now, _, err := r.srv.riggerOperation(namespace, args.Name); err == nil {
+			op = now
+		}
 	}
 
 	// The phase after the read: a log read to its end of a finished
-	// operation has nothing more.
+	// operation has nothing more; a full page may have more after it.
 	if now, _, err := r.srv.riggerOperation(namespace, args.Name); err == nil {
 		op = now
 	}
 
-	reply.Lines, reply.Phase, reply.Finished = lines, op.Status.Phase, isFinishedRiggerOperation(op.Status.Phase)
+	reply.Lines, reply.Phase = lines, op.Status.Phase
+	reply.Finished = isFinishedRiggerOperation(op.Status.Phase) && len(lines) < limit
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
 
 	return nil

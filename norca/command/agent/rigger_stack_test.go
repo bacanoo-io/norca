@@ -141,6 +141,7 @@ func TestHTTP_RiggerStackOperations(t *testing.T) {
 		must.NoError(t, err)
 		must.Eq(t, 2, len(rest.Lines))
 		must.Eq(t, log.Lines[1].Seq, rest.Lines[0].Seq)
+		must.False(t, rest.Finished, must.Sprint("a full page may have more after it"))
 
 		_, _, err = client.Rigger().CancelOperation(started.Name, nil)
 		must.ErrorContains(t, err, "has ended")
