@@ -338,42 +338,24 @@ func (r *Rigger) OperationLog(args *RiggerOperationLogRequest, reply *RiggerOper
 	ctx, cancel := context.WithTimeout(context.Background(), wait+10*time.Second)
 	defer cancel()
 
-	// The wait goes in slices, the phase read between them: the end of an
-	// operation writes no record, and a reader that has read its last one
-	// learns of the end within a slice, not after the whole wait.
-	var lines []RiggerLogLine
+	page := riggerLogPage{
+		after: args.After, limit: limit,
+		phase: func() string {
+			if now, _, err := r.srv.riggerOperation(namespace, args.Name); err == nil {
+				op = now
+			}
 
-	deadline := time.Now().Add(wait)
-
-	for {
-		slice := min(time.Until(deadline), riggerLogWaitSlice)
-		if isFinishedRiggerOperation(op.Status.Phase) || slice < 0 {
-			slice = 0
-		}
-
-		finished := isFinishedRiggerOperation(op.Status.Phase)
-
-		if lines, err = r.srv.readRiggerLog(ctx, op.Status.LogSubject, args.After, limit, slice); err != nil {
-			return err
-		}
-
-		if len(lines) > 0 || finished || slice == 0 {
-			break
-		}
-
-		if now, _, err := r.srv.riggerOperation(namespace, args.Name); err == nil {
-			op = now
-		}
+			return op.Status.Phase
+		},
+		read: func(after uint64, limit int, wait time.Duration) ([]RiggerLogLine, error) {
+			return r.srv.readRiggerLog(ctx, op.Status.LogSubject, after, limit, wait)
+		},
 	}
 
-	// The phase after the read: a log read to its end of a finished
-	// operation has nothing more; a full page may have more after it.
-	if now, _, err := r.srv.riggerOperation(namespace, args.Name); err == nil {
-		op = now
+	if reply.Lines, reply.Phase, reply.Finished, err = page.next(wait); err != nil {
+		return err
 	}
 
-	reply.Lines, reply.Phase = lines, op.Status.Phase
-	reply.Finished = isFinishedRiggerOperation(op.Status.Phase) && len(lines) < limit
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
 
 	return nil
@@ -814,6 +796,55 @@ func (s *Server) riggerOperation(namespace, name string) (*RiggerOperation, *str
 	op, err := riggerOperationFromObject(obj)
 
 	return op, obj, err
+}
+
+// riggerLogPage reads a page of the log of an operation and says whether
+// more may follow.
+type riggerLogPage struct {
+	after uint64
+	limit int
+	// phase is the phase of the operation now; read the records after a
+	// sequence, waiting up to wait for the first.
+	phase func() string
+	read  func(after uint64, limit int, wait time.Duration) ([]RiggerLogLine, error)
+}
+
+// next returns the records, the phase and whether the log ends with them.
+// The log ends with a page that is not full and was read after the phase
+// was seen final: the last records are written before the end, so a read
+// before it may miss them. The wait goes in slices, the phase read between
+// them: the end of an operation writes no record, and a reader that has
+// read its last one learns of the end within a slice, not after the whole
+// wait.
+func (p riggerLogPage) next(wait time.Duration) ([]RiggerLogLine, string, bool, error) {
+	deadline := time.Now().Add(wait)
+	phase := p.phase()
+
+	for {
+		ended := isFinishedRiggerOperation(phase)
+
+		var slice time.Duration
+		if !ended {
+			slice = max(min(time.Until(deadline), riggerLogWaitSlice), 0)
+		}
+
+		lines, err := p.read(p.after, p.limit, slice)
+		if err != nil {
+			return nil, phase, false, err
+		}
+
+		if ended {
+			return lines, phase, len(lines) < p.limit, nil
+		}
+
+		phase = p.phase()
+
+		// With records the reader asks again; without, what came before
+		// the end is read now.
+		if len(lines) > 0 || (slice == 0 && !isFinishedRiggerOperation(phase)) {
+			return lines, phase, false, nil
+		}
+	}
 }
 
 // cancelRiggerOperation asks a running operation of this server to stop
