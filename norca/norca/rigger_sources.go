@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	"github.com/bacanoo-io/norca/norca/acl"
-	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/index"
@@ -36,8 +35,9 @@ import (
 //     such a module, which no index of the servers vouches for, is not
 //     rendered by the server.
 //
-// All but the first need read on the kind of registries. A directory, an
-// OCI registry and any other repository are refused. The modules inside a
+// All but the first need read on the kind of registries, and a private
+// repository read on its Variable (rigger_access.go). A directory, an OCI
+// registry and any other repository are refused. The modules inside a
 // stack that was sent (./modules/x) are not fetched at all.
 
 // riggerSources is the fetcher of one request on a server.
@@ -51,6 +51,9 @@ type riggerSources struct {
 
 	// repos are the git registries by their repository.
 	repos map[string][]*RiggerRegistry
+	// global is the global registry with a good sync, nil without one; its
+	// index is read when something of it is asked for (readGlobal).
+	global *RiggerRegistry
 	// globalDir is the index of the global registry at the commit of its
 	// last sync; empty when the request has none.
 	globalDir string
@@ -92,24 +95,17 @@ func (s *Server) newRiggerSources(args structs.RequestWithIdentity) (*riggerSour
 
 	src := &riggerSources{registries: r, fetcher: fetcher, aclObj: aclObj, repos: map[string][]*RiggerRegistry{}}
 
-	iter, err := s.State().CustomObjects(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", state.SortDefault)
+	regs, err := s.riggerRegistryList()
 	if err != nil {
 		return nil, err
 	}
 
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		obj, ok := raw.(*structs.CustomObject)
-		if !ok {
-			continue
-		}
-
-		reg, err := riggerRegistryFromObject(obj)
-		if err != nil {
-			return nil, err
-		}
-
-		if reg.Spec.Type == riggerRegistryTypeGit {
+	for _, reg := range regs {
+		switch {
+		case reg.Spec.Type == riggerRegistryTypeGit:
 			src.register(reg)
+		case reg.Name == structs.RiggerGlobalRegistry && reg.Status.Commit != "":
+			src.global = reg
 		}
 	}
 
@@ -137,7 +133,9 @@ func (src *riggerSources) only(ctx context.Context, reg *RiggerRegistry) error {
 	src.repos = map[string][]*RiggerRegistry{}
 
 	if reg.Spec.Type == riggerRegistryTypeGlobal {
-		return src.useGlobal(ctx, reg)
+		src.global = reg
+
+		return src.readGlobal(ctx)
 	}
 
 	src.register(reg)
@@ -145,21 +143,31 @@ func (src *riggerSources) only(ctx context.Context, reg *RiggerRegistry) error {
 	return nil
 }
 
-// useSyncedGlobal takes the index of the global registry at the commit of
-// its last good sync, when it has one.
-func (src *riggerSources) useSyncedGlobal(ctx context.Context) error {
-	obj, err := src.registries.srv.State().CustomObjectByName(nil,
-		structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", structs.RiggerGlobalRegistry)
-	if err != nil || obj == nil {
+// readGlobal reads the index of the global registry at the commit of its
+// last good sync, when it has one. Only what asks for the global registry
+// pays for it and needs the rights on it.
+func (src *riggerSources) readGlobal(ctx context.Context) error {
+	if src.global == nil || src.globalDir != "" {
+		return nil
+	}
+
+	ctx, err := src.use(ctx, src.global.Status.Source)
+	if err != nil {
 		return err
 	}
 
-	reg, err := riggerRegistryFromObject(obj)
-	if err != nil || reg.Status.Commit == "" {
-		return err
+	return src.useGlobal(ctx, src.global)
+}
+
+// use checks the use of a repository by the caller, and returns the
+// context in which it is fetched.
+func (src *riggerSources) use(ctx context.Context, repository string) (context.Context, error) {
+	out, err := src.registries.srv.useRiggerRepository(ctx, src.aclObj, repository)
+	if err != nil {
+		return ctx, src.refuse(err)
 	}
 
-	return src.useGlobal(ctx, reg)
+	return out, nil
 }
 
 // useGlobal points the request at the index of the global registry at the
@@ -242,6 +250,10 @@ func (src *riggerSources) Versions(ctx context.Context, req source.Request) ([]s
 			return nil, err
 		}
 
+		if err := src.readGlobal(ctx); err != nil {
+			return nil, err
+		}
+
 		if src.globalDir == "" {
 			return nil, src.refuse(errRiggerRegistryNotSynced(structs.RiggerGlobalRegistry))
 		}
@@ -271,6 +283,11 @@ func (src *riggerSources) gitVersions(ctx context.Context, req source.Request) (
 		return nil, err
 	}
 
+	ctx, err := src.use(ctx, req.Repository)
+	if err != nil {
+		return nil, err
+	}
+
 	_, tags, err := src.offered(ctx, req)
 	if err != nil {
 		return nil, err
@@ -288,6 +305,11 @@ func (src *riggerSources) gitVersions(ctx context.Context, req source.Request) (
 // had it at its last sync, from the mirror of that sync.
 func (src *riggerSources) gitFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
 	if err := src.authorize(req); err != nil {
+		return source.Fetched{}, err
+	}
+
+	ctx, err := src.use(ctx, req.Repository)
+	if err != nil {
 		return source.Fetched{}, err
 	}
 
@@ -419,17 +441,18 @@ func (src *riggerSources) globalFetch(ctx context.Context, req source.Request) (
 		return source.Fetched{}, err
 	}
 
+	if err := src.readGlobal(ctx); err != nil {
+		return source.Fetched{}, err
+	}
+
 	listed, err := src.listed(req)
 	if err != nil {
 		// Only what the index does not list: a listed version that is
 		// blocked stays blocked, bundle or not.
-		if got, ok := src.fromBundle(req); ok {
-			got.Origin.Repository = req.Repository
-			got.TrustedKeys = src.trustedKeys(req.Repository)
+		return src.unlistedFetch(ctx, req, err)
+	}
 
-			return got, nil
-		}
-
+	if ctx, err = src.use(ctx, listed.Repository); err != nil {
 		return source.Fetched{}, err
 	}
 
@@ -444,6 +467,28 @@ func (src *riggerSources) globalFetch(ctx context.Context, req source.Request) (
 	req.Repository = ""
 
 	return src.fetcher.Fetch(ctx, req)
+}
+
+// unlistedFetch returns what a bundle has of a version the index does not
+// list, else the error that says so.
+func (src *riggerSources) unlistedFetch(ctx context.Context, req source.Request, notListed error) (source.Fetched, error) {
+	if _, ok := src.bundledModule(req); !ok {
+		return source.Fetched{}, notListed
+	}
+
+	if _, err := src.use(ctx, req.Repository); err != nil {
+		return source.Fetched{}, err
+	}
+
+	got, ok := src.fromBundle(req)
+	if !ok {
+		return source.Fetched{}, notListed
+	}
+
+	got.Origin.Repository = req.Repository
+	got.TrustedKeys = src.trustedKeys(req.Repository)
+
+	return got, nil
 }
 
 // listed returns what the index of the request lists of a version.

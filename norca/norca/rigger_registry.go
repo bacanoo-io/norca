@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/bacanoo-io/norca/norca/norca/state"
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/rigger/catalog"
 	"github.com/bacanoo-io/norca/rigger/fetch"
@@ -70,22 +70,11 @@ func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 	return r
 }
 
-// credentials returns the credentials of a repository that is the source of
-// a registry with an authSecret; none for every other repository (the
-// sources of modules are read anonymously).
-func (r *riggerRegistries) credentials(_ context.Context, repository string) (*fetch.Credentials, error) {
-	iter, err := r.srv.State().CustomObjects(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", state.SortDefault)
-	if err != nil {
-		return nil, err
-	}
-
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		reg, err := riggerRegistryFromObject(raw.(*structs.CustomObject))
-		if err != nil || reg.Spec.Source != repository || reg.Spec.AuthSecret == nil {
-			continue
-		}
-
-		return r.srv.riggerRegistryCredentials(reg.Spec.AuthSecret)
+// credentials returns the credentials a context allows for a repository
+// (useRiggerRepository); every other fetch is anonymous, whatever its URL.
+func (r *riggerRegistries) credentials(ctx context.Context, repository string) (*fetch.Credentials, error) {
+	if secret := credentialOf(ctx, repository); secret != nil {
+		return r.srv.riggerRegistryCredentials(secret)
 	}
 
 	return nil, nil
@@ -150,8 +139,9 @@ func (s *Server) riggerRegistriesOf() (*riggerRegistries, error) {
 
 // syncRiggerRegistry syncs a registry and writes its status. It runs on the
 // leader. A failed sync is written as the phase Error with its message and
-// keeps what the last good sync found; it is an error of the call too.
-func (s *Server) syncRiggerRegistry(name string) (*RiggerRegistry, uint64, error) {
+// keeps what the last good sync found; it is an error of the call too. A
+// caller who may not use the repository is refused and writes nothing.
+func (s *Server) syncRiggerRegistry(aclObj *acl.ACL, name string) (*RiggerRegistry, uint64, error) {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return nil, 0, err
@@ -188,6 +178,11 @@ func (s *Server) syncRiggerRegistry(name string) (*RiggerRegistry, uint64, error
 
 	ctx, cancel := context.WithTimeout(context.Background(), riggerRegistrySyncTimeout)
 	defer cancel()
+
+	ctx, err = s.useRiggerRepository(ctx, aclObj, reg.Spec.Source)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	status := reg.Status
@@ -347,7 +342,7 @@ func errRiggerRegistryNotSynced(name string) error {
 
 // searchRiggerRegistry searches the index of a registry at the commit of its
 // last good sync.
-func (s *Server) searchRiggerRegistry(name string, q catalog.Query) ([]catalog.Item, int, *RiggerRegistry, error) {
+func (s *Server) searchRiggerRegistry(aclObj *acl.ACL, name string, q catalog.Query) ([]catalog.Item, int, *RiggerRegistry, error) {
 	obj, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", name)
 	if err != nil {
 		return nil, 0, nil, err
@@ -371,6 +366,10 @@ func (s *Server) searchRiggerRegistry(name string, q catalog.Query) ([]catalog.I
 
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	if ctx, err = s.useRiggerRepository(ctx, aclObj, reg.Status.Source); err != nil {
 		return nil, 0, nil, err
 	}
 

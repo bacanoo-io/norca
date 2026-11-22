@@ -421,10 +421,6 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 		return nil, nil, nil, err
 	}
 
-	if err := src.useSyncedGlobal(ctx); err != nil {
-		return nil, nil, nil, err
-	}
-
 	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, src, opts...)
 	if err != nil {
 		return nil, nil, nil, err

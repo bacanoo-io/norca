@@ -59,7 +59,8 @@ type RiggerRegistrySearchResponse struct {
 
 // SyncRegistry fetches the source of a registry now, reads its index and
 // writes what it found into its status. It needs write on the kind of
-// registries. The sync runs on the leader.
+// registries, and read on the Variable of the authSecret of its repository.
+// The sync runs on the leader.
 func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegistryResponse) (retErr error) {
 	defer r.srv.recoverRigger("Rigger.SyncRegistry", &retErr)
 
@@ -76,7 +77,12 @@ func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegi
 		return err
 	}
 
-	reg, idx, err := r.srv.syncRiggerRegistry(args.Name)
+	aclObj, err := r.srv.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+
+	reg, idx, err := r.srv.syncRiggerRegistry(aclObj, args.Name)
 	if err != nil {
 		return err
 	}
@@ -88,7 +94,8 @@ func (r *Rigger) SyncRegistry(args *RiggerRegistryNameRequest, reply *RiggerRegi
 
 // SearchRegistry returns a page of the modules and stacks of a registry
 // that match the query, at the commit of its last good sync; a registry
-// never synced offers nothing. It needs read on the kind of registries. The
+// never synced offers nothing. It needs read on the kind of registries, and
+// on the Variable of the authSecret of its repository. The
 // display of the registry does not matter: what is selected for the UI is
 // in its status, a search finds everything.
 func (r *Rigger) SearchRegistry(args *RiggerRegistrySearchRequest, reply *RiggerRegistrySearchResponse) (retErr error) {
@@ -109,7 +116,12 @@ func (r *Rigger) SearchRegistry(args *RiggerRegistrySearchRequest, reply *Rigger
 
 	q := catalog.Query{Kind: index.Kind(args.Kind), Text: args.Text, Offset: args.Offset, Limit: args.Limit}
 
-	items, total, reg, err := r.srv.searchRiggerRegistry(args.Name, q)
+	aclObj, err := r.srv.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+
+	items, total, reg, err := r.srv.searchRiggerRegistry(aclObj, args.Name, q)
 	if err != nil {
 		return err
 	}

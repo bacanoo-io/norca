@@ -1156,9 +1156,9 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 			}
 			// A registry of Rigger: its type, what is selected for the UI,
 			// and the Variable of its credentials, which the writer must
-			// be able to read.
+			// be able to read, the one it has and the one it gets.
 			if isRiggerRegistryKind(kind.Group, kind.Kind) {
-				if err := c.srv.checkRiggerRegistryApply(aclObj, obj); err != nil {
+				if err := c.srv.checkRiggerRegistryApply(aclObj, existing, obj); err != nil {
 					return nil, "", err
 				}
 			}

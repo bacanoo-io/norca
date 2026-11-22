@@ -377,10 +377,21 @@ func (s *Server) riggerRequestFetcher() (*fetch.Fetcher, error) {
 func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, src *riggerSources,
 	req RiggerModuleRequest,
 ) (*rigger.Module, []string, error) {
-	reg, items, err := s.syncedRegistry(ctx, req.Registry)
+	reg, err := s.syncedRegistry(req.Registry)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	if ctx, err = src.use(ctx, reg.Status.Source); err != nil {
+		return nil, nil, err
+	}
+
+	idx, err := src.registries.read(ctx, reg.Spec.Type, reg.Status.Source, reg.Status.Commit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	items := idx.items
 
 	ref := catalog.Ref{Kind: index.KindModule, Name: req.Module}
 	if reg.Spec.Type == riggerRegistryTypeGlobal {
@@ -424,38 +435,27 @@ func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, s
 	return m, versions, nil
 }
 
-// syncedRegistry returns a registry with a good sync and what it offers at
-// its commit.
-func (s *Server) syncedRegistry(ctx context.Context, name string) (*RiggerRegistry, []catalog.Item, error) {
+// syncedRegistry returns a registry with a good sync.
+func (s *Server) syncedRegistry(name string) (*RiggerRegistry, error) {
 	obj, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", name)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if obj == nil {
-		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", structs.RiggerRegistryKindRef, name)
+		return nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", structs.RiggerRegistryKindRef, name)
 	}
 
 	reg, err := riggerRegistryFromObject(obj)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if reg.Status.Commit == "" {
-		return nil, nil, errRiggerRegistryNotSynced(name)
+		return nil, errRiggerRegistryNotSynced(name)
 	}
 
-	r, err := s.riggerRegistriesOf()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	idx, err := r.read(ctx, reg.Spec.Type, reg.Status.Source, reg.Status.Commit)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return reg, idx.items, nil
+	return reg, nil
 }
 
 // moduleSourceRequest is the request of the fetcher for a version of a

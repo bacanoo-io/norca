@@ -234,8 +234,9 @@ func objectMap(v any) (map[string]any, error) {
 // type global, the selected names fit its type, and a token that names an
 // authSecret can read that Variable (so that someone who may only write
 // registries can't send the credentials of others to a source of their
-// choosing).
-func (s *Server) checkRiggerRegistryApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
+// choosing), as can one that changes a registry that has one: without it
+// the registry would offer what was synced with it to who can't read it.
+func (s *Server) checkRiggerRegistryApply(aclObj *acl.ACL, existing, obj *structs.CustomObject) error {
 	reg, err := riggerRegistryFromObject(obj)
 	if err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
@@ -250,6 +251,17 @@ func (s *Server) checkRiggerRegistryApply(aclObj *acl.ACL, obj *structs.CustomOb
 	for _, ref := range reg.Spec.Selected {
 		if err := checkSelectedRef(reg.Spec.Type, ref); err != nil {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "selected %s: %v", ref, err)
+		}
+	}
+
+	if existing != nil {
+		was, err := riggerRegistryFromObject(existing)
+		if err != nil {
+			return err
+		}
+
+		if a := was.Spec.AuthSecret; a != nil && !canReadRiggerAuth(aclObj, a) {
+			return errRiggerAuthUnreadable(a)
 		}
 	}
 
@@ -281,10 +293,8 @@ func (s *Server) checkRiggerRegistryAuth(aclObj *acl.ACL, spec RiggerRegistrySpe
 		return nil
 	}
 
-	ns := riggerAuthNamespace(a)
-	if aclObj != nil && !aclObj.AllowVariableOperation(ns, a.Path, acl.VariablesCapabilityRead, nil) {
-		return structs.NewErrRPCCodedf(http.StatusForbidden,
-			"authSecret: the token can't read the Variable %q in the namespace %q", a.Path, ns)
+	if !canReadRiggerAuth(aclObj, a) {
+		return errRiggerAuthUnreadable(a)
 	}
 
 	creds, err := s.riggerRegistryCredentials(a)
@@ -297,6 +307,13 @@ func (s *Server) checkRiggerRegistryAuth(aclObj *acl.ACL, spec RiggerRegistrySpe
 	}
 
 	return nil
+}
+
+// errRiggerAuthUnreadable is the error of a write of a registry by someone
+// who can't read the Variable of its authSecret.
+func errRiggerAuthUnreadable(a *RiggerRegistryAuthSecret) error {
+	return structs.NewErrRPCCodedf(http.StatusForbidden,
+		"authSecret: the token can't read the Variable %q in the namespace %q", a.Path, riggerAuthNamespace(a))
 }
 
 func riggerAuthNamespace(a *RiggerRegistryAuthSecret) string {
