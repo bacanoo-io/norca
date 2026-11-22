@@ -127,8 +127,8 @@ func TestModule_FormSchema(t *testing.T) {
 	e := engine(t)
 
 	m, diags := e.LoadModule(t.Context(), fstest.MapFS{
-		"metadata.hcl":  {Data: []byte(formMetadata)},
-		"variables.hcl": {Data: []byte(formVariables)},
+		"metadata.hcl": {Data: []byte(formMetadata)},
+		variablesFile:  {Data: []byte(formVariables)},
 	})
 	if diags.HasErrors() {
 		t.Fatal(diags)

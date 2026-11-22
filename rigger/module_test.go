@@ -97,9 +97,9 @@ func TestEngine_ValidateModule_Defaults(t *testing.T) {
 			e := engine(t)
 
 			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
-				"metadata.hcl":  {Data: []byte(metadata)},
-				"variables.hcl": {Data: []byte(tt.variables)},
-				"outputs.hcl":   {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
+				"metadata.hcl": {Data: []byte(metadata)},
+				variablesFile:  {Data: []byte(tt.variables)},
+				"outputs.hcl":  {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
 			})
 			if diags.HasErrors() {
 				t.Fatal(diags)

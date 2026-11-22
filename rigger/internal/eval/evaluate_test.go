@@ -259,6 +259,23 @@ func evaluateCases() []evaluateCase {
 			expected: "can't be used in a variable, except in its items",
 		},
 		{
+			name: "sensitive labels of a dynamic block",
+			files: map[string]string{
+				variablesHCL:   "variable \"names\" {\n  sensitive = true\n  default   = [\"a\"]\n}\n",
+				"x.object.hcl": "object \"x\" {\n  dynamic \"port\" {\n    for_each = [1]\n    labels   = var.names\n    content {\n    }\n  }\n}\n",
+			},
+			expected: "A sensitive value can't be used in the labels of a dynamic block",
+		},
+		{
+			name: "a sensitive object as the vars of a template",
+			files: map[string]string{
+				variablesHCL:  "variable \"db\" {\n  sensitive = true\n  default   = { password = \"pw\" }\n}\n",
+				"files/t.tpl": "password=${password}",
+				"x.var.hcl":   "variable \"x\" {\n  path = \"p\"\n\n  items {\n    conf = templatefile(\"files/t.tpl\", var.db)\n  }\n}\n",
+			},
+			contains: `"items":{}`,
+		},
+		{
 			name:     "a sensitive output not marked",
 			files:    map[string]string{variablesHCL: tokenVariable, "outputs.hcl": `output "t" { value = var.token }`},
 			expected: "write sensitive = true on it",

@@ -23,7 +23,7 @@ func RecordedValues(v cty.Value) (map[string]any, error) {
 		return out, nil
 	}
 
-	for name, item := range v.AsValueMap() {
+	for name, item := range attributeValues(v) {
 		if item.ContainsMarked() || !item.IsWhollyKnown() {
 			continue
 		}
@@ -48,29 +48,80 @@ func RecordedValues(v cty.Value) (map[string]any, error) {
 // sensitive value stands as the SHA-256 of its JSON, so that a change of a
 // password changes the digest without the digest showing it.
 func DigestValues(v cty.Value) (json.RawMessage, error) {
-	v, err := cty.Transform(v, func(_ cty.Path, v cty.Value) (cty.Value, error) {
-		if !v.IsMarked() {
-			return v, nil
-		}
-
-		inner, _ := v.UnmarkDeep()
-
-		data, err := ctyjson.Marshal(inner, inner.Type())
-		if err != nil {
-			return cty.NilVal, err
-		}
-
-		sum := sha256.Sum256(data)
-
-		return cty.StringVal("sensitive:" + hex.EncodeToString(sum[:])), nil
-	})
+	v, err := redact(v)
 	if err != nil {
 		return nil, err
 	}
 
-	v, _ = v.UnmarkDeep()
-
 	return ctyjson.Marshal(v, v.Type())
+}
+
+// redact returns v with each sensitive value as its hash. A collection
+// becomes a tuple or an object, which write the same JSON: a list of
+// numbers with one hash in it is no list of one type.
+func redact(v cty.Value) (cty.Value, error) {
+	out, err := redactParts(v)
+	if err != nil || !v.IsMarked() {
+		return out, err
+	}
+
+	data, err := ctyjson.Marshal(out, out.Type())
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	sum := sha256.Sum256(data)
+
+	return cty.StringVal("sensitive:" + hex.EncodeToString(sum[:])), nil
+}
+
+// redactParts redacts the parts of v, without the marks of v. The
+// attributes of a sensitive object are sensitive, each hashed before the
+// object is; the items of a collection have only marks of their own. The
+// recorded digests depend on it.
+func redactParts(v cty.Value) (cty.Value, error) {
+	inner, _ := v.Unmark()
+	if inner.IsNull() || !inner.IsKnown() {
+		return inner, nil
+	}
+
+	switch {
+	case isList(inner):
+		var items []cty.Value
+
+		for it := inner.ElementIterator(); it.Next(); {
+			_, item := it.Element()
+
+			out, err := redact(item)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			items = append(items, out)
+		}
+
+		return cty.TupleVal(items), nil
+	case isObject(inner):
+		parts := inner.AsValueMap()
+		if inner.Type().IsObjectType() {
+			parts = attributeValues(v)
+		}
+
+		attrs := make(map[string]cty.Value, len(parts))
+
+		for name, item := range parts {
+			out, err := redact(item)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			attrs[name] = out
+		}
+
+		return cty.ObjectVal(attrs), nil
+	default:
+		return inner, nil
+	}
 }
 
 // MarkSensitive marks the attributes of values whose variable in m is
@@ -80,7 +131,7 @@ func MarkSensitive(m *lang.Module, values cty.Value) cty.Value {
 		return values
 	}
 
-	attrs := values.AsValueMap()
+	attrs := attributeValues(values)
 	for name, v := range attrs {
 		if decl, ok := m.Variable(name); ok && decl.Sensitive {
 			attrs[name] = v.Mark(Sensitive)

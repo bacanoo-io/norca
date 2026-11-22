@@ -50,6 +50,10 @@ func decodeHook(b *hcl.Block, ctx *hcl.EvalContext) (*resource.Hook, hcl.Diagnos
 		Delete  *string        `hcl:"delete,optional"`
 	}
 
+	if diags := refuseSensitive(b.Body, ctx, "a hook", "on", "weight", "timeout", "delete"); diags.HasErrors() {
+		return nil, diags
+	}
+
 	if diags := gohcl.DecodeBody(b.Body, ctx, &h); diags.HasErrors() {
 		return nil, diags
 	}

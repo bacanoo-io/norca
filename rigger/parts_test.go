@@ -129,3 +129,33 @@ func TestStack_Parts(t *testing.T) {
 		t.Fatalf("a changed part: %v", diags)
 	}
 }
+
+// The values of a part may be sensitive as a whole, as those of a release.
+func TestPlanStack_SensitivePartValues(t *testing.T) {
+	t.Parallel()
+
+	noPanic(t, func() {
+		f := newFakeCluster()
+
+		e, err := rigger.New(rigger.WithReleases(f), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)),
+			rigger.WithFetcher(repoFetcher{tree: publishedData(), version: "1.0.0"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		files := stackFiles(strings.Replace(siteStack, "values  = { size = 2 }", "values  = var.part", 1))
+		files["s/variables.hcl"] = &fstest.MapFile{Data: []byte(
+			"variable \"size\" {\n  default = 1\n}\n\nvariable \"part\" {\n  sensitive = true\n  default   = { size = 2 }\n}\n")}
+
+		_, lock, diags := e.SyncStack(t.Context(), files, "s", false)
+		if diags.HasErrors() {
+			t.Fatal(diags)
+		}
+
+		files["s/rigger.lock.hcl"] = &fstest.MapFile{Data: lock}
+
+		if got := actions(planOf(t, e, files, nil)); got != "data-db:install app:install" {
+			t.Errorf("actions = %s", got)
+		}
+	})
+}

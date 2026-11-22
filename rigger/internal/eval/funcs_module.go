@@ -102,7 +102,7 @@ func templateFileFunc(fsys fs.FS, fileBytes int64, funcs map[string]function.Fun
 				return cty.NilVal, diags
 			}
 
-			ctx := &hcl.EvalContext{Variables: vars.AsValueMap(), Functions: funcs}
+			ctx := &hcl.EvalContext{Variables: attributeValues(vars), Functions: funcs}
 
 			v, diags := expr.Value(ctx)
 			if diags.HasErrors() {

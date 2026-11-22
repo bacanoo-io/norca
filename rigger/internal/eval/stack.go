@@ -192,6 +192,9 @@ func (r *stackRun) run() (*StackResult, cty.Value, hcl.Diagnostics) {
 	return r.res, outputValues, diags
 }
 
+// attrOverwrite is the attribute of a secret that replaces its items.
+const attrOverwrite = "overwrite"
+
 // maxReleaseName is the longest name of a release.
 const maxReleaseName = 63
 
@@ -387,7 +390,7 @@ func (r *stackRun) part(n *node) (cty.Value, hcl.Diagnostics) {
 			}}
 		}
 
-		for name, value := range v.AsValueMap() {
+		for name, value := range attributeValues(v) {
 			inputs[name] = Input{Value: value, Range: &rng}
 		}
 	}
@@ -550,7 +553,7 @@ func (r *stackRun) inputs(rr *ReleaseResult) (map[string]Input, cty.Value, hcl.D
 	rr.Pending = pending
 
 	inputs := map[string]Input{}
-	for name, value := range v.AsValueMap() {
+	for name, value := range attributeValues(v) {
 		inputs[name] = Input{Value: value, Range: &rng}
 	}
 
@@ -616,6 +619,12 @@ func (r *stackRun) secrets() hcl.Diagnostics {
 			Overwrite *bool          `hcl:"overwrite,optional"`
 		}
 
+		if moreDiags := refuseSensitive(b.Body, r.base, "overwrite of a secret", attrOverwrite); moreDiags.HasErrors() {
+			diags = append(diags, moreDiags...)
+
+			continue
+		}
+
 		if moreDiags := decodeBody(b, r.base, &s); moreDiags.HasErrors() {
 			diags = append(diags, moreDiags...)
 
@@ -652,7 +661,7 @@ func (r *stackRun) secretItems(expr hcl.Expression) (map[string]cty.Value, hcl.D
 
 	rng := expr.Range()
 
-	if v.IsNull() || !isObject(v) {
+	if v.IsNull() || !v.IsWhollyKnown() || !isObject(v) {
 		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Invalid items", Detail: "The items of a secret are an object of strings.", Subject: rng.Ptr()}}
 	}
 
@@ -663,7 +672,7 @@ func (r *stackRun) secretItems(expr hcl.Expression) (map[string]cty.Value, hcl.D
 
 	items := map[string]cty.Value{}
 
-	for name, item := range v.AsValueMap() {
+	for name, item := range attributeValues(v) {
 		s, err := convert.Convert(item, cty.String)
 		if err != nil || s.IsNull() {
 			return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Invalid items", Detail: fmt.Sprintf("The item %s of a secret is not a string.", name), Subject: rng.Ptr()}}

@@ -101,6 +101,11 @@ func (k *checker) checkNumber(c *lang.Constraint, v cty.Value, path string) {
 }
 
 func (k *checker) checkCollection(c *lang.Constraint, v cty.Value, path string) {
+	// A set with an unknown item has no known size, and no known items.
+	if v.Type().IsSetType() && !v.IsWhollyKnown() {
+		return
+	}
+
 	n := v.LengthInt()
 
 	if c.MinItems != nil && n < *c.MinItems {
@@ -172,6 +177,8 @@ func (k *checker) checkAttributes(c *lang.Constraint, v cty.Value, path string) 
 }
 
 func containsValue(values []cty.Value, v cty.Value) bool {
+	v, _ = v.UnmarkDeep() // a comparison with a marked value is marked
+
 	for _, candidate := range values {
 		if eq := candidate.Equals(v); eq.IsKnown() && eq.True() {
 			return true

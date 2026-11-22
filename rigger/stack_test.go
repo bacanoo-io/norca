@@ -167,6 +167,9 @@ module "db" {
 }
 `
 
+// variablesFile is the file of the variables of a module or a stack.
+const variablesFile = "variables.hcl"
+
 // testNamespace is the namespace of the stack of the tests.
 const testNamespace = "apps"
 
@@ -444,5 +447,129 @@ func TestStack_DestroyOrder(t *testing.T) {
 
 	if got := strings.Join(f.removed, " "); got != "old app db" {
 		t.Errorf("removed %s, want old, then app, then db", got)
+	}
+}
+
+// noPanic fails the test when fn panics: a panic of the engine ends the
+// process of a server that embeds it.
+func noPanic(t *testing.T, fn func()) {
+	t.Helper()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic: %v", r)
+		}
+	}()
+
+	fn()
+}
+
+// sensitiveStack is a stack of the module db, with the variables and the
+// secrets given.
+func sensitiveStack(stack, variables, secrets string) fstest.MapFS {
+	files := stackFiles("rigger {\n  name      = \"shop\"\n  namespace = \"apps\"\n}\n\n" + stack)
+	files["s/variables.hcl"] = &fstest.MapFile{Data: []byte(variables)}
+	files["s/secrets.hcl"] = &fstest.MapFile{Data: []byte(secrets)}
+
+	return files
+}
+
+// A value that is sensitive as a whole is taken where its parts may be
+// sensitive: the values of a release and the items of a secret.
+func TestPlanStack_SensitiveObjects(t *testing.T) {
+	t.Parallel()
+
+	fsys := sensitiveStack(
+		"module \"db\" {\n  source = \"./modules/db\"\n  values = var.db\n}\n",
+		"variable \"db\" {\n  sensitive = true\n  default   = { size = 2, password = \"pw\" }\n}\n",
+		"secret \"apps/db\" {\n  items = var.db\n}\n",
+	)
+
+	noPanic(t, func() {
+		f := newFakeCluster()
+		e := stackEngine(t, f)
+
+		if _, diags := e.ApplyStack(t.Context(), planOf(t, e, fsys, nil), rigger.ApplyOptions{}); diags.HasErrors() {
+			t.Fatal(diags)
+		}
+
+		db := f.releases[host.ReleaseRef{Namespace: testNamespace, Name: "db"}][0]
+		if len(db.Values) != 0 {
+			t.Errorf("the revision records %v, want none of a sensitive object", db.Values)
+		}
+
+		size, password := db.Secrets["db"]["size"], db.Secrets["db"]["password"]
+		if size.Reveal() != "2" || password.Reveal() != "pw" {
+			t.Errorf("secret items = %q, %q, want 2 and pw", size.Reveal(), password.Reveal())
+		}
+
+		if got := f.secrets["apps/db"]["password"]; got.Reveal() != "pw" {
+			t.Errorf("the secret holds %q, want pw", got.Reveal())
+		}
+	})
+}
+
+// A sensitive value where none may be is an error that says so.
+func TestPlanStack_SensitiveRefused(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		stack     string
+		variables string
+		onceFile  string
+		module    map[string]string
+		expected  string
+	}{
+		{
+			name:      "overwrite of a secret",
+			variables: "variable \"b\" {\n  sensitive = true\n  default   = true\n}\n",
+			onceFile:  "secret \"apps/db\" {\n  items     = { a = \"x\" }\n  overwrite = var.b\n}\n",
+			expected:  "A sensitive value can't be used in overwrite of a secret",
+		},
+		{
+			name:     "item_of",
+			stack:    "module \"db\" {\n  source = \"./modules/db\"\n  values = { l = [\"!generate:g\"] }\n}\n",
+			module:   map[string]string{variablesFile: "variable \"l\" {\n  type = list(string)\n\n  validation {\n    item_of = [\"x\"]\n  }\n}\n"},
+			expected: "not one of",
+		},
+		{
+			name:  "hook",
+			stack: "module \"db\" {\n  source = \"./modules/db\"\n}\n",
+			module: map[string]string{
+				variablesFile:     "variable \"on\" {\n  sensitive = true\n  default   = \"test\"\n}\n",
+				"check.norca.hcl": "job \"check\" {\n  hook {\n    on = var.on\n  }\n}\n",
+			},
+			expected: "A sensitive value can't be used in a hook",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := sensitiveStack(tt.stack, tt.variables, tt.onceFile)
+
+			if tt.module != nil {
+				delete(fsys, "s/modules/db/db.var.hcl")
+
+				for name, src := range tt.module {
+					fsys["s/modules/db/"+name] = &fstest.MapFile{Data: []byte(src)}
+				}
+			}
+
+			noPanic(t, func() {
+				e := stackEngine(t, newFakeCluster())
+
+				s, diags := e.LoadStack(t.Context(), fsys, "s")
+				if diags.HasErrors() {
+					t.Fatal(diags)
+				}
+
+				if _, diags := e.PlanStack(t.Context(), s, nil); !strings.Contains(diags.Error(), tt.expected) {
+					t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
+				}
+			})
+		})
 	}
 }

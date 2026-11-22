@@ -99,7 +99,7 @@ func (w *walker) emptyDynamics(blocks hclsyntax.Blocks, path []string, values ma
 			continue
 		}
 
-		if _, labelled := b.Body.Attributes["labels"]; labelled {
+		if _, labelled := b.Body.Attributes[attrLabels]; labelled {
 			values[b.Labels[0]] = cty.EmptyObjectVal
 		} else {
 			values[b.Labels[0]] = cty.EmptyTupleVal
@@ -184,6 +184,10 @@ type dynamicItem struct {
 	ctx    *hcl.EvalContext
 }
 
+// attrLabels is the attribute of a dynamic block that gives the labels of
+// the blocks it makes.
+const attrLabels = "labels"
+
 // invalidDynamic is the summary of the errors of a dynamic block.
 const invalidDynamic = "Invalid dynamic block"
 
@@ -249,6 +253,8 @@ func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext) (string, *hclsyntax
 
 // dynamic evaluates the blocks a dynamic block makes.
 func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string) ([]evaluatedBlock, hcl.Diagnostics) {
+	w.markDynamic(b, ctx, path)
+
 	typ, content, items, diags := expandDynamic(b, ctx)
 	if diags.HasErrors() {
 		return nil, diags
@@ -265,6 +271,21 @@ func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string
 	return out, diags
 }
 
+// markDynamic records a sensitive for_each or labels of a dynamic block: a
+// job takes none, and its decoder expands the block itself, after the walk.
+func (w *walker) markDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string) {
+	for _, name := range []string{metaForEach, attrLabels} {
+		attr, ok := b.Body.Attributes[name]
+		if !ok {
+			continue
+		}
+
+		if v, _ := attr.Expr.Value(ctx); v.ContainsMarked() {
+			w.marked = append(w.marked, markedAttr{path: blockPath(path, b.Type, []string{name}), rng: attr.Expr.Range()})
+		}
+	}
+}
+
 // unsupportedSyntax is the error of a body not in the native syntax.
 func unsupportedSyntax() hcl.Diagnostics {
 	return hcl.Diagnostics{{
@@ -275,12 +296,16 @@ func unsupportedSyntax() hcl.Diagnostics {
 
 // dynamicLabels evaluates the labels of a dynamic block.
 func dynamicLabels(b *hclsyntax.Block, ctx *hcl.EvalContext) ([]string, hcl.Diagnostics) {
-	attr, ok := b.Body.Attributes["labels"]
+	attr, ok := b.Body.Attributes[attrLabels]
 	if !ok {
 		return nil, nil
 	}
 
 	v, diags := attr.Expr.Value(ctx)
+	if v.ContainsMarked() {
+		return nil, append(diags, sensitiveDiag("the labels of a dynamic block", attr.Expr.Range()))
+	}
+
 	if diags.HasErrors() || v.IsNull() || !v.CanIterateElements() {
 		return nil, diags
 	}
