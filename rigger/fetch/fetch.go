@@ -66,6 +66,8 @@ var _ source.Fetcher = (*Fetcher)(nil)
 
 // New returns a fetcher with its cache in dir.
 func New(dir string) *Fetcher {
+	installKeepOrigin()
+
 	return &Fetcher{
 		shared: &shared{cache: dir, oci: oci.NewClient(), updated: map[string]bool{}},
 		global: DefaultGlobalRegistry,

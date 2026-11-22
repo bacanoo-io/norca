@@ -14,7 +14,6 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	"github.com/bacanoo-io/norca/rigger/source"
 )
@@ -194,7 +193,7 @@ func TestGitCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	basic, ok := auth.(*githttp.BasicAuth)
+	basic, ok := auth.(*originAuth)
 	if !ok || basic.Username != "git" || basic.Password != "token" {
 		t.Errorf("auth %#v, want basic auth git/token", auth)
 	}

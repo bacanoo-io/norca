@@ -93,7 +93,12 @@ func (f *Fetcher) auth(ctx context.Context, repo, url string) (transport.AuthMet
 			return nil, nil
 		}
 
-		return &githttp.BasicAuth{Username: cmp.Or(c.Username, "git"), Password: c.Password}, nil
+		auth, err := newOriginAuth(repo, url, &githttp.BasicAuth{Username: cmp.Or(c.Username, "git"), Password: c.Password})
+		if err != nil {
+			return nil, err // not a nil *originAuth in the interface
+		}
+
+		return auth, nil
 	}
 
 	return sshAuth(repo, c)
