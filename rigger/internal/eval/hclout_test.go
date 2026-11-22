@@ -54,7 +54,7 @@ func TestRenderBlock(t *testing.T) {
 
 	block := syntax.Blocks[0].AsHCLBlock()
 
-	out, diags := renderBlock(block, "dns-record", ctx, metaNames)
+	out, diags := renderBlock(block, "dns-record", ctx, metaNames, nil)
 	if diags.HasErrors() {
 		t.Fatal(diags)
 	}

@@ -23,6 +23,8 @@ type walker struct {
 	// null is kept, and a dynamic block that makes no block is an empty
 	// list (an empty object with labels). A resource leaves both out.
 	test bool
+	// expansion bounds what the dynamic blocks make.
+	expansion *expansion
 }
 
 // markedAttr is an attribute whose value holds a sensitive value: its path
@@ -194,7 +196,7 @@ const invalidDynamic = "Invalid dynamic block"
 // expandDynamic expands a dynamic block: for_each, iterator, labels and a
 // content block, as HCL's dynamic blocks are written. It returns the type
 // of the blocks, their content and one item per block.
-func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext) (string, *hclsyntax.Body, []dynamicItem, hcl.Diagnostics) {
+func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, x *expansion) (string, *hclsyntax.Body, []dynamicItem, hcl.Diagnostics) {
 	if len(b.Labels) != 1 {
 		return "", nil, nil, hcl.Diagnostics{{
 			Severity: hcl.DiagError, Summary: invalidDynamic,
@@ -237,6 +239,10 @@ func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext) (string, *hclsyntax
 	var items []dynamicItem
 
 	for it := forEach.ElementIterator(); it.Next(); {
+		if !x.take(b.DefRange()) {
+			return "", nil, nil, append(diags, x.exceeded()...)
+		}
+
 		key, value := it.Element()
 		child := ctx.NewChild()
 		child.Variables = map[string]cty.Value{
@@ -255,7 +261,7 @@ func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext) (string, *hclsyntax
 func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string) ([]evaluatedBlock, hcl.Diagnostics) {
 	w.markDynamic(b, ctx, path)
 
-	typ, content, items, diags := expandDynamic(b, ctx)
+	typ, content, items, diags := expandDynamic(b, ctx, w.expansion)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -265,6 +271,11 @@ func (w *walker) dynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, path []string
 	for _, item := range items {
 		v, moreDiags := w.body(content, item.ctx, blockPath(path, typ, item.labels))
 		diags = append(diags, moreDiags...)
+
+		if w.expansion.exceeded().HasErrors() {
+			break
+		}
+
 		out = append(out, evaluatedBlock{typ: typ, labels: item.labels, value: v, isDynamic: true, rng: b.DefRange()})
 	}
 

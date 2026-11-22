@@ -57,7 +57,7 @@ func textBlock(body hcl.Body, name string, v cty.Value, ctx *hcl.EvalContext) (c
 	}
 
 	f := hclwrite.NewEmptyFile()
-	if diags := renderBody(f.Body(), blocks[0].Body, ctx, nil); diags.HasErrors() {
+	if diags := renderBody(f.Body(), blocks[0].Body, ctx, nil, nil); diags.HasErrors() {
 		return v, diags
 	}
 

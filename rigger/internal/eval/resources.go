@@ -155,6 +155,10 @@ func (e *evaluator) countInstances(attr *hcl.Attribute) ([]instance, hcl.Diagnos
 		return nil, hcl.Diagnostics{metaDiag(attr, "a whole number, 0 or more")}
 	}
 
+	if over := e.room(n, attr.Expr.Range()); over.HasErrors() {
+		return nil, over
+	}
+
 	out := make([]instance, n)
 	for i := range out {
 		out[i] = instance{
@@ -181,6 +185,10 @@ func (e *evaluator) forEachInstances(attr *hcl.Attribute) ([]instance, hcl.Diagn
 
 	if !byKey && !ty.IsSetType() && !ty.IsListType() && !ty.IsTupleType() {
 		return nil, hcl.Diagnostics{metaDiag(attr, "a map, an object or a collection of strings")}
+	}
+
+	if over := e.room(v.LengthInt(), attr.Expr.Range()); over.HasErrors() {
+		return nil, over
 	}
 
 	var out []instance
@@ -233,7 +241,7 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 		return e.decoded(r, ctx)
 	}
 
-	w := &walker{skip: metaNames}
+	w := &walker{skip: metaNames, expansion: &e.expansion}
 
 	v, diags := w.value(r.Block.Body, ctx)
 	if diags.HasErrors() {
@@ -304,11 +312,11 @@ func (e *evaluator) decoded(r *lang.Resource, ctx *hcl.EvalContext) (Resource, h
 	res := Resource{Kind: r.Type.Kind}
 
 	if e.cfg.Test {
-		tw := &walker{skip: metaNames, test: true}
+		tw := &walker{skip: metaNames, test: true, expansion: &e.expansion}
 		res.Value, _ = tw.value(r.Block.Body, ctx)
 	}
 
-	src, diags := renderBlock(r.Block, r.Name, ctx, metaNames)
+	src, diags := renderBlock(r.Block, r.Name, ctx, metaNames, &e.expansion)
 	if diags.HasErrors() {
 		return Resource{}, diags
 	}
@@ -344,8 +352,13 @@ func (e *evaluator) job(r *lang.Resource, body hcl.Body, hookBlock *hcl.Block, c
 	// The decoder reports the errors of the job; this walk finds the
 	// sensitive values before the decoder sees them, and gives the value a
 	// test reads.
-	w := &walker{skip: metaNames, test: e.cfg.Test}
+	w := &walker{skip: metaNames, test: e.cfg.Test, expansion: &e.expansion}
 	value, _ := w.value(r.Block.Body, jobCtx)
+
+	// Before the decoder expands the same blocks with no bound.
+	if over := e.expansion.exceeded(); over.HasErrors() {
+		return Resource{}, over
+	}
 
 	var diags hcl.Diagnostics
 	for _, m := range w.marked {

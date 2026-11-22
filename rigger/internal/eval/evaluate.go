@@ -93,6 +93,7 @@ type run struct {
 	ctx       context.Context //nolint:containedctx // lives for one call of Evaluate
 	cfg       Config
 	resources int
+	expansion expansion
 }
 
 // Evaluate evaluates m with the variables vars (from Variables) and the
@@ -182,8 +183,15 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 
 // count counts n more resources against the limit of the engine.
 func (r *run) count(n int, rng hcl.Range) hcl.Diagnostics {
+	diags := r.room(n, rng)
 	r.resources += n
-	if r.cfg.Resources == 0 || r.resources <= r.cfg.Resources {
+
+	return diags
+}
+
+// room reports n more resources over the limit, before they are made.
+func (r *run) room(n int, rng hcl.Range) hcl.Diagnostics {
+	if r.cfg.Resources == 0 || n <= r.cfg.Resources-r.resources {
 		return nil
 	}
 

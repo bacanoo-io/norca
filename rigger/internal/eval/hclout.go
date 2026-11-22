@@ -17,19 +17,19 @@ import (
 // module (a null one left out), its blocks in their order, dynamic blocks
 // expanded, without the names of skip at the top. A sensitive value is
 // refused: the text goes to the host.
-func renderBlock(block *hcl.Block, label string, ctx *hcl.EvalContext, skip map[string]bool) ([]byte, hcl.Diagnostics) {
+func renderBlock(block *hcl.Block, label string, ctx *hcl.EvalContext, skip map[string]bool, x *expansion) ([]byte, hcl.Diagnostics) {
 	f := hclwrite.NewEmptyFile()
 
 	out := f.Body().AppendNewBlock(block.Type, []string{label})
 
-	if diags := renderBody(out.Body(), block.Body, ctx, skip); diags.HasErrors() {
+	if diags := renderBody(out.Body(), block.Body, ctx, skip, x); diags.HasErrors() {
 		return nil, diags
 	}
 
 	return f.Bytes(), nil
 }
 
-func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip map[string]bool) hcl.Diagnostics {
+func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip map[string]bool, x *expansion) hcl.Diagnostics {
 	syntax, ok := body.(*hclsyntax.Body)
 	if !ok {
 		return unsupportedSyntax()
@@ -75,28 +75,32 @@ func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip ma
 
 	for _, b := range syntax.Blocks {
 		if b.Type == "dynamic" {
-			diags = append(diags, renderDynamic(out, b, ctx)...)
+			diags = append(diags, renderDynamic(out, b, ctx, x)...)
 
 			continue
 		}
 
 		nb := out.AppendNewBlock(b.Type, b.Labels)
-		diags = append(diags, renderBody(nb.Body(), b.Body, ctx, nil)...)
+		diags = append(diags, renderBody(nb.Body(), b.Body, ctx, nil, x)...)
 	}
 
 	return diags
 }
 
 // renderDynamic writes the blocks a dynamic block makes.
-func renderDynamic(out *hclwrite.Body, b *hclsyntax.Block, ctx *hcl.EvalContext) hcl.Diagnostics {
-	typ, content, items, diags := expandDynamic(b, ctx)
+func renderDynamic(out *hclwrite.Body, b *hclsyntax.Block, ctx *hcl.EvalContext, x *expansion) hcl.Diagnostics {
+	typ, content, items, diags := expandDynamic(b, ctx, x)
 	if diags.HasErrors() {
 		return diags
 	}
 
 	for _, item := range items {
 		nb := out.AppendNewBlock(typ, item.labels)
-		diags = append(diags, renderBody(nb.Body(), content, item.ctx, nil)...)
+		diags = append(diags, renderBody(nb.Body(), content, item.ctx, nil, x)...)
+
+		if x.exceeded().HasErrors() {
+			break
+		}
 	}
 
 	return diags
