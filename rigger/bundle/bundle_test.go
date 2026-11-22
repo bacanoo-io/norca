@@ -18,6 +18,7 @@ import (
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/bundle"
+	"github.com/bacanoo-io/norca/rigger/internal/targz/targztest"
 )
 
 const (
@@ -240,5 +241,20 @@ func TestRead_Commit(t *testing.T) {
 				t.Errorf("Read() = %v, want ErrBundle", err)
 			}
 		})
+	}
+}
+
+// A sparse file would unpack past the bound of ReadBounded, which counts
+// the bytes of the archive.
+func TestReadBounded_Sparse(t *testing.T) {
+	t.Parallel()
+
+	archive, err := targztest.SparseTarGz("trees/0123456789abcdef0123456789abcdef01234567/big", 8<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := bundle.ReadBounded(bytes.NewReader(archive), 1<<20); err == nil || !strings.Contains(err.Error(), "sparse") {
+		t.Errorf("ReadBounded() = %v, want the sparse file refused", err)
 	}
 }

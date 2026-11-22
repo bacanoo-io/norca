@@ -262,6 +262,10 @@ func readStackArchive(archive []byte) (fstest.MapFS, string, error) {
 // readStackEntry reads one entry of an archive of a stack into files, or
 // returns it as the manifest.
 func readStackEntry(tr *tar.Reader, h *tar.Header, files fstest.MapFS) (*stackArchiveManifest, error) {
+	if err := targz.CheckEntry(h); err != nil {
+		return nil, err
+	}
+
 	if h.Typeflag != tar.TypeReg || !fs.ValidPath(h.Name) || files[h.Name] != nil {
 		return nil, fmt.Errorf("the entry %q is not a file of a stack", h.Name)
 	}

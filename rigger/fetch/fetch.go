@@ -29,6 +29,7 @@ import (
 
 	"github.com/bacanoo-io/norca/rigger/builtin"
 	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
+	"github.com/bacanoo-io/norca/rigger/internal/targz"
 	"github.com/bacanoo-io/norca/rigger/oci"
 	"github.com/bacanoo-io/norca/rigger/source"
 	"github.com/bacanoo-io/norca/rigger/version"
@@ -423,6 +424,10 @@ func untar(data []byte, dir string) error {
 		}
 
 		if err != nil {
+			return err
+		}
+
+		if err := targz.CheckEntry(h); err != nil {
 			return err
 		}
 

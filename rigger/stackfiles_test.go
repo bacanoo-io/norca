@@ -17,6 +17,7 @@ import (
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/fetch"
+	"github.com/bacanoo-io/norca/rigger/internal/targz/targztest"
 )
 
 // archiveNames lists the entries of an archive of a stack.
@@ -280,5 +281,24 @@ func TestModule_ArchiveAndLoadModuleFiles(t *testing.T) {
 
 	if _, diags := e.LoadModuleFiles(t.Context(), []byte("not an archive")); !diags.HasErrors() {
 		t.Error("an archive that is not one was loaded")
+	}
+}
+
+// A sparse file is a few bytes in an archive and any size when it is read:
+// the bound of the archive, which counts its bytes, does not see it.
+func TestLoadStackFiles_Sparse(t *testing.T) {
+	t.Parallel()
+
+	archive, err := targztest.SparseTarGz("s/files/big", 8<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, diags := engine(t).LoadStackFiles(t.Context(), archive); !strings.Contains(diags.Error(), "sparse") {
+		t.Errorf("diagnostics = %q, want the sparse file refused", diags.Error())
+	}
+
+	if _, diags := engine(t).LoadModuleFiles(t.Context(), archive); !strings.Contains(diags.Error(), "sparse") {
+		t.Errorf("diagnostics = %q, want the sparse file refused", diags.Error())
 	}
 }

@@ -206,6 +206,10 @@ const maxFileBytes = 64 << 20
 // readEntry reads an entry of a bundle: the manifest, which it returns, or
 // a file of a commit, which it adds to files.
 func readEntry(tr *tar.Reader, h *tar.Header, files map[string]map[string][]byte) (*Manifest, error) {
+	if err := targz.CheckEntry(h); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBundle, err)
+	}
+
 	data, err := readlimit.ReadAll(tr, maxFileBytes)
 	if err != nil {
 		return nil, fmt.Errorf("%w: entry %q: %w", ErrBundle, h.Name, err)
