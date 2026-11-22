@@ -771,6 +771,11 @@ stacks/data-platform/
 - **Metadata** is a `stack { ... }` block in `metadata.hcl`, with the same
   fields as a module (name, version, description, url, license, category,
   keywords, icon, `requires { norca, features }`).
+  Since 2026-11-22 (4.8 of norca) the category is one of application,
+  database, messaging, observability, platform, networking, security,
+  storage, developer-tools, ai and other, so a catalog filters on it and
+  shows an icon of each; the index of the global registry lists the
+  description, category, keywords and license of each version.
 - **Its modules** are registry modules (by address and version constraint,
   never by a path into the repository, also for modules of the same
   registry) and modules of its own in `modules/`. The registry modules may
@@ -787,11 +792,6 @@ stacks/data-platform/
   trusted by the same policy. The modules it fetches are verified by their
   own digests from the lock.
 - **Using it:**
-  Since 2026-11-22 (4.8 of norca) the category is one of application,
-  database, messaging, observability, platform, networking, security,
-  storage, developer-tools, ai and other, so a catalog filters on it and
-  shows an icon of each; the index of the global registry lists the
-  description, category, keywords and license of each version.
 
   ```shell
   rigger stack plan  example/data-platform --version "~> 1.2" -f my.vars.hcl
