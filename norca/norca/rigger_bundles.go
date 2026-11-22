@@ -426,7 +426,7 @@ func (r *riggerRegistries) unpackBundles(ctx context.Context) ([]riggerBundledMo
 					repository: fetch.CanonicalRepository(mod.Repository), commit: mod.Commit, digest: mod.Digest, dir: mod.Path,
 				})
 
-				dir := r.fetcher.BundleDir(mod.Commit)
+				dir := r.fetcher.BundleDir(mod.Repository, mod.Commit)
 				if _, err := os.Stat(dir); err == nil {
 					continue
 				}

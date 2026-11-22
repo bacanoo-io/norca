@@ -54,7 +54,7 @@ func (f *Fetcher) Checkout(ctx context.Context, repository, commit string) (stri
 		return "", err
 	}
 
-	tree := f.TreeDir(commit)
+	tree := f.TreeDir(repository, commit)
 	if _, err := os.Stat(tree); err != nil {
 		if err := extract(r, commit, tree); err != nil {
 			return "", err

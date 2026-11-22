@@ -18,6 +18,7 @@ import (
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/bundle"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 )
 
 var errBundleOut = errors.New("bundle create needs -o, the file to write")
@@ -173,7 +174,7 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	// Every module is checked in a directory beside the trees of the cache
 	// first; only a bundle whose modules all have their digests is placed,
 	// so a wrong one leaves nothing in the cache.
-	bundles := filepath.Dir(fetcher.BundleDir(m.Modules[0].Commit))
+	bundles := filepath.Dir(filepath.Dir(fetcher.BundleDir(m.Modules[0].Repository, m.Modules[0].Commit)))
 	if err := os.MkdirAll(bundles, 0o750); err != nil {
 		return err
 	}
@@ -184,12 +185,16 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	}
 	defer os.RemoveAll(staging) //nolint:errcheck // what was not placed goes
 
-	if err := checkBundle(ctx, eng, staging, m, files); err != nil {
+	// A cache of its own, so that each repository of a commit has its tree.
+	staged := fetch.New(staging)
+
+	if err := checkBundle(ctx, eng, staged, m, files); err != nil {
 		return err
 	}
 
 	for _, mod := range m.Modules {
-		if err := placeTree(filepath.Join(staging, mod.Commit), fetcher.BundleDir(mod.Commit)); err != nil {
+		checked, dir := staged.BundleDir(mod.Repository, mod.Commit), fetcher.BundleDir(mod.Repository, mod.Commit)
+		if err := placeTree(checked, dir); err != nil {
 			return err
 		}
 
@@ -201,11 +206,12 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 	return nil
 }
 
-// checkBundle writes the tree of each commit of a bundle under staging and
-// checks that each module has the digest its manifest says.
-func checkBundle(ctx context.Context, eng *rigger.Engine, staging string, m *bundle.Manifest, files map[string]map[string][]byte) error {
+// checkBundle writes the tree of each commit of each repository of a bundle
+// into the staging cache and checks that each module has the digest its
+// manifest says.
+func checkBundle(ctx context.Context, eng *rigger.Engine, staged *fetch.Fetcher, m *bundle.Manifest, files map[string]map[string][]byte) error {
 	for _, mod := range m.Modules {
-		dir := filepath.Join(staging, mod.Commit)
+		dir := staged.BundleDir(mod.Repository, mod.Commit)
 		if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 			if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
 				return err
@@ -230,6 +236,10 @@ func checkBundle(ctx context.Context, eng *rigger.Engine, staging string, m *bun
 func placeTree(checked, dir string) error {
 	if _, err := os.Stat(checked); errors.Is(err, fs.ErrNotExist) {
 		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
+		return err
 	}
 
 	if err := os.Rename(checked, dir); err != nil {

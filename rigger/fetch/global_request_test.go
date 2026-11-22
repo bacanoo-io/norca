@@ -49,7 +49,7 @@ func TestFetcher_GlobalRegistryOfARequest(t *testing.T) {
 	t.Parallel()
 
 	host := New(t.TempDir())
-	before, after := indexDir(t, "1.0.0"), indexDir(t, "2.0.0")
+	before, after := indexDir(t, testVersion), indexDir(t, "2.0.0")
 
 	first := host.WithGlobalRegistry(before)
 	second := host.WithGlobalRegistry(after)
@@ -59,7 +59,7 @@ func TestFetcher_GlobalRegistryOfARequest(t *testing.T) {
 	for _, tt := range []struct {
 		fetcher  *Fetcher
 		expected string
-	}{{first, "1.0.0"}, {second, "2.0.0"}} {
+	}{{first, testVersion}, {second, "2.0.0"}} {
 		got, err := tt.fetcher.Versions(t.Context(), req)
 		if err != nil {
 			t.Fatal(err)

@@ -44,7 +44,7 @@ func TestRiggerBundles_Unpack(t *testing.T) {
 
 	var buf bytes.Buffer
 	must.NoError(t, bundle.Write(&buf, "shop", []rigger.SourcedModule{{
-		Source: "git.example.com/acme/modules//modules/web", Version: "1.0.0", Path: "modules/web",
+		Source: "git.example.com/acme/modules//modules/web", Version: "1.0.0", Repository: "git.example.com/acme/modules", Path: "modules/web",
 		Commit: commit, Digest: digest, Dirs: []string{"modules/web"}, Root: root,
 	}}))
 
@@ -55,7 +55,7 @@ func TestRiggerBundles_Unpack(t *testing.T) {
 	r, err := s.riggerRegistriesOf()
 	must.NoError(t, err)
 
-	_, err = os.Stat(filepath.Join(r.fetcher.BundleDir(commit), "modules", "web", "metadata.hcl"))
+	_, err = os.Stat(filepath.Join(r.fetcher.BundleDir("git.example.com/acme/modules", commit), "modules", "web", "metadata.hcl"))
 	must.NoError(t, err, must.Sprint("the bundle is unpacked into the cache of the server that imported it"))
 
 	// Another cache, as a new leader has.
@@ -63,7 +63,7 @@ func TestRiggerBundles_Unpack(t *testing.T) {
 	_, err = other.unpackBundles(t.Context())
 	must.NoError(t, err)
 
-	_, err = os.Stat(filepath.Join(other.fetcher.BundleDir(commit), "modules", "web", "metadata.hcl"))
+	_, err = os.Stat(filepath.Join(other.fetcher.BundleDir("git.example.com/acme/modules", commit), "modules", "web", "metadata.hcl"))
 	must.NoError(t, err, must.Sprint("an empty cache gets the bundle from the bus"))
 
 	// Too large to be sent.

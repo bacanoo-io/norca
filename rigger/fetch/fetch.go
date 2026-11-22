@@ -206,16 +206,26 @@ var ErrTagMoved = errors.New("the tag points to another commit than the lock fil
 
 var commitPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
-// TreeDir is the directory of the full tree of a commit in the cache.
-func (f *Fetcher) TreeDir(commit string) string {
-	return filepath.Join(f.cache, "trees", commit)
+// repositoryKey names a repository in the cache. What is kept is its
+// repository's: a commit or a digest is no secret, and one that served
+// every repository would give the content of a private one to who names it.
+func repositoryKey(repository string) string {
+	sum := sha256.Sum256([]byte(CanonicalRepository(repository)))
+
+	return hex.EncodeToString(sum[:12])
 }
 
-// BundleDir is the directory of the files of a commit imported from a
-// bundle: the directories of its modules only, kept apart from the full
-// trees.
-func (f *Fetcher) BundleDir(commit string) string {
-	return filepath.Join(f.cache, "bundles", commit)
+// TreeDir is the directory of the full tree of a commit of a repository in
+// the cache.
+func (f *Fetcher) TreeDir(repository, commit string) string {
+	return filepath.Join(f.cache, "trees", repositoryKey(repository), commit)
+}
+
+// BundleDir is the directory of the files of a commit of a repository
+// imported from a bundle: the directories of its modules only, kept apart
+// from the full trees.
+func (f *Fetcher) BundleDir(repository, commit string) string {
+	return filepath.Join(f.cache, "bundles", repositoryKey(repository), commit)
 }
 
 // cachedTree returns a tree of the commit the request locks when the
@@ -225,7 +235,7 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 		return source.Fetched{}, false
 	}
 
-	for _, dir := range []string{f.TreeDir(req.Commit), f.BundleDir(req.Commit)} {
+	for _, dir := range []string{f.TreeDir(req.Repository, req.Commit), f.BundleDir(req.Repository, req.Commit)} {
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(req.Path), "metadata.hcl")); err == nil {
 			return source.Fetched{
 				FS: os.DirFS(dir), Dir: req.Path,
@@ -282,7 +292,7 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 		return source.Fetched{}, fmt.Errorf("%s %s: %w (%s, now %s)", req.Repository, ref, ErrTagMoved, req.Commit, commit)
 	}
 
-	tree := filepath.Join(f.cache, "trees", commit)
+	tree := f.TreeDir(req.Repository, commit)
 	if _, err := os.Stat(tree); err != nil {
 		if err := extract(r, commit, tree); err != nil {
 			return source.Fetched{}, err
@@ -313,9 +323,10 @@ func (f *Fetcher) ociVersions(ctx context.Context, req source.Request) ([]source
 	return out, nil
 }
 
-// OCIDir is the directory of the layer of a manifest in the cache.
-func (f *Fetcher) OCIDir(manifest string) string {
-	return filepath.Join(f.cache, "oci", strings.TrimPrefix(manifest, "sha256:"))
+// OCIDir is the directory of the layer of a manifest of a repository in
+// the cache.
+func (f *Fetcher) OCIDir(repository, manifest string) string {
+	return filepath.Join(f.cache, "oci", repositoryKey(repository), strings.TrimPrefix(manifest, "sha256:"))
 }
 
 // ociFetch resolves the tag of a version to its manifest, refuses a
@@ -352,7 +363,7 @@ func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetc
 		return source.Fetched{}, fmt.Errorf("%s:%s: %w (%s, now %s)", req.Repository, tag, ErrTagMoved, req.Commit, digest)
 	}
 
-	dir := f.OCIDir(digest)
+	dir := f.OCIDir(req.Repository, digest)
 	if _, err := os.Stat(dir); err != nil {
 		if err := f.extractLayer(ctx, req.Repository, m.Layers[0].Digest, dir); err != nil {
 			return source.Fetched{}, err
@@ -379,7 +390,7 @@ func (f *Fetcher) cachedLayer(req source.Request, dir string, origin source.Orig
 		return source.Fetched{}, false
 	}
 
-	layer := f.OCIDir(req.Commit)
+	layer := f.OCIDir(req.Repository, req.Commit)
 	if _, err := os.Stat(filepath.Join(layer, filepath.FromSlash(dir), "metadata.hcl")); err != nil {
 		return source.Fetched{}, false
 	}

@@ -34,6 +34,8 @@ const riggerRegistrySyncTimeout = 10 * time.Minute
 type riggerRegistries struct {
 	srv     *Server
 	fetcher *fetch.Fetcher
+	// noGlobal is the directory of an empty index (noGlobalDir).
+	noGlobal string
 
 	// syncsMu guards syncs: the syncs of one registry run one at a time,
 	// by its name. One lock for all would let a registry that does not
@@ -61,6 +63,7 @@ func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 	r := &riggerRegistries{
 		srv:      srv,
 		fetcher:  fetch.New(filepath.Join(dir, "cache")),
+		noGlobal: filepath.Join(dir, "cache", "global-not-synced"),
 		indexes:  map[string]*riggerRegistryIndex{},
 		syncs:    map[string]*sync.Mutex{},
 		unpacked: map[string][]riggerBundledModule{},

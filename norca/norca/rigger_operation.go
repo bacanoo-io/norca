@@ -462,12 +462,11 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 
 // noGlobalDir is an empty index: that of a global registry never synced.
 func (r *riggerRegistries) noGlobalDir() (string, error) {
-	dir := filepath.Join(filepath.Dir(r.fetcher.TreeDir("x")), "..", "global-not-synced")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(r.noGlobal, 0o750); err != nil {
 		return "", err
 	}
 
-	return filepath.Abs(dir)
+	return filepath.Abs(r.noGlobal)
 }
 
 // startRiggerOperation plans an apply or a destroy of a stack, records it as

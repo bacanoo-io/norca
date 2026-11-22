@@ -26,19 +26,19 @@ func TestFetcher_LockPathsStayInCache(t *testing.T) {
 	}{
 		{
 			name: "oci manifest",
-			req:  source.Request{Kind: source.KindOCI, Repository: "127.0.0.1:1/x", Version: "1.0.0", Commit: "../../outside", Path: "mod"},
+			req:  source.Request{Kind: source.KindOCI, Repository: "127.0.0.1:1/x", Version: testVersion, Commit: "../../outside", Path: testDir},
 		},
 		{
 			name: "oci path",
-			req:  source.Request{Kind: source.KindOCI, Repository: "127.0.0.1:1/x", Version: "1.0.0", Commit: manifest, Path: "../../../outside/mod"},
+			req:  source.Request{Kind: source.KindOCI, Repository: "127.0.0.1:1/x", Version: testVersion, Commit: manifest, Path: "../../../outside/mod"},
 		},
 		{
 			name: "git path",
-			req:  source.Request{Kind: source.KindGit, Repository: "http://127.0.0.1:1/x", Ref: "v1.0.0", Commit: commit, Path: "../../../outside/mod"},
+			req:  source.Request{Kind: source.KindGit, Repository: "http://127.0.0.1:1/x", Ref: testRef, Commit: commit, Path: "../../../outside/mod"},
 		},
 		{
 			name: "git path of windows",
-			req:  source.Request{Kind: source.KindGit, Repository: "http://127.0.0.1:1/x", Ref: "v1.0.0", Commit: commit, Path: `..\..\..\outside\mod`},
+			req:  source.Request{Kind: source.KindGit, Repository: "http://127.0.0.1:1/x", Ref: testRef, Commit: commit, Path: `..\..\..\outside\mod`},
 		},
 	}
 
@@ -51,7 +51,7 @@ func TestFetcher_LockPathsStayInCache(t *testing.T) {
 
 			outside := filepath.Join(root, "outside", "mod")
 
-			for _, dir := range []string{outside, f.OCIDir(manifest), f.TreeDir(commit)} {
+			for _, dir := range []string{outside, f.OCIDir(tt.req.Repository, manifest), f.TreeDir(tt.req.Repository, commit)} {
 				if err := os.MkdirAll(dir, 0o750); err != nil {
 					t.Fatal(err)
 				}
