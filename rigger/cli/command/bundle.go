@@ -41,7 +41,7 @@ func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	flags := flag.NewFlagSet("rigger bundle "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	out := flags.String("o", "", "create: the bundle to write (platform.riggerbundle)")
-	server := flags.Bool("server", serverDefault(), "import: "+serverUsage)
+	server := flags.Bool("server", serverDefault() && cmd == "import", "import: "+serverUsage)
 
 	if err := flags.Parse(args); err != nil {
 		return exitError

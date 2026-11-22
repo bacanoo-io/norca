@@ -155,8 +155,8 @@ func TestWriteOperation(t *testing.T) {
 // RIGGER_SERVER turns it on.
 func TestServerFlag(t *testing.T) {
 	for _, args := range [][]string{
-		{"stack", "validate", "-server"},
-		{"stack", "sync", "-server"},
+		{cmdStack, "validate", "-server"},
+		{cmdStack, "sync", "-server"},
 		{"bundle", "create", "-server", "-o", "x.riggerbundle"},
 	} {
 		var stderr bytes.Buffer
@@ -173,6 +173,23 @@ func TestServerFlag(t *testing.T) {
 
 	if !serverDefault() {
 		t.Error("RIGGER_SERVER=1 does not turn the server mode on")
+	}
+
+	// The variable turns it on where it works: the local commands stay.
+	for _, args := range [][]string{
+		{cmdStack, "validate", t.TempDir()},
+		{cmdStack, "sync", t.TempDir()},
+		{cmdStack, "publish", t.TempDir()},
+		{"bundle", "create", t.TempDir()},
+		{"bundle", "inspect", t.TempDir()},
+	} {
+		var stderr bytes.Buffer
+
+		Run(t.Context(), args, &bytes.Buffer{}, &stderr)
+
+		if strings.Contains(stderr.String(), "-server works with") {
+			t.Errorf("%v with %s=1: %q", args, serverEnv, stderr.String())
+		}
 	}
 }
 

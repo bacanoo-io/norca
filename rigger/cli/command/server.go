@@ -35,8 +35,8 @@ import (
 // serverEnv turns the server mode on by default.
 const serverEnv = "RIGGER_SERVER"
 
-// serverDefault is the default of -server: RIGGER_SERVER set to a true
-// value (1, true).
+// serverDefault is the default of -server where it works: RIGGER_SERVER
+// set to a true value (1, true).
 func serverDefault() bool {
 	on, err := strconv.ParseBool(os.Getenv(serverEnv))
 

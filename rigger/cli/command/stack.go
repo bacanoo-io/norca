@@ -72,7 +72,7 @@ func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 		return exitError
 	}
 
-	if f.server && (cmd == cmdSync || cmd == cmdPublish || cmd == cmdValidate) {
+	if f.server && isLocalStackCommand(cmd) {
 		warn(stderr, "%v", errServerOnly)
 
 		return exitError
@@ -92,6 +92,12 @@ func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 	}
 
 	return run(ctx, logger, stderr, "stack."+cmd, fn)
+}
+
+// isLocalStackCommand reports whether a stack command works here alone:
+// -server is an error for it, and RIGGER_SERVER doesn't apply to it.
+func isLocalStackCommand(cmd string) bool {
+	return cmd == cmdSync || cmd == cmdPublish || cmd == cmdValidate
 }
 
 // stackCommand is the function of rigger stack <cmd>: here, or with
@@ -138,7 +144,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
 	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
 	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")
-	flags.BoolVar(&f.server, "server", serverDefault(), serverUsage)
+	flags.BoolVar(&f.server, "server", serverDefault() && !isLocalStackCommand(cmd), serverUsage)
 	flags.StringVar(&f.namespace, "namespace", "", "-server, a published stack: the namespace of the stack (default: NORCA_NAMESPACE)")
 	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
