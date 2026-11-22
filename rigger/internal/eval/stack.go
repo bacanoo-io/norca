@@ -251,17 +251,38 @@ func (r *stackRun) nodes() (map[string]*node, hcl.Diagnostics) {
 	}
 
 	for _, rel := range r.stack.Releases {
-		for _, dep := range rel.DependsOn {
-			if _, ok := nodes[moduleRoot+"."+dep]; !ok {
-				diags = append(diags, &hcl.Diagnostic{
-					Severity: hcl.DiagError, Summary: "Unknown release",
-					Detail: fmt.Sprintf("depends_on names module.%s, which the stack does not have.", dep), Subject: rel.Block.DefRange.Ptr(),
-				})
-			}
-		}
+		diags = append(diags, unknownDependencies(nodes, rel.DependsOn, rel.DependsOnParts, rel.Block.DefRange)...)
+	}
+
+	for _, p := range r.stack.Parts {
+		diags = append(diags, unknownDependencies(nodes, p.DependsOn, p.DependsOnParts, p.Block.DefRange)...)
 	}
 
 	return nodes, diags
+}
+
+// unknownDependencies are the errors of the names in a depends_on that the
+// stack does not have.
+func unknownDependencies(nodes map[string]*node, releases, parts []string, rng hcl.Range) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	unknown := func(root, summary string, names []string) {
+		for _, name := range names {
+			if _, ok := nodes[root+"."+name]; ok {
+				continue
+			}
+
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: summary,
+				Detail: fmt.Sprintf("depends_on names %s.%s, which the stack does not have.", root, name), Subject: rng.Ptr(),
+			})
+		}
+	}
+
+	unknown(moduleRoot, "Unknown release", releases)
+	unknown(stackRoot, "Unknown part", parts)
+
+	return diags
 }
 
 // values evaluates the locals and the releases in the order of their
