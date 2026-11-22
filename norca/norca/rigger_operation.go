@@ -57,6 +57,11 @@ const (
 
 	// riggerLogPurgeTimeout bounds the purge of the logs in one pass.
 	riggerLogPurgeTimeout = 10 * time.Second
+
+	// riggerEndRetry is the first wait before the end of an operation is
+	// written again, riggerEndTimeout how long that is tried.
+	riggerEndRetry   = time.Second
+	riggerEndTimeout = time.Minute
 )
 
 // RiggerStackRequest names a stack and what to do with it: a published
@@ -641,7 +646,7 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 			w.close()
 		}
 
-		s.finishRiggerOperation(op.Namespace, op.Name, func(status *RiggerOperationStatus) {
+		s.endRiggerOperation(op.Namespace, op.Name, func(status *RiggerOperationStatus) {
 			if status.Phase == riggerOpRunning {
 				status.Phase = riggerOpFailed
 				status.FinishedAt = time.Now().UTC().Format(time.RFC3339)
@@ -722,7 +727,7 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 		phase = riggerOpFailed
 	}
 
-	s.finishRiggerOperation(op.Namespace, op.Name, func(st *RiggerOperationStatus) {
+	s.endRiggerOperation(op.Namespace, op.Name, func(st *RiggerOperationStatus) {
 		st.Phase, st.Outcomes = phase, outcomes
 		st.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 		st.LogStored, st.LogDropped = w.stored.Load(), dropped
@@ -747,23 +752,61 @@ func eventTypeOf(phase string) string {
 
 // finishRiggerOperation changes the status of an operation as it is stored,
 // with a check-and-set, trying again after a concurrent write (a cancel).
-func (s *Server) finishRiggerOperation(namespace, name string, change func(*RiggerOperationStatus)) {
-	for range 5 {
-		op, obj, err := s.riggerOperation(namespace, name)
-		if err != nil {
-			s.logger.Named("rigger").Warn("the end of an operation could not be written", "operation", namespace+"/"+name, "error", err)
+func (s *Server) finishRiggerOperation(namespace, name string, change func(*RiggerOperationStatus)) error {
+	var err error
 
-			return
+	for range 5 {
+		var (
+			op  *RiggerOperation
+			obj *structs.CustomObject
+		)
+
+		if op, obj, err = s.riggerOperation(namespace, name); err != nil {
+			break
 		}
 
 		change(&op.Status)
 
-		if _, err := s.writeRiggerOperation(obj, op); err == nil {
+		if _, err = s.writeRiggerOperation(obj, op); err == nil {
+			return nil
+		}
+
+		if code, _, ok := structs.CodeFromRPCCodedErr(err); (!ok || code != http.StatusConflict) && !strings.Contains(err.Error(), "modify index") {
+			break
+		}
+	}
+
+	s.logger.Named("rigger").Warn("the end of an operation could not be written", "operation", namespace+"/"+name, "error", err)
+
+	return err
+}
+
+// endRiggerOperation writes the end of an operation this server ran, again
+// until it is written: nobody else knows this end. It gives up when the
+// operation is gone, with the leadership, and after riggerEndTimeout; then
+// the operator marks the operation Interrupted. The stack keeps its place
+// until it returns.
+func (s *Server) endRiggerOperation(namespace, name string, change func(*RiggerOperationStatus)) {
+	deadline := time.Now().Add(riggerEndTimeout)
+
+	for wait := riggerEndRetry; ; wait = min(2*wait, operatorsRetry) {
+		err := s.finishRiggerOperation(namespace, name, change)
+		if err == nil || !s.IsLeader() || time.Now().After(deadline) {
 			return
-		} else if code, _, ok := structs.CodeFromRPCCodedErr(err); (!ok || code != http.StatusConflict) && !strings.Contains(err.Error(), "modify index") {
-			s.logger.Named("rigger").Warn("the end of an operation could not be written", "operation", namespace+"/"+name, "error", err)
+		}
+
+		if code, _, ok := structs.CodeFromRPCCodedErr(err); ok && code == http.StatusNotFound {
+			return
+		}
+
+		timer := time.NewTimer(wait)
+
+		select {
+		case <-s.shutdownCh:
+			timer.Stop()
 
 			return
+		case <-timer.C:
 		}
 	}
 }
@@ -913,7 +956,8 @@ func (s *Server) cancelRiggerOperation(namespace, name string) (*RiggerOperation
 	}
 	s.riggerOps.mu.Unlock()
 
-	s.finishRiggerOperation(namespace, name, func(st *RiggerOperationStatus) {
+	// The cancel itself is done; a failure to record it is logged.
+	_ = s.finishRiggerOperation(namespace, name, func(st *RiggerOperationStatus) {
 		if st.Phase == riggerOpRunning {
 			st.CancelRequested = true
 		}
@@ -947,6 +991,9 @@ func (o *riggerOperationOperator) reconcile(ws memdb.WatchSet) (time.Time, error
 
 	byStack := map[string][]*structs.CustomObject{}
 
+	// again is when an end that could not be written is tried again.
+	var again time.Time
+
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		obj := raw.(*structs.CustomObject)
 
@@ -956,13 +1003,16 @@ func (o *riggerOperationOperator) reconcile(ws memdb.WatchSet) (time.Time, error
 		}
 
 		if op.Status.Phase == riggerOpRunning && !o.srv.riggerOps.isRunning(op.Namespace, op.Spec.Stack, op.Name) {
-			o.srv.finishRiggerOperation(op.Namespace, op.Name, func(st *RiggerOperationStatus) {
+			err := o.srv.finishRiggerOperation(op.Namespace, op.Name, func(st *RiggerOperationStatus) {
 				if st.Phase == riggerOpRunning {
 					st.Phase = riggerOpInterrupted
 					st.FinishedAt = time.Now().UTC().Format(time.RFC3339)
-					st.Error = "the server that ran it is no longer the leader: apply the stack again (the releases already done come back unchanged)"
+					st.Error = "the server that ran it is no longer the leader, or could not write its end: apply the stack again (the releases already done come back unchanged)"
 				}
 			})
+			if err != nil {
+				again = time.Now().Add(operatorsRetry)
+			}
 
 			continue
 		}
@@ -983,7 +1033,7 @@ func (o *riggerOperationOperator) reconcile(ws memdb.WatchSet) (time.Time, error
 		o.logger.Debug("the logs of deleted operations could not be purged", "error", err)
 	}
 
-	return time.Time{}, nil
+	return again, nil
 }
 
 // keepLast deletes the finished operations of a stack beyond the newest
