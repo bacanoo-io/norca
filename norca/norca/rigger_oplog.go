@@ -14,6 +14,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/bacanoo-io/norca/norca/norca/bus"
+	"github.com/bacanoo-io/norca/norca/norca/state"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // The logs of the operations of Rigger (design/rig-integration.md 4.6b): a
@@ -99,6 +101,7 @@ type riggerLogWriter struct {
 // them).
 func (s *Server) newRiggerLogWriter(subject string) *riggerLogWriter {
 	w := &riggerLogWriter{srv: s, subject: subject, lines: make(chan []byte, riggerLogBuffer), done: make(chan struct{})}
+	s.riggerOps.openLog(subject)
 
 	go w.run()
 
@@ -180,6 +183,7 @@ func (w *riggerLogWriter) close() int64 {
 
 	close(w.lines)
 	<-w.done
+	w.srv.riggerOps.closeLog(w.subject)
 
 	return w.dropped.Load()
 }
@@ -372,10 +376,15 @@ func (s *Server) readRiggerLog(ctx context.Context, subject string, after uint64
 	return out, nil
 }
 
-// purgeRiggerLog removes the log of an operation from the stream.
-func (s *Server) purgeRiggerLog(ctx context.Context, subject string) error {
+// purgeRiggerLogs removes from the stream the logs that no operation has:
+// of an operation deleted on whatever way, and of a start that did not
+// become an operation. The logs this server writes stay. The order keeps
+// those of the new ones: the subjects are listed first, then the writers
+// here and then the state, read by a server that is still the leader; a
+// log is written before its operation is, and has its writer until then.
+func (s *Server) purgeRiggerLogs(ctx context.Context) error {
 	if s.bus == nil || !s.bus.JetStreamReady() {
-		return errRiggerLogNoBus
+		return nil
 	}
 
 	nc, err := s.bus.Connect()
@@ -390,9 +399,49 @@ func (s *Server) purgeRiggerLog(ctx context.Context, subject string) error {
 	}
 
 	stream, err := js.Stream(ctx, bus.RiggerLogStreamName(s.config.Region))
+	if errors.Is(err, jetstream.ErrStreamNotFound) {
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
 
-	return stream.Purge(ctx, jetstream.WithPurgeSubject(subject))
+	info, err := stream.Info(ctx, jetstream.WithSubjectFilter(s.riggerLogSubjects()))
+	if err != nil {
+		return err
+	}
+
+	stored := info.State.Subjects
+	if len(stored) == 0 {
+		return nil
+	}
+
+	for _, subject := range s.riggerOps.openLogs() {
+		delete(stored, subject)
+	}
+
+	if err := s.raft.VerifyLeader().Error(); err != nil {
+		return err
+	}
+
+	iter, err := s.State().CustomObjects(nil, structs.RiggerObjectGroup, structs.RiggerOperationKind, structs.AllNamespacesSentinel, state.SortDefault)
+	if err != nil {
+		return err
+	}
+
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		// As stored: an operation that can't be read keeps its log too.
+		if subject, ok := raw.(*structs.CustomObject).Status["logSubject"].(string); ok {
+			delete(stored, subject)
+		}
+	}
+
+	for subject := range stored {
+		if err := stream.Purge(ctx, jetstream.WithPurgeSubject(subject)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,9 @@ const (
 	// riggerLogWaitSlice is how long a wait for records goes before it
 	// reads the phase of the operation again.
 	riggerLogWaitSlice = time.Second
+
+	// riggerLogPurgeTimeout bounds the purge of the logs in one pass.
+	riggerLogPurgeTimeout = 10 * time.Second
 )
 
 // RiggerStackRequest names a stack and what to do with it: a published
@@ -127,6 +131,7 @@ type RiggerOperationLogResponse struct {
 type riggerOperations struct {
 	mu      sync.Mutex
 	running map[string]*riggerRunning // by <namespace>/<stack>
+	logs    map[string]struct{}       // the subjects of the logs being written
 }
 
 // riggerRunning is a running operation.
@@ -805,6 +810,33 @@ func (s *Server) riggerOperation(namespace, name string) (*RiggerOperation, *str
 	return op, obj, err
 }
 
+// openLog and closeLog keep what openLogs returns: the subjects of the
+// logs this server writes.
+func (o *riggerOperations) openLog(subject string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.logs == nil {
+		o.logs = map[string]struct{}{}
+	}
+
+	o.logs[subject] = struct{}{}
+}
+
+func (o *riggerOperations) closeLog(subject string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	delete(o.logs, subject)
+}
+
+func (o *riggerOperations) openLogs() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return slices.Collect(maps.Keys(o.logs))
+}
+
 // riggerLogPage reads a page of the log of an operation and says whether
 // more may follow.
 type riggerLogPage struct {
@@ -893,9 +925,9 @@ func (s *Server) cancelRiggerOperation(namespace, name string) (*RiggerOperation
 }
 
 // riggerOperationOperator marks the running operations the leader does not
-// run as Interrupted (their leader changed), and keeps the last
-// riggerOperationsKept operations of each stack, purging the logs of those
-// it deletes.
+// run as Interrupted (their leader changed), keeps the last
+// riggerOperationsKept operations of each stack, and purges the logs no
+// operation has.
 type riggerOperationOperator struct {
 	srv    *Server
 	logger hclog.Logger
@@ -943,11 +975,19 @@ func (o *riggerOperationOperator) reconcile(ws memdb.WatchSet) (time.Time, error
 		o.keepLast(objs)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), riggerLogPurgeTimeout)
+	defer cancel()
+
+	// The bus may be away; the next pass, a minute later at most, goes on.
+	if err := o.srv.purgeRiggerLogs(ctx); err != nil {
+		o.logger.Debug("the logs of deleted operations could not be purged", "error", err)
+	}
+
 	return time.Time{}, nil
 }
 
 // keepLast deletes the finished operations of a stack beyond the newest
-// riggerOperationsKept, and purges their logs.
+// riggerOperationsKept; the pass that follows the delete purges their logs.
 func (o *riggerOperationOperator) keepLast(objs []*structs.CustomObject) {
 	if len(objs) <= riggerOperationsKept {
 		return
@@ -963,15 +1003,7 @@ func (o *riggerOperationOperator) keepLast(objs []*structs.CustomObject) {
 
 		if _, err := o.srv.removeCustomObject(obj, ""); err != nil {
 			o.logger.Debug("an old operation could not be deleted", "operation", obj.Namespace+"/"+obj.Name, "error", err)
-
-			continue
 		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := o.srv.purgeRiggerLog(ctx, op.Status.LogSubject); err != nil {
-			o.logger.Debug("the log of an old operation could not be purged", "operation", obj.Namespace+"/"+obj.Name, "error", err)
-		}
-		cancel()
 	}
 }
 
