@@ -1,0 +1,50 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# The permissions of the <% .Group %>/<% .Kind %> operator, bound to its
+# controller job.
+policy "controller" {
+  enabled = var.acl_policy_enabled
+
+  name        = var.job_name
+  description = "Permissions of the <% .Group %>/<% .Kind %> operator (bound to its controller job)"
+
+  rules {
+    # The namespace of the release: a label is not an expression, so the
+    # block is a dynamic one.
+    dynamic "namespace" {
+      for_each = [rigger.namespace]
+      labels   = [namespace.value]
+
+      content {
+        capabilities = ["list-jobs", "read-job", "submit-job"]
+
+        variables {
+          # Leader election lease of the controller instances.
+          path "controller-lease/<% .Name %>" {
+            capabilities = ["list", "read", "write"]
+          }
+        }
+
+        object "<% .Group %>/<% .Kind %>" {
+          capabilities = ["read", "write-status", "write-events", "manage-finalizers"]
+        }
+      }
+    }
+<%- if not .Namespaced %>
+
+    # The kind is cluster-scoped: its rule is in the namespace "*".
+    namespace "*" {
+      object "<% .Group %>/<% .Kind %>" {
+        capabilities = ["read", "write-status", "write-events", "manage-finalizers"]
+      }
+    }
+<%- end %>
+  }
+
+  job_acl {
+    namespace = rigger.namespace
+    job_id    = var.job_name
+  }
+}

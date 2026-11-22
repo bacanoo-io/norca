@@ -717,9 +717,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"object-kind webhook revoke": func() (cli.Command, error) {
 			return &ObjectKindWebhookApproveCommand{Meta: meta, revoke: true}, nil
 		},
-		"operator init": func() (cli.Command, error) {
-			return &OperatorInitCommand{Meta: meta}, nil
-		},
 		"node": func() (cli.Command, error) {
 			return &NodeCommand{
 				Meta: meta,

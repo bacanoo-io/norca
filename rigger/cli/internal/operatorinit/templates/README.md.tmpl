@@ -5,7 +5,7 @@ SPDX-License-Identifier: MPL-2.0
 # <% .Name %>
 
 The operator of the `<% .Group %>/<% .Kind %>` objects, built with the Norca
-controller SDK. Scaffolded by `norca operator init`.
+controller SDK. Scaffolded by `rigger operator init`.
 
 | File | |
 | --- | --- |
@@ -17,7 +17,7 @@ controller SDK. Scaffolded by `norca operator init`.
 | `main.go` | flags, API client, leader election, metrics |
 | `reconcile_test.go` | tests against the SDK's fake backend |
 | `envtest_test.go` | tests against a dev agent (needs the `norca` binary) |
-| `pack/<% .Name %>` | the operator pack: kind, ACL policy, controller job |
+| `module/<% .Name %>` | the operator module for Rigger: kind, ACL policy, controller job |
 
 ## Develop
 
@@ -49,5 +49,8 @@ servers reject a change that would make stored objects invalid.
 
 ```shell
 go build -o /usr/local/bin/<% .Name %> .       # on every node, or build an image
-norca pack run ./pack/<% .Name %> --name=<% .Name %>
+rigger module validate ./module/<% .Name %>
+rigger install ./module/<% .Name %> -name <% .Name %>
 ```
+
+`norca rigger` runs the same commands as `rigger`.

@@ -134,8 +134,8 @@ migration and limits), the ACL policy bound to the controller job, admission pol
 controller job, applied in this order as one release. The servers approve the webhooks of a kind
 applied with a management token; otherwise an administrator approves them with
 `norca object-kind webhook approve`. `loadbalancer-operator` of the
-[Norca pack registry](https://github.com/bacanoo-io/norca-registry) is the reference operator pack, and
-`norca operator init` scaffolds a controller project with one.
+[Norca pack registry](https://github.com/bacanoo-io/norca-registry) is the reference operator pack;
+`rigger operator init` scaffolds a controller project with an operator module.
 
 Jobs without `namespace` or `region` belong to the namespace and region of the release. All
 resources of a release must be in its region; jobs with a `multiregion` block use the multiregion

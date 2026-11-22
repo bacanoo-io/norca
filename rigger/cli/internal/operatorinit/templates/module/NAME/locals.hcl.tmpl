@@ -1,0 +1,8 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+locals {
+  mock   = var.driver == "mock_driver"
+  docker = var.driver == "docker"
+}

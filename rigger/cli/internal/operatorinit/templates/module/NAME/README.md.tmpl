@@ -1,0 +1,21 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# <% .Name %>
+
+The operator module of <% .Group %>/<% .Kind %> for Rigger: the object kind,
+the ACL policy bound to the controller job and the controller job, applied as
+one release (kind and policy first, the job last; uninstall in reverse
+order).
+
+```shell
+rigger module validate ./module/<% .Name %>
+rigger module render ./module/<% .Name %> -f ./module/<% .Name %>/examples/dev.vars.hcl
+rigger install ./module/<% .Name %> -name <% .Name %>
+rigger release status <% .Name %>
+rigger release uninstall <% .Name %>
+```
+
+Keep `files/<% .KindLower %>.schema.json` in line with the one of the project: a
+module reads no file outside its directory.

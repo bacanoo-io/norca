@@ -71,9 +71,9 @@
 //   - Writes and watches over a limit of the kind get 429 Too Many
 //     Requests; the SDK reports them as ErrThrottled (IsThrottled) and
 //     retries the reconcile with backoff (result "throttled").
-//   - "norca operator init" scaffolds a controller project with a kind, a
-//     webhook, tests and an operator pack; "norca object-kind lint" checks
-//     a kind and sample objects offline.
+//   - "rigger operator init" scaffolds a controller project with a kind, a
+//     webhook, tests and an operator module; "norca object-kind lint"
+//     checks a kind and sample objects offline.
 //
 // The package depends only on the Nomad API module. Everything it needs from
 // the API is behind the Backend interface, so controllers can be tested with

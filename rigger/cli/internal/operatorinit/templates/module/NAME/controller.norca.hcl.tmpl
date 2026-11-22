@@ -1,0 +1,52 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# The controller of the <% .Group %>/<% .Kind %> operator.
+job "controller" {
+  id          = var.job_name
+  name        = var.job_name
+  type        = "service"
+  region      = rigger.region
+  datacenters = var.datacenters
+
+  group "controller" {
+    count = var.count
+
+    network {
+      port "metrics" {}
+    }
+
+    task "controller" {
+      driver = var.driver
+
+      config {
+        run_for = local.mock ? "87600h" : null
+        image   = local.docker ? var.image : null
+        ports   = local.docker ? ["metrics"] : null
+        command = local.mock || local.docker ? null : var.binary
+        args = local.mock ? null : [
+          "controller",
+          "-namespace", rigger.namespace,
+          "-metrics-addr", runtime_env("NORCA_ADDR_metrics"),
+        ]
+      }
+
+      # The controller calls the API on the task API socket with its
+      # workload identity; the ACL policy of the module is bound to this
+      # job.
+      identity {
+        env = true
+      }
+
+      env {
+        NORCA_ADDR = "unix://${runtime_env("NORCA_SECRETS_DIR")}/api.sock"
+      }
+
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+}

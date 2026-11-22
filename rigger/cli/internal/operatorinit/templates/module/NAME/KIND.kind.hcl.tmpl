@@ -2,14 +2,16 @@
 SPDX-FileCopyrightText: 2026 Norca contributors
 SPDX-License-Identifier: MPL-2.0
 */ -%>
-kind "<% .Kind %>" {
+# The <% .Group %>/<% .Kind %> object kind, the same as <% .KindLower %>.kind.hcl of
+# the project. Keep files/<% .KindLower %>.schema.json in line with the one of the
+# project: a module reads no file outside its directory.
+kind "<% .KindLower %>" {
+  name        = "<% .Kind %>"
   group       = "<% .Group %>"
   description = "TODO: describe what a <% .Kind %> is"
   namespaced  = <% .Namespaced %>
   version     = 1
-  schema      = <<EOT
-[[ template "schema" . ]]
-EOT
+  schema      = file("files/<% .KindLower %>.schema.json")
 
   rule {
     expression = "!has(oldSelf) || self.spec.replicas <= oldSelf.spec.replicas + 10"

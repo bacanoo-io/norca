@@ -19,7 +19,6 @@ func TestObjectKindEcosystemCommands_Implements(t *testing.T) {
 	var _ cli.Command = &ObjectKindLintCommand{}
 	var _ cli.Command = &ObjectKindWebhookCommand{}
 	var _ cli.Command = &ObjectKindWebhookApproveCommand{}
-	var _ cli.Command = &OperatorInitCommand{}
 }
 
 func TestObjectKindLintCommand(t *testing.T) {
@@ -140,29 +139,4 @@ kind "PostgresCluster" {
 	ui = cli.NewMockUi()
 	must.Eq(t, 1, run(&ObjectKindApplyCommand{Meta: Meta{Ui: ui}}, kindPath))
 	must.StrContains(t, ui.ErrorWriter.String(), "would make 1 stored objects invalid")
-}
-
-func TestOperatorInitCommand(t *testing.T) {
-	ci.Parallel(t)
-
-	dir := filepath.Join(t.TempDir(), "pg")
-	ui := cli.NewMockUi()
-	cmd := &OperatorInitCommand{Meta: Meta{Ui: ui}}
-	must.Eq(t, 0, cmd.Run([]string{"-sdk", "/src/norca/nomad", "db.example.com/PostgresCluster", dir}), must.Sprint(ui.ErrorWriter.String()))
-	must.StrContains(t, ui.OutputWriter.String(), "reconcile.go")
-	for _, f := range []string{"main.go", "postgrescluster.kind.hcl", "pack/postgres-cluster-operator/metadata.hcl"} {
-		_, err := os.Stat(filepath.Join(dir, f))
-		must.NoError(t, err)
-	}
-
-	// Existing files are not overwritten.
-	ui = cli.NewMockUi()
-	cmd = &OperatorInitCommand{Meta: Meta{Ui: ui}}
-	must.Eq(t, 1, cmd.Run([]string{"db.example.com/PostgresCluster", dir}))
-	must.StrContains(t, ui.ErrorWriter.String(), "files exist")
-
-	ui = cli.NewMockUi()
-	cmd = &OperatorInitCommand{Meta: Meta{Ui: ui}}
-	must.Eq(t, 1, cmd.Run([]string{"PostgresCluster"}))
-	must.Eq(t, 1, cmd.Run([]string{"nodot/X"}))
 }

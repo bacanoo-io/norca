@@ -139,19 +139,42 @@ var commands = map[string]command{
 	cmdIndex: runIndex,
 }
 
-// Program is the program that runs the commands: the name its usage shows
-// and the version it prints. The rigger program is "rigger" with the version
-// of its module; norca runs the same commands as "norca rigger" with its own
-// version, the commit Rigger was built from (design/rig-integration.md 4.7).
+// Program is the program that runs the commands: the name its usage shows,
+// the version it prints and the commands only it has. The rigger program is
+// "rigger" with the version of its module; norca runs the same commands as
+// "norca rigger" with its own version, the commit Rigger was built from
+// (design/rig-integration.md 4.7).
 type Program struct {
 	Name    string
 	Version string
+	// Commands are the commands of this program only, such as the
+	// generators of the rigger program ("operator init"): norca does not
+	// carry their code, because a program that does not name them does not
+	// link them.
+	Commands []Command
 }
 
+// Command is a command of one program only (Program.Commands).
+type Command struct {
+	// Name is the first word of the command line ("operator").
+	Name string
+	// Usage is its lines in the usage of the program, in the layout of the
+	// other commands.
+	Usage string
+	// Run runs it with the arguments after its name. It returns ErrReported
+	// when it has written its error itself (a flag error), flag.ErrHelp for
+	// -h.
+	Run func(ctx context.Context, stdout, stderr io.Writer, args []string) error
+}
+
+// ErrReported is the error of a command that has written its error to
+// standard error itself: the program exits with 1 and says nothing more.
+var ErrReported = errReported
+
 // Run runs the rigger program with its arguments, without the program name,
-// and returns the exit code.
-func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	return RunProgram(ctx, Program{Name: "rigger", Version: version()}, args, stdout, stderr)
+// and the commands only it has, and returns the exit code.
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer, cmds ...Command) int {
+	return RunProgram(ctx, Program{Name: "rigger", Version: version(), Commands: cmds}, args, stdout, stderr)
 }
 
 // RunProgram runs the commands as prog, with the arguments that follow its
@@ -184,6 +207,12 @@ func RunProgram(ctx context.Context, prog Program, args []string, stdout, stderr
 		return cmd(ctx, logger, stdout, stderr, flags.Args()[1:])
 	}
 
+	for _, cmd := range prog.Commands {
+		if cmd.Name == name {
+			return runCommand(ctx, logger, stdout, stderr, cmd, flags.Args()[1:])
+		}
+	}
+
 	switch name {
 	case cmdVersion:
 		return run(ctx, logger, stderr, name, func(context.Context) error {
@@ -206,6 +235,19 @@ func RunProgram(ctx context.Context, prog Program, args []string, stdout, stderr
 
 		return exitError
 	}
+}
+
+// runCommand runs a command of the program only, as run runs the others; -h
+// is not an error.
+func runCommand(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, cmd Command, args []string) int {
+	return run(ctx, logger, stderr, cmd.Name, func(ctx context.Context) error {
+		err := cmd.Run(ctx, stdout, stderr, args)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+
+		return err
+	})
 }
 
 // run runs a command as the root operation of the log (package oplog) and
@@ -263,10 +305,18 @@ func version() string {
 }
 
 // printUsage writes the usage, with the name of the program that runs the
-// commands.
+// commands and the commands only it has after the others.
 func printUsage(flags *flag.FlagSet, prog Program) {
+	var own strings.Builder
+	for _, cmd := range prog.Commands {
+		own.WriteString(cmd.Usage)
+	}
+
+	text := strings.Replace(usage, "Usage: rigger", "Usage: "+prog.Name, 1)
+	text = strings.Replace(text, "\nFlags:\n", own.String()+"\nFlags:\n", 1)
+
 	w := flags.Output()
-	if _, err := io.WriteString(w, strings.Replace(usage, "Usage: rigger", "Usage: "+prog.Name, 1)); err != nil {
+	if _, err := io.WriteString(w, text); err != nil {
 		return
 	}
 
