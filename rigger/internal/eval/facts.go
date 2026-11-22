@@ -5,7 +5,7 @@ package eval
 
 import "github.com/zclconf/go-cty/cty"
 
-// Facts are the facts of an install: the rigger.* of an evaluation
+// Facts are the facts of an installation: the rigger.* of an evaluation
 // (design 4.2).
 type Facts struct {
 	Release       string

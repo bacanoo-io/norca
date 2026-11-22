@@ -14,7 +14,7 @@ import (
 	"slices"
 )
 
-// Kind is the kind of a resource. The kinds of Norca's releases are built
+// Kind is the kind of resource. The kinds of Norca's releases are built
 // in, under the names the release API uses for them; more kinds come by
 // registration (design 5, 11).
 type Kind string

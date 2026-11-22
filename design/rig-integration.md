@@ -279,6 +279,22 @@ same results.
 
 ### 4.2 Rigger prepared for embedding (under `rigger/`, no change of the server)
 
+**As built (2026-11-22, branch feat/rigger-embed), decisions of the
+maintainer:** only what the server needs moves into the library: `fetch`,
+`oci`, `bundle`, `builtin` (`github.com/bacanoo-io/norca/rigger/...`).
+`command` stays in the module of the program but is public
+(`rigger/cli/command`), so `norca rigger` runs it with the hosts over the
+HTTP API; its tests keep Norca's real job decoder. No `command.Hosts`
+yet. `indexer` and `convert` stay internal to the program. The fetcher
+reads git with go-git for the server and the `rigger` program alike
+(repositories on the local file system are opened in place; credentials
+per repository from the host; the program: ssh agent, or
+`RIGGER_GIT_USERNAME`/`RIGGER_GIT_PASSWORD`). `Module.FormSchema` builds the
+form from the language's own data (a `show_if` the form can't evaluate is
+kept in `x-ui-show-if-hcl`). `Stack.Archive` / `Engine.LoadStackFiles` send
+a local stack as the files it reads (its directory without dot
+directories, its local modules wherever they are in the root).
+
 - `command`, `fetch`, `oci`, `bundle`, `indexer`, `builtin`, `convert` move
   from `rigger/cli/internal` into the library, public; `command` gets its
   hosts from the caller (`command.Hosts`).
@@ -300,6 +316,17 @@ Done when: the `rigger` program works as today on the moved packages; the
 fetcher passes its tests with go-git, with and without credentials.
 
 ### 4.3 The hosts in Norca
+
+**As built (2026-11-22, branch feat/rigger-hosts):** `(*Server).RiggerEngine(token,
+namespace)` in `norca/rigger_host.go`. The hosts call the endpoints of the
+server in the process with the caller's token (`Release.*`, `Secret.Upsert`/
+`Read`, `Namespace.ListNamespaces`) instead of the `releaseManager` directly,
+so every check of the endpoints holds; the release requests use
+`cli/norcaapi`'s mapping (now exported) and `Config.ReleaseFromRendered`, as
+a server-rendered pack does. The apply function is a field of the hosts, for
+4.6 to apply as server-rendered. Store in `<data_dir>/rigger/store`, fetcher
+cache in `<data_dir>/rigger/cache`, an slog handler into hclog. The norca
+program module requires `rigger` and `rigger/cli` by `replace` lines.
 
 - `rigger/cli/norcaapi` (stays in the module of the `rigger` program, 3.2): the
   hosts over the HTTP API, for `norca rigger` and the `rigger` program; it imports
@@ -324,51 +351,198 @@ module in a server test as the `rigger` program does through the API.
 ### 4.4 The release API
 
 Gaps found in phase 0 (`rigger-design.md` 12.2), closed without breaking the
-stored objects (the group `packs.norca.io` stays; new fields are optional):
+stored objects (the group `packs.norca.io` stays; new fields are optional,
+an object written before reads as before). Checked against the code of
+2026-11-21: `ReleasePack` has `Source`, `Ref`, `Digest`, `Signer`,
+`TrustedSigner` and `ServerRendered` already; Rigger writes its module into
+them, the owner stack into `Description` (`rigger stack <name>`) and its
+digest of "unchanged" into `ValuesHash` (`rigger/cli/norcaapi/releases.go`).
+Decisions of the maintainer, 2026-11-21: a, b, c below as written.
 
-- `ReleaseSpec` and `ReleaseRevisionSpec` get `Owner` (kind `stack`, name,
-  version, source, part) in place of the marker Rigger writes into
-  `Description` today; `List` filters by it (prune, `stack status`).
-- `ReleasePack` gets `Manager` (`pack` or `rigger`), `Commit`, and for Rigger
-  `Source` as the module address and `Digest` as the tree digest (it is
-  the OCI digest for packs).
-- The digest Rigger compares for "unchanged" (module digest, values, settings)
-  gets a field of its own instead of `ValuesHash`.
-- `ServerRendered` is set for a release the server evaluated from a module
-  it fetched and verified itself; then the signature covers what was
-  applied (`rigger-design.md` 8.2).
-- **The owner is checked, not only written** (review finding JOG-23, dropped
-  for the pack 2026-11-20): today the job meta `pack.release` /
-  `pack.release_namespace` can be set by anyone who registers or dispatches
-  a job, and the release operations take such a job as their own. `Owner`
-  must be set only by the release engine, and the release operations must
-  find their jobs by it.
-- **Written against the release engine as it is since 2026-11-21**, not as
-  phase 0 saw it: the claim lock between releases and tenants (ATM-4), the
-  fencing of release writes on a deposed leader and `ReleaseOperation.ID`
-  (ATM-12, 16, 17, 18), the check of job-bound policies on release jobs
-  (JOG-2, JOG-14) and `auto_revert_bound_policies` (JOG-17). The `Releases`
-  host of 4.3 calls the engine through these paths.
+**a. The owner of a release** (`Owner`, settable by the caller of apply):
 
-Done when: releases of the pack manager read and roll back as before; Rigger
-writes the new fields in both ways.
+- `ReleaseOwner { Kind, Name, Version, Source, Part }` (kind `stack` for
+  now) in `ReleaseSpec` and `ReleaseRevisionSpec`, set from
+  `ReleaseApplyRequest.Owner`; the right is that of the apply. A rollback
+  takes the owner of the revision it restores.
+- `ReleaseListRequest` filters by owner kind and name (`?owner=stack/<name>`)
+  for prune and `rigger stack status`; the filter runs on the server.
+- Rigger writes `Owner` and reads it, and no longer the `Description`
+  marker; a release written with the marker is read as owned too until the
+  next apply writes the field (nothing is released, but the lab and the
+  local clones have such releases).
+
+**b. One release, one manager** (enforced by the server):
+
+- `ReleasePack.Manager` (`pack` or `rigger`; empty is `pack` for objects
+  written before) and `ReleasePack.Commit` (the git commit a module was
+  fetched at).
+- Apply answers 409 when the newest revision has another manager, unless
+  the request sets `Adopt` (`rigger ... -adopt`, `norca pack ... -adopt`);
+  the message names the manager and the flag. A rollback is refused the
+  same way when the revision it restores has another manager than the
+  newest one, unless `Adopt`. Delete and test are not restricted (either
+  manager may remove or test a release).
+- The pack manager's client is not changed (as built 2026-11-21): a
+  request without the field counts as `pack`, and the pack code gets no
+  `-adopt` (it is going away; no pack changes). Rigger sends `rigger`, and
+  `rigger stack apply -adopt` / `rigger install -adopt` take a release over.
+- `Commit` exists on the server; Rigger does not write it yet (its module
+  reference has no commit).
+
+**c. The digest of "unchanged"**:
+
+- `ReleaseRevisionSpec.InputDigest` (and `ReleaseApplyRequest.InputDigest`):
+  the digest Rigger computes over the module digest, the values and the
+  settings, written as given and compared by Rigger; `ValuesHash` stays the
+  pack's hash of values. Rigger reads `ValuesHash` as the digest of a
+  revision written before.
+
+**d. `ServerRendered`** exists; the server sets it for a module it fetched,
+verified and evaluated itself (4.6). Nothing to change in 4.4.
+
+**e. The release marks of jobs (review finding JOG-23, decision 2026-11-21):**
+`pack.release` and `pack.release_namespace` join the reserved meta keys of
+a job (`jobReservedMetaKeys`, as the owner mark of JOG-20 and JOG-24):
+
+- A registration that sets the marks, or changes them, needs `write` on
+  `packs.norca.io/Release` in the namespace the marks name (or a management
+  token: the release engine runs as the leader). A registration that keeps
+  the marks of the stored job unchanged is let through, for that stored job
+  only (as `pinJobOwnerMark`); a stopped job holds no marks to keep; removing
+  the marks takes no right. A dispatch can't set them
+  (`checkDispatchReservedMeta`); the children of periodic and parameterized
+  jobs inherit them from the parent, which was checked.
+- So a job registered with `submit-job` only can no longer pass for a hook
+  of a release (`runHook`, `waitHookJob`, `purgeHookJob`), for a job its
+  failed apply left (`leftByOperation`), or for a hook job its deletion
+  removes (`Release.Delete`).
+- `job_endpoint.go` is a file of Nomad v1.6.5: the change gets a clean room
+  row (`CLEAN_ROOM.md`, both copies) and the trailer
+  `Source-Rule: independent-development`.
+
+**Written against the release engine as it is since 2026-11-21**, not as
+phase 0 saw it: the claim lock between releases and tenants (ATM-4), the
+fencing of release writes on a deposed leader and `ReleaseOperation.ID`
+(ATM-12, 16, 17, 18), the check of job-bound policies on release jobs
+(JOG-2, JOG-14) and `auto_revert_bound_policies` (JOG-17). The new fields go
+through these paths unchanged.
+
+**Work:** `structs/release.go` and `api/releases.go` (fields, request and
+list filter), the codec (`generate.sh`), `release_endpoint.go` and
+`release_apply.go` (owner, manager check, input digest, rollback), the HTTP
+list filter, `job_endpoint_hook_owner.go` (marks), the pack client (`Manager:
+pack`, `-adopt`), `rigger/cli/norcaapi` (owner, manager, input digest,
+`-adopt`), norca-doc (`api/releases.md`, the release pages of packages,
+`acl` for the marks), tests for each point (a mark set with `submit-job`
+only refused; kept marks; adopt; owner filter), the lab case packs and
+operator.
+
+Done when: releases of the pack manager read and roll back as before;
+Rigger writes the new fields in both ways; the JOG-23 test fails without
+the change.
 
 ### 4.5 Registries on the server
 
-A new object group `rigger.norca.io` (next to `packs.norca.io` while both run):
+A new object group `rigger.norca.io` (next to `packs.norca.io` while both
+run). Decided with the maintainer on 2026-11-22; the sync loop and the push
+notice of the first draft are gone.
 
-- `rigger.norca.io/Registry`: `type` (`git` registry repository, `oci`,
-  `global`), `source`, trusted public keys, `authSecret` (a Variable, as for
-  pack registries), sync interval. The global registry is there by default
-  (`github.com/bacanoo-io/norca-global-registry`, or a mirror for a closed
-  network). Kept by the leader: the sync loop of the pack registries
-  (`packRegistrySyncLoop`) gets a Rigger twin that refreshes the mirrors and the
-  index; a push notice on the bus (`norca.rigger.pushed`) syncs at once.
-- ACL as for pack registries: object capabilities on the kind refs
-  (`rigger.norca.io/Registry` read and write in the cluster namespace).
-- Bundles imported into the cache of the leader for a cluster without a
-  network (`rigger bundle import` through the API), in place of the `uploads`
-  registries of packs.
+**Rules:**
+
+1. **A sync is asked for, never scheduled.** No sync interval, no push
+   notice: the API (`Rigger.SyncRegistry`), `rigger registry sync <name>`
+   (`norca rigger registry sync`) and the button of the UI.
+2. **The index stays on the servers, not in Raft.** The object's status
+   holds what the sync found: the commit, the time, the numbers of modules
+   and stacks, the error. Each server reads the entries from its own mirror
+   in `<data_dir>/rigger/registries/<name>`, at that commit, and fetches the
+   commit itself when its mirror is behind (as `syncGeneration` does for
+   pack caches). Reads with search and paging go to that mirror, so a global
+   registry of any size fits.
+3. **A sync brings the index only:** the entries of the global registry,
+   the list of modules and stacks of a registry repository. The source of
+   a version is fetched when it is installed, at the commit and digest of
+   the synced entry, and kept in the cache of the server
+   (`<data_dir>/rigger/cache`).
+4. **An install sees the synced state only.** A version that is not in the
+   last synced index is an error that names the sync command; a registry
+   never synced offers nothing.
+5. **A registry is shown in the UI whole, or only what was selected.**
+   `display = "catalog"`: every module and stack of the registry is in the
+   catalog of the UI (a small registry of one's own). `display = "selected"`
+   (a logical registry, the default of `global`): the registry resolves
+   sources for stacks and installs, but the UI shows only the modules and
+   stacks selected for it. Selecting is a command:
+   `rigger registry select <registry> module|stack <namespace>/<name>` and
+   `rigger registry unselect ...`, which write the selection into the spec.
+   **The UI changes only after a sync:** the sync resolves the selection
+   against the index and writes it into the status (what is shown, with
+   the versions found; a selected name that the index lacks is reported);
+   the UI reads the status, not the spec. The selection changes the UI
+   only: a module or stack that is not selected still resolves and
+   installs from the command line and from stacks, and
+   `rigger registry search` searches the whole synced index (confirmed by
+   the maintainer, 2026-11-22).
+
+**Work:**
+
+- The built-in kind `rigger.norca.io/Registry` (cluster-scoped):
+  `spec { type = "global" | "git", source, trustedKeys, authSecret,
+  display = "catalog" | "selected", selected = [{ kind, namespace, name }] }`,
+  `status { phase, message, lastSyncedAt, lastGoodSyncAt, commit, modules,
+  stacks, shown = [{ kind, namespace, name, versions }], missing }`.
+  `type = "oci"` later (an OCI registry has no index to sync, only the tags
+  of each repository).
+- The object `global` (type `global`, `display = "selected"`, source
+  `github.com/bacanoo-io/norca-global-registry`) is created by the leader
+  when it is missing; the server configuration may name a mirror for a
+  closed network.
+- `Rigger.SyncRegistry` (forwarded to the leader): fetch with the
+  credentials of `authSecret` (read access to the Variable checked on save,
+  as for pack registries), check the index (entries parse and validate),
+  resolve the selection, write the status. A failed sync keeps the last
+  good commit and what was shown.
+- The read side for the engine of 4.6: the directory of the synced commit
+  of a registry, which the fetcher reads as it is (`SetGlobalRegistry` with
+  a directory), never fetching on its own.
+- `rigger registry list|status|sync|select|unselect` through
+  `cli/norcaapi`, and `rigger registry search <registry> [text]` over the
+  synced index of any registry (to find what to select); registries are
+  added and removed as objects.
+- ACL: `rigger.norca.io/Registry` read and write in the cluster namespace;
+  a sync, a select and an unselect need write.
+- Bundle import moves to 4.6, where installs fetch.
+- norca-doc: the kind, the sync call, the display modes and the commands.
+
+**As built (2026-11-22, branch feat/rigger-registries):** library
+`fetch.Sync`/`Checkout`/`TagsAt` and the package `catalog` (Global,
+Repository, Search, Select); in the server `rigger_registry*.go` (kind,
+apply check, operator for `global`, `Rigger.SyncRegistry`,
+`Rigger.SearchRegistry`), `/v1/rigger/registry/<name>/sync|search`,
+`client.Rigger()`, and `rigger registry list|status|sync|search|select|
+unselect`. Different from the text above:
+- The mirrors are in the cache of Rigger, `<data_dir>/rigger/cache` (by
+  source), not in `<data_dir>/rigger/registries/<name>`.
+- The versions of a registry repository are the tags in the history of the
+  synced commit: a tag made later on a later commit waits for the next
+  sync, without the tags being kept in Raft. A tag made later on an
+  earlier commit would be seen; tags are never made that way (design 7.2
+  of Rigger).
+- The status also has the `source` of the good sync, so that a changed
+  source never reads the old commit from the new repository.
+- No server configuration for a mirror of the global registry: its object
+  is edited (`source`); the servers create it only when it is missing.
+- `rigger registry search` and the select commands exist; `trustedKeys` is
+  stored and used by installs (4.6).
+
+Left to 4.8: the entries of the global registry hold no description,
+category or keywords (only source, digest, signatures, requires, icon
+digest); a catalog that searches them needs them in the index, a change of
+the format of `norca-global-registry`.
+
+The first push of `norca-global-registry` (empty on GitHub) is needed before
+a cluster syncs it.
 
 ### 4.6 Evaluation on the server
 
@@ -395,7 +569,128 @@ An RPC endpoint `Rigger` (`norca/rigger_endpoint.go`) and its HTTP routes
   both run the same library version; the generated values are in the same
   place of the secret store (`rigger/stacks/<stack>/generated`).
 
-### 4.7 `norca rigger`
+**Decided (maintainer, 2026-11-22):**
+
+1. **Three parts, each merged on its own:** 4.6a one module installed on
+   the server, with `Detail` and `Icon`; 4.6b stacks on the server as
+   operations; 4.6c bundle import through the API and the server mode of
+   `norca rigger`.
+2. **Signatures:** a module of the global registry is always checked (the
+   digest of its entry, a signature by a key of its namespace). A module of
+   a git registry is checked by the `trustedKeys` of the registry when it
+   has some (then a signature is required); without keys only the commit of
+   the synced tag and the tree digest are checked, and the answer warns.
+3. **What installs on the server:** a module of a synced registry (name and
+   a version constraint), a published stack (source and version), a stack
+   sent as files, and **a local module sent as files**. A local module
+   needs nothing more than a release write: the rigger program applies the
+   same module with the same token in its standalone mode, and a local stack
+   may carry local modules anyway. The release records the source `local`
+   with the digest, unsigned, so the release page and the UI show that it
+   came from no registry.
+4. **Operations:** the last 10 of each stack are kept; the leader deletes
+   older ones, never a running one.
+
+**4.6a as built (2026-11-22, branch feat/rigger-server-install):** library
+`FetchModule` (an exact version, verified; `Module.Origin`),
+`Install.Source`, `Module.Archive`/`LoadModuleFiles`, and a fetch once more
+of a mirror that lacks the tag of a version made since; in the server
+`Rigger.Install` (plan or apply; registry modules as server-rendered, local
+modules as a client's with the source `local`), `Rigger.Detail` and
+`Rigger.Icon` (an engine that only fetches), `/v1/rigger/install`,
+`/v1/rigger/registry/<name>/module|icon`, `client.Rigger()` Install,
+ModuleDetail, Icon. Values are a values file (HCL); the JSON of the UI form
+is for 4.8. The version is chosen by the server from the index of the last
+good sync; the library fetches only the exact version it is given.
+
+**4.6b decided (maintainer, 2026-11-22): stacks as operations.**
+
+- **`rigger.norca.io/Operation`**, in the namespace of the stack, written
+  by the servers only. Spec: the stack, the action (`apply`, `destroy`), the
+  source (a published stack: address and version; a local stack: the digest
+  of its files), `prune`, `adopt`. Status: the phase (`Running`,
+  `Succeeded`, `Failed`, `Cancelled`, `Interrupted`), the plan (the action
+  of each release), the outcomes, the last error, the times, and the subject
+  of its log. The last 10 of a stack are kept.
+- **Calls:** `Rigger.StackPlan` and `Rigger.StackStatus` answer at once;
+  `Rigger.StackApply` and `Rigger.StackDestroy` make an operation, run it
+  on the leader and answer with its name; `Rigger.CancelOperation`.
+- **The token of the caller lives in the memory of the leader** for the
+  operation, never in Raft: a running operation can't go on after a change
+  of leader, so the new leader marks it `Interrupted`; the stack is applied
+  again, and the releases already done come back unchanged.
+- **A cancel stops between two releases:** the release being applied
+  finishes, the rest are skipped, the phase is `Cancelled`.
+- **One operation of a stack at a time:** another is refused (409, naming
+  the running one); the release lock guards each release anyway.
+- **The full log is in a JetStream stream of the bus** (`RIGGER_OPLOG_<region>`),
+  a subject per operation (`norca.rigger.oplog.<namespace>.<operation>`),
+  every line a message at every level: followed while it runs, read in full
+  afterwards, without a load on Raft or the object events. Retention 256 MiB
+  and 30 days by default (configurable, counted in the storage plan of the
+  bus); the subject is purged when its operation is deleted. Read through
+  the HTTP API (`/v1/rigger/operation/<namespace>/<name>/log`, `follow`),
+  so the UI and the CLI need no connection to the bus. A region with one
+  server runs a standalone JetStream: when the second server joins, the bus
+  restarts clustered and the logs of before are not carried over.
+
+**4.6b as built (2026-11-22, branch feat/rigger-stack-ops):** as decided,
+with these details: the subject is `norca.rigger.oplog.<region>.<id>` (the
+id of the operation), the stream `NORCA_RIGGER_LOGS_<region>`; its subjects
+are reserved (no bus rule reaches them, `CheckSubjects` refuses the region
+`rigger`); the size is `min(256MiB, max_storage/16)` unless set; the status
+has `logStored` and `logDropped`; operations are written by the servers
+only (the object API refuses them). The library stops an apply or destroy
+between two releases on a cancel, and a destroy now removes in the reverse
+of the apply order (`eval.StackReleaseOrder`; it used the order of the
+blocks before).
+
+**4.6c decided (maintainer, 2026-11-22):**
+
+- **Bundles imported into the cluster are kept in a JetStream object store
+  of the bus**, replicated between the servers, within 1 GiB by default
+  (configurable, counted in the storage plan). The server checks the
+  digests of a bundle when it is imported; the leader unpacks what its
+  cache lacks before an install or an operation, so a bundle outlives a
+  change of leader. Bundles are listed and deleted through the API.
+- **`-server`** (or `RIGGER_SERVER=1`) makes `rigger` and `norca rigger` send
+  `stack plan|apply|destroy|status`, `install` and `bundle import` to the
+  servers; without it they evaluate locally, as now. The deployer calls
+  them with `-server` (4.9).
+- **Ctrl-C while the CLI follows the log of an operation cancels the
+  operation** (it stops between two releases) and waits for its end; a
+  second Ctrl-C only detaches.
+
+**4.6c as built (2026-11-22):**
+
+- Object store `NORCA_RIGGER_BUNDLES_<region>` on the bus, kept by the
+  leader with the other streams. `bus.rigger_bundles_max_bytes` defaults
+  to 1 GiB, or half of what the other streams leave of `max_storage` when
+  that is less (2.8 GiB of the default 4 GiB is planned); with no room at
+  all there is no store and an import says so. `$O.>` is reserved: no bus
+  rule reaches the object stores.
+- `Rigger.ImportBundle` / `ListBundles` / `DeleteBundle` (write / read /
+  write on `rigger.norca.io/Registry`), HTTP `PUT /v1/rigger/bundle`,
+  `GET /v1/rigger/bundles`, `DELETE /v1/rigger/bundle/<name>`. A bundle is
+  at most 64 MiB, unpacks to at most 512 MiB (`bundle.ReadBounded`), is
+  named `bundle-<sha256 prefix>`, and each module must have its manifest's
+  digest. The engine of the server unpacks the bundles its cache lacks
+  (by commit, into `<cache>/bundles/<commit>`) before it evaluates; the
+  fetcher takes such a tree when the repository can't be reached, at the
+  commit the lock file names.
+- `rigger -server` / `RIGGER_SERVER=1`: stack plan, apply, status,
+  destroy, install, bundle import; a local stack goes as files in its own
+  namespace and region, a published one names `-namespace`; `-f`/`-var`
+  values go as a values file. New `rigger operation follow|cancel|status`.
+  The CLI writes the records of the operation log through its own logger.
+- Fixed on the way: `Stack.Archive` packed the directories of modules of
+  sources (git, global, built in), which are not in the stack's root, so a
+  stack with such a module could not be sent; `Rigger.OperationLog`
+  waited the whole `wait` after the last record of an operation (the end
+  writes none) and said `Finished` on a full page; the log stored
+  durations as nanoseconds and the CLI's tree logger panicked on the
+  float depth of JSON.
+
 
 `command/rigger.go` registers the commands of `rigger/command` under `norca rigger`
 with `rigger/cli/norcaapi`, beside `norca pack`. A flag (or the configuration)
@@ -412,6 +707,18 @@ version is the version of the library it carries, and `rigger version` and
 `norca operator init` gets a module template next to its pack template
 (`command/operatorinit/templates/`).
 
+**As built (2026-11-22, branch feat/norca-rigger):** `norca rigger`
+(`command/rigger.go`) runs `rigger/cli/command` through `RunProgram` with the
+name `norca rigger` and norca's version (`rigger (built into Norca ...)`).
+It is standalone only; the flag for evaluation on the server comes with 4.6.
+The command line library prints the whole usage for `-h` after `norca rigger`.
+Changed by the maintainer: templates are no part of the cluster, so
+`operator init` left norca. It is `rigger operator init`
+(`rigger/cli/internal/operatorinit`, moved from `command/operatorinit`), a
+command of the rigger program only (`Program.Commands`), which norca neither
+lists nor links. The project gets an operator module in place of the pack.
+Generators of this kind go to the rigger program, not to norca.
+
 ### 4.8 Web UI
 
 Beside the pages of packs (`ui/app/routes/packages`, `components/packages/*`):
@@ -423,6 +730,14 @@ Beside the pages of packs (`ui/app/routes/packages`, `components/packages/*`):
   operation with its log, status and drift;
 - the release page shows the module, its source and digest, the owner stack
   and part.
+
+**To rethink before building (maintainer, 2026-11-22):** the global registry
+will hold very many modules and stacks, so a catalog page that lists all of
+them, as the pack catalog does, does not fit. How it is shown in the UI is
+open: search, filters (namespace, category, keywords), paging, what comes
+from the index of the server and what is fetched only for a chosen module.
+This also touches what a sync of the global registry brings into the cache
+(4.5).
 
 ### 4.9 Deployer and registries
 

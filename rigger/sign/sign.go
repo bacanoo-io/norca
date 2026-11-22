@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package sign signs and verifies the tree digest of a module (design 8.1):
-// cosign-format ECDSA P-256 keys, and a cosign simple signing payload whose
+// cosign-format ECDSA P-256 keys, and a Cosign simple signing payload whose
 // docker-manifest-digest is the tree digest. It is the statement the
 // admission of Norca verifies for trusted_keys, with the same key IDs: the
 // SHA-256 of the PKIX DER encoding of the public key.
@@ -55,7 +55,7 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-// MarshalPublicKey writes the PEM of a public key, the format of cosign and
+// MarshalPublicKey writes the PEM of a public key, the format of Cosign and
 // of Norca's trusted_keys.
 func MarshalPublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)

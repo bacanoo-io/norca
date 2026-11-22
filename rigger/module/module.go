@@ -54,7 +54,7 @@ type RequiredModule struct {
 	When string `json:"when,omitempty"`
 }
 
-// Tab is a tab of the install form.
+// Tab is a tab of the installation form.
 type Tab struct {
 	Name  string `json:"name"`
 	Label string `json:"label,omitempty"`

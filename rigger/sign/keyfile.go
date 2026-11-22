@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-// privateKeyType is the PEM type of an encrypted private key, the format
+// privateKeyType is the PEM type of encrypted private key, the format
 // of cosign: PKCS #8 encrypted with nacl/secretbox under a key derived
 // with scrypt from a password.
 const privateKeyType = "ENCRYPTED SIGSTORE PRIVATE KEY"

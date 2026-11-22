@@ -96,7 +96,7 @@ type run struct {
 }
 
 // Evaluate evaluates m with the variables vars (from Variables) and the
-// facts of the install: the locals and child modules, the checks, the
+// facts of the installation: the locals and child modules, the checks, the
 // resources and the outputs (design 4.2).
 func Evaluate(ctx context.Context, m *lang.Module, vars cty.Value, facts Facts, cfg Config) (*Result, hcl.Diagnostics) {
 	if m.Metadata.Library {
