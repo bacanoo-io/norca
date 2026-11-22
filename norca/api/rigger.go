@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // The registries of Rigger, the package manager: objects of the kind
@@ -264,6 +265,9 @@ type RiggerInstallRequest struct {
 	// Values are the values of the variables, as a values file (HCL).
 	Values string
 	Adopt  bool
+	// Timeout bounds the wait until the release is ready; 0 leaves it to
+	// the servers.
+	Timeout time.Duration
 }
 
 // RiggerModuleRef is the module a release records.

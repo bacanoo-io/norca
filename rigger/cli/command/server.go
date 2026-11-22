@@ -404,7 +404,7 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 
 	client.SetNamespace(f.namespace)
 
-	req := &api.RiggerInstallRequest{Release: f.name, Files: files, Adopt: f.adopt}
+	req := &api.RiggerInstallRequest{Release: f.name, Files: files, Adopt: f.adopt, Timeout: f.timeout}
 	if len(values) > 0 {
 		req.Values = valuesHCL(values)
 	}

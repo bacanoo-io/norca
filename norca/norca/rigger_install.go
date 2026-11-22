@@ -63,8 +63,12 @@ type RiggerInstallRequest struct {
 	Values string
 	// Plan returns what an apply would do and applies nothing.
 	Plan bool
-	// Adopt takes over a release another manager applied.
+	// Adopt takes over a release another manager applied or another stack
+	// owns.
 	Adopt bool
+	// Timeout bounds the wait until the release is ready, which an install
+	// always does; 0 leaves it to the servers.
+	Timeout time.Duration
 	structs.WriteRequest
 }
 
@@ -220,6 +224,10 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid release name: %v", err)
 	}
 
+	if args.Timeout < 0 {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "the timeout %s is negative", args.Timeout)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
@@ -266,7 +274,9 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 		}
 	}
 
-	rp, diags := eng.PlanInstall(ctx, m, in, host.Settings{})
+	// As the rigger program installs: the settings are in the digest of the
+	// release, and an install succeeds when its release is ready.
+	rp, diags := eng.PlanInstall(ctx, m, in, host.Settings{Wait: true, Timeout: args.Timeout})
 	if diags.HasErrors() {
 		return riggerDiagsError(diags)
 	}

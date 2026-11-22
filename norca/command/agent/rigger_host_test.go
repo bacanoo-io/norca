@@ -26,11 +26,15 @@ var riggerHostModule = fstest.MapFS{
   group "web" {
     count = var.count
 
+    update {
+      min_healthy_time = "1s"
+    }
+
     task "web" {
       driver = "mock_driver"
 
       config {
-        run_for = "1s"
+        run_for = "10m"
       }
     }
   }
