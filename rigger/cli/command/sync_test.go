@@ -53,7 +53,8 @@ func registryRepo(t *testing.T) string {
 	gitIn(t, repo, "commit", "--quiet", "-am", "greeter 1.1.0")
 	gitIn(t, repo, "tag", "-a", "-m", "1.1.0", "greeter/v1.1.0")
 
-	return repo
+	// With slashes: the tests write it into HCL, where \ starts an escape.
+	return filepath.ToSlash(repo)
 }
 
 func TestRun_StackSync(t *testing.T) {

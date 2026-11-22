@@ -31,7 +31,8 @@ func greeterRepo(t *testing.T, version string) string {
 	gitIn(t, repo, "add", "-A")
 	gitIn(t, repo, "commit", "--quiet", "-m", "greeter "+version)
 
-	return repo
+	// With slashes: the tests write it into JSON, where \ starts an escape.
+	return filepath.ToSlash(repo)
 }
 
 // setVersion commits a new version of the greeter.

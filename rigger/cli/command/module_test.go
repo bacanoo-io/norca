@@ -5,6 +5,8 @@ package command
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,6 +34,14 @@ func TestRun_ModuleValidate(t *testing.T) {
 		}
 	}
 
+	missing := filepath.Join(broken, "missing")
+
+	// The system words the error, and each system in its own way.
+	var notFound *fs.PathError
+	if _, err := os.Stat(missing); !errors.As(err, &notFound) {
+		t.Fatalf("Stat(%s) = %v", missing, err)
+	}
+
 	tests := []struct {
 		name           string
 		args           []string
@@ -53,9 +63,9 @@ func TestRun_ModuleValidate(t *testing.T) {
 		},
 		{
 			name:           "no directory",
-			args:           []string{cmdModule, cmdValidate, filepath.Join(broken, "missing")},
+			args:           []string{cmdModule, cmdValidate, missing},
 			expectedCode:   exitError,
-			expectedStderr: "no such file or directory",
+			expectedStderr: notFound.Err.Error(),
 		},
 		{name: "no module command", args: []string{cmdModule}, expectedCode: exitError, expectedStderr: "module needs a command"},
 		{name: "unknown module command", args: []string{cmdModule, "share"}, expectedCode: exitError, expectedStderr: `unknown module command "share"`},
