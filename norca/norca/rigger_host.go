@@ -129,11 +129,37 @@ func asAPI[T any](v any) (*T, error) {
 
 // notFoundErr maps a 404 of an endpoint onto host.ErrNotFound.
 func notFoundErr(err error) error {
-	if err != nil && strings.Contains(err.Error(), "404") {
+	if rpcErrorCode(err) == http.StatusNotFound {
 		return errors.Join(host.ErrNotFound, err)
 	}
 
 	return err
+}
+
+// rpcErrorCode is the code of a coded error of an RPC, also of one that was
+// forwarded, which is text with "rpc error: " before it; 0 for none.
+func rpcErrorCode(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	msg := err.Error()
+
+	for {
+		rest, ok := strings.CutPrefix(msg, "rpc error: ")
+		if !ok {
+			break
+		}
+
+		msg = rest
+	}
+
+	code, _, ok := structs.CodeFromRPCCodedErr(errors.New(msg))
+	if !ok {
+		return 0
+	}
+
+	return code
 }
 
 // riggerCluster is host.Cluster: the version, region and features of this
@@ -369,9 +395,12 @@ func (s riggerSecrets) Ensure(ctx context.Context, secret host.Secret) (bool, er
 	var resp structs.SecretWriteResponse
 
 	err := s.h.srv.RPC("Secret.Upsert", req, &resp)
-	if err != nil && !secret.Overwrite && strings.Contains(err.Error(), "409") {
-		// Made meanwhile by another: left as it is.
-		return false, nil
+	if !secret.Overwrite && rpcErrorCode(err) == http.StatusConflict {
+		// Made meanwhile by another is left as it is. Without a secret
+		// there, the conflict is another one: the write failed.
+		if _, readErr := s.Read(ctx, secret.Path); readErr == nil {
+			return false, nil
+		}
 	}
 
 	return err == nil, err

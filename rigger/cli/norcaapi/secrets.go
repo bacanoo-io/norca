@@ -46,7 +46,11 @@ func (s *Secrets) Ensure(ctx context.Context, secret host.Secret) (bool, error) 
 
 	var resp api.UnexpectedResponseError
 	if errors.As(err, &resp) && resp.StatusCode() == http.StatusConflict {
-		return false, nil
+		// Made meanwhile by another is left as it is. Without a secret
+		// there, the conflict is another one: the write failed.
+		if _, readErr := s.Read(ctx, secret.Path); readErr == nil {
+			return false, nil
+		}
 	}
 
 	return err == nil, err
