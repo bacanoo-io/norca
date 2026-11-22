@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
+	"github.com/bacanoo-io/norca/rigger/internal/sameorigin"
 	"github.com/bacanoo-io/norca/rigger/internal/targz"
 )
 
@@ -81,10 +82,15 @@ type Client struct {
 }
 
 // NewClient returns a client. Credentials come from RIGGER_OCI_USERNAME and
-// RIGGER_OCI_PASSWORD; without them it is anonymous.
+// RIGGER_OCI_PASSWORD; without them it is anonymous. They go to the registry
+// that asks and to the token service it names over https, not to where an
+// upload or a redirect leads.
 func NewClient() *Client {
-	return &Client{http: http.DefaultClient, tokens: map[string]string{}}
+	return &Client{http: &http.Client{CheckRedirect: sameorigin.CheckRedirect}, tokens: map[string]string{}}
 }
+
+// maxTokenBytes bounds the answer of a token service.
+const maxTokenBytes = 1 << 20
 
 // maxResponseBytes bounds a response of a registry: a manifest or a blob.
 const maxResponseBytes = 256 << 20
@@ -111,6 +117,12 @@ func ref(repository string) (host, name string, err error) {
 		return "", "", fmt.Errorf("%w: %q is not <host>/<repository>", ErrRegistry, repository)
 	}
 
+	// A host and nothing more: 127.0.0.1:1@example.com would read as
+	// localhost, so http, and be example.com.
+	if u, err := url.Parse("https://" + host); err != nil || host == "" || u.Host != host {
+		return "", "", fmt.Errorf("%w: %q does not start with a host", ErrRegistry, repository)
+	}
+
 	return host, name, nil
 }
 
@@ -122,11 +134,15 @@ func baseURL(host string) string {
 		name = h
 	}
 
-	if name == "localhost" || name == "127.0.0.1" || name == "::1" {
+	if isLocalhost(name) {
 		return "http://" + host
 	}
 
 	return "https://" + host
+}
+
+func isLocalhost(name string) bool {
+	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }
 
 // do sends a request, and once more with a token or credentials when the
@@ -145,6 +161,17 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 		}
 
 		return c.http.Do(req)
+	}
+
+	own, err := ofRegistry(host, target)
+	if err != nil {
+		return nil, err
+	}
+
+	// An upload may lead to another origin: it gets no credentials, and
+	// can't ask for them.
+	if !own {
+		return send("")
 	}
 
 	key := host + " " + scope
@@ -193,6 +220,36 @@ func (c *Client) authorize(ctx context.Context, challenge, scope string) (string
 	}
 }
 
+// tokenService is the URL of the token service of a challenge: https, or
+// http on localhost.
+func tokenService(address string) (*url.URL, error) {
+	realm, err := url.Parse(address)
+	if err != nil || address == "" {
+		return nil, fmt.Errorf("%w: a bearer challenge without a realm", ErrRegistry)
+	}
+
+	if realm.Scheme != "https" && (realm.Scheme != "http" || !isLocalhost(realm.Hostname())) {
+		return nil, fmt.Errorf("%w: the token service %s://%s is not https (http is for localhost only)", ErrRegistry, realm.Scheme, realm.Host)
+	}
+
+	return realm, nil
+}
+
+// ofRegistry reports whether a URL is of the origin of a registry.
+func ofRegistry(host, target string) (bool, error) {
+	base, err := url.Parse(baseURL(host))
+	if err != nil {
+		return false, err
+	}
+
+	u, err := url.Parse(target)
+	if err != nil {
+		return false, err
+	}
+
+	return sameorigin.Of(u) == sameorigin.Of(base), nil
+}
+
 // parseChallenge reads the parameters of a challenge: realm="...",service="...".
 func parseChallenge(params string) map[string]string {
 	out := map[string]string{}
@@ -209,9 +266,9 @@ func parseChallenge(params string) map[string]string {
 
 // token gets a bearer token of a realm.
 func (c *Client) token(ctx context.Context, params map[string]string, scope, user, password string) (string, error) {
-	realm, err := url.Parse(params["realm"])
-	if err != nil || params["realm"] == "" {
-		return "", fmt.Errorf("%w: a bearer challenge without a realm", ErrRegistry)
+	realm, err := tokenService(params["realm"])
+	if err != nil {
+		return "", err
 	}
 
 	q := realm.Query()
@@ -241,12 +298,17 @@ func (c *Client) token(ctx context.Context, params map[string]string, scope, use
 		return "", fmt.Errorf("%w: token: %s", ErrRegistry, resp.Status)
 	}
 
+	data, err := readlimit.ReadAll(resp.Body, maxTokenBytes)
+	if err != nil {
+		return "", fmt.Errorf("%w: token: %w", ErrRegistry, err)
+	}
+
 	var t struct {
 		Token       string `json:"token"`
 		AccessToken string `json:"access_token"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil {
+	if err := json.Unmarshal(data, &t); err != nil {
 		return "", err
 	}
 
