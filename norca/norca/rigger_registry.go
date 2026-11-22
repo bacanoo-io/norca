@@ -46,9 +46,9 @@ type riggerRegistries struct {
 	mu      sync.Mutex
 	indexes map[string]*riggerRegistryIndex
 
-	// unpacked are the bundles of the object store unpacked into the cache
-	// (by name and size), guarded by mu.
-	unpacked map[string]bool
+	// unpacked are the modules of the bundles of the object store unpacked
+	// into the cache (by name and size of the bundle), guarded by mu.
+	unpacked map[string][]riggerBundledModule
 }
 
 // riggerRegistryIndex is what a registry offers at a commit.
@@ -63,7 +63,7 @@ func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 		fetcher:  fetch.New(filepath.Join(dir, "cache")),
 		indexes:  map[string]*riggerRegistryIndex{},
 		syncs:    map[string]*sync.Mutex{},
-		unpacked: map[string]bool{},
+		unpacked: map[string][]riggerBundledModule{},
 	}
 	r.fetcher.SetCredentials(r.credentials)
 

@@ -66,6 +66,9 @@ type Request struct {
 	Version string `json:"version,omitempty"`
 	Ref     string `json:"ref,omitempty"`
 	Commit  string `json:"commit,omitempty"`
+	// Digest, when set, is the tree digest the lock file recorded: a host
+	// may allow content by it.
+	Digest string `json:"digest,omitempty"`
 }
 
 // Available is a version a source has.
@@ -106,6 +109,10 @@ type Fetched struct {
 	// Listing is what the index of a registry records of the version (the
 	// global registry); nil for a source without an index.
 	Listing *Listing
+	// TrustedKeys are the host's own rules for the source: the engine takes
+	// the content only signed by one of the keys (PEM) of each, whatever
+	// the stack trusts.
+	TrustedKeys [][]string
 }
 
 // Listing is what the index of a registry records of a version of a module

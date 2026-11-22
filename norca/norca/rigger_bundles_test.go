@@ -60,7 +60,8 @@ func TestRiggerBundles_Unpack(t *testing.T) {
 
 	// Another cache, as a new leader has.
 	other := newRiggerRegistries(s, t.TempDir())
-	must.NoError(t, other.unpackBundles(t.Context()))
+	_, err = other.unpackBundles(t.Context())
+	must.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(other.fetcher.BundleDir(commit), "modules", "web", "metadata.hcl"))
 	must.NoError(t, err, must.Sprint("an empty cache gets the bundle from the bus"))

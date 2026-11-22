@@ -149,6 +149,24 @@ func repositoryURL(repo string) string {
 	return "https://" + repo
 }
 
+// CanonicalRepository is a repository in the one spelling a host compares
+// it by: a host and a path is https, a path is file://, no slash at the end.
+func CanonicalRepository(repo string) string {
+	if dir, ok := localPath(repo); ok {
+		return "file://" + path.Clean(filepath.ToSlash(dir))
+	}
+
+	return strings.TrimRight(repositoryURL(repo), "/")
+}
+
+// LocalRepository reports whether a repository is a path on the machine
+// that fetches it.
+func LocalRepository(repo string) bool {
+	_, ok := localPath(repo)
+
+	return ok
+}
+
 // mirrorDir is the directory of the bare mirror of a repository in the
 // cache.
 func (f *Fetcher) mirrorDir(repo string) string {

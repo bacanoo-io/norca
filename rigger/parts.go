@@ -65,7 +65,7 @@ func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []
 // and checks its digest.
 func (e *Engine) fetchLockedStack(ctx context.Context, p *lang.StackPart, entry *lang.LockedModule) (*fetchedStack, error) {
 	req := *p.Address
-	req.Version, req.Ref, req.Commit = entry.Version, entry.Ref, entry.Commit
+	req.Version, req.Ref, req.Commit, req.Digest = entry.Version, entry.Ref, entry.Commit, entry.Digest
 
 	if req.Kind == source.KindGlobal {
 		req.Repository = entry.Repository

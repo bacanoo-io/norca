@@ -196,6 +196,10 @@ func (e *Engine) fetchPublished(ctx context.Context, req source.Request) (*fetch
 		}
 	}
 
+	if err := verifyHostTrust(fetched.TrustedKeys, fs.signed()); err != nil {
+		return nil, err
+	}
+
 	return fs, nil
 }
 

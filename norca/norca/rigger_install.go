@@ -177,17 +177,17 @@ func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) (ret
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	fetcher, err := r.srv.riggerRequestFetcher()
+	src, err := r.srv.newRiggerSources(args)
 	if err != nil {
 		return err
 	}
 
-	eng, err := r.srv.riggerFetchEngine(fetcher)
+	eng, err := r.srv.riggerFetchEngine(src)
 	if err != nil {
 		return err
 	}
 
-	m, _, err := r.srv.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest)
+	m, _, err := r.srv.riggerRegistryModule(ctx, eng, src, args.RiggerModuleRequest)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	fetcher, err := s.riggerRequestFetcher()
+	src, err := s.newRiggerSources(args)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 	// A module of a registry is fetched and verified by the server: its
 	// release is admitted as rendered by the server. A local one is a
 	// client's.
-	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, fetcher)
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, src)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 
 		in.Source = riggerLocalSource
 	} else {
-		if m, _, err = s.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest); err != nil {
+		if m, _, err = s.riggerRegistryModule(ctx, eng, src, args.RiggerModuleRequest); err != nil {
 			return err
 		}
 	}
@@ -315,30 +315,30 @@ func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace st
 }
 
 // riggerServerEngine returns an engine with the hosts of this server and the
-// fetcher of the request; the releases are applied as rendered by the
-// server or not.
+// sources of the request. The releases are applied as rendered by the
+// server when serverRendered is set and an index the servers synced vouches
+// for all that was fetched for them.
 func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext,
-	fetcher source.Fetcher, opts ...rigger.Option,
+	src *riggerSources, opts ...rigger.Option,
 ) (*rigger.Engine, error) {
-	r, err := s.riggerRegistriesOf()
-	if err != nil {
-		return nil, err
-	}
-
-	// The bundles imported into the cluster, for sources that can't be
-	// reached: unpacked into the cache of this server first.
+	// The bundles imported into the cluster are sources: unpacked into the
+	// cache of this server first. Without their list none is one.
 	ctx, cancel := context.WithTimeout(context.Background(), riggerBundleTimeout)
-	if err := r.unpackBundles(ctx); err != nil {
+	defer cancel()
+
+	bundled, err := src.registries.unpackBundles(ctx)
+	if err != nil {
 		s.logger.Named("rigger").Warn("the bundles of the cluster could not be unpacked", "error", err)
 	}
-	cancel()
+
+	src.bundled = bundled
 
 	h := &riggerHosts{srv: s, token: token, namespace: namespace}
 	h.apply = func(req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse) error {
-		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered, "")
+		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered && src.indexed(), "")
 	}
 
-	return s.riggerEngine(h, append([]rigger.Option{rigger.WithFetcher(fetcher)}, opts...)...)
+	return s.riggerEngine(h, append([]rigger.Option{rigger.WithFetcher(src)}, opts...)...)
 }
 
 // riggerFetchEngine returns an engine that only fetches and loads modules,
@@ -374,7 +374,7 @@ func (s *Server) riggerRequestFetcher() (*fetch.Fetcher, error) {
 // riggerRegistryModule fetches and verifies the version of a module of a
 // registry that the request names: the newest the last good sync of the
 // registry offers that meets the constraint.
-func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, fetcher *fetch.Fetcher,
+func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, src *riggerSources,
 	req RiggerModuleRequest,
 ) (*rigger.Module, []string, error) {
 	reg, items, err := s.syncedRegistry(ctx, req.Registry)
@@ -402,13 +402,22 @@ func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, f
 		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s of the registry %q at its last sync: %v (rigger registry sync %s fetches newer versions)", ref, reg.Name, err, reg.Name)
 	}
 
-	sreq, keys, err := s.moduleSourceRequest(ctx, fetcher, reg, ref, v)
+	// The request names its registry: the rules are that one's.
+	if err := src.only(ctx, reg); err != nil {
+		return nil, nil, err
+	}
+
+	sreq, keys, err := s.moduleSourceRequest(ctx, reg, ref, v)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	m, diags := eng.FetchModule(ctx, sreq, keys)
 	if diags.HasErrors() {
+		if err := src.refusal(); err != nil {
+			return nil, nil, err
+		}
+
 		return nil, nil, riggerDiagsError(diags)
 	}
 
@@ -453,7 +462,7 @@ func (s *Server) syncedRegistry(ctx context.Context, name string) (*RiggerRegist
 // module of a registry, and the keys that must sign it: the global registry
 // read at the commit of its sync, a registry repository at the tag of the
 // version in the history of that commit.
-func (s *Server) moduleSourceRequest(ctx context.Context, fetcher *fetch.Fetcher, reg *RiggerRegistry,
+func (s *Server) moduleSourceRequest(ctx context.Context, reg *RiggerRegistry,
 	ref catalog.Ref, v string,
 ) (source.Request, []string, error) {
 	r, err := s.riggerRegistriesOf()
@@ -462,10 +471,6 @@ func (s *Server) moduleSourceRequest(ctx context.Context, fetcher *fetch.Fetcher
 	}
 
 	if reg.Spec.Type == riggerRegistryTypeGlobal {
-		if err := r.useGlobal(ctx, fetcher, reg); err != nil {
-			return source.Request{}, nil, err
-		}
-
 		return source.Request{
 			Source: ref.Namespace + "/" + ref.Name, Kind: source.KindGlobal,
 			Namespace: ref.Namespace, Name: ref.Name, Path: ".", Version: v,
@@ -490,19 +495,6 @@ func (s *Server) moduleSourceRequest(ctx context.Context, fetcher *fetch.Fetcher
 	}
 
 	return source.Request{}, nil, fmt.Errorf("the registry %q has no tag %s%s at %s", reg.Name, prefix, v, reg.Status.Commit)
-}
-
-// useGlobal points the fetcher of a request at the index of the global
-// registry at the commit of its last good sync.
-func (r *riggerRegistries) useGlobal(ctx context.Context, fetcher *fetch.Fetcher, reg *RiggerRegistry) error {
-	dir, err := r.fetcher.Checkout(ctx, reg.Status.Source, reg.Status.Commit)
-	if err != nil {
-		return err
-	}
-
-	fetcher.SetGlobalRegistry(dir)
-
-	return nil
 }
 
 // itemVersions returns the versions of a module or stack of a registry, the
@@ -548,17 +540,17 @@ func (s *Server) riggerDetail(args *RiggerDetailRequest, reply *RiggerDetailResp
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	fetcher, err := s.riggerRequestFetcher()
+	src, err := s.newRiggerSources(args)
 	if err != nil {
 		return err
 	}
 
-	eng, err := s.riggerFetchEngine(fetcher)
+	eng, err := s.riggerFetchEngine(src)
 	if err != nil {
 		return err
 	}
 
-	m, versions, err := s.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest)
+	m, versions, err := s.riggerRegistryModule(ctx, eng, src, args.RiggerModuleRequest)
 	if err != nil {
 		return err
 	}

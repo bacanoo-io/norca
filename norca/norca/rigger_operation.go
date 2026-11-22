@@ -28,8 +28,6 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	rigger "github.com/bacanoo-io/norca/rigger"
-	"github.com/bacanoo-io/norca/rigger/fetch"
-	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // Stacks on the server (design/rig-integration.md 4.6b). A plan and the
@@ -398,8 +396,8 @@ func (s *Server) authorizeNamespaceObject(args structs.RequestWithIdentity, name
 
 // riggerStack checks the rights of a stack request and loads the stack and
 // its values with an engine of the caller's token: a published stack from
-// its source (the global registry at the commit of its last sync), a local
-// one from its files. The stack is in the namespace of the request.
+// its source, a local one from its files, both with the sources a server
+// fetches from (rigger_sources.go). The stack is in the namespace of the request.
 func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcCtx *RPCContext, opts ...rigger.Option) (*rigger.Engine, *rigger.Stack, rigger.Values, error) {
 	namespace := args.RequestNamespace()
 	local := len(args.Files) > 0
@@ -418,16 +416,16 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 		}
 	}
 
-	fetcher, err := s.riggerRequestFetcher()
+	src, err := s.newRiggerSources(args)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	if err := s.prepareRiggerGlobal(ctx, fetcher, args.Source); err != nil {
+	if err := src.useSyncedGlobal(ctx); err != nil {
 		return nil, nil, nil, err
 	}
 
-	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, fetcher, opts...)
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, src, opts...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -444,6 +442,10 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 	}
 
 	if diags.HasErrors() {
+		if err := src.refusal(); err != nil {
+			return nil, nil, nil, err
+		}
+
 		return nil, nil, nil, riggerDiagsError(diags)
 	}
 
@@ -460,41 +462,6 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 	}
 
 	return eng, st, values, nil
-}
-
-// prepareRiggerGlobal points the fetcher of a request at the index of the
-// global registry at the commit of its last sync, or leaves it the empty
-// index when it has none: a stack never reaches the global registry past a
-// sync. A published stack of the global registry needs the sync.
-func (s *Server) prepareRiggerGlobal(ctx context.Context, fetcher *fetch.Fetcher, address string) error {
-	r, err := s.riggerRegistriesOf()
-	if err != nil {
-		return err
-	}
-
-	obj, err := s.State().CustomObjectByName(nil, structs.RiggerObjectGroup, structs.RiggerRegistryKind, "", structs.RiggerGlobalRegistry)
-	if err != nil {
-		return err
-	}
-
-	if obj != nil {
-		reg, err := riggerRegistryFromObject(obj)
-		if err != nil {
-			return err
-		}
-
-		if reg.Status.Commit != "" {
-			return r.useGlobal(ctx, fetcher, reg)
-		}
-	}
-
-	if address != "" {
-		if req, err := source.Parse(address, nil); err == nil && req.Kind == source.KindGlobal {
-			return errRiggerRegistryNotSynced(structs.RiggerGlobalRegistry)
-		}
-	}
-
-	return nil
 }
 
 // noGlobalDir is an empty index: that of a global registry never synced.

@@ -242,6 +242,21 @@ func verifyTrust(rule eval.TrustRule, c signedContent, locked []string) ([]strin
 	return signers, nil
 }
 
+// verifyHostTrust verifies fetched content with the rules of the host for
+// its source (source.Fetched.TrustedKeys): a signature by a key of each.
+// They stand beside the trust of the stack, whose keys can't stand in.
+func verifyHostTrust(rules [][]string, c signedContent) error {
+	c.keys, c.listed = nil, false
+
+	for _, keys := range rules {
+		if _, err := verifyTrust(eval.TrustRule{Require: true, Keys: keys}, c, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // meets checks that a version meets a constraint; an empty constraint
 // takes any version.
 func meets(constraint, v string) error {
@@ -270,6 +285,7 @@ func meets(constraint, v string) error {
 func (e *Engine) fetchLocked(ctx context.Context, r *lang.StackRelease, entry *lang.LockedModule) (*fetchedModule, error) {
 	req := *r.Address
 	req.Version, req.Ref, req.Commit, req.Path = entry.Version, entry.Ref, entry.Commit, entry.Path
+	req.Digest = entry.Digest
 
 	if req.Kind == source.KindGlobal {
 		// The repository of the version, for a tree in the cache when the
@@ -352,6 +368,12 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 	case fm.origin.Version != m.Metadata.Version:
 		return nil, fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",
 			req.Source, origin.Ref, origin.Version, m.Metadata.Version)
+	}
+
+	if err := verifyHostTrust(fetched.TrustedKeys, signedContent{
+		source: req.Source, version: fm.origin.Version, digest: fm.origin.Digest, signatures: fm.signatures,
+	}); err != nil {
+		return nil, err
 	}
 
 	return fm, nil

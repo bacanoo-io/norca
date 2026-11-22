@@ -22,6 +22,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/rigger/bundle"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 )
 
 // Bundles of Rigger imported into the cluster (design/rig-integration.md
@@ -295,7 +296,7 @@ func (s *Server) importRiggerBundle(ctx context.Context, data []byte) (*RiggerBu
 	}
 
 	if r, err := s.riggerRegistriesOf(); err == nil {
-		_ = r.unpackBundles(ctx)
+		_, _ = r.unpackBundles(ctx)
 	}
 
 	return b, nil
@@ -377,13 +378,17 @@ func (s *Server) listRiggerBundles(ctx context.Context) ([]*RiggerBundle, error)
 // unpackBundles unpacks into the cache of this server the bundles of the
 // object store it has not unpacked yet, by the commit of each module. A
 // bundle that can't be read is skipped (it was checked when it was
-// imported). Without a bus there is nothing to unpack.
-func (r *riggerRegistries) unpackBundles(ctx context.Context) error {
+// imported). Without a bus there is nothing to unpack. It returns the
+// modules of the bundles that are in the object store now: a bundle that
+// was deleted allows nothing, whatever of it is still in the cache.
+func (r *riggerRegistries) unpackBundles(ctx context.Context) ([]riggerBundledModule, error) {
 	if r.srv.bus == nil || !r.srv.bus.JetStreamReady() || r.srv.config.Bus.RiggerBundlesBytes() <= 0 {
-		return nil
+		return nil, nil
 	}
 
-	return r.srv.withRiggerBundles(ctx, func(obs jetstream.ObjectStore) error {
+	var out []riggerBundledModule
+
+	err := r.srv.withRiggerBundles(ctx, func(obs jetstream.ObjectStore) error {
 		infos, err := obs.List(ctx)
 		if errors.Is(err, jetstream.ErrNoObjectsFound) {
 			return nil
@@ -397,10 +402,12 @@ func (r *riggerRegistries) unpackBundles(ctx context.Context) error {
 			key := info.Name + "@" + strconv.FormatUint(info.Size, 10)
 
 			r.mu.Lock()
-			done := r.unpacked[key]
+			mods, done := r.unpacked[key]
 			r.mu.Unlock()
 
 			if done {
+				out = append(out, mods...)
+
 				continue
 			}
 
@@ -415,6 +422,10 @@ func (r *riggerRegistries) unpackBundles(ctx context.Context) error {
 			}
 
 			for _, mod := range m.Modules {
+				mods = append(mods, riggerBundledModule{
+					repository: fetch.CanonicalRepository(mod.Repository), commit: mod.Commit, digest: mod.Digest, dir: mod.Path,
+				})
+
 				dir := r.fetcher.BundleDir(mod.Commit)
 				if _, err := os.Stat(dir); err == nil {
 					continue
@@ -426,10 +437,17 @@ func (r *riggerRegistries) unpackBundles(ctx context.Context) error {
 			}
 
 			r.mu.Lock()
-			r.unpacked[key] = true
+			r.unpacked[key] = mods
 			r.mu.Unlock()
+
+			out = append(out, mods...)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }

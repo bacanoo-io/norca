@@ -23,7 +23,6 @@ import (
 	norcaversion "github.com/bacanoo-io/norca/norca/version"
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
-	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/host"
 )
 
@@ -52,9 +51,10 @@ type riggerHosts struct {
 
 // RiggerEngine returns an engine of Rigger with the hosts of this server:
 // the token authorizes every operation through the endpoints of the server,
-// and namespace is where the secrets of a stack live. Modules are fetched
-// into <data_dir>/rigger/cache; the local data of the engine is kept in
-// <data_dir>/rigger/store.
+// and namespace is where the secrets of a stack live. The local data of
+// the engine is kept in <data_dir>/rigger/store. It has no fetcher of its
+// own: a server fetches through the sources of a request only
+// (rigger_sources.go).
 func (s *Server) RiggerEngine(token, namespace string, opts ...rigger.Option) (*rigger.Engine, error) {
 	h := &riggerHosts{srv: s, token: token, namespace: namespace}
 
@@ -79,7 +79,6 @@ func (s *Server) riggerEngine(h *riggerHosts, opts ...rigger.Option) (*rigger.En
 		rigger.WithReleases(riggerReleases{h}),
 		rigger.WithSecrets(riggerSecrets{h}),
 		rigger.WithStore(riggerStore{dir: filepath.Join(dir, "store")}),
-		rigger.WithFetcher(fetch.New(filepath.Join(dir, "cache"))),
 	}
 
 	return rigger.New(append(base, opts...)...)
