@@ -15,6 +15,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/bacanoo-io/norca/norca/api"
+
+	"github.com/bacanoo-io/norca/rigger/module"
 )
 
 // The registries of a cluster (design/rig-integration.md 4.5 of norca):
@@ -39,6 +41,8 @@ const (
 type registryFlags struct {
 	region        string
 	kind          string
+	category      string
+	keyword       string
 	offset, limit int
 }
 
@@ -63,6 +67,8 @@ func runRegistry(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wri
 	flags.SetOutput(stderr)
 	flags.StringVar(&f.region, "region", "", "the region to talk to")
 	flags.StringVar(&f.kind, "kind", "", "search: module or stack")
+	flags.StringVar(&f.category, "category", "", "search: one category ("+strings.Join(module.Categories, ", ")+")")
+	flags.StringVar(&f.keyword, "keyword", "", "search: the modules and stacks with the keyword")
 	flags.IntVar(&f.offset, "offset", 0, "search: the first match to show")
 	flags.IntVar(&f.limit, "limit", 0, "search: how many matches to show (default 50, at most 500)")
 
@@ -114,7 +120,10 @@ func registryCommand(w io.Writer, rigger *api.Rigger, cmd string, args []string,
 
 		return writeSynced(w, reg)
 	case cmdRegistrySearch:
-		query := &api.RiggerRegistryQuery{Kind: f.kind, Text: strings.Join(args[1:], " "), Offset: f.offset, Limit: f.limit}
+		query := &api.RiggerRegistryQuery{
+			Kind: f.kind, Text: strings.Join(args[1:], " "), Category: f.category, Keyword: f.keyword,
+			Offset: f.offset, Limit: f.limit,
+		}
 
 		found, _, err := rigger.SearchRegistry(name, query, nil)
 		if err != nil {

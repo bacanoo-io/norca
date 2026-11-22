@@ -32,6 +32,8 @@ func entry(t *testing.T, namespace, name string, versions ...string) *fstest.Map
 		e.Versions = append(e.Versions, index.Version{
 			Version: v, Repository: "github.com/" + namespace + "/rigger", Path: "modules/" + name, Tag: name + "/v" + v,
 			Commit: commit, Digest: digest, Signatures: []index.Signature{{KeyID: digest, Signature: "MEUCIQ=="}}, Listed: "2026-11-22",
+			Description: summaries[name].description + " " + v, Category: summaries[name].category,
+			Keywords: []string{name}, License: "MPL-2.0",
 		})
 	}
 
@@ -41,6 +43,13 @@ func entry(t *testing.T, namespace, name string, versions ...string) *fstest.Map
 	}
 
 	return &fstest.MapFile{Data: data}
+}
+
+// summaries are what the versions of the index say of each name.
+var summaries = map[string]struct{ description, category string }{
+	nats:  {"A NATS cluster", "messaging"},
+	redis: {"A Redis cache", "database"},
+	"web": {"A web shop", "application"},
 }
 
 // globalIndex is an index with two modules, a stack and a blocked version.
@@ -113,6 +122,28 @@ func TestGlobal_Errors(t *testing.T) {
 	}
 }
 
+// An item of the index says what its newest version says, not one that an
+// advisory blocks.
+func TestGlobal_Summary(t *testing.T) {
+	t.Parallel()
+
+	items, err := catalog.Global(globalIndex(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for _, item := range items {
+		got = append(got, item.Name+": "+item.Description+", "+item.Category+", "+strings.Join(item.Keywords, " ")+", "+item.License)
+	}
+
+	want := "redis: A Redis cache 0.1.0, database, redis, MPL-2.0; nats: A NATS cluster 1.10.0, messaging, nats, MPL-2.0; " +
+		"web: A web shop 2.0.0, application, web, MPL-2.0"
+	if strings.Join(got, "; ") != want {
+		t.Errorf("Global() = %s, want %s", strings.Join(got, "; "), want)
+	}
+}
+
 // A registry repository: the modules and stacks with a metadata.hcl, the
 // versions of their tags; a tag of another name or not a version is no
 // version, a module without a tag has none.
@@ -120,7 +151,8 @@ func TestRepository(t *testing.T) {
 	t.Parallel()
 
 	fsys := fstest.MapFS{
-		"modules/nats/metadata.hcl":  {Data: []byte("module {}\n")},
+		"modules/nats/metadata.hcl": {Data: []byte("module {\n  name        = \"nats\"\n  description = \"A NATS cluster\"\n" +
+			"  category    = \"messaging\"\n  keywords    = [\"queue\"]\n  license     = \"Apache-2.0\"\n}\n")},
 		"modules/redis/metadata.hcl": {Data: []byte("module {}\n")},
 		"modules/draft/README.md":    {Data: []byte("no metadata\n")},
 		"stacks/web/metadata.hcl":    {Data: []byte("stack {}\n")},
@@ -134,6 +166,17 @@ func TestRepository(t *testing.T) {
 
 	if got, want := describe(items), "module nats 1.1.0 1.0.0; module redis; stack web 0.1.0"; got != want {
 		t.Errorf("Repository() = %s, want %s", got, want)
+	}
+
+	// What metadata.hcl says at the commit; one that does not read says
+	// nothing.
+	nats := items[0]
+	if got := nats.Description + ", " + nats.Category + ", " + strings.Join(nats.Keywords, " ") + ", " + nats.License; got != "A NATS cluster, messaging, queue, Apache-2.0" {
+		t.Errorf("the nats of Repository() = %s", got)
+	}
+
+	if items[1].Description != "" || items[1].Category != "" {
+		t.Errorf("redis = %+v", items[1])
 	}
 }
 
@@ -157,6 +200,10 @@ func TestSearch(t *testing.T) {
 		{name: "page", query: catalog.Query{Offset: 1, Limit: 1}, want: "module norca/nats", total: 3},
 		{name: "past the end", query: catalog.Query{Offset: 5}, want: "", total: 3},
 		{name: "no match", query: catalog.Query{Text: "postgres"}, want: "", total: 0},
+		{name: "text in the description", query: catalog.Query{Text: "CACHE"}, want: "module acme/redis", total: 1},
+		{name: "category", query: catalog.Query{Category: "messaging"}, want: "module norca/nats", total: 1},
+		{name: "keyword", query: catalog.Query{Keyword: "web"}, want: "stack norca/web", total: 1},
+		{name: "category and text", query: catalog.Query{Category: "database", Text: "nats"}, want: "", total: 0},
 	}
 
 	for _, tt := range tests {
@@ -179,7 +226,7 @@ func TestSearch(t *testing.T) {
 		})
 	}
 
-	for _, q := range []catalog.Query{{Offset: -1}, {Limit: -1}, {Kind: "policy"}} {
+	for _, q := range []catalog.Query{{Offset: -1}, {Limit: -1}, {Kind: "policy"}, {Category: "databases"}} {
 		if _, _, err := catalog.Search(items, q); !errors.Is(err, catalog.ErrQuery) {
 			t.Errorf("Search(%+v) = %v, want ErrQuery", q, err)
 		}

@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/bacanoo-io/norca/rigger/index"
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/module"
 	"github.com/bacanoo-io/norca/rigger/version"
 )
 
@@ -44,6 +46,14 @@ type Item struct {
 	Ref
 
 	Versions []string `json:"versions"`
+
+	// Description, Category, Keywords and License are those of the newest
+	// version, of the index of the global registry, or of the metadata.hcl
+	// of a registry repository at its commit.
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	License     string   `json:"license,omitempty"`
 }
 
 // Global lists the modules and stacks of the index of the global registry
@@ -106,6 +116,12 @@ func globalKind(fsys fs.FS, kind index.Kind, adv *index.Advisories) ([]Item, err
 
 		if len(item.Versions) > 0 {
 			sortVersions(item.Versions)
+
+			if newest := entry.Version(item.Versions[0]); newest != nil {
+				item.Description, item.Category, item.License = newest.Description, newest.Category, newest.License
+				item.Keywords = slices.Clone(newest.Keywords)
+			}
+
 			out = append(out, item)
 		}
 	}
@@ -144,6 +160,13 @@ func Repository(fsys fs.FS, tags []string) ([]Item, error) {
 			name := path.Base(path.Dir(file))
 			item := Item{Kind: kind, Name: name, Versions: slices.Clone(versions[name])}
 			sortVersions(item.Versions)
+
+			// What it says of itself at the commit; one that does not read
+			// is still listed, as a load names its error.
+			if md, diags := lang.ReadMetadata(fsys, path.Dir(file)); !diags.HasErrors() {
+				item.Description, item.Category, item.Keywords, item.License = md.Description, md.Category, md.Keywords, md.License
+			}
+
 			out = append(out, item)
 		}
 	}
@@ -166,9 +189,12 @@ func topDir(kind index.Kind) string {
 type Query struct {
 	// Kind keeps one kind; empty keeps both.
 	Kind index.Kind
-	// Text is found in "namespace/name", case-insensitively; empty finds
-	// every item.
+	// Text is found in "namespace/name" or in the description,
+	// case-insensitively; empty finds every item.
 	Text string
+	// Category keeps the items of one category (module.Categories);
+	// Keyword those with the keyword.
+	Category, Keyword string
 	// Offset and Limit give one page: Limit 0 is DefaultLimit, and at most
 	// MaxLimit.
 	Offset, Limit int
@@ -191,6 +217,10 @@ func Search(items []Item, q Query) ([]Item, int, error) {
 		return nil, 0, fmt.Errorf("%w: offset %d, limit %d, kind %q", ErrQuery, q.Offset, q.Limit, q.Kind)
 	}
 
+	if q.Category != "" && !slices.Contains(module.Categories, q.Category) {
+		return nil, 0, fmt.Errorf("%w: category %q is none of %s", ErrQuery, q.Category, strings.Join(module.Categories, ", "))
+	}
+
 	limit := cmp.Or(q.Limit, DefaultLimit)
 	limit = min(limit, MaxLimit)
 	text := strings.ToLower(q.Text)
@@ -201,11 +231,7 @@ func Search(items []Item, q Query) ([]Item, int, error) {
 	)
 
 	for _, item := range items {
-		if q.Kind != "" && item.Kind != q.Kind {
-			continue
-		}
-
-		if text != "" && !strings.Contains(strings.ToLower(item.Namespace+"/"+item.Name), text) {
+		if !q.matches(item, text) {
 			continue
 		}
 
@@ -217,6 +243,24 @@ func Search(items []Item, q Query) ([]Item, int, error) {
 	}
 
 	return page, total, nil
+}
+
+// matches reports whether an item is one the query asks for; text is the
+// text of the query in lower case.
+func (q Query) matches(item Item, text string) bool {
+	switch {
+	case q.Kind != "" && item.Kind != q.Kind:
+		return false
+	case q.Category != "" && item.Category != q.Category:
+		return false
+	case q.Keyword != "" && !slices.Contains(item.Keywords, q.Keyword):
+		return false
+	case text == "":
+		return true
+	default:
+		return strings.Contains(strings.ToLower(item.Namespace+"/"+item.Name), text) ||
+			strings.Contains(strings.ToLower(item.Description), text)
+	}
 }
 
 // Select returns the items of the list that are selected, in the order of

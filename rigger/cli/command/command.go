@@ -94,7 +94,8 @@ Commands:
   registry list|status|sync [name]
                           the registries of the cluster; sync fetches the
                           index of one now (it is never synced on its own)
-  registry search <name> [text] [-kind module|stack] [-offset n] [-limit n]
+  registry search <name> [text] [-kind module|stack] [-category c]
+         [-keyword k] [-offset n] [-limit n]
                           the modules and stacks of a registry at its last
                           sync
   registry select|unselect <name> module|stack <namespace>/<name>

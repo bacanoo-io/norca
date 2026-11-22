@@ -42,9 +42,11 @@ type RiggerRegistrySearchRequest struct {
 	Name string
 	// Kind is module or stack; empty finds both.
 	Kind string
-	// Text is found in "namespace/name".
-	Text          string
-	Offset, Limit int
+	// Text is found in "namespace/name" or in the description.
+	Text string
+	// Category keeps one category; Keyword the items with the keyword.
+	Category, Keyword string
+	Offset, Limit     int
 	structs.QueryOptions
 }
 
@@ -114,7 +116,10 @@ func (r *Rigger) SearchRegistry(args *RiggerRegistrySearchRequest, reply *Rigger
 		return err
 	}
 
-	q := catalog.Query{Kind: index.Kind(args.Kind), Text: args.Text, Offset: args.Offset, Limit: args.Limit}
+	q := catalog.Query{
+		Kind: index.Kind(args.Kind), Text: args.Text, Category: args.Category, Keyword: args.Keyword,
+		Offset: args.Offset, Limit: args.Limit,
+	}
 
 	aclObj, err := r.srv.ResolveACL(args)
 	if err != nil {

@@ -22,7 +22,8 @@ func greeterRepo(t *testing.T, version string) string {
 	}
 
 	repo := writeTree(t, map[string]string{
-		"modules/greeter/metadata.hcl":  "module {\n  name    = \"greeter\"\n  version = \"" + version + "\"\n}\n",
+		"modules/greeter/metadata.hcl": "module {\n  name        = \"greeter\"\n  version     = \"" + version + "\"\n" +
+			"  description = \"Says hello\"\n  category    = \"application\"\n  keywords    = [\"greeting\"]\n  license     = \"MPL-2.0\"\n}\n",
 		"modules/greeter/variables.hcl": "variable \"text\" {\n  default = \"hello\"\n}\n",
 		"modules/greeter/g.var.hcl":     "variable \"g\" {\n  path = \"greeter/${rigger.release}\"\n\n  items {\n    text = var.text\n  }\n}\n",
 	})
@@ -123,7 +124,10 @@ func publishedRegistry(t *testing.T) (repo, reg, entry, keys string) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 
-	for _, want := range []string{`"version": "1.0.0"`, `"tag": "greeter/v1.0.0"`, `"path": "modules/greeter"`, `"key_id": "sha256:`, `"listed": "2026-11-18"`} {
+	for _, want := range []string{
+		`"version": "1.0.0"`, `"tag": "greeter/v1.0.0"`, `"path": "modules/greeter"`, `"key_id": "sha256:`, `"listed": "2026-11-18"`,
+		`"description": "Says hello"`, `"category": "application"`, `"greeting"`, `"license": "MPL-2.0"`,
+	} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("entry does not hold %s:\n%s", want, data)
 		}

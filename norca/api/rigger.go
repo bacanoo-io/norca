@@ -86,15 +86,23 @@ func (r RiggerRegistryRef) String() string {
 type RiggerRegistryItem struct {
 	RiggerRegistryRef
 	Versions []string `json:"versions"`
+	// Description, Category, Keywords and License are those of the newest
+	// version.
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	License     string   `json:"license,omitempty"`
 }
 
 // RiggerRegistryQuery is a search of a registry.
 type RiggerRegistryQuery struct {
 	// Kind is module or stack; empty finds both.
 	Kind string
-	// Text is found in "namespace/name".
-	Text          string
-	Offset, Limit int
+	// Text is found in "namespace/name" or in the description.
+	Text string
+	// Category keeps one category; Keyword the items with the keyword.
+	Category, Keyword string
+	Offset, Limit     int
 }
 
 // RiggerRegistrySearch is a page of a search.
@@ -225,6 +233,14 @@ func (r *Rigger) SearchRegistry(name string, query *RiggerRegistryQuery, q *Quer
 
 		if query.Text != "" {
 			v.Set("text", query.Text)
+		}
+
+		if query.Category != "" {
+			v.Set("category", query.Category)
+		}
+
+		if query.Keyword != "" {
+			v.Set("keyword", query.Keyword)
 		}
 
 		if query.Offset > 0 {

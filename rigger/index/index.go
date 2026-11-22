@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bacanoo-io/norca/rigger/module"
 	"github.com/bacanoo-io/norca/rigger/version"
 )
 
@@ -89,6 +90,12 @@ type Version struct {
 	Requires   *Requires   `json:"requires,omitempty"`
 	// Icon is the SHA-256 digest of the icon file, if the version has one.
 	Icon string `json:"icon,omitempty"`
+	// Description, Category, Keywords and License are those of the
+	// metadata.hcl of the version: what a catalog shows and filters on.
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	License     string   `json:"license,omitempty"`
 	// Modules are the registry modules the lock file of a stack pins.
 	Modules []LockedModule `json:"modules,omitempty"`
 	// Listed is the day the version was listed, YYYY-MM-DD.
@@ -417,6 +424,8 @@ func (v *Version) validate(kind Kind) error {
 		return fmt.Errorf("%w: listed %q", errField, v.Listed)
 	case kind == KindModule && len(v.Modules) > 0:
 		return fmt.Errorf("%w: a module pins no modules", errField)
+	case v.Category != "" && !slices.Contains(module.Categories, v.Category):
+		return fmt.Errorf("%w: category %q is none of %s", errField, v.Category, strings.Join(module.Categories, ", "))
 	}
 
 	return v.validateLists()

@@ -137,7 +137,10 @@ func (s *HTTPServer) riggerRegistrySearch(resp http.ResponseWriter, req *http.Re
 	}
 
 	query := req.URL.Query()
-	args := norca.RiggerRegistrySearchRequest{Name: name, Kind: query.Get("kind"), Text: query.Get("text")}
+	args := norca.RiggerRegistrySearchRequest{
+		Name: name, Kind: query.Get("kind"), Text: query.Get("text"),
+		Category: query.Get("category"), Keyword: query.Get("keyword"),
+	}
 
 	for _, p := range []struct {
 		name string

@@ -269,6 +269,7 @@ func (ix *Indexer) inspect(ctx context.Context, keys []sign.PublicKey, url strin
 	v := index.Version{
 		Version: vt.version, Repository: url, Path: t.dir, Tag: vt.tag(), Commit: t.commit, Digest: digest,
 		Requires: requires(md.Requires.Norca, md.Requires.Features, md.Requires.Modules), Modules: pins, Listed: ix.Today,
+		Description: md.Description, Category: md.Category, Keywords: md.Keywords, License: md.License,
 	}
 
 	// A version without a signature of the namespace is returned with

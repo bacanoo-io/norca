@@ -5,6 +5,9 @@ package lang
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/module"
 )
 
@@ -164,6 +168,58 @@ func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 	s.Metadata = &meta
 
 	return diags
+}
+
+// maxMetadataBytes bounds a metadata.hcl that ReadMetadata reads alone, as
+// the file of a module is bounded.
+const maxMetadataBytes = 1 << 20
+
+// anyMetadataFile is metadata.hcl of a module or of a published stack.
+type anyMetadataFile struct {
+	Module *moduleBlock `hcl:"module,block"`
+	Stack  *moduleBlock `hcl:"stack,block"`
+	UI     *uiBlock     `hcl:"ui,block"`
+}
+
+// ReadMetadata reads the metadata.hcl of a module or a published stack in
+// the directory dir of fsys and nothing else: what a catalog lists of a
+// registry repository without loading each module.
+func ReadMetadata(fsys fs.FS, dir string) (module.Metadata, hcl.Diagnostics) {
+	name := path.Join(dir, "metadata.hcl")
+
+	f, err := fsys.Open(name)
+	if err != nil {
+		return module.Metadata{}, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "No metadata", Detail: err.Error()}}
+	}
+	defer f.Close() //nolint:errcheck // read only
+
+	src, err := io.ReadAll(io.LimitReader(f, maxMetadataBytes+1))
+	if err != nil || len(src) > maxMetadataBytes {
+		return module.Metadata{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Unreadable metadata",
+			Detail: fmt.Sprintf("%s can't be read, or has more than %d bytes.", name, maxMetadataBytes),
+		}}
+	}
+
+	file, diags := syntax.ParseConfig(src, name)
+	if diags.HasErrors() {
+		return module.Metadata{}, diags
+	}
+
+	var md anyMetadataFile
+	if diags := gohcl.DecodeBody(file.Body, nil, &md); diags.HasErrors() {
+		return module.Metadata{}, diags
+	}
+
+	switch {
+	case md.Module != nil:
+		return md.Module.metadata(blockRange(file.Body, "module"), "module")
+	case md.Stack != nil:
+		return md.Stack.metadata(blockRange(file.Body, "stack"), "stack")
+	default:
+		return module.Metadata{}, hcl.Diagnostics{errorAt(file.Body.MissingItemRange(), "Missing module block",
+			"metadata.hcl holds a module or a stack block.")}
+	}
 }
 
 // blockRange returns the range of the header of the first block of type

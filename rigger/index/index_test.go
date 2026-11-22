@@ -81,6 +81,7 @@ func TestEntry_Validate(t *testing.T) {
 			e.Versions[0].Modules = []index.LockedModule{{Source: "norca/x", Version: "1.0.0", Digest: digest}}
 		}, expected: "pins no modules"},
 		{name: "an invalid name", change: func(e *index.Entry) { e.Name = "Nats" }, expected: "is not a namespace and a name"},
+		{name: "a category of no list", change: func(e *index.Entry) { e.Versions[0].Category = "databases" }, expected: "category"},
 	}
 
 	for _, tt := range tests {
