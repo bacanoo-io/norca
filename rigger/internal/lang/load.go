@@ -193,6 +193,18 @@ func (l *loader) visit(p string, d fs.DirEntry, err error) error {
 		return err
 	}
 
+	if p != "." && !isHidden(d.Name()) {
+		if diag := nameDiag(d.Name()); diag != nil {
+			l.diags = append(l.diags, diag)
+
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+	}
+
 	if d.IsDir() {
 		return l.visitDir(p, d)
 	}

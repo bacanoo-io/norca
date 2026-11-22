@@ -77,6 +77,10 @@ func loadChild(ctx context.Context, root fs.FS, m *Module, b *hcl.Block, prefix 
 			fmt.Sprintf("The child modules are nested more than %d deep, the limit of the engine.", limits.Depth)))
 	}
 
+	if err := CheckPath(root, m.Dir, src); err != nil {
+		return nil, append(diags, errorAt(rng, "Invalid source", err.Error()+"."))
+	}
+
 	mod, moreDiags := loadTree(ctx, root, dir, path.Join(prefix, src), limits, stack)
 	diags = append(diags, moreDiags...)
 

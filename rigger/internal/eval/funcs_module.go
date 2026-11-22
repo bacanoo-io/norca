@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/bacanoo-io/norca/rigger/internal/lang"
 	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/runref"
 )
@@ -44,11 +45,15 @@ func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	return funcs
 }
 
-// readModuleFile reads the file at p of the module: a path inside it, no
-// larger than fileBytes.
+// readModuleFile reads the file at p of the module: a path inside it that
+// the digest covers, no larger than fileBytes.
 func readModuleFile(fsys fs.FS, fileBytes int64, p string) ([]byte, error) {
 	if !fs.ValidPath(p) {
 		return nil, fmt.Errorf("%q is not a path inside the module", p)
+	}
+
+	if err := lang.CheckPath(fsys, ".", p); err != nil {
+		return nil, err
 	}
 
 	info, err := fs.Stat(fsys, p)

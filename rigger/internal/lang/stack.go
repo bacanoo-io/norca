@@ -288,7 +288,15 @@ func (s *Stack) readFiles(ctx context.Context, fsys fs.FS, limits Limits) hcl.Di
 			return ctx.Err()
 		case p == ".":
 			return nil
-		case strings.HasPrefix(d.Name(), "."):
+		case isHidden(d.Name()):
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		case nameDiag(d.Name()) != nil:
+			diags = append(diags, nameDiag(d.Name()))
+
 			if d.IsDir() {
 				return fs.SkipDir
 			}
@@ -745,6 +753,10 @@ func (s *Stack) loadRelease(ctx context.Context, root fs.FS, r *StackRelease, li
 	if dir == ".." || strings.HasPrefix(dir, "../") {
 		return hcl.Diagnostics{errorAt(rng, "Source outside the root",
 			r.Source+" is outside the files the stack was loaded from.")}
+	}
+
+	if err := CheckPath(root, s.Dir, r.Source); err != nil {
+		return hcl.Diagnostics{errorAt(rng, "Invalid source", err.Error()+".")}
 	}
 
 	m, diags := loadTree(ctx, root, dir, r.Source, limits, nil)

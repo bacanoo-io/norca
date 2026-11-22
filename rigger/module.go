@@ -279,6 +279,10 @@ func (e *Engine) checkIcon(m *Module) hcl.Diagnostics {
 		name = iconFile
 	}
 
+	if err := lang.CheckPath(m.fsys, ".", name); err != nil {
+		return iconDiag(fmt.Sprintf("The icon %s is not taken: %s.", name, err))
+	}
+
 	data, err := fs.ReadFile(m.fsys, name)
 	if err != nil {
 		if m.mod.Metadata.Icon == "" {

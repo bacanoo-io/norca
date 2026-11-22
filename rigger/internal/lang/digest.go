@@ -21,7 +21,8 @@ import (
 // are those of the module and of its local child modules, named from the
 // directory of the module as in diagnostics (../lib/placement/outputs.hcl),
 // so that the digest changes when a child changes. Hidden files and
-// directories are left out. The result is "sha256:<hex>".
+// directories are left out, and nothing reads them (CheckPath); a name with
+// a control character is an error. The result is "sha256:<hex>".
 func Digest(m *Module) (string, error) {
 	lines := map[string]string{}
 	if err := digestFiles(m, "", lines); err != nil {
@@ -69,6 +70,12 @@ func digestFiles(m *Module, prefix string, lines map[string]string) error {
 			return nil
 		}
 
+		// A line is a hash and a name: the name is one line.
+		name := path.Join(prefix, p)
+		if err := checkName(name); err != nil {
+			return err
+		}
+
 		f, err := m.FS.Open(p)
 		if err != nil {
 			return err
@@ -80,7 +87,7 @@ func digestFiles(m *Module, prefix string, lines map[string]string) error {
 			return err
 		}
 
-		lines[path.Join(prefix, p)] = hex.EncodeToString(h.Sum(nil))
+		lines[name] = hex.EncodeToString(h.Sum(nil))
 
 		return nil
 	})
