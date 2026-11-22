@@ -25,6 +25,7 @@ type installFlags struct {
 	name    string
 	timeout time.Duration
 	adopt   bool
+	server  bool
 }
 
 var errInstallName = errors.New("install needs -name, the name of the release")
@@ -48,6 +49,7 @@ func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	flags.StringVar(&f.region, "region", "", "region of the release (default: the region of the cluster)")
 	flags.DurationVar(&f.timeout, "timeout", 0, "how long to wait until the release is ready (default: the server's)")
 	flags.BoolVar(&f.adopt, "adopt", false, "take over a release the pack manager applied")
+	flags.BoolVar(&f.server, "server", serverDefault(), serverUsage)
 
 	if err := flags.Parse(args); err != nil {
 		return exitError
@@ -60,6 +62,10 @@ func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	}
 
 	return run(ctx, logger, stderr, "install", func(ctx context.Context) error {
+		if f.server {
+			return serverInstall(ctx, logger, stdout, stderr, f)
+		}
+
 		return install(ctx, logger, stdout, stderr, f)
 	})
 }

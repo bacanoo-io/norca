@@ -36,11 +36,13 @@ type RiggerReleaseRef struct {
 
 // RiggerReleasePlan is what a plan of a stack does to a release.
 type RiggerReleasePlan struct {
-	Release  RiggerReleaseRef `json:"release"`
-	Action   string           `json:"action"`
-	Module   RiggerModuleRef  `json:"module"`
-	Revision uint64           `json:"revision,omitempty"`
-	Changes  []RiggerChange   `json:"changes,omitempty"`
+	Release   RiggerReleaseRef `json:"release"`
+	Action    string           `json:"action"`
+	Module    RiggerModuleRef  `json:"module"`
+	Digest    string           `json:"digest,omitempty"`
+	Revision  uint64           `json:"revision,omitempty"`
+	Changes   []RiggerChange   `json:"changes,omitempty"`
+	DependsOn []string         `json:"depends_on,omitempty"`
 }
 
 // RiggerStackPlan is the plan of a stack.

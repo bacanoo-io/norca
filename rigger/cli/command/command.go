@@ -78,6 +78,13 @@ Commands:
   Every stack command but sync and publish takes, instead of a directory,
   a published stack: <namespace>/<name> of the global registry or a git
   address, with -version "~> 1.2".
+  With -server (or RIGGER_SERVER=1), stack plan, apply, status and
+  destroy, install and bundle import go to the servers of the cluster,
+  which fetch and evaluate; an apply or a destroy runs there as an
+  operation whose log the command follows. Ctrl-C cancels the operation
+  before its next release; a second Ctrl-C leaves it running.
+  operation follow|cancel|status <name> [-namespace ns]
+                          an apply or a destroy the servers run
   install <dir> -name release [-namespace ns] [-f values] [-var name=value]
                           install or upgrade one release of a module
   release list|status|history|rollback|uninstall [name] [-namespace ns]
@@ -102,8 +109,10 @@ Commands:
                           the modules of a stack from git sources, as its
                           lock pins them, in one archive
   bundle inspect file     what a bundle holds
-  bundle import file      put a bundle into the cache, for an install
-                          without a network
+  bundle import file [-server]
+                          put a bundle into the cache, for an install
+                          without a network; with -server, into the
+                          cluster, for its servers
   The cluster is that of NORCA_ADDR and NORCA_TOKEN. A source
   <namespace>/<name> that names no registry of the stack is a module of
   the global registry, github.com/bacanoo-io/norca-global-registry, or of
@@ -146,7 +155,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 var commands = map[string]command{
 	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall, cmdRegistry: runRegistry,
 	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
-	cmdIndex: runIndex,
+	cmdIndex: runIndex, cmdOperation: runOperation,
 }
 
 // Program is the program that runs the commands: the name its usage shows,

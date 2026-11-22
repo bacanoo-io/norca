@@ -38,8 +38,15 @@ func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	flags := flag.NewFlagSet("rigger bundle "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	out := flags.String("o", "", "create: the bundle to write (platform.riggerbundle)")
+	server := flags.Bool("server", serverDefault(), "import: "+serverUsage)
 
 	if err := flags.Parse(args); err != nil {
+		return exitError
+	}
+
+	if *server && cmd != "import" {
+		warn(stderr, "%v", errServerOnly)
+
 		return exitError
 	}
 
@@ -57,6 +64,10 @@ func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 		case "inspect":
 			return inspectBundle(stdout, arg)
 		case "import":
+			if *server {
+				return serverImportBundle(ctx, stdout, arg)
+			}
+
 			return importBundle(ctx, logger, stdout, arg)
 		default:
 			return fmt.Errorf("unknown bundle command %q", cmd)

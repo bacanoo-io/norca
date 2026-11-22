@@ -38,6 +38,10 @@ type stackFlags struct {
 	adopt   bool
 	upgrade bool
 	region  string
+	// server sends the command to the servers; namespace is the namespace
+	// of a published stack there (a stack in a directory names its own).
+	server    bool
+	namespace string
 }
 
 // The commands of rigger stack.
@@ -68,36 +72,53 @@ func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer
 		return exitError
 	}
 
+	if f.server && (cmd == cmdSync || cmd == cmdPublish || cmd == cmdValidate) {
+		warn(stderr, "%v", errServerOnly)
+
+		return exitError
+	}
+
 	if f.address != "" && (cmd == cmdSync || cmd == cmdPublish) {
 		warn(stderr, "stack %s works on a stack in a directory", cmd)
 
 		return exitError
 	}
 
-	var fn func(context.Context) error
-
-	switch cmd {
-	case cmdPublish:
-		fn = func(ctx context.Context) error { return publishStack(ctx, logger, stdout, stderr, f) }
-	case cmdValidate:
-		fn = func(ctx context.Context) error { return validateStack(ctx, logger, stdout, stderr, f) }
-	case cmdSync:
-		fn = func(ctx context.Context) error { return syncStack(ctx, logger, stdout, stderr, f) }
-	case cmdPlan, cmdApply:
-		fn = func(ctx context.Context) error {
-			return planApplyStack(ctx, logger, stdout, stderr, f, cmd == cmdApply)
-		}
-	case cmdStatus:
-		fn = func(ctx context.Context) error { return stackStatus(ctx, logger, stdout, stderr, f) }
-	case cmdDestroy:
-		fn = func(ctx context.Context) error { return destroyStack(ctx, logger, stdout, stderr, f) }
-	default:
+	fn := stackCommand(logger, stdout, stderr, cmd, f)
+	if fn == nil {
 		warn(stderr, "unknown stack command %q", cmd)
 
 		return exitError
 	}
 
 	return run(ctx, logger, stderr, "stack."+cmd, fn)
+}
+
+// stackCommand is the function of rigger stack <cmd>: here, or with
+// -server on the servers; nil for an unknown command.
+func stackCommand(logger *slog.Logger, stdout, stderr io.Writer, cmd string, f *stackFlags) func(context.Context) error {
+	local := map[string]func(context.Context) error{
+		cmdPublish:  func(ctx context.Context) error { return publishStack(ctx, logger, stdout, stderr, f) },
+		cmdValidate: func(ctx context.Context) error { return validateStack(ctx, logger, stdout, stderr, f) },
+		cmdSync:     func(ctx context.Context) error { return syncStack(ctx, logger, stdout, stderr, f) },
+		cmdPlan:     func(ctx context.Context) error { return planApplyStack(ctx, logger, stdout, stderr, f, false) },
+		cmdApply:    func(ctx context.Context) error { return planApplyStack(ctx, logger, stdout, stderr, f, true) },
+		cmdStatus:   func(ctx context.Context) error { return stackStatus(ctx, logger, stdout, stderr, f) },
+		cmdDestroy:  func(ctx context.Context) error { return destroyStack(ctx, logger, stdout, stderr, f) },
+	}
+
+	server := map[string]func(context.Context) error{
+		cmdPlan:    func(ctx context.Context) error { return serverPlan(ctx, logger, stdout, stderr, f) },
+		cmdApply:   func(ctx context.Context) error { return serverOperation(ctx, logger, stdout, stderr, f, false) },
+		cmdStatus:  func(ctx context.Context) error { return serverStatus(ctx, logger, stdout, stderr, f) },
+		cmdDestroy: func(ctx context.Context) error { return serverOperation(ctx, logger, stdout, stderr, f, true) },
+	}
+
+	if f.server {
+		return server[cmd]
+	}
+
+	return local[cmd]
 }
 
 func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, error) {
@@ -117,6 +138,8 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
 	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
 	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")
+	flags.BoolVar(&f.server, "server", serverDefault(), serverUsage)
+	flags.StringVar(&f.namespace, "namespace", "", "-server, a published stack: the namespace of the stack (default: NORCA_NAMESPACE)")
 	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
 	if err := flags.Parse(args); err != nil {
@@ -407,7 +430,12 @@ func stackStatus(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wri
 		return err
 	}
 
-	if f.json {
+	return writeStatus(stdout, status, f.json)
+}
+
+// writeStatus writes the releases of a stack for a person, or as JSON.
+func writeStatus(stdout io.Writer, status []rigger.ReleaseStatus, asJSON bool) error {
+	if asJSON {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 
