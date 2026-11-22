@@ -20,7 +20,10 @@ import (
 	"github.com/bacanoo-io/norca/rigger/bundle"
 )
 
-const commit = "0123456789abcdef0123456789abcdef01234567"
+const (
+	commit       = "0123456789abcdef0123456789abcdef01234567"
+	manifestFile = "rigger-bundle.json"
+)
 
 // A bundle written of a module reads back with its manifest and files.
 func TestWriteRead(t *testing.T) {
@@ -70,7 +73,7 @@ func TestReadBounded_TooLarge(t *testing.T) {
 	}
 
 	for name, data := range map[string][]byte{
-		"rigger-bundle.json":     manifest,
+		manifestFile:             manifest,
 		"trees/" + commit + "/a": make([]byte, 2<<20),
 		"trees/" + commit + "/b": make([]byte, 2<<20),
 	} {
@@ -174,5 +177,68 @@ func TestWriteTree(t *testing.T) {
 
 	if len(entries) != 1 || entries[0].Name() != commit {
 		t.Errorf("left in the parent: %v", entries)
+	}
+}
+
+// A commit names the directory its tree is unpacked into: one that is not
+// a commit of git, in an entry or in the manifest, is refused.
+func TestRead_Commit(t *testing.T) {
+	t.Parallel()
+
+	manifest := func(commit string) []byte {
+		data, err := json.Marshal(bundle.Manifest{Format: 1, Stack: "s", Modules: []rigger.SourcedModule{{Source: "a/b", Version: "1.0.0", Commit: commit}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return data
+	}
+
+	tests := []struct {
+		name    string
+		entries map[string][]byte
+	}{
+		{name: "entry out of the trees", entries: map[string][]byte{
+			manifestFile: manifest(commit), "trees/../escape/metadata.hcl": []byte("x"),
+		}},
+		{name: "entry of no commit", entries: map[string][]byte{
+			manifestFile: manifest(commit), "trees/main/metadata.hcl": []byte("x"),
+		}},
+		{name: "manifest commit out of the cache", entries: map[string][]byte{
+			manifestFile: manifest("../../escape"),
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+
+			gz := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gz)
+
+			for name, data := range tt.entries {
+				if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
+					t.Fatal(err)
+				}
+
+				if _, err := tw.Write(data); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if err := tw.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := gz.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, _, err := bundle.Read(bytes.NewReader(buf.Bytes())); !errors.Is(err, bundle.ErrBundle) {
+				t.Errorf("Read() = %v, want ErrBundle", err)
+			}
+		})
 	}
 }

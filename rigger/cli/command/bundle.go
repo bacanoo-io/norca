@@ -10,11 +10,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/bundle"
 )
 
@@ -146,8 +148,8 @@ func inspectBundle(w io.Writer, p string) error {
 	return nil
 }
 
-// importBundle writes the modules of a bundle into the cache and checks
-// each against the digest of the manifest.
+// importBundle checks each module of a bundle against the digest of the
+// manifest, then puts the modules into the cache: all of them, or none.
 func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p string) error {
 	m, files, err := readBundle(p)
 	if err != nil {
@@ -164,10 +166,50 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 		return err
 	}
 
+	if len(m.Modules) == 0 {
+		return nil
+	}
+
+	// Every module is checked in a directory beside the trees of the cache
+	// first; only a bundle whose modules all have their digests is placed,
+	// so a wrong one leaves nothing in the cache.
+	bundles := filepath.Dir(fetcher.BundleDir(m.Modules[0].Commit))
+	if err := os.MkdirAll(bundles, 0o750); err != nil {
+		return err
+	}
+
+	staging, err := os.MkdirTemp(bundles, ".import-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(staging) //nolint:errcheck // what was not placed goes
+
+	if err := checkBundle(ctx, eng, staging, m, files); err != nil {
+		return err
+	}
+
 	for _, mod := range m.Modules {
-		dir := fetcher.BundleDir(mod.Commit)
-		if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
+		if err := placeTree(filepath.Join(staging, mod.Commit), fetcher.BundleDir(mod.Commit)); err != nil {
 			return err
+		}
+
+		if _, err := fmt.Fprintf(w, "imported %s %s (%s)\n", mod.Source, mod.Version, mod.Digest); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// checkBundle writes the tree of each commit of a bundle under staging and
+// checks that each module has the digest its manifest says.
+func checkBundle(ctx context.Context, eng *rigger.Engine, staging string, m *bundle.Manifest, files map[string]map[string][]byte) error {
+	for _, mod := range m.Modules {
+		dir := filepath.Join(staging, mod.Commit)
+		if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+			if err := bundle.WriteTree(dir, files[mod.Commit]); err != nil {
+				return err
+			}
 		}
 
 		digest, err := eng.ModuleDigest(ctx, os.DirFS(dir), mod.Path)
@@ -178,10 +220,24 @@ func importBundle(ctx context.Context, logger *slog.Logger, w io.Writer, p strin
 		if digest != mod.Digest {
 			return fmt.Errorf("%s %s: the bundle holds content of the digest %s, its manifest says %s", mod.Source, mod.Version, digest, mod.Digest)
 		}
+	}
 
-		if _, err := fmt.Fprintf(w, "imported %s %s (%s)\n", mod.Source, mod.Version, digest); err != nil {
-			return err
+	return nil
+}
+
+// placeTree moves a checked tree to dir. A tree already at dir is kept, and
+// a commit placed already (two modules of one commit) is done.
+func placeTree(checked, dir string) error {
+	if _, err := os.Stat(checked); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err := os.Rename(checked, dir); err != nil {
+		if _, statErr := os.Stat(dir); statErr == nil {
+			return nil
 		}
+
+		return err
 	}
 
 	return nil

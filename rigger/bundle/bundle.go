@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -186,8 +187,18 @@ func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string]
 		return nil, nil, fmt.Errorf("%w: no manifest of format %d", ErrBundle, format)
 	}
 
+	for _, m := range manifest.Modules {
+		if !commitPattern.MatchString(m.Commit) {
+			return nil, nil, fmt.Errorf("%w: module %s %s: commit %q", ErrBundle, m.Source, m.Version, m.Commit)
+		}
+	}
+
 	return manifest, files, nil
 }
+
+// commitPattern is a commit of git: SHA-1 or SHA-256 in hex. A commit names
+// the directory its tree is unpacked into, so nothing else may pass.
+var commitPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
 // maxFileBytes bounds one file of a bundle.
 const maxFileBytes = 64 << 20
@@ -210,7 +221,7 @@ func readEntry(tr *tar.Reader, h *tar.Header, files map[string]map[string][]byte
 	}
 
 	commit, p, ok := strings.Cut(strings.TrimPrefix(h.Name, "trees/"), "/")
-	if !ok || !strings.HasPrefix(h.Name, "trees/") || !fs.ValidPath(p) {
+	if !ok || !strings.HasPrefix(h.Name, "trees/") || !commitPattern.MatchString(commit) || !fs.ValidPath(p) {
 		return nil, fmt.Errorf("%w: entry %q", ErrBundle, h.Name)
 	}
 
