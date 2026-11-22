@@ -36,7 +36,7 @@ var riggerHostModule = fstest.MapFS{
   }
 }
 `)},
-	"web.var.hcl": {Data: []byte("variable \"web\" {\n  path = \"rigger-host/web\"\n\n  items {\n    count = tostring(var.count)\n  }\n}\n")},
+	"web.var.hcl": {Data: []byte("variable \"web\" {\n  path = \"rigger-host/web\"\n\n  items {\n    count = var.count\n  }\n}\n")},
 }
 
 // An engine of Rigger built from the hosts of the server (design/

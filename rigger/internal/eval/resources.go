@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -404,7 +405,14 @@ func secretItems(v cty.Value, rng hcl.Range) (cty.Value, map[string]host.Sensiti
 
 	for name, item := range items.AsValueMap() {
 		if len(marks) == 0 && !item.ContainsMarked() {
-			plain[name] = item
+			s, diag := itemString(name, item, rng)
+			if diag != nil {
+				diags = append(diags, diag)
+
+				continue
+			}
+
+			plain[name] = s
 
 			continue
 		}
@@ -431,6 +439,50 @@ func secretItems(v cty.Value, rng hcl.Range) (cty.Value, map[string]host.Sensiti
 	attrs[itemsName] = cty.ObjectVal(plain)
 
 	return cty.ObjectVal(attrs), secrets, diags
+}
+
+// itemString returns a plain item of a Variable as Norca stores it, a string:
+// a number or a bool becomes its string, as HCL converts a value for a
+// string, the same as for a secret item (secretString). A list, a map, an
+// object or null has no string, and the server would refuse the Variable at
+// apply: it is an error here, naming the item. A value not known yet is left
+// for the host.
+func itemString(name string, item cty.Value, rng hcl.Range) (cty.Value, *hcl.Diagnostic) {
+	if !item.IsKnown() {
+		return item, nil
+	}
+
+	what := ""
+
+	switch {
+	case item.IsNull():
+		what = "null"
+	case !item.Type().IsPrimitiveType():
+		what = article(item.Type().FriendlyName())
+	default:
+		s, err := convert.Convert(item, cty.String)
+		if err == nil {
+			return s, nil
+		}
+
+		what = article(item.Type().FriendlyName())
+	}
+
+	return cty.NilVal, &hcl.Diagnostic{
+		Severity: hcl.DiagError, Summary: "Invalid item",
+		Detail: fmt.Sprintf("The item %s of the Variable is %s; an item of a Variable is a string "+
+			"(a number or a bool becomes one).", name, what),
+		Subject: rng.Ptr(),
+	}
+}
+
+// article puts "a" or "an" before a name.
+func article(name string) string {
+	if name != "" && strings.ContainsRune("aeiou", rune(name[0])) {
+		return "an " + name
+	}
+
+	return "a " + name
 }
 
 // secretString returns a sensitive item as a secret: a string, or a value
