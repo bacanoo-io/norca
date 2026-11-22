@@ -44,6 +44,11 @@ type Fetcher struct {
 	global  string
 	indexMu sync.Mutex
 	index   *globalIndex
+
+	// A run is the life of a fetcher; of a host that serves requests, a
+	// request (WithGlobalRegistry).
+	mu      sync.Mutex      // guards updated, never held over the network
+	updated map[string]bool // mirrors fetched in this run
 }
 
 // shared is what the fetchers of one cache share (WithGlobalRegistry).
@@ -53,9 +58,6 @@ type shared struct {
 
 	// repos serializes the fetches of one mirror, by its directory.
 	repos keyedLock
-
-	mu      sync.Mutex      // guards updated, never held over the network
-	updated map[string]bool // mirrors fetched in this run
 
 	// credentials returns the credentials of a git repository; nil reads
 	// every repository anonymously (SetCredentials).
@@ -69,8 +71,9 @@ func New(dir string) *Fetcher {
 	installKeepOrigin()
 
 	return &Fetcher{
-		shared: &shared{cache: dir, oci: oci.NewClient(), updated: map[string]bool{}},
-		global: DefaultGlobalRegistry,
+		shared:  &shared{cache: dir, oci: oci.NewClient()},
+		global:  DefaultGlobalRegistry,
+		updated: map[string]bool{},
 	}
 }
 
