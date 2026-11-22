@@ -77,6 +77,16 @@ func (e *Engine) applyStack(ctx context.Context, plan *StackPlan, opts ApplyOpti
 	outcomes := make([]ReleaseOutcome, 0, len(plan.Releases))
 
 	for i, rp := range plan.Releases {
+		// A cancel stops the apply between two releases: the release being
+		// applied finishes, the rest are skipped.
+		if err := ctx.Err(); err != nil {
+			for _, rest := range plan.Releases[i:] {
+				outcomes = append(outcomes, ReleaseOutcome{Release: rest.Release, Action: rest.Action, Skipped: true})
+			}
+
+			return outcomes, fmt.Errorf("stopped before release %s/%s: %w", rp.Release.Namespace, rp.Release.Name, err)
+		}
+
 		outcome, err := e.applyRelease(ctx, rp, opts)
 		outcomes = append(outcomes, outcome)
 
@@ -261,6 +271,11 @@ func (e *Engine) destroyStack(ctx context.Context, s *Stack) ([]host.ReleaseRef,
 	var removed []host.ReleaseRef
 
 	for _, rev := range owned {
+		// A cancel stops between two releases, as for an apply.
+		if err := ctx.Err(); err != nil {
+			return removed, fmt.Errorf("stopped before release %s/%s: %w", rev.Release.Namespace, rev.Release.Name, err)
+		}
+
 		ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "release.uninstall", "release", rev.Release.Name, "namespace", rev.Release.Namespace)
 		err := e.releases.Uninstall(ctx, rev.Release)
 		span.End(ctx, err)

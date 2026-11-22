@@ -358,3 +358,51 @@ func TestStack_Disabled(t *testing.T) {
 var _ = hcl.Diagnostics{}
 
 func ctyNumber(n int64) cty.Value { return cty.NumberIntVal(n) }
+
+// cancelAfterFirst is the cluster of the stack tests that cancels the
+// context of the apply after it applied the first release.
+type cancelAfterFirst struct {
+	*fakeCluster
+
+	cancel context.CancelFunc
+}
+
+func (c *cancelAfterFirst) Apply(ctx context.Context, req host.ApplyRequest) (host.Revision, error) {
+	rev, err := c.fakeCluster.Apply(ctx, req)
+	c.cancel()
+
+	return rev, err
+}
+
+// A cancel stops an apply between two releases: the release being applied
+// finishes, the rest are skipped; a destroy stops so too.
+func TestStack_CancelBetweenReleases(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+	ctx, cancel := context.WithCancel(t.Context())
+	c := &cancelAfterFirst{fakeCluster: f, cancel: cancel}
+
+	e, err := rigger.New(rigger.WithReleases(c), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plan := planOf(t, e, stackFiles(twoReleases), nil)
+
+	out, diags := e.ApplyStack(ctx, plan, rigger.ApplyOptions{})
+	if !strings.Contains(diags.Error(), "stopped before release apps/app") || !strings.Contains(diags.Error(), context.Canceled.Error()) {
+		t.Fatalf("ApplyStack() = %v, want stopped by the cancel", diags)
+	}
+
+	if len(out) != 2 || out[0].Skipped || !out[1].Skipped || len(f.releases) != 1 {
+		t.Fatalf("outcomes %+v and %d releases, want db applied and app skipped", out, len(f.releases))
+	}
+
+	s, _ := e.LoadStack(t.Context(), stackFiles(twoReleases), "s")
+
+	removed, err := e.DestroyStack(ctx, s)
+	if !errors.Is(err, context.Canceled) || len(removed) != 0 || len(f.releases) != 1 {
+		t.Fatalf("DestroyStack() with a cancelled context = %v, %v; want nothing removed", removed, err)
+	}
+}
