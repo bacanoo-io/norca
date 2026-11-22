@@ -119,14 +119,29 @@ func writeFile(tw *tar.Writer, name string, data []byte) error {
 	return err
 }
 
-// Read reads a bundle: its manifest, and the files of each commit by path.
+// DefaultMaxBytes bounds what Read unpacks of a bundle.
+const DefaultMaxBytes = 4 << 30
+
+// ErrTooLarge is the error of a bundle that unpacks to more than its bound.
+var ErrTooLarge = errors.New("the bundle unpacks to more than its bound")
+
+// Read reads a bundle: its manifest, and the files of each commit by path,
+// unpacking at most DefaultMaxBytes.
 func Read(r io.Reader) (*Manifest, map[string]map[string][]byte, error) {
+	return ReadBounded(r, DefaultMaxBytes)
+}
+
+// ReadBounded reads a bundle as Read does, unpacking at most maxBytes: a
+// host that reads bundles others send (a server) bounds what a small
+// archive may unpack to.
+func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string][]byte, error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrBundle, err)
 	}
 
-	tr := tar.NewReader(gz)
+	lr := &io.LimitedReader{R: gz, N: maxBytes + 1}
+	tr := tar.NewReader(lr)
 
 	var manifest *Manifest
 
@@ -134,6 +149,11 @@ func Read(r io.Reader) (*Manifest, map[string]map[string][]byte, error) {
 
 	for {
 		h, err := tr.Next()
+
+		if lr.N <= 0 {
+			return nil, nil, fmt.Errorf("%w (%d bytes)", ErrTooLarge, maxBytes)
+		}
+
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -143,6 +163,11 @@ func Read(r io.Reader) (*Manifest, map[string]map[string][]byte, error) {
 		}
 
 		m, err := readEntry(tr, h, files)
+
+		if lr.N <= 0 {
+			return nil, nil, fmt.Errorf("%w (%d bytes)", ErrTooLarge, maxBytes)
+		}
+
 		if err != nil {
 			return nil, nil, err
 		}
