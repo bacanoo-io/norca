@@ -96,6 +96,7 @@ func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
 		newSnapshotOperator(srv, m.logger),
 		newVolumeRequestOperator(srv, m.logger),
 		newTenantOperator(srv, m.logger),
+		newRiggerRegistryOperator(srv, m.logger),
 	}
 	return m
 }

@@ -348,6 +348,11 @@ type Server struct {
 	// releases runs the operations on pack releases on the leader
 	releases *releaseManager
 
+	// riggerRegistries keeps the mirrors and indexes of the registries of
+	// Rigger on this server, made at the first use (riggerRegistriesOf).
+	riggerRegistries     *riggerRegistries
+	riggerRegistriesOnce sync.Once
+
 	// objectGC is the garbage collector of custom objects, running on the
 	// leader.
 	objectGC *objectgc.Collector
@@ -1503,6 +1508,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
 	_ = server.Register(NewReleaseEndpoint(s, ctx))
 	_ = server.Register(NewPacksEndpoint(s, ctx))
+	_ = server.Register(NewRiggerEndpoint(s, ctx))
 	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
 	_ = server.Register(NewSecretEndpoint(s, ctx))

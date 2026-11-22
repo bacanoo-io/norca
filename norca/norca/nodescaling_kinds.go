@@ -388,6 +388,9 @@ func builtinNodeScalingKinds() []*structs.ObjectKind {
 // can't be changed or deleted through the object kind API. Its objects can
 // be written through the generic object API.
 func isManagedObjectKind(group, kind string) bool {
+	if isRiggerRegistryKind(group, kind) {
+		return true
+	}
 	if group != structs.NodeScalingGroup {
 		return false
 	}

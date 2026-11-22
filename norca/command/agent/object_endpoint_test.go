@@ -65,10 +65,11 @@ func TestHTTP_Objects(t *testing.T) {
 		must.Eq(t, "spec.version", info.Columns[0].Path)
 		kinds, _, err := client.ObjectKinds().List(nil)
 		must.NoError(t, err)
-		// The core registers NodeGroup and NodeProvider; count the others.
+		// The core registers the kinds of norca.io and the Registry of
+		// Rigger; count the others.
 		var own int
 		for _, k := range kinds {
-			if k.Group != "norca.io" {
+			if k.Group != "norca.io" && k.Group != api.RiggerObjectGroup {
 				own++
 			}
 		}
