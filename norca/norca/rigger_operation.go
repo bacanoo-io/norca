@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -72,8 +73,11 @@ const (
 type RiggerStackRequest struct {
 	Source, Version string
 	Files           []byte
-	// Values are the values of the variables, as a values file (HCL).
-	Values string
+	// Values are the values of the variables, as a values file (HCL);
+	// ValuesJSON the same as one JSON object, as a form sends them. One of
+	// them at most.
+	Values     string
+	ValuesJSON json.RawMessage `json:",omitempty"`
 	// Prune uninstalls the releases the stack no longer has (an apply).
 	Prune bool
 	// Adopt takes over releases another manager applied (an apply).
@@ -466,10 +470,8 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 	}
 
 	var values rigger.Values
-	if args.Values != "" {
-		if values, diags = rigger.ParseValues("values.vars.hcl", []byte(args.Values)); diags.HasErrors() {
-			return nil, nil, nil, riggerDiagsError(diags)
-		}
+	if values, err = riggerValues(args.Values, args.ValuesJSON); err != nil {
+		return nil, nil, nil, err
 	}
 
 	return eng, st, values, nil

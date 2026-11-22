@@ -95,6 +95,26 @@ type Value struct {
 // Values are the values given for the variables of a module, by name.
 type Values map[string]Value
 
+// ParseValuesJSON parses values given as one JSON object, a member per
+// variable, as the form of a UI sends them.
+func ParseValuesJSON(filename string, src []byte) (_ Values, retDiags hcl.Diagnostics) {
+	defer func() {
+		// No engine, so no log: the diagnostic is all there is.
+		if r := recover(); r != nil {
+			retDiags = errorDiags("Internal error", ErrInternal)
+		}
+	}()
+
+	inputs, diags := eval.ParseValuesJSON(filename, src)
+	values := make(Values, len(inputs))
+
+	for name, in := range inputs {
+		values[name] = Value{Value: in.Value, Range: in.Range}
+	}
+
+	return values, diags
+}
+
 // ParseValues parses a file of values (a *.vars.hcl): one attribute per
 // variable, each a constant expression.
 func ParseValues(filename string, src []byte) (_ Values, retDiags hcl.Diagnostics) {

@@ -7,12 +7,14 @@
 package eval
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"sort"
 
 	"github.com/agext/levenshtein"
 	"github.com/hashicorp/hcl/v2"
+	hcljson "github.com/hashicorp/hcl/v2/json"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -35,6 +37,36 @@ type Input struct {
 // request, which nothing else bounds.
 const maxValuesBytes = 1 << 20
 
+// ParseValuesJSON parses values given as one JSON object, a member per
+// variable: what ParseValues gives of the same values written as HCL. A
+// string is a string, never a template.
+func ParseValuesJSON(filename string, src []byte) (map[string]Input, hcl.Diagnostics) {
+	if len(src) > maxValuesBytes {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Values too large",
+			Detail: fmt.Sprintf("%s has %d bytes, more than the %d values may have.", filename, len(src), maxValuesBytes),
+		}}
+	}
+
+	if err := syntax.CheckJSON(src); err != nil {
+		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Values too complex", Detail: err.Error()}}
+	}
+
+	if trimmed := bytes.TrimSpace(src); len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Values not an object",
+			Detail: filename + " is not a JSON object: the values are an object with a member per variable.",
+		}}
+	}
+
+	file, diags := hcljson.Parse(src, filename)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	return attributeInputs(file.Body, diags)
+}
+
 // ParseValues parses a file of values (a *.vars.hcl): one attribute per
 // variable, each a constant expression.
 func ParseValues(filename string, src []byte) (map[string]Input, hcl.Diagnostics) {
@@ -50,7 +82,12 @@ func ParseValues(filename string, src []byte) (map[string]Input, hcl.Diagnostics
 		return nil, diags
 	}
 
-	attrs, moreDiags := file.Body.JustAttributes()
+	return attributeInputs(file.Body, diags)
+}
+
+// attributeInputs are the attributes of a body of values, each a constant.
+func attributeInputs(body hcl.Body, diags hcl.Diagnostics) (map[string]Input, hcl.Diagnostics) {
+	attrs, moreDiags := body.JustAttributes()
 	diags = append(diags, moreDiags...)
 	inputs := make(map[string]Input, len(attrs))
 

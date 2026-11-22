@@ -5,6 +5,7 @@ package norca
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -55,12 +56,39 @@ type RiggerModuleRequest struct {
 	Files []byte
 }
 
+// riggerValues reads the values of a request: a values file of HCL, or the
+// same as one JSON object; the same values either way.
+func riggerValues(asHCL string, asJSON json.RawMessage) (rigger.Values, error) {
+	var (
+		values rigger.Values
+		diags  hcl.Diagnostics
+	)
+
+	switch {
+	case asHCL != "" && len(asJSON) > 0:
+		return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "give the values as HCL or as JSON: one of them")
+	case asHCL != "":
+		values, diags = rigger.ParseValues("values.vars.hcl", []byte(asHCL))
+	case len(asJSON) > 0:
+		values, diags = rigger.ParseValuesJSON("values.json", asJSON)
+	}
+
+	if diags.HasErrors() {
+		return nil, riggerDiagsError(diags)
+	}
+
+	return values, nil
+}
+
 // RiggerInstallRequest installs or upgrades one release of a module.
 type RiggerInstallRequest struct {
 	Release string
 	RiggerModuleRequest
-	// Values are the values of the variables, as a values file (HCL).
-	Values string
+	// Values are the values of the variables, as a values file (HCL);
+	// ValuesJSON the same as one JSON object, as a form sends them. One of
+	// them at most.
+	Values     string
+	ValuesJSON json.RawMessage `json:",omitempty"`
 	// Plan returns what an apply would do and applies nothing.
 	Plan bool
 	// Adopt takes over a release another manager applied or another stack
@@ -268,10 +296,8 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 		}
 	}
 
-	if args.Values != "" {
-		if in.Values, diags = rigger.ParseValues("values.vars.hcl", []byte(args.Values)); diags.HasErrors() {
-			return riggerDiagsError(diags)
-		}
+	if in.Values, err = riggerValues(args.Values, args.ValuesJSON); err != nil {
+		return err
 	}
 
 	// As the rigger program installs: the settings are in the digest of the

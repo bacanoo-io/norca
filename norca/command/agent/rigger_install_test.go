@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path"
@@ -133,6 +134,18 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 		again, _, err := client.Rigger().Install(req, true, nil)
 		must.NoError(t, err)
 		must.Eq(t, "unchanged", again.Action)
+
+		// The same values as JSON, as the form of the UI sends them: the
+		// same release.
+		asJSON := &api.RiggerInstallRequest{Release: "web", Registry: "acme", Module: "web", ValuesJSON: json.RawMessage(`{"count": 2}`)}
+		again, _, err = client.Rigger().Install(asJSON, true, nil)
+		must.NoError(t, err)
+		must.Eq(t, "unchanged", again.Action)
+
+		both := *asJSON
+		both.Values = "count = 2\n"
+		_, _, err = client.Rigger().Install(&both, true, nil)
+		must.ErrorContains(t, err, "one of")
 
 		detail, _, err := client.Rigger().ModuleDetail("acme", "web", "", nil)
 		must.NoError(t, err)

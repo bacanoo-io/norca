@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -116,6 +117,12 @@ func TestHTTP_RiggerStackOperations(t *testing.T) {
 
 		must.Eq(t, "shop", plan.Plan.Stack)
 		must.Eq(t, "db:install app:install", stackActions(plan.Plan.Releases))
+
+		// The values as HCL or as JSON, not both.
+		both := *req
+		both.Values, both.ValuesJSON = "replicas = 1\n", json.RawMessage(`{"replicas": 1}`)
+		_, _, err := client.Rigger().StackPlan(&both, nil)
+		must.ErrorContains(t, err, "one of")
 
 		started, _, err := client.Rigger().StackApply(req, nil)
 		must.NoError(t, err)

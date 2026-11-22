@@ -22,10 +22,13 @@ type RiggerStackRequest struct {
 	Source  string
 	Version string
 	Files   []byte
-	// Values are the values of the variables, as a values file (HCL).
-	Values string
-	Prune  bool
-	Adopt  bool
+	// Values are the values of the variables, as a values file (HCL);
+	// ValuesJSON the same as one JSON object, as a form sends them. One of
+	// them at most.
+	Values     string
+	ValuesJSON json.RawMessage `json:",omitempty"`
+	Prune      bool
+	Adopt      bool
 }
 
 // RiggerReleaseRef names a release.
