@@ -226,7 +226,7 @@ module {
   description = "A NATS cluster per region for the applications."
   url         = "https://nats.io"
   license     = "Apache-2.0"        # of what it installs
-  category    = "messaging"
+  category    = "messaging"         # one of a fixed list (module.Categories)
   keywords    = ["nats", "jetstream"]
 
   requires {
@@ -787,6 +787,11 @@ stacks/data-platform/
   trusted by the same policy. The modules it fetches are verified by their
   own digests from the lock.
 - **Using it:**
+  Since 2026-11-22 (4.8 of norca) the category is one of application,
+  database, messaging, observability, platform, networking, security,
+  storage, developer-tools, ai and other, so a catalog filters on it and
+  shows an icon of each; the index of the global registry lists the
+  description, category, keywords and license of each version.
 
   ```shell
   rigger stack plan  example/data-platform --version "~> 1.2" -f my.vars.hcl
