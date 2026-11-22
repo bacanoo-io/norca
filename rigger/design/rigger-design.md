@@ -486,6 +486,11 @@ module loads. The hints of the form (`ui`) are `tab`, `group`, `order`,
   write it into the job, which is stored), in another kind, in a
   meta-argument, and in an output that does not say `sensitive = true`.
   `rigger module render` names the secret items and never writes their values.
+- The items of a Variable are strings in Norca. A number or a bool becomes
+  its string, a plain item as a secret one, as HCL converts a value for a
+  string; a list, a map or an object is an error of the evaluation that
+  names the item (added 2026-11-22: the server refused it at apply before).
+  An item set to null is left out, as any attribute set to null.
 - A stack may *create* secrets once, as the deployer's `secrets.bootstrap`
   does (create-once unless `overwrite`).
 
