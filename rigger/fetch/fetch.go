@@ -28,6 +28,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 
 	"github.com/bacanoo-io/norca/rigger/builtin"
+	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
 	"github.com/bacanoo-io/norca/rigger/oci"
 	"github.com/bacanoo-io/norca/rigger/source"
 	"github.com/bacanoo-io/norca/rigger/version"
@@ -324,6 +325,9 @@ func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetc
 	return source.Fetched{FS: os.DirFS(dir), Dir: mod.Path, Origin: origin}, nil
 }
 
+// maxLayerBytes bounds what a layer of a module unpacks to.
+const maxLayerBytes = 256 << 20
+
 // extractLayer writes the files of a layer into dir.
 func (f *Fetcher) extractLayer(ctx context.Context, repository, digest, dir string) error {
 	blob, err := f.oci.Blob(ctx, repository, digest)
@@ -335,10 +339,11 @@ func (f *Fetcher) extractLayer(ctx context.Context, repository, digest, dir stri
 	if err != nil {
 		return err
 	}
+	defer gz.Close() //nolint:errcheck // read only
 
-	data, err := io.ReadAll(io.LimitReader(gz, 256<<20))
+	data, err := readlimit.ReadAll(gz, maxLayerBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("layer %s of %s: %w", digest, repository, err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {

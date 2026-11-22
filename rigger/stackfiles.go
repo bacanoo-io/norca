@@ -20,6 +20,8 @@ import (
 	"testing/fstest"
 
 	"github.com/hashicorp/hcl/v2"
+
+	"github.com/bacanoo-io/norca/rigger/internal/targz"
 )
 
 // A local stack sent as files (design/rig-integration.md 4.2 d of norca): a
@@ -102,21 +104,7 @@ func packFiles(root fs.FS, dirs []string, dir string) ([]byte, error) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	if err := writeArchiveFile(tw, stackManifest, manifest); err != nil {
-		return nil, err
-	}
-
-	for _, name := range slices.Sorted(maps.Keys(files)) {
-		if err := writeArchiveFile(tw, name, files[name]); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := tw.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := gz.Close(); err != nil {
+	if err := targz.Close(tw, gz, writeArchiveFiles(tw, manifest, files)); err != nil {
 		return nil, err
 	}
 
@@ -125,6 +113,21 @@ func packFiles(root fs.FS, dirs []string, dir string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// writeArchiveFiles writes the manifest and the files, by name, into tw.
+func writeArchiveFiles(tw *tar.Writer, manifest []byte, files map[string][]byte) error {
+	if err := writeArchiveFile(tw, stackManifest, manifest); err != nil {
+		return err
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		if err := writeArchiveFile(tw, name, files[name]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // stackFiles reads the regular files under dirs of root, by their paths.
@@ -218,6 +221,7 @@ func readStackArchive(archive []byte) (fstest.MapFS, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	defer gz.Close() //nolint:errcheck // read only
 
 	tr := tar.NewReader(io.LimitReader(gz, maxStackFilesBytes+1))
 	files := fstest.MapFS{}

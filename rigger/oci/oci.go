@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -28,6 +27,9 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
+	"github.com/bacanoo-io/norca/rigger/internal/targz"
 )
 
 // The media types of a module.
@@ -82,6 +84,9 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{http: http.DefaultClient, tokens: map[string]string{}}
 }
+
+// maxResponseBytes bounds a response of a registry: a manifest or a blob.
+const maxResponseBytes = 256 << 20
 
 // ErrRegistry is the error of an answer of a registry.
 var ErrRegistry = errors.New("OCI registry")
@@ -257,9 +262,9 @@ func (c *Client) get(ctx context.Context, repository, path, accept, action strin
 	}
 	defer resp.Body.Close() //nolint:errcheck // read only
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 256<<20))
+	data, err := readlimit.ReadAll(resp.Body, maxResponseBytes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%w: %s%s: %w", ErrRegistry, repository, path, err)
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
@@ -450,6 +455,15 @@ func Layer(root fs.FS, dirs []string) ([]byte, error) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
+	if err := targz.Close(tw, gz, writeLayer(tw, root, dirs)); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// writeLayer writes the files of the directories of root into tw, sorted.
+func writeLayer(tw *tar.Writer, root fs.FS, dirs []string) error {
 	var files []string
 
 	for _, dir := range dirs {
@@ -465,7 +479,7 @@ func Layer(root fs.FS, dirs []string) ([]byte, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -474,26 +488,18 @@ func Layer(root fs.FS, dirs []string) ([]byte, error) {
 	for _, p := range slices.Compact(files) {
 		data, err := fs.ReadFile(root, p)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		h := &tar.Header{Name: p, Mode: 0o644, Size: int64(len(data)), Typeflag: tar.TypeReg, Format: tar.FormatPAX}
 		if err := tw.WriteHeader(h); err != nil {
-			return nil, err
+			return err
 		}
 
 		if _, err := tw.Write(data); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	if err := tw.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := gz.Close(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return nil
 }

@@ -18,10 +18,13 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
+	"github.com/bacanoo-io/norca/rigger/internal/targz"
 )
 
 // manifestName is the name of the manifest in a bundle.
@@ -48,6 +51,11 @@ func Write(w io.Writer, stack string, modules []rigger.SourcedModule) error {
 	gz := gzip.NewWriter(w)
 	tw := tar.NewWriter(gz)
 
+	return targz.Close(tw, gz, writeBundle(tw, stack, modules))
+}
+
+// writeBundle writes the entries of a bundle into tw.
+func writeBundle(tw *tar.Writer, stack string, modules []rigger.SourcedModule) error {
 	manifest, err := json.MarshalIndent(Manifest{Format: format, Stack: stack, Modules: modules}, "", "  ")
 	if err != nil {
 		return err
@@ -65,11 +73,7 @@ func Write(w io.Writer, stack string, modules []rigger.SourcedModule) error {
 		}
 	}
 
-	if err := tw.Close(); err != nil {
-		return err
-	}
-
-	return gz.Close()
+	return nil
 }
 
 // writeDir writes the files of a directory of a module, signatures
@@ -139,6 +143,7 @@ func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string]
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrBundle, err)
 	}
+	defer gz.Close() //nolint:errcheck // read only
 
 	lr := &io.LimitedReader{R: gz, N: maxBytes + 1}
 	tr := tar.NewReader(lr)
@@ -184,12 +189,15 @@ func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string]
 	return manifest, files, nil
 }
 
+// maxFileBytes bounds one file of a bundle.
+const maxFileBytes = 64 << 20
+
 // readEntry reads an entry of a bundle: the manifest, which it returns, or
 // a file of a commit, which it adds to files.
 func readEntry(tr *tar.Reader, h *tar.Header, files map[string]map[string][]byte) (*Manifest, error) {
-	data, err := io.ReadAll(io.LimitReader(tr, 64<<20))
+	data, err := readlimit.ReadAll(tr, maxFileBytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: entry %q: %w", ErrBundle, h.Name, err)
 	}
 
 	if h.Name == manifestName {
@@ -215,17 +223,53 @@ func readEntry(tr *tar.Reader, h *tar.Header, files map[string]map[string][]byte
 	return nil, nil
 }
 
-// WriteTree writes the files of a commit into dir, through an os.Root.
-func WriteTree(dir string, files map[string][]byte) error {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+// WriteTree writes the files of a commit as the directory dir, whole or not
+// at all: into a directory beside it, through an os.Root, then renamed to
+// dir. A reader never sees a part of a tree, and a failed write leaves
+// nothing behind. A tree already at dir (another writer was first) is
+// kept.
+func WriteTree(dir string, files map[string][]byte) (err error) {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
 		return err
 	}
 
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), filepath.Base(dir)+".tmp-")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(tmp)
+		}
+	}()
+
+	if err := writeFiles(tmp, files); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmp, dir); err != nil {
+		if _, statErr := os.Stat(dir); statErr == nil {
+			return os.RemoveAll(tmp)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// writeFiles writes files into dir through an os.Root, which it closes
+// before it returns: a directory still open can't be renamed on Windows.
+func writeFiles(dir string, files map[string][]byte) (err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
 	}
-	defer root.Close() //nolint:errcheck // the files are closed one by one
+
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
 
 	for p, data := range files {
 		if err := root.MkdirAll(path.Dir(p), 0o750); err != nil {

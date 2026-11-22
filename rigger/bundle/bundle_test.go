@@ -9,6 +9,10 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -97,5 +101,78 @@ func TestReadBounded_TooLarge(t *testing.T) {
 
 	if _, _, err := bundle.Read(bytes.NewReader([]byte("not a bundle"))); !errors.Is(err, bundle.ErrBundle) {
 		t.Errorf("Read() of something else = %v, want ErrBundle", err)
+	}
+}
+
+// A file of a bundle larger than a file may be is refused, not cut short.
+func TestRead_FileTooLarge(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	big := make([]byte, 64<<20+1)
+
+	if err := tw.WriteHeader(&tar.Header{Name: "trees/" + commit + "/big", Mode: 0o644, Size: int64(len(big)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := tw.Write(big); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := bundle.Read(bytes.NewReader(buf.Bytes()))
+	if !errors.Is(err, bundle.ErrBundle) || !strings.Contains(err.Error(), "more than its bound") {
+		t.Errorf("Read() = %v, want the file refused", err)
+	}
+}
+
+// WriteTree places a whole tree, keeps a tree already there, and leaves
+// nothing behind when a file can't be written.
+func TestWriteTree(t *testing.T) {
+	t.Parallel()
+
+	parent := t.TempDir()
+	dir := filepath.Join(parent, commit)
+
+	if err := bundle.WriteTree(dir, map[string][]byte{"modules/web/metadata.hcl": []byte("module {}\n")}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := os.ReadFile(filepath.Join(dir, "modules", "web", "metadata.hcl")); err != nil || string(got) != "module {}\n" {
+		t.Fatalf("read %q, %v", got, err)
+	}
+
+	// Another writer of the same commit: the tree there is kept.
+	if err := bundle.WriteTree(dir, map[string][]byte{"other.hcl": []byte("x")}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "other.hcl")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the tree there was changed: %v", err)
+	}
+
+	// A path out of the tree fails, and no part of it stays.
+	bad := filepath.Join(parent, "bad")
+	if err := bundle.WriteTree(bad, map[string][]byte{"a.hcl": []byte("a"), "../escape.hcl": []byte("b")}); err == nil {
+		t.Fatal("a path out of the tree was written")
+	}
+
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entries) != 1 || entries[0].Name() != commit {
+		t.Errorf("left in the parent: %v", entries)
 	}
 }
