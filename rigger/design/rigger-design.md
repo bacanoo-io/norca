@@ -369,7 +369,7 @@ the decoder can take its values from outside is a spike of phase 0
 | `<name>.external.hcl` | one external service | `.external.hcl.tpl` |
 | `<name>.object.hcl` | one object | `.object.hcl.tpl` |
 | `<name>.audit.hcl` | one audit declaration: what is recorded, how long, who may read (section 12.8) | new |
-| `files/*.tftpl` | a text in the template syntax of HCL, for `templatefile()` | |
+| `files/*.tftpl` | a text in the template syntax of HCL, for `templatefile()`; a template can't call `templatefile()` itself | |
 | `files/*` | plain files, for `file()` | |
 | `*.vars.hcl` | values of variables (`examples/`, a stack's `values/`) | var files |
 | `tests/*.riggertest.hcl` | tests | |

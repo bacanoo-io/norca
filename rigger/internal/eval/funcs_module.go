@@ -6,6 +6,7 @@ package eval
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -23,7 +24,6 @@ import (
 func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	funcs := Functions()
 	funcs["file"] = fileFunc(fsys, fileBytes)
-	funcs["templatefile"] = templateFileFunc(fsys, fileBytes, funcs)
 	funcs["image_ref"] = imageRef
 	funcs["runtime"] = runtimeFunc
 	funcs["runtime_env"] = runtimeEnvFunc
@@ -31,6 +31,10 @@ func moduleFunctions(fsys fs.FS, fileBytes int64) map[string]function.Function {
 	funcs["variable_ref"] = itemFunc(runref.KindVariable)
 	funcs["service_address"] = serviceAddress
 	funcs["service_addresses"] = serviceAddresses
+	// Last, with a copy of the functions before it: a template has no
+	// templatefile. A template that renders itself would end the process
+	// with a stack overflow, which no recover catches.
+	funcs["templatefile"] = templateFileFunc(fsys, fileBytes, maps.Clone(funcs))
 
 	return funcs
 }
@@ -71,7 +75,8 @@ func fileFunc(fsys fs.FS, fileBytes int64) function.Function {
 }
 
 // templateFileFunc is templatefile(path, vars): a file of the module in the
-// template syntax of HCL, which sees only vars (design 4.3).
+// template syntax of HCL, which sees only vars (design 4.3) and calls only
+// funcs.
 func templateFileFunc(fsys fs.FS, fileBytes int64, funcs map[string]function.Function) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{

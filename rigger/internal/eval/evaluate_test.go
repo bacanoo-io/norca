@@ -285,6 +285,23 @@ func functionCases() []evaluateCase {
 			contains: `"rules":"hello cache"`,
 		},
 		{
+			name: "templatefile in a template",
+			files: map[string]string{
+				"files/outer.tpl": `${templatefile("files/inner.tpl", {})}`,
+				"files/inner.tpl": "inner",
+				xACL:              `policy "x" { rules = templatefile("files/outer.tpl", {}) }`,
+			},
+			expected: `There is no function named "templatefile"`,
+		},
+		{
+			name: "a template that renders itself",
+			files: map[string]string{
+				"files/self.tpl": `${templatefile("files/self.tpl", {})}`,
+				xACL:             `policy "x" { rules = templatefile("files/self.tpl", {}) }`,
+			},
+			expected: `There is no function named "templatefile"`,
+		},
+		{
 			name:     "image_ref",
 			files:    map[string]string{xACL: `policy "x" { rules = image_ref("redis:7", "sha256:ab") }`},
 			contains: `"rules":"redis:7@sha256:ab"`,

@@ -43,7 +43,7 @@ What to look for:
 | `<name>.acl.hcl` | one ACL policy |
 | `<name>.var.hcl` | one Norca Variable |
 | `<name>.kind.hcl`, `.admission.hcl`, `.namespace.hcl`, `.quota.hcl`, `.external.hcl`, `.object.hcl` | one resource of that kind |
-| `files/*.tftpl` | a text in the template syntax of HCL, read with `templatefile()` |
+| `files/*.tftpl` | a text in the template syntax of HCL, read with `templatefile()`; a template can't call `templatefile()` itself |
 | `files/*` (other) | a plain file, read with `file()` |
 | `examples/*.vars.hcl`, `values/*.vars.hcl` | values of variables |
 | `tests/*.riggertest.hcl` | tests |
