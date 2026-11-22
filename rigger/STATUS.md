@@ -4,6 +4,17 @@
 repository with its history (step 4.0 of norca's `design/rig-integration.md`,
 phase 7). Nothing else changed; the state below is that of 2026-11-18.
 
+2026-11-22: the findings of the review of 2026-11-22 are fixed, but for
+the binding of `RIGGER_OCI_*` to one registry, which waits for a decision;
+what changed holds over what is below. The owner of a release is a field (the namespace and
+name of a stack), and `-adopt` takes one over. The servers fetch only from
+registered sources and bundles, with credentials that go with the right to
+read their Variable. Hidden paths are no content of a module. A plan
+checks `required_version` and `requires { module }`. Archives, syntax,
+values, loads and evaluations are bounded; what those bounds can't hold (a
+stack overflow, the memory of the process) waits for evaluation in a
+process of its own.
+
 2026-11-18. Phases 1 to 4 and 6 of the design (`design/rigger-design.md`,
 section 15) are done, and phase 5 but for its lab case: modules load,
 validate, evaluate and are tested; stacks are planned and applied as
@@ -37,7 +48,7 @@ then phase 7, which changes norca.
 | Global registry (design 7.3) | package `index` (entries, namespaces, keys, advisories); `<namespace>/<name>` resolved through `github.com/bacanoo-io/norca-global-registry` or `RIGGER_GLOBAL_REGISTRY`: the listed commit, digest and a signature of a key of the namespace required, blocked versions refused, warnings shown by sync and plan; `rigger index update` lists the new tags of the repositories of the namespaces, `rigger index check` checks the files, append-only against a base, and versions against their sources |
 | Stacks in a registry (design 7.5) | `metadata.hcl` with a `stack` block; the tree digest of the stack directory; `rigger key sign|verify` of a stack; `rigger stack publish`; the stack commands on a published stack by its source with `-version`; parts (`stack "<part>" { source, version, values }`, releases `<part>-<release>`, outputs `stack.<part>.<output>`, a `stack` entry in the lock file) |
 | Supply chain (design 8) | `rigger key generate|sign|verify` (cosign-format keys, the statement Norca's admission verifies); signatures in `.rigger-signatures/` of a module; `trust` per registry; signers in the lock; `rigger bundle create|inspect|import`; `oci://` sources and `rigger module publish` |
-| Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner in the description), secret store, cluster facts; object kinds and objects decoded by Norca's parser (a copy of `resourcespec/object.go`) from the block written as HCL in module order; the other kinds mapped onto Norca's API type of the kind |
+| Norca host (`cli/norcaapi`) | release API (pack fields, digest in `ValuesHash`, owner as a field), secret store, cluster facts; object kinds and objects decoded by Norca's parser (a copy of `resourcespec/object.go`) from the block written as HCL in module order; the other kinds mapped onto Norca's API type of the kind |
 | Conversion (design 14) | `rigger convert pack` writes the metadata, variables and examples of a pack as a module, its templates as comments to rewrite |
 | CLI | `rigger convert pack`, `rigger stack sync|validate|plan|apply|status|destroy|publish`, `rigger index update|check`, `rigger module publish [-key | -to oci://]`, `rigger install`, `rigger release list|status|history|rollback|uninstall`; `rigger fmt [-check]`; `rigger module validate [dir]` (files, icon, tests parsed, example values rendered, a warning for a variable that changes nothing); `rigger module render [dir] -f -var -release -namespace -region` (JSON; secret items named, never shown); `rigger module test [dir]`; log as a tree or JSON |
 

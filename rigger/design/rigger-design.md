@@ -1150,7 +1150,9 @@ change in norca:
   unsigned module is refused ("not signed"), and a module signed as in
   section 8.1 is admitted with `TrustedSigner` set to the key ID (the
   SHA-256 of the public key).
-- Gaps for phase 7: the owner has no field of its own (the deployer writes
+- Gaps for phase 7 (the first is closed since 2026-11-22: the owner is a
+  field, the namespace and name of the stack): the owner has no field of
+  its own (the deployer writes
   the provenance of GitOps into `Description` as well; once the deployer
   runs stacks through Rigger the marker of Rigger is the one written);
   `ValuesHash` carries more than the values; the server still can't check
@@ -1639,9 +1641,10 @@ Phase 4 as built (2026-11-18), signatures and trust:
   of a stack from git sources as its lock pins them: a manifest with
   source, version, tag, commit, digest and signers, and the files of the
   directories of each module and its children, signatures included. An
-  import writes them into the cache, apart from the full trees, and checks
-  each digest; the fetcher takes the cached files of the locked commit when
-  the repository can't be reached. A bundle is therefore not an address of
+  import checks each digest (of a module, or of the stack of a part) and
+  writes a tree for each module into the cache, apart from the full trees;
+  the fetcher takes the one of the locked repository, commit, directory and
+  digest when the repository can't be reached. A bundle is therefore not an address of
   its own: the lock file says what to install, the bundle only brings it.
   Built-in modules and directories need no bundle.
 - **OCI** (`oci://<host>/<repository>`): a module version is an OCI image

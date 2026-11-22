@@ -36,14 +36,16 @@ rigger stack plan acme/data-platform -version "~> 1.2" -f my.vars.hcl
 
 Git repositories are read with go-git, not with the git program, so the
 credential helpers and `~/.ssh/config` of git do not apply. An `ssh://`
-repository authenticates with the keys of the ssh agent and the known
-hosts of the user (`SSH_KNOWN_HOSTS`, else `~/.ssh/known_hosts`); an https
+or `user@host:path` repository authenticates with the keys of the ssh
+agent and the known hosts of the user (`SSH_KNOWN_HOSTS`, else `~/.ssh/known_hosts`); an https
 repository with `RIGGER_GIT_PASSWORD` (a token) and `RIGGER_GIT_USERNAME`
 when they are set, else anonymously. A repository on the local file system
 (`file://` or an absolute path) is read where it is.
 
-`rigger stack apply -adopt` and `rigger install -adopt` take over a release
-the pack manager applied; without the flag the server refuses it.
+`rigger stack apply -adopt`, `rigger install -adopt` and
+`rigger release rollback -adopt` take over a release the pack manager
+applied or another stack owns (a stack is its namespace and name); without
+the flag it is refused.
 
 Publishing signs a module or stack and tags it in its repository; the
 global registry lists the tag once it passes its checks:
