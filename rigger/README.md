@@ -38,9 +38,25 @@ Git repositories are read with go-git, not with the git program, so the
 credential helpers and `~/.ssh/config` of git do not apply. An `ssh://`
 or `user@host:path` repository authenticates with the keys of the ssh
 agent and the known hosts of the user (`SSH_KNOWN_HOSTS`, else `~/.ssh/known_hosts`); an https
-repository with `RIGGER_GIT_PASSWORD` (a token) and `RIGGER_GIT_USERNAME`
-when they are set, else anonymously. A repository on the local file system
-(`file://` or an absolute path) is read where it is.
+repository with the credentials of its host, else anonymously. A
+repository on the local file system (`file://` or an absolute path) is
+read where it is.
+
+**A credential goes to its host only, over https** (http on localhost),
+for git and OCI sources alike: a stack, a lock file or an entry of an
+index names hosts others chose. Two places hold them:
+
+```shell
+echo "$TOKEN" | rigger login git.example.com -username robot   # kept by host
+rigger logout git.example.com
+export RIGGER_GIT_HOST=git.example.com RIGGER_GIT_USERNAME=robot RIGGER_GIT_PASSWORD="$TOKEN"
+export RIGGER_OCI_HOST=registry.example.com RIGGER_OCI_USERNAME=robot RIGGER_OCI_PASSWORD="$TOKEN"
+```
+
+`rigger login` keeps them in `rigger/credentials.json` of the
+configuration directory of the user (`RIGGER_CREDENTIALS_FILE` names
+another), readable by the user only, and they come first. A password in
+the environment without its `_HOST` is an error.
 
 `rigger stack apply -adopt`, `rigger install -adopt` and
 `rigger release rollback -adopt` take over a release the pack manager

@@ -23,7 +23,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -73,21 +72,31 @@ type Module struct {
 	Path, Digest string
 }
 
+// CredentialsFunc returns the credentials of a registry, by its host; ok
+// is false for none.
+type CredentialsFunc func(host string) (user, password string, ok bool, err error)
+
 // Client talks to OCI registries.
 type Client struct {
 	http *http.Client
+
+	credentials CredentialsFunc
 
 	mu     sync.Mutex
 	tokens map[string]string // by registry and scope
 }
 
-// NewClient returns a client. Credentials come from RIGGER_OCI_USERNAME and
-// RIGGER_OCI_PASSWORD; without them it is anonymous. They go to the registry
-// that asks and to the token service it names over https, not to where an
-// upload or a redirect leads.
+// NewClient returns an anonymous client; SetCredentials gives it the
+// credentials of registries. Those of a registry go to it when it asks, and
+// to the token service it names over https, not to where an upload or a
+// redirect leads.
 func NewClient() *Client {
 	return &Client{http: &http.Client{CheckRedirect: sameorigin.CheckRedirect}, tokens: map[string]string{}}
 }
+
+// SetCredentials sets where the credentials of a registry come from: asked
+// by its host, so that a registry gets its own and no other's.
+func (c *Client) SetCredentials(fn CredentialsFunc) { c.credentials = fn }
 
 // maxTokenBytes bounds the answer of a token service.
 const maxTokenBytes = 1 << 20
@@ -188,7 +197,7 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 	challenge := resp.Header.Get("WWW-Authenticate")
 	_ = resp.Body.Close()
 
-	auth, err = c.authorize(ctx, challenge, scope)
+	auth, err = c.authorize(ctx, host, challenge, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -200,16 +209,30 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 	return send(auth)
 }
 
-// authorize answers a challenge: Basic with the credentials, or Bearer with
-// a token of the realm.
-func (c *Client) authorize(ctx context.Context, challenge, scope string) (string, error) {
-	user, password := os.Getenv("RIGGER_OCI_USERNAME"), os.Getenv("RIGGER_OCI_PASSWORD")
+// authorize answers a challenge of the registry host: Basic with its
+// credentials, or Bearer with a token of the realm it names.
+func (c *Client) authorize(ctx context.Context, host, challenge, scope string) (string, error) {
+	var (
+		user, password string
+		ok             bool
+	)
+
+	if c.credentials != nil {
+		var err error
+		if user, password, ok, err = c.credentials(host); err != nil {
+			return "", fmt.Errorf("%w: the credentials of %s: %w", ErrRegistry, host, err)
+		}
+	}
+
+	if !ok {
+		user, password = "", ""
+	}
 
 	scheme, params, _ := strings.Cut(challenge, " ")
 	switch strings.ToLower(scheme) {
 	case "basic":
-		if user == "" {
-			return "", fmt.Errorf("%w: the registry asks for credentials (RIGGER_OCI_USERNAME, RIGGER_OCI_PASSWORD)", ErrRegistry)
+		if !ok {
+			return "", fmt.Errorf("%w: %s asks for credentials, and has none (rigger login %s)", ErrRegistry, host, host)
 		}
 
 		return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+password)), nil
@@ -284,7 +307,7 @@ func (c *Client) token(ctx context.Context, params map[string]string, scope, use
 		return "", err
 	}
 
-	if user != "" {
+	if user != "" || password != "" {
 		req.SetBasicAuth(user, password)
 	}
 

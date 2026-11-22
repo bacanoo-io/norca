@@ -77,6 +77,13 @@ func New(dir string) *Fetcher {
 	}
 }
 
+// SetOCICredentials sets where the credentials of an OCI registry come
+// from, by its host (oci.Client.SetCredentials); without it every registry
+// is read anonymously. It is set before the fetcher is used.
+func (f *Fetcher) SetOCICredentials(fn oci.CredentialsFunc) {
+	f.oci.SetCredentials(fn)
+}
+
 // CacheDir is the cache of the rigger program: RIGGER_CACHE_DIR, else rigger in the
 // cache directory of the user.
 func CacheDir() (string, error) {
@@ -147,6 +154,10 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 func SSHRepository(repo string) bool {
 	return strings.HasPrefix(repo, "ssh://") || source.IsSCPAddress(repo)
 }
+
+// RepositoryURL is the URL a repository is read by: an scp-like address
+// as it is, a host and a path https.
+func RepositoryURL(repo string) string { return repositoryURL(repo) }
 
 // repositoryURL is the URL a repository is read by: an scp-like address is
 // one for git, another host and path is https.

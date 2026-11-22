@@ -42,6 +42,8 @@ const (
 	cmdKey      = "key"
 	cmdBundle   = "bundle"
 	cmdConvert  = "convert"
+	cmdLogin    = "login"
+	cmdLogout   = "logout"
 
 	cmdRender   = "render"
 	cmdPublish  = "publish"
@@ -113,6 +115,14 @@ Commands:
                           put a bundle into the cache, for an install
                           without a network; with -server, into the
                           cluster, for its servers
+  login <host> [-username name]
+                          keep the credentials of a host of git or OCI
+                          sources; the password (a token) is the first
+                          line of standard input
+  logout <host>           forget them
+  A credential goes to its host only, over https: those of login, else
+  RIGGER_GIT_USERNAME, RIGGER_GIT_PASSWORD for the host RIGGER_GIT_HOST,
+  and RIGGER_OCI_USERNAME, RIGGER_OCI_PASSWORD for RIGGER_OCI_HOST.
   The cluster is that of NORCA_ADDR and NORCA_TOKEN. A source
   <namespace>/<name> that names no registry of the stack is a module of
   the global registry, github.com/bacanoo-io/norca-global-registry, or of
@@ -155,7 +165,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 var commands = map[string]command{
 	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall, cmdRegistry: runRegistry,
 	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
-	cmdIndex: runIndex, cmdOperation: runOperation,
+	cmdIndex: runIndex, cmdOperation: runOperation, cmdLogin: runLogin, cmdLogout: runLogout,
 }
 
 // Program is the program that runs the commands: the name its usage shows,

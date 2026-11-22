@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bacanoo-io/norca/rigger/cli/internal/credstore"
 	"github.com/bacanoo-io/norca/rigger/oci"
 )
 
@@ -87,7 +88,10 @@ func publish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 		return err
 	}
 
-	manifest, err := oci.NewClient().Push(ctx, repo, oci.Module{Name: md.Name, Version: md.Version, Path: m.Dir(), Digest: digest}, layer)
+	client := oci.NewClient()
+	client.SetCredentials(credentials{kind: credstore.OCI}.oci)
+
+	manifest, err := client.Push(ctx, repo, oci.Module{Name: md.Name, Version: md.Version, Path: m.Dir(), Digest: digest}, layer)
 	if err != nil {
 		return err
 	}

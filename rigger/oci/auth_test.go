@@ -52,8 +52,7 @@ func testClient(rt roundTrip) *Client {
 // service over http, not where an upload or a redirect leads, and not a
 // host that reads as localhost and is another.
 func TestClient_CredentialsStay(t *testing.T) {
-	t.Setenv("RIGGER_OCI_USERNAME", "robot")
-	t.Setenv("RIGGER_OCI_PASSWORD", "fixture")
+	t.Parallel()
 
 	tests := []struct {
 		name      string
@@ -129,6 +128,10 @@ func TestClient_CredentialsStay(t *testing.T) {
 					return answer(http.StatusFound, "", "Location", "http://"+testRegistry+":81/elsewhere")
 				}
 			})
+
+			// Credentials for every host: what is checked is where the
+			// client sends those it has.
+			c.SetCredentials(func(string) (string, string, bool, error) { return "robot", "fixture", true, nil })
 
 			err := tt.call(c)
 

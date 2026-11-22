@@ -1656,8 +1656,12 @@ Phase 4 as built (2026-11-18), signatures and trust:
   records the manifest digest in place of a commit, so a tag pushed again
   is refused. `rigger module publish [dir] -to oci://...` pushes. The client is
   Rigger's own over the distribution API: anonymous, or Basic and Bearer with
-  `RIGGER_OCI_USERNAME` / `RIGGER_OCI_PASSWORD`; http for localhost only. The
-  credentials of docker's configuration and `rigger login` are left for later
+  the credentials its host gives by the host of the registry; http for
+  localhost only. Since 2026-11-22 (review, RIG-44 and RIG-46) the library
+  reads no credential of the environment: the rigger program gives those of
+  `rigger login` (a file by host) or of `RIGGER_OCI_*` and `RIGGER_GIT_*`,
+  each for the one host its `_HOST` names, over https only, for git and OCI
+  alike. The credentials of docker's configuration are left for later
   (8.4).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
