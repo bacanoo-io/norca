@@ -31,16 +31,17 @@ const (
 
 // The commands.
 const (
-	cmdHelp    = "help"
-	cmdVersion = "version"
-	cmdModule  = "module"
-	cmdFmt     = "fmt"
-	cmdStack   = "stack"
-	cmdInstall = "install"
-	cmdRelease = "release"
-	cmdKey     = "key"
-	cmdBundle  = "bundle"
-	cmdConvert = "convert"
+	cmdHelp     = "help"
+	cmdVersion  = "version"
+	cmdModule   = "module"
+	cmdFmt      = "fmt"
+	cmdStack    = "stack"
+	cmdInstall  = "install"
+	cmdRelease  = "release"
+	cmdRegistry = "registry"
+	cmdKey      = "key"
+	cmdBundle   = "bundle"
+	cmdConvert  = "convert"
 
 	cmdRender   = "render"
 	cmdPublish  = "publish"
@@ -81,6 +82,15 @@ Commands:
                           install or upgrade one release of a module
   release list|status|history|rollback|uninstall [name] [-namespace ns]
                           one release, without a stack
+  registry list|status|sync [name]
+                          the registries of the cluster; sync fetches the
+                          index of one now (it is never synced on its own)
+  registry search <name> [text] [-kind module|stack] [-offset n] [-limit n]
+                          the modules and stacks of a registry at its last
+                          sync
+  registry select|unselect <name> module|stack <namespace>/<name>
+                          what a registry shows in the UI (display
+                          selected); the UI changes with the next sync
   key generate [-out name] write name.key (encrypted with RIGGER_KEY_PASSWORD)
                           and name.pub
   key sign [dir] -key name.key
@@ -134,7 +144,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 
 // commands are the commands that take commands or flags of their own.
 var commands = map[string]command{
-	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall,
+	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall, cmdRegistry: runRegistry,
 	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
 	cmdIndex: runIndex,
 }
