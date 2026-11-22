@@ -206,7 +206,12 @@ func (r riggerReleases) Current(ctx context.Context, ref host.ReleaseRef) (host.
 		return host.Revision{}, fmt.Errorf("%w: release %s/%s", host.ErrNotFound, ref.Namespace, ref.Name)
 	}
 
-	return r.revision(ref, rel.Release.Spec.Revision)
+	rev, err := r.revision(ref, rel.Release.Spec.Revision)
+	if err == nil && rel.Release.Status != nil {
+		rev.Status = norcaapi.CurrentStatus(rel.Release.Status.Phase, rev.Status)
+	}
+
+	return rev, err
 }
 
 func (r riggerReleases) revision(ref host.ReleaseRef, n uint64) (host.Revision, error) {

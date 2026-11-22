@@ -405,8 +405,10 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 		rp.TakesOver = "the stack " + current.Owner
 	}
 
-	// A release of the same content that no stack owns becomes the stack's.
-	unchanged := current.Digest == req.Digest && current.Module.Digest == req.Module.Digest && current.Owner == owner
+	// A release of the same content that no stack owns becomes the stack's;
+	// one that did not succeed is applied again.
+	unchanged := current.Status == host.StatusDeployed &&
+		current.Digest == req.Digest && current.Module.Digest == req.Module.Digest && current.Owner == owner
 	if unchanged && rp.TakesOver == "" {
 		rp.Action = ActionUnchanged
 

@@ -85,7 +85,12 @@ func (r *Releases) Current(ctx context.Context, ref host.ReleaseRef) (host.Revis
 		return host.Revision{}, notFound(err)
 	}
 
-	return revision(ref, rev), nil
+	out := revision(ref, rev)
+	if rel.Status != nil {
+		out.Status = CurrentStatus(rel.Status.Phase, out.Status)
+	}
+
+	return out, nil
 }
 
 // History returns the revisions of a release, newest first.
@@ -130,6 +135,16 @@ func OwnedOf(rels []*api.Release, owner string) []host.Revision {
 	}
 
 	return out
+}
+
+// CurrentStatus is the status of a current revision: deployed only when
+// its release is too, which an uninstall that failed is not.
+func CurrentStatus(releasePhase, revisionStatus string) string {
+	if revisionStatus == host.StatusDeployed {
+		return releasePhase
+	}
+
+	return revisionStatus
 }
 
 // foreignManager is the manager of a pack when that is not Rigger: a pack

@@ -42,7 +42,10 @@ func (f *fakeCluster) revision(ref host.ReleaseRef) (host.Revision, bool) {
 
 	last := revs[len(revs)-1]
 
-	return host.Revision{Release: ref, Number: uint64(len(revs)), Module: last.Module, Digest: last.Digest, Owner: last.Owner}, true
+	return host.Revision{
+		Release: ref, Number: uint64(len(revs)), Module: last.Module, Digest: last.Digest, Owner: last.Owner,
+		Status: host.StatusDeployed,
+	}, true
 }
 
 func (f *fakeCluster) Current(_ context.Context, ref host.ReleaseRef) (host.Revision, error) {

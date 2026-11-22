@@ -63,11 +63,17 @@ type Revision struct {
 	// ForeignManager is the package manager that applied the revision when
 	// that is not this one; a take-over of it is asked for (Adopt).
 	ForeignManager string `json:"foreign_manager,omitempty"`
-	// Status is the status of the revision as the server reports it.
+	// Status is the status of the revision as the server reports it. Of a
+	// current revision it is StatusDeployed only when its release is too.
 	Status string `json:"status"`
 	// CreatedAt is when the server made the revision.
 	CreatedAt time.Time `json:"created_at"`
 }
+
+// StatusDeployed is the status of a revision that was applied
+// successfully. A current revision of any other is applied again, also by
+// the same content.
+const StatusDeployed = "deployed"
 
 // StackOwner is a stack as the owner of releases: "<namespace>/<name>".
 // Two namespaces may each have a stack of one name.
