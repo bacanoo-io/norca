@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -303,6 +304,12 @@ func tagCommits(r *git.Repository, prefix string) ([]Tag, error) {
 
 // tagCommit returns the commit of the tag name.
 func tagCommit(r *git.Repository, name string) (string, error) {
+	// go-git joins the name to refs/tags as a path: "../heads/main" would
+	// be a branch, which moves.
+	if !fs.ValidPath(name) {
+		return "", fmt.Errorf("%q is no name of a tag: %w", name, fs.ErrNotExist)
+	}
+
 	ref, err := r.Tag(name)
 	if err != nil {
 		return "", err

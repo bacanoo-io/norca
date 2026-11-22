@@ -199,7 +199,7 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 	for _, dir := range []string{f.TreeDir(req.Commit), f.BundleDir(req.Commit)} {
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(req.Path), "metadata.hcl")); err == nil {
 			return source.Fetched{
-				FS: os.DirFS(dir), Dir: path.Clean(req.Path),
+				FS: os.DirFS(dir), Dir: req.Path,
 				Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: req.Ref, Commit: req.Commit},
 			}, true
 		}
@@ -212,6 +212,13 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 // the repository can't be reached, a cached tree of the commit the lock
 // file records serves (an install without a network, from a bundle).
 func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
+	dir, err := treePath(req.Path)
+	if err != nil {
+		return source.Fetched{}, err
+	}
+
+	req.Path = dir
+
 	r, err := f.openRepo(ctx, req.Repository)
 	if err != nil {
 		if cached, ok := f.cachedTree(req); ok {
@@ -254,7 +261,7 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 	}
 
 	return source.Fetched{
-		FS: os.DirFS(tree), Dir: path.Clean(req.Path),
+		FS: os.DirFS(tree), Dir: req.Path,
 		Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: ref, Commit: commit},
 	}, nil
 }
@@ -294,15 +301,19 @@ func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	origin := source.Origin{Source: req.Source, Version: req.Version, Ref: tag}
 
+	if req.Commit != "" && !oci.ValidDigest(req.Commit) {
+		return source.Fetched{}, fmt.Errorf("%s:%s: the lock file records %q: %w", req.Repository, tag, req.Commit, oci.ErrDigest)
+	}
+
+	lockedDir, err := treePath(req.Path)
+	if err != nil {
+		return source.Fetched{}, err
+	}
+
 	m, digest, err := f.oci.Resolve(ctx, req.Repository, tag)
 	if err != nil {
-		cached := f.OCIDir(req.Commit)
-		if req.Commit != "" && req.Path != "" {
-			if _, statErr := os.Stat(filepath.Join(cached, filepath.FromSlash(req.Path), "metadata.hcl")); statErr == nil {
-				origin.Commit = req.Commit
-
-				return source.Fetched{FS: os.DirFS(cached), Dir: req.Path, Origin: origin}, nil
-			}
+		if cached, ok := f.cachedLayer(req, lockedDir, origin); ok {
+			return cached, nil
 		}
 
 		return source.Fetched{}, err
@@ -320,13 +331,33 @@ func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetc
 	}
 
 	mod := oci.ModuleOf(m)
-	if !fs.ValidPath(mod.Path) {
-		return source.Fetched{}, fmt.Errorf("%s:%s: the module path %q is not a path", req.Repository, tag, mod.Path)
+
+	modDir, err := treePath(mod.Path)
+	if err != nil {
+		return source.Fetched{}, fmt.Errorf("%s:%s: the module path %w", req.Repository, tag, err)
 	}
 
 	origin.Commit = digest
 
-	return source.Fetched{FS: os.DirFS(dir), Dir: mod.Path, Origin: origin}, nil
+	return source.Fetched{FS: os.DirFS(dir), Dir: modDir, Origin: origin}, nil
+}
+
+// cachedLayer returns the layer of the manifest the request locks when
+// the registry can't be reached; dir is the checked path of the module in
+// it.
+func (f *Fetcher) cachedLayer(req source.Request, dir string, origin source.Origin) (source.Fetched, bool) {
+	if req.Commit == "" || req.Path == "" {
+		return source.Fetched{}, false
+	}
+
+	layer := f.OCIDir(req.Commit)
+	if _, err := os.Stat(filepath.Join(layer, filepath.FromSlash(dir), "metadata.hcl")); err != nil {
+		return source.Fetched{}, false
+	}
+
+	origin.Commit = req.Commit
+
+	return source.Fetched{FS: os.DirFS(layer), Dir: dir, Origin: origin}, true
 }
 
 // maxLayerBytes bounds what a layer of a module unpacks to.

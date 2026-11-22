@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -90,6 +91,18 @@ const maxResponseBytes = 256 << 20
 
 // ErrRegistry is the error of an answer of a registry.
 var ErrRegistry = errors.New("OCI registry")
+
+// ErrDigest is the error of what should be a digest and is none.
+var ErrDigest = errors.New("not a sha256 digest")
+
+var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// ValidDigest reports whether s is a digest of a manifest or a blob. One
+// names a directory of a cache and a path of a registry, so nothing else
+// may pass for one.
+func ValidDigest(s string) bool {
+	return digestPattern.MatchString(s)
+}
 
 // ref splits host/name.
 func ref(repository string) (host, name string, err error) {
@@ -314,6 +327,10 @@ func (c *Client) Resolve(ctx context.Context, repository, tag string) (Manifest,
 
 // Blob reads a blob and checks its digest.
 func (c *Client) Blob(ctx context.Context, repository, digest string) ([]byte, error) {
+	if !ValidDigest(digest) {
+		return nil, fmt.Errorf("%w: blob %q: %w", ErrRegistry, digest, ErrDigest)
+	}
+
 	data, _, err := c.get(ctx, repository, "/blobs/"+digest, "", "pull")
 	if err != nil {
 		return nil, err
