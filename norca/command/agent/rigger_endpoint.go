@@ -4,12 +4,14 @@
 package agent
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // RiggerRegistryRequest handles /v1/rigger/registry/<name>/sync (PUT or
@@ -301,4 +303,74 @@ func (s *HTTPServer) riggerOperationLog(resp http.ResponseWriter, req *http.Requ
 	setMeta(resp, &out.QueryMeta)
 
 	return &out, nil
+}
+
+// riggerBundleMaxBody bounds the body of a bundle import; the servers bound
+// the bundle again.
+const riggerBundleMaxBody = 64<<20 + 1
+
+// RiggerBundlesRequest handles GET /v1/rigger/bundles: the bundles kept in
+// the cluster.
+func (s *HTTPServer) RiggerBundlesRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	if req.Method != http.MethodGet {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	var args norca.RiggerBundleListRequest
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out norca.RiggerBundleListResponse
+	if err := s.agent.RPC("Rigger.ListBundles", &args, &out); err != nil {
+		return nil, err
+	}
+
+	setMeta(resp, &out.QueryMeta)
+
+	return out.Bundles, nil
+}
+
+// RiggerBundleRequest handles PUT or POST /v1/rigger/bundle (the archive of
+// rigger bundle create as the body) and DELETE /v1/rigger/bundle/<name>.
+func (s *HTTPServer) RiggerBundleRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	name := strings.TrimPrefix(strings.TrimPrefix(req.URL.Path, "/v1/rigger/bundle"), "/")
+
+	switch {
+	case name == "" && (req.Method == http.MethodPut || req.Method == http.MethodPost):
+		data, err := io.ReadAll(io.LimitReader(req.Body, riggerBundleMaxBody))
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+
+		if len(data) >= riggerBundleMaxBody {
+			return nil, CodedError(http.StatusRequestEntityTooLarge, "the bundle is larger than 64MiB")
+		}
+
+		args := norca.RiggerBundleImportRequest{Bundle: data}
+		s.parseWriteRequest(req, &args.WriteRequest)
+
+		var out norca.RiggerBundleResponse
+		if err := s.agent.RPC("Rigger.ImportBundle", &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return out.Bundle, nil
+	case name != "" && req.Method == http.MethodDelete:
+		args := norca.RiggerBundleNameRequest{Name: name}
+		s.parseWriteRequest(req, &args.WriteRequest)
+
+		var out structs.GenericResponse
+		if err := s.agent.RPC("Rigger.DeleteBundle", &args, &out); err != nil {
+			return nil, err
+		}
+
+		setIndex(resp, out.Index)
+
+		return nil, nil
+	default:
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
 }

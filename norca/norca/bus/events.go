@@ -456,6 +456,19 @@ func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64,
 	return index, found, err
 }
 
+// RiggerBundleBucket is the name of the object store of the bundles of
+// Rigger of a region: letters, digits, dashes and underscores only.
+func RiggerBundleBucket(region string) string {
+	return "NORCA_RIGGER_BUNDLES_" + strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, region)
+}
+
 // RiggerLogSubjects are the subjects of the logs of the operations of
 // Rigger of a region; RiggerLogSubject is the subject of one.
 func RiggerLogSubjects(region string) string {

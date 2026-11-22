@@ -72,6 +72,10 @@ const (
 	DefaultRiggerLogsMaxBytes = 256 << 20
 	DefaultRiggerLogsMaxAge   = 30 * 24 * time.Hour
 
+	// DefaultRiggerBundlesMaxBytes bounds the object store of the bundles
+	// of Rigger imported into the cluster (design/rig-integration.md 4.6c).
+	DefaultRiggerBundlesMaxBytes = 1 << 30
+
 	// TelemetryStorageShare is the part of the storage the stream of the
 	// usage reports may take: MaxStorage divided by it.
 	TelemetryStorageShare = 16
@@ -119,6 +123,11 @@ type Config struct {
 	// defaults (RiggerLogsBytes, RiggerLogsAge).
 	RiggerLogsMaxBytes int64
 	RiggerLogsMaxAge   time.Duration
+
+	// RiggerBundlesMaxBytes bounds the object store of the bundles of
+	// Rigger; an import beyond it fails, nothing is dropped. Zero takes the
+	// default (RiggerBundlesBytes).
+	RiggerBundlesMaxBytes int64
 
 	// MaxPayload bounds the size of a message in bytes.
 	MaxPayload int32
@@ -272,10 +281,10 @@ func (c *Config) Validate() error {
 	if c.MaxStorage > 0 && c.ConsulKVMaxBytes > 0 {
 		if planned := c.PlannedStorage(); planned > c.MaxStorage {
 			errs = append(errs, fmt.Errorf("the streams of the bus need %dMiB (events %dMiB, pack push notices %dMiB, "+
-				"usage reports %dMiB, Consul KV %dMiB, Rigger logs %dMiB) and bus.max_storage is %dMiB: raise it, or lower "+
-				"bus.events.max_bytes, bus.consul_kv_max_bytes or bus.rigger_logs_max_bytes",
+				"usage reports %dMiB, Consul KV %dMiB, Rigger logs %dMiB, Rigger bundles %dMiB) and bus.max_storage is %dMiB: "+
+				"raise it, or lower bus.events.max_bytes, bus.consul_kv_max_bytes, bus.rigger_logs_max_bytes or bus.rigger_bundles_max_bytes",
 				planned>>20, c.eventsStorage()>>20, c.pushStorage()>>20, c.TelemetryMaxBytes()>>20,
-				c.ConsulKVMaxBytes>>20, c.RiggerLogsBytes()>>20, c.MaxStorage>>20))
+				c.ConsulKVMaxBytes>>20, c.RiggerLogsBytes()>>20, c.RiggerBundlesBytes()>>20, c.MaxStorage>>20))
 		}
 	}
 	return errors.Join(errs...)
@@ -319,7 +328,35 @@ func (c *Config) pushStorage() int64 {
 
 // PlannedStorage is what the streams of the bus may take on disk together.
 func (c *Config) PlannedStorage() int64 {
+	return c.streamsStorage() + c.RiggerBundlesBytes()
+}
+
+// streamsStorage is what the streams of the bus but the object store of
+// the bundles of Rigger may take on disk together.
+func (c *Config) streamsStorage() int64 {
 	return c.eventsStorage() + c.pushStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes + c.RiggerLogsBytes()
+}
+
+// minRiggerBundlesBytes is the least room a default gives the bundles;
+// with less there is no object store of the bundles.
+const minRiggerBundlesBytes = 1 << 20
+
+// RiggerBundlesBytes is the size limit of the object store of the bundles
+// of Rigger: RiggerBundlesMaxBytes, else DefaultRiggerBundlesMaxBytes or
+// half of the storage the other streams leave when that is less, so that a
+// small bus.max_storage still holds the plan. Zero is no object store: the
+// other streams leave no room for one.
+func (c *Config) RiggerBundlesBytes() int64 {
+	if c.RiggerBundlesMaxBytes > 0 {
+		return c.RiggerBundlesMaxBytes
+	}
+
+	n := min(DefaultRiggerBundlesMaxBytes, (c.MaxStorage-c.streamsStorage())/2)
+	if n < minRiggerBundlesBytes {
+		return 0
+	}
+
+	return n
 }
 
 // RiggerLogsBytes is the size limit of the stream of the logs of the

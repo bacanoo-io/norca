@@ -88,6 +88,7 @@ func (s *Server) busEventsLeader(stopCh chan struct{}) {
 	run("keeping the Consul KV bucket", s.keepConsulKVBucket)
 	run("keeping the telemetry stream", s.keepTelemetryStream)
 	run("keeping the stream of the Rigger operation logs", s.keepRiggerLogStream)
+	run("keeping the object store of the Rigger bundles", s.keepRiggerBundleStore)
 	if s.config.Bus.Events.Enabled {
 		run("publishing the events", s.publishBusEvents)
 		run("consuming the pack push notices", s.consumePushNotices)

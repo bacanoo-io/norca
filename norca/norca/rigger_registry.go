@@ -43,6 +43,10 @@ type riggerRegistries struct {
 	mu      sync.Mutex
 	indexes map[string]*riggerRegistryIndex
 
+	// unpacked are the bundles of the object store unpacked into the cache
+	// (by name and size), guarded by mu.
+	unpacked map[string]bool
+
 	// globalMu guards globalDir, the index of the global registry the
 	// fetcher reads (useGlobal).
 	globalMu  sync.Mutex
@@ -57,9 +61,10 @@ type riggerRegistryIndex struct {
 
 func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 	r := &riggerRegistries{
-		srv:     srv,
-		fetcher: fetch.New(filepath.Join(dir, "cache")),
-		indexes: map[string]*riggerRegistryIndex{},
+		srv:      srv,
+		fetcher:  fetch.New(filepath.Join(dir, "cache")),
+		indexes:  map[string]*riggerRegistryIndex{},
+		unpacked: map[string]bool{},
 	}
 	r.fetcher.SetCredentials(r.credentials)
 

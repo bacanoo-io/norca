@@ -306,6 +306,14 @@ func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool
 		return nil, err
 	}
 
+	// The bundles imported into the cluster, for sources that can't be
+	// reached: unpacked into the cache of this server first.
+	ctx, cancel := context.WithTimeout(context.Background(), riggerBundleTimeout)
+	if err := r.unpackBundles(ctx); err != nil {
+		s.logger.Named("rigger").Warn("the bundles of the cluster could not be unpacked", "error", err)
+	}
+	cancel()
+
 	h := &riggerHosts{srv: s, token: token, namespace: namespace}
 	h.apply = func(req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse) error {
 		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered, "")

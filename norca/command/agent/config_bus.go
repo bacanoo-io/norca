@@ -31,6 +31,7 @@ import (
 //	  consul_kv_max_bytes      = "256MiB"
 //	  rigger_logs_max_bytes    = "256MiB"
 //	  rigger_logs_max_age      = "720h"
+//	  rigger_bundles_max_bytes = "1GiB"
 //	  reader_compact_threshold = 2000
 //
 //	  events {
@@ -67,6 +68,11 @@ type BusConfig struct {
 	// 256MiB (or a sixteenth of max_storage when that is less) and 720h.
 	RiggerLogsMaxBytes string `hcl:"rigger_logs_max_bytes"`
 	RiggerLogsMaxAge   string `hcl:"rigger_logs_max_age"`
+
+	// RiggerBundlesMaxBytes bounds the object store of the bundles of Rigger
+	// imported into the cluster; an import beyond it fails. Default 1GiB, or
+	// half of what the other streams leave of max_storage when that is less.
+	RiggerBundlesMaxBytes string `hcl:"rigger_bundles_max_bytes"`
 
 	// MaxConnections bounds the client connections of a server.
 	MaxConnections int `hcl:"max_connections"`
@@ -236,6 +242,9 @@ func (a *BusConfig) Merge(b *BusConfig) *BusConfig {
 	if b.RiggerLogsMaxAge != "" {
 		result.RiggerLogsMaxAge = b.RiggerLogsMaxAge
 	}
+	if b.RiggerBundlesMaxBytes != "" {
+		result.RiggerBundlesMaxBytes = b.RiggerBundlesMaxBytes
+	}
 	if b.MaxConnections != 0 {
 		result.MaxConnections = b.MaxConnections
 	}
@@ -329,6 +338,13 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 			return nil, fmt.Errorf("bus.rigger_logs_max_bytes can't parse size %s", b.RiggerLogsMaxBytes)
 		}
 		cfg.RiggerLogsMaxBytes = int64(v)
+	}
+	if b.RiggerBundlesMaxBytes != "" {
+		v, err := humanize.ParseBytes(b.RiggerBundlesMaxBytes)
+		if err != nil || v > math.MaxInt64 {
+			return nil, fmt.Errorf("bus.rigger_bundles_max_bytes can't parse size %s", b.RiggerBundlesMaxBytes)
+		}
+		cfg.RiggerBundlesMaxBytes = int64(v)
 	}
 	if b.RiggerLogsMaxAge != "" {
 		d, err := time.ParseDuration(b.RiggerLogsMaxAge)

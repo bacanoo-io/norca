@@ -101,7 +101,7 @@ func consumerNameToken(s string) string {
 // With them goes the subject the servers store the pack push notices on
 // (busGrantSubjects adds it, it lies under the event prefix).
 var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>",
-	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>", riggerLogsAllRegions}
+	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>", riggerLogsAllRegions, "$O.>"}
 
 // riggerLogsAllRegions are the subjects of the logs of the Rigger
 // operations of every region: the servers write them, and they are read
