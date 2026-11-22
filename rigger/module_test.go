@@ -97,9 +97,9 @@ func TestEngine_ValidateModule_Defaults(t *testing.T) {
 			e := engine(t)
 
 			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
-				"metadata.hcl": {Data: []byte(metadata)},
-				variablesFile:  {Data: []byte(tt.variables)},
-				"outputs.hcl":  {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
+				metadataFile:  {Data: []byte(metadata)},
+				variablesFile: {Data: []byte(tt.variables)},
+				"outputs.hcl": {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
 			})
 			if diags.HasErrors() {
 				t.Fatal(diags)
@@ -156,8 +156,8 @@ func TestEngine_ValidateModule_Icon(t *testing.T) {
 			e := engine(t)
 
 			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
-				"metadata.hcl": {Data: []byte(metadata)},
-				"icon.png":     {Data: tt.icon},
+				metadataFile: {Data: []byte(metadata)},
+				"icon.png":   {Data: tt.icon},
 			})
 			if diags.HasErrors() {
 				t.Fatal(diags)

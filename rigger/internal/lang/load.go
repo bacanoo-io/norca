@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
+
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // Limits bound what Load reads (design 12.4).
@@ -232,7 +233,7 @@ func (l *loader) parse(p string, kind FileKind, rt ResourceType, name string) er
 
 	l.mod.Sources[l.name(p)] = src
 
-	file, diags := hclsyntax.ParseConfig(src, l.name(p), hcl.InitialPos)
+	file, diags := syntax.ParseConfig(src, l.name(p))
 	l.diags = append(l.diags, diags...)
 
 	if diags.HasErrors() {

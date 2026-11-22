@@ -15,6 +15,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // Test is a test block of a tests/*.riggertest.hcl file (design 7.4): the
@@ -63,7 +64,7 @@ type assertBlock struct {
 
 // ParseTests parses a test file.
 func ParseTests(filename string, src []byte) ([]*Test, hcl.Diagnostics) {
-	file, diags := hclsyntax.ParseConfig(src, filename, hcl.InitialPos)
+	file, diags := syntax.ParseConfig(src, filename)
 	if diags.HasErrors() {
 		return nil, diags
 	}

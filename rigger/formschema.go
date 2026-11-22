@@ -13,6 +13,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // keyType is the key of the type of a JSON Schema, jsonObject the type of
@@ -274,7 +275,7 @@ func showIf(p map[string]any, val cty.Value) {
 
 	text := val.AsString()
 
-	expr, diags := hclsyntax.ParseExpression([]byte(text), "show_if", hcl.InitialPos)
+	expr, diags := syntax.ParseExpression([]byte(text), "show_if")
 	if !diags.HasErrors() {
 		if pred, ok := predicate(expr); ok {
 			p["x-ui-show-if"] = pred

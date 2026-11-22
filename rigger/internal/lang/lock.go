@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // LockFile is the name of the lock file of a stack (design 8.3).
@@ -74,7 +76,7 @@ func (l *Lock) Stack(source string) *LockedModule {
 
 // ParseLock parses a lock file.
 func ParseLock(src []byte) (*Lock, hcl.Diagnostics) {
-	file, diags := hclsyntax.ParseConfig(src, LockFile, hcl.InitialPos)
+	file, diags := syntax.ParseConfig(src, LockFile)
 	if diags.HasErrors() {
 		return nil, diags
 	}

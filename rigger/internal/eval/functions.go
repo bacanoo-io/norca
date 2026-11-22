@@ -11,6 +11,8 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
+
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // Functions returns the standard set of functions of Rigger (design 11): those
@@ -52,7 +54,7 @@ func standardFunctions() map[string]function.Function {
 		"slice": stdlib.SliceFunc, "sort": stdlib.SortFunc, "values": stdlib.ValuesFunc,
 		"zipmap": stdlib.ZipmapFunc,
 
-		"csvdecode": stdlib.CSVDecodeFunc, "jsondecode": stdlib.JSONDecodeFunc,
+		"csvdecode": stdlib.CSVDecodeFunc, "jsondecode": jsonDecode,
 		"jsonencode": jsonEncode, "yamlencode": yamlEncode, "tomlencode": tomlEncode, "natsconf": natsconf, "formatdate": stdlib.FormatDateFunc,
 		"timeadd": stdlib.TimeAddFunc,
 
@@ -64,6 +66,24 @@ func standardFunctions() map[string]function.Function {
 		"tomap": toType(cty.Map(cty.DynamicPseudoType)),
 	}
 }
+
+// jsonDecode is jsondecode(str) within the bound of the nesting: the
+// decoder of cty recurses as deep as the text.
+var jsonDecode = function.New(&function.Spec{
+	Params: []function.Parameter{{Name: "str", Type: cty.String}},
+	Type: func(args []cty.Value) (cty.Type, error) {
+		if args[0].IsKnown() {
+			if err := syntax.CheckJSON([]byte(args[0].AsString())); err != nil {
+				return cty.NilType, function.NewArgError(0, err)
+			}
+		}
+
+		return stdlib.JSONDecodeFunc.ReturnTypeForValues(args)
+	},
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		return stdlib.JSONDecodeFunc.Call(args)
+	},
+})
 
 // allTrue is true when every item of a list of booleans is true.
 var allTrue = function.New(&function.Spec{

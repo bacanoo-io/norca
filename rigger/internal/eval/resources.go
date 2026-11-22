@@ -16,6 +16,7 @@ import (
 
 	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
@@ -319,6 +320,11 @@ func (e *evaluator) decoded(r *lang.Resource, ctx *hcl.EvalContext) (Resource, h
 	src, diags := renderBlock(r.Block, r.Name, ctx, metaNames, &e.expansion)
 	if diags.HasErrors() {
 		return Resource{}, diags
+	}
+
+	// The decoder parses the text again, as deep as the values in it.
+	if _, over := syntax.ParseConfig(src, r.Name+".hcl"); over.HasErrors() {
+		return Resource{}, over
 	}
 
 	spec, moreDiags := e.cfg.Decoder.DecodeResource(e.ctx, r.Type.Kind, r.Name, src)

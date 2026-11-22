@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
@@ -102,7 +102,7 @@ func templateFileFunc(fsys fs.FS, fileBytes int64, funcs map[string]function.Fun
 				return cty.NilVal, function.NewArgErrorf(1, "vars must be an object")
 			}
 
-			expr, diags := hclsyntax.ParseTemplate(data, p, hcl.InitialPos)
+			expr, diags := syntax.ParseTemplate(data, p)
 			if diags.HasErrors() {
 				return cty.NilVal, diags
 			}

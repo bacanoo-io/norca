@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
@@ -26,14 +27,14 @@ var textBlocks = map[resource.Kind]string{
 // A body with the attribute of that name is left as it is; both is an
 // error.
 func textBlock(body hcl.Body, name string, v cty.Value, ctx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
-	syntax, ok := body.(*hclsyntax.Body)
+	native, ok := body.(*hclsyntax.Body)
 	if !ok || v.IsNull() || !v.Type().IsObjectType() {
 		return v, nil
 	}
 
 	var blocks []*hclsyntax.Block
 
-	for _, b := range syntax.Blocks {
+	for _, b := range native.Blocks {
 		if b.Type == name {
 			blocks = append(blocks, b)
 		}
@@ -43,7 +44,7 @@ func textBlock(body hcl.Body, name string, v cty.Value, ctx *hcl.EvalContext) (c
 		return v, nil
 	}
 
-	if a, ok := syntax.Attributes[name]; ok || len(blocks) > 1 || len(blocks[0].Labels) > 0 {
+	if a, ok := native.Attributes[name]; ok || len(blocks) > 1 || len(blocks[0].Labels) > 0 {
 		rng := blocks[0].DefRange()
 		if ok {
 			rng = a.SrcRange
@@ -59,6 +60,11 @@ func textBlock(body hcl.Body, name string, v cty.Value, ctx *hcl.EvalContext) (c
 	f := hclwrite.NewEmptyFile()
 	if diags := renderBody(f.Body(), blocks[0].Body, ctx, nil, nil); diags.HasErrors() {
 		return v, diags
+	}
+
+	// The host parses the text again, as deep as the values in it.
+	if _, over := syntax.ParseConfig(f.Bytes(), name); over.HasErrors() {
+		return v, over
 	}
 
 	attrs := v.AsValueMap()

@@ -167,6 +167,9 @@ module "db" {
 }
 `
 
+// metadataFile is the file of the metadata of a module or a stack.
+const metadataFile = "metadata.hcl"
+
 // variablesFile is the file of the variables of a module or a stack.
 const variablesFile = "variables.hcl"
 

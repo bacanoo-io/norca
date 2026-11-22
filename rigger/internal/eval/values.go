@@ -13,11 +13,11 @@ import (
 
 	"github.com/agext/levenshtein"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // Sensitive is the mark of a sensitive value (design 6.3). It goes with the
@@ -31,10 +31,21 @@ type Input struct {
 	Range *hcl.Range
 }
 
+// maxValuesBytes bounds a text of values: a server takes it from a
+// request, which nothing else bounds.
+const maxValuesBytes = 1 << 20
+
 // ParseValues parses a file of values (a *.vars.hcl): one attribute per
 // variable, each a constant expression.
 func ParseValues(filename string, src []byte) (map[string]Input, hcl.Diagnostics) {
-	file, diags := hclsyntax.ParseConfig(src, filename, hcl.InitialPos)
+	if len(src) > maxValuesBytes {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Values too large",
+			Detail: fmt.Sprintf("%s has %d bytes, more than the %d values may have.", filename, len(src), maxValuesBytes),
+		}}
+	}
+
+	file, diags := syntax.ParseConfig(src, filename)
 	if diags.HasErrors() {
 		return nil, diags
 	}

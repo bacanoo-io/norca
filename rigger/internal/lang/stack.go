@@ -14,8 +14,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/module"
 	"github.com/bacanoo-io/norca/rigger/sign"
 	"github.com/bacanoo-io/norca/rigger/source"
@@ -175,7 +175,7 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 
 	s := &Stack{Sources: map[string][]byte{}, FS: fsys, Dir: dir, Root: root, Vars: &Module{Sources: map[string][]byte{}}}
 
-	diags := s.readFiles(ctx, fsys)
+	diags := s.readFiles(ctx, fsys, limits)
 	if diags.HasErrors() {
 		return s, diags
 	}
@@ -265,7 +265,7 @@ func treeDirs(m *Module) []string {
 }
 
 // readFiles reads and decodes the files of the stack.
-func (s *Stack) readFiles(ctx context.Context, fsys fs.FS) hcl.Diagnostics {
+func (s *Stack) readFiles(ctx context.Context, fsys fs.FS, limits Limits) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
@@ -303,7 +303,7 @@ func (s *Stack) readFiles(ctx context.Context, fsys fs.FS) hcl.Diagnostics {
 			return fs.SkipDir
 		}
 
-		diags = append(diags, s.readFile(fsys, p)...)
+		diags = append(diags, s.readFile(fsys, p, limits)...)
 
 		return nil
 	})
@@ -315,7 +315,7 @@ func (s *Stack) readFiles(ctx context.Context, fsys fs.FS) hcl.Diagnostics {
 }
 
 // readFile reads one file of the stack by its name.
-func (s *Stack) readFile(fsys fs.FS, p string) hcl.Diagnostics {
+func (s *Stack) readFile(fsys fs.FS, p string, limits Limits) hcl.Diagnostics {
 	switch {
 	case strings.HasPrefix(p, "values/"):
 		if strings.HasSuffix(p, ".vars.hcl") {
@@ -327,6 +327,20 @@ func (s *Stack) readFile(fsys fs.FS, p string) hcl.Diagnostics {
 		return nil // documentation, the icon
 	}
 
+	if limits.FileBytes > 0 {
+		info, err := fs.Stat(fsys, p)
+		if err != nil {
+			return hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "File not read", Detail: err.Error() + "."}}
+		}
+
+		if info.Size() > limits.FileBytes {
+			return hcl.Diagnostics{{
+				Severity: hcl.DiagError, Summary: "File too large",
+				Detail: fmt.Sprintf("%s has %d bytes, more than the %d a file of a stack may have.", p, info.Size(), limits.FileBytes),
+			}}
+		}
+	}
+
 	src, err := fs.ReadFile(fsys, p)
 	if err != nil {
 		return hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "File not read", Detail: err.Error() + "."}}
@@ -334,7 +348,7 @@ func (s *Stack) readFile(fsys fs.FS, p string) hcl.Diagnostics {
 
 	s.Sources[p] = src
 
-	file, diags := hclsyntax.ParseConfig(src, p, hcl.InitialPos)
+	file, diags := syntax.ParseConfig(src, p)
 	if diags.HasErrors() {
 		return diags
 	}
