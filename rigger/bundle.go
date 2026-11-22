@@ -5,6 +5,7 @@ package rigger
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"slices"
 
@@ -24,6 +25,9 @@ type SourcedModule struct {
 	Commit     string   `json:"commit"`
 	Digest     string   `json:"digest"`
 	Signers    []string `json:"signers,omitempty"`
+	// Stack is set for the published stack of a part, whose digest is that
+	// of a stack.
+	Stack bool `json:"stack,omitempty"`
 	// Dirs are the directories of the repository the module and its child
 	// modules are in; Root holds them.
 	Dirs []string `json:"dirs"`
@@ -53,7 +57,7 @@ func (s *Stack) SourcedModules() []SourcedModule {
 		l := p.Locked
 		add(SourcedModule{
 			Source: l.Source, Version: l.Version, Repository: l.Repository, Path: l.Path, Ref: l.Ref,
-			Commit: l.Commit, Digest: l.Digest, Signers: l.Signers, Dirs: []string{p.Stack.Dir}, Root: p.Stack.Root,
+			Commit: l.Commit, Digest: l.Digest, Signers: l.Signers, Stack: true, Dirs: []string{p.Stack.Dir}, Root: p.Stack.Root,
 		})
 
 		stacks = append(stacks, p.Stack)
@@ -97,8 +101,30 @@ func moduleDirs(m *lang.Module) []string {
 	return dirs
 }
 
+// SourcedDigest returns the digest of what a bundle has of m in root, as
+// its lock records it: how an imported bundle is checked. The published
+// stack of a part has the digest of a stack (design 7.5).
+func (e *Engine) SourcedDigest(ctx context.Context, root fs.FS, m SourcedModule) (_ string, retErr error) {
+	if !m.Stack {
+		return e.ModuleDigest(ctx, root, m.Path)
+	}
+
+	defer e.recoverErr(ctx, "stack.digest", &retErr)
+
+	s, diags := lang.LoadStack(ctx, root, m.Path, e.langLimits())
+	if diags.HasErrors() {
+		return "", diags
+	}
+
+	if s.Metadata == nil {
+		return "", fmt.Errorf("%s has no metadata.hcl: it is not a published stack", m.Path)
+	}
+
+	return lang.StackDigest(s)
+}
+
 // ModuleDigest loads the module in the directory dir of root and returns
-// its tree digest: how an imported bundle is checked.
+// its tree digest.
 func (e *Engine) ModuleDigest(ctx context.Context, root fs.FS, dir string) (_ string, retErr error) {
 	defer e.recoverErr(ctx, "module.digest", &retErr)
 

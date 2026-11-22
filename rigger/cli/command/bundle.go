@@ -218,7 +218,7 @@ func checkBundle(ctx context.Context, eng *rigger.Engine, staged *fetch.Fetcher,
 			}
 		}
 
-		digest, err := eng.ModuleDigest(ctx, os.DirFS(dir), mod.Path)
+		digest, err := eng.SourcedDigest(ctx, os.DirFS(dir), mod)
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", mod.Source, mod.Version, err)
 		}

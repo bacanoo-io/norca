@@ -333,7 +333,7 @@ func (s *Server) checkRiggerBundle(ctx context.Context, data []byte) (*bundle.Ma
 			return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "%s %s: %v", mod.Source, mod.Version, err)
 		}
 
-		digest, err := eng.ModuleDigest(ctx, os.DirFS(dir), mod.Path)
+		digest, err := eng.SourcedDigest(ctx, os.DirFS(dir), mod)
 		if err != nil {
 			return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "%s %s: %v", mod.Source, mod.Version, err)
 		}
