@@ -275,8 +275,17 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 	reply.Warnings = riggerWarnings(m, diags)
 	reply.Revision = rp.Revision
 
+	if rp.TakesOver != "" {
+		reply.Warnings = append(reply.Warnings,
+			fmt.Sprintf("the release %s belongs to %s: an apply takes it over only with adopt (the flag -adopt)", args.Release, rp.TakesOver))
+	}
+
 	if !args.Plan {
 		outcome, err := eng.ApplyInstall(ctx, rp, rigger.ApplyOptions{Adopt: args.Adopt})
+		if errors.Is(err, rigger.ErrAdoptNeeded) {
+			return structs.NewErrRPCCodedf(http.StatusConflict, "%v", err)
+		}
+
 		if err != nil {
 			return err
 		}

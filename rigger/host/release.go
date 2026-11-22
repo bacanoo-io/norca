@@ -60,6 +60,9 @@ type Revision struct {
 	// Owner is the name of the stack that installed the release; empty for
 	// a release installed on its own.
 	Owner string `json:"owner,omitempty"`
+	// ForeignManager is the package manager that applied the revision when
+	// that is not this one; a take-over of it is asked for (Adopt).
+	ForeignManager string `json:"foreign_manager,omitempty"`
 	// Status is the status of the revision as the server reports it.
 	Status string `json:"status"`
 	// CreatedAt is when the server made the revision.

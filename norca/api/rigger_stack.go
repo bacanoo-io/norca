@@ -43,6 +43,9 @@ type RiggerReleasePlan struct {
 	Revision  uint64           `json:"revision,omitempty"`
 	Changes   []RiggerChange   `json:"changes,omitempty"`
 	DependsOn []string         `json:"depends_on,omitempty"`
+	// TakesOver says whose the release is when an apply takes it over,
+	// which needs Adopt.
+	TakesOver string `json:"takes_over,omitempty"`
 }
 
 // RiggerStackPlan is the plan of a stack.

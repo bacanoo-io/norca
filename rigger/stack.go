@@ -147,6 +147,9 @@ type ReleasePlan struct {
 	// revision; Revision the number of the current one, 0 for none.
 	Digest   string `json:"digest,omitempty"`
 	Revision uint64 `json:"revision,omitempty"`
+	// TakesOver says whose the release is when an apply of the plan takes
+	// it over, which needs ApplyOptions.Adopt; empty for none.
+	TakesOver string `json:"takes_over,omitempty"`
 	// Changes are the server's changes per resource of an upgrade.
 	Changes   []host.Change `json:"changes,omitempty"`
 	DependsOn []string      `json:"depends_on,omitempty"`
@@ -394,7 +397,11 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 
 	rp.Revision = current.Number
 
-	if current.Digest == req.Digest && current.Module.Digest == req.Module.Digest {
+	if current.ForeignManager != "" {
+		rp.TakesOver = "the package manager " + current.ForeignManager
+	}
+
+	if rp.TakesOver == "" && current.Digest == req.Digest && current.Module.Digest == req.Module.Digest {
 		rp.Action = ActionUnchanged
 
 		return rp, nil
@@ -402,7 +409,12 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 
 	rp.Action = ActionUpgrade
 
-	server, err := e.releases.Plan(ctx, req)
+	// A plan writes nothing: it shows what a take-over would change, and
+	// the apply of it needs Adopt (CheckAdopt).
+	preview := req
+	preview.Adopt = rp.TakesOver != ""
+
+	server, err := e.releases.Plan(ctx, preview)
 	if err != nil {
 		return ReleasePlan{}, err
 	}

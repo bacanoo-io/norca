@@ -548,6 +548,10 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 			return nil, riggerDiagsError(diags)
 		}
 
+		if err := plan.CheckAdopt(args.Adopt); err != nil {
+			return nil, structs.NewErrRPCCodedf(http.StatusConflict, "%v", err)
+		}
+
 		for _, rp := range plan.Releases {
 			steps = append(steps, RiggerOperationRelease{Namespace: rp.Release.Namespace, Release: rp.Release.Name, Action: string(rp.Action)})
 		}

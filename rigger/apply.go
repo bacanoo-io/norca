@@ -44,6 +44,30 @@ type ReleaseOutcome struct {
 // were written by another run after the plan.
 var ErrGeneratedMeanwhile = errors.New("the generated values of the stack were written by another run since the plan; plan again")
 
+// ErrAdoptNeeded is the error of an apply that would take over a release
+// and was not asked to.
+var ErrAdoptNeeded = errors.New("it is taken over only when asked to (adopt; the flag -adopt)")
+
+// CheckAdopt returns the error of an apply of the plan without Adopt
+// (ApplyOptions): ErrAdoptNeeded with the release when it takes one over.
+func (p *StackPlan) CheckAdopt(adopt bool) error {
+	for i := range p.Releases {
+		if err := p.Releases[i].checkAdopt(adopt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (rp *ReleasePlan) checkAdopt(adopt bool) error {
+	if adopt || rp.TakesOver == "" {
+		return nil
+	}
+
+	return fmt.Errorf("release %s/%s belongs to %s: %w", rp.Release.Namespace, rp.Release.Name, rp.TakesOver, ErrAdoptNeeded)
+}
+
 // ApplyStack applies a plan (design 9.2): the generated values and the
 // secrets first, created once, then the releases in the order of their
 // dependencies, each waiting until it is ready, and with prune the removals.
@@ -67,6 +91,11 @@ func (e *Engine) ApplyStack(ctx context.Context, plan *StackPlan, opts ApplyOpti
 func (e *Engine) applyStack(ctx context.Context, plan *StackPlan, opts ApplyOptions) ([]ReleaseOutcome, error) {
 	if e.releases == nil || e.secrets == nil {
 		return nil, ErrNoCluster
+	}
+
+	// Before anything is written.
+	if err := plan.CheckAdopt(opts.Adopt); err != nil {
+		return nil, err
 	}
 
 	if err := e.applyGenerated(ctx, plan); err != nil {
@@ -393,6 +422,10 @@ func (e *Engine) ApplyInstall(ctx context.Context, rp *ReleasePlan, opts ApplyOp
 
 	if e.releases == nil {
 		return ReleaseOutcome{}, ErrNoCluster
+	}
+
+	if err := rp.checkAdopt(opts.Adopt); err != nil {
+		return ReleaseOutcome{}, err
 	}
 
 	return e.applyRelease(ctx, *rp, ApplyOptions{Adopt: opts.Adopt})

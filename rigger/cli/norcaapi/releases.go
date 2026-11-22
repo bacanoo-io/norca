@@ -142,6 +142,16 @@ func OwnedOf(rels []*api.Release, owner string) []host.Revision {
 	return out
 }
 
+// foreignManager is the manager of a pack when that is not Rigger: a pack
+// without one is the pack manager's.
+func foreignManager(p *api.ReleasePack) string {
+	if p == nil || p.Manager == api.ReleaseManagerRigger {
+		return ""
+	}
+
+	return cmp.Or(p.Manager, api.ReleaseManagerPack)
+}
+
 // CurrentOf is the current revision of a release, as a list shows it: its
 // number, module, owner and phase.
 func CurrentOf(rel *api.Release) host.Revision {
@@ -149,6 +159,7 @@ func CurrentOf(rel *api.Release) host.Revision {
 
 	if rel.Spec != nil {
 		rev.Number, rev.Module = rel.Spec.Revision, moduleRef(rel.Spec.Pack)
+		rev.ForeignManager = foreignManager(rel.Spec.Pack)
 		rev.Owner = ownerOf(rel.Spec.Owner, rel.Spec.Description)
 	}
 
@@ -270,6 +281,7 @@ func revision(ref host.ReleaseRef, rev *api.ReleaseRevision) host.Revision {
 
 	if s := rev.Spec; s != nil {
 		out.Module = moduleRef(s.Pack)
+		out.ForeignManager = foreignManager(s.Pack)
 		out.Digest = cmp.Or(s.InputDigest, s.ValuesHash)
 		out.Owner = ownerOf(s.Owner, s.Description)
 
