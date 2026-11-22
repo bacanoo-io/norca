@@ -309,7 +309,12 @@ func (s *Server) checkRiggerBundle(ctx context.Context, data []byte) (*bundle.Ma
 		return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
 
-	eng, err := s.riggerFetchEngine()
+	fetcher, err := s.riggerRequestFetcher()
+	if err != nil {
+		return nil, err
+	}
+
+	eng, err := s.riggerFetchEngine(fetcher)
 	if err != nil {
 		return nil, err
 	}

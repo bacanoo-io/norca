@@ -21,6 +21,7 @@ import (
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/catalog"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/module"
@@ -176,12 +177,17 @@ func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) (ret
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	eng, err := r.srv.riggerFetchEngine()
+	fetcher, err := r.srv.riggerRequestFetcher()
 	if err != nil {
 		return err
 	}
 
-	m, _, err := r.srv.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest)
+	eng, err := r.srv.riggerFetchEngine(fetcher)
+	if err != nil {
+		return err
+	}
+
+	m, _, err := r.srv.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest)
 	if err != nil {
 		return err
 	}
@@ -217,10 +223,15 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
+	fetcher, err := s.riggerRequestFetcher()
+	if err != nil {
+		return err
+	}
+
 	// A module of a registry is fetched and verified by the server: its
 	// release is admitted as rendered by the server. A local one is a
 	// client's.
-	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx)
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, fetcher)
 	if err != nil {
 		return err
 	}
@@ -244,7 +255,7 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 
 		in.Source = riggerLocalSource
 	} else {
-		if m, _, err = s.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest); err != nil {
+		if m, _, err = s.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest); err != nil {
 			return err
 		}
 	}
@@ -304,9 +315,11 @@ func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace st
 }
 
 // riggerServerEngine returns an engine with the hosts of this server and the
-// fetcher of its registries; the releases are applied as rendered by the
+// fetcher of the request; the releases are applied as rendered by the
 // server or not.
-func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext, opts ...rigger.Option) (*rigger.Engine, error) {
+func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext,
+	fetcher source.Fetcher, opts ...rigger.Option,
+) (*rigger.Engine, error) {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return nil, err
@@ -325,30 +338,45 @@ func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool
 		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered, "")
 	}
 
-	return s.riggerEngine(h, append([]rigger.Option{rigger.WithFetcher(r.fetcher)}, opts...)...)
+	return s.riggerEngine(h, append([]rigger.Option{rigger.WithFetcher(fetcher)}, opts...)...)
 }
 
 // riggerFetchEngine returns an engine that only fetches and loads modules,
-// with the fetcher of the registries and the decoders of the hosts and no
+// with the fetcher of the request and the decoders of the hosts and no
 // cluster: what Rigger.Detail and Rigger.Icon need.
-func (s *Server) riggerFetchEngine() (*rigger.Engine, error) {
+func (s *Server) riggerFetchEngine(fetcher source.Fetcher) (*rigger.Engine, error) {
+	return rigger.New(
+		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithFetcher(fetcher),
+	)
+}
+
+// riggerRequestFetcher returns the fetcher of one request: the cache and
+// the credentials of the registries, and an index of the global registry
+// of its own, empty until the request reads one (useGlobal). A request
+// that runs beside it does not move it.
+func (s *Server) riggerRequestFetcher() (*fetch.Fetcher, error) {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return nil, err
 	}
 
-	return rigger.New(
-		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
-		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
-		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
-		rigger.WithFetcher(r.fetcher),
-	)
+	dir, err := r.noGlobalDir()
+	if err != nil {
+		return nil, err
+	}
+
+	return r.fetcher.WithGlobalRegistry(dir), nil
 }
 
 // riggerRegistryModule fetches and verifies the version of a module of a
 // registry that the request names: the newest the last good sync of the
 // registry offers that meets the constraint.
-func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, req RiggerModuleRequest) (*rigger.Module, []string, error) {
+func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, fetcher *fetch.Fetcher,
+	req RiggerModuleRequest,
+) (*rigger.Module, []string, error) {
 	reg, items, err := s.syncedRegistry(ctx, req.Registry)
 	if err != nil {
 		return nil, nil, err
@@ -374,7 +402,7 @@ func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, r
 		return nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "%s of the registry %q at its last sync: %v (rigger registry sync %s fetches newer versions)", ref, reg.Name, err, reg.Name)
 	}
 
-	sreq, keys, err := s.moduleSourceRequest(ctx, reg, ref, v)
+	sreq, keys, err := s.moduleSourceRequest(ctx, fetcher, reg, ref, v)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -425,14 +453,16 @@ func (s *Server) syncedRegistry(ctx context.Context, name string) (*RiggerRegist
 // module of a registry, and the keys that must sign it: the global registry
 // read at the commit of its sync, a registry repository at the tag of the
 // version in the history of that commit.
-func (s *Server) moduleSourceRequest(ctx context.Context, reg *RiggerRegistry, ref catalog.Ref, v string) (source.Request, []string, error) {
+func (s *Server) moduleSourceRequest(ctx context.Context, fetcher *fetch.Fetcher, reg *RiggerRegistry,
+	ref catalog.Ref, v string,
+) (source.Request, []string, error) {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return source.Request{}, nil, err
 	}
 
 	if reg.Spec.Type == riggerRegistryTypeGlobal {
-		if err := r.useGlobal(ctx, reg); err != nil {
+		if err := r.useGlobal(ctx, fetcher, reg); err != nil {
 			return source.Request{}, nil, err
 		}
 
@@ -462,21 +492,15 @@ func (s *Server) moduleSourceRequest(ctx context.Context, reg *RiggerRegistry, r
 	return source.Request{}, nil, fmt.Errorf("the registry %q has no tag %s%s at %s", reg.Name, prefix, v, reg.Status.Commit)
 }
 
-// useGlobal points the fetcher of the registries at the index of the global
+// useGlobal points the fetcher of a request at the index of the global
 // registry at the commit of its last good sync.
-func (r *riggerRegistries) useGlobal(ctx context.Context, reg *RiggerRegistry) error {
+func (r *riggerRegistries) useGlobal(ctx context.Context, fetcher *fetch.Fetcher, reg *RiggerRegistry) error {
 	dir, err := r.fetcher.Checkout(ctx, reg.Status.Source, reg.Status.Commit)
 	if err != nil {
 		return err
 	}
 
-	r.globalMu.Lock()
-	defer r.globalMu.Unlock()
-
-	if r.globalDir != dir {
-		r.fetcher.SetGlobalRegistry(dir)
-		r.globalDir = dir
-	}
+	fetcher.SetGlobalRegistry(dir)
 
 	return nil
 }
@@ -524,12 +548,17 @@ func (s *Server) riggerDetail(args *RiggerDetailRequest, reply *RiggerDetailResp
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	eng, err := s.riggerFetchEngine()
+	fetcher, err := s.riggerRequestFetcher()
 	if err != nil {
 		return err
 	}
 
-	m, versions, err := s.riggerRegistryModule(ctx, eng, args.RiggerModuleRequest)
+	eng, err := s.riggerFetchEngine(fetcher)
+	if err != nil {
+		return err
+	}
+
+	m, versions, err := s.riggerRegistryModule(ctx, eng, fetcher, args.RiggerModuleRequest)
 	if err != nil {
 		return err
 	}

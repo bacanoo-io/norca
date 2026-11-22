@@ -37,13 +37,19 @@ import (
 
 // Fetcher fetches modules into a cache directory.
 type Fetcher struct {
-	cache string
-	oci   *oci.Client
+	*shared
+
 	// global is the address of the global registry; index is its files,
 	// read once per run.
 	global  string
 	indexMu sync.Mutex
 	index   *globalIndex
+}
+
+// shared is what the fetchers of one cache share (WithGlobalRegistry).
+type shared struct {
+	cache string
+	oci   *oci.Client
 
 	// repos serializes the fetches of one mirror, by its directory.
 	repos keyedLock
@@ -60,7 +66,10 @@ var _ source.Fetcher = (*Fetcher)(nil)
 
 // New returns a fetcher with its cache in dir.
 func New(dir string) *Fetcher {
-	return &Fetcher{cache: dir, oci: oci.NewClient(), global: DefaultGlobalRegistry, updated: map[string]bool{}}
+	return &Fetcher{
+		shared: &shared{cache: dir, oci: oci.NewClient(), updated: map[string]bool{}},
+		global: DefaultGlobalRegistry,
+	}
 }
 
 // CacheDir is the cache of the rigger program: RIGGER_CACHE_DIR, else rigger in the

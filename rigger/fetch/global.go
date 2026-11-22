@@ -235,3 +235,11 @@ func (f *Fetcher) Tree(ctx context.Context, repository, tag string) (fs.FS, stri
 
 	return fetched.FS, fetched.Origin.Commit, nil
 }
+
+// WithGlobalRegistry returns a fetcher of the cache, locks and credentials
+// of f that reads the global registry at address. A host that serves
+// several requests gives each its own: the index one request reads is not
+// moved by another.
+func (f *Fetcher) WithGlobalRegistry(address string) *Fetcher {
+	return &Fetcher{shared: f.shared, global: address}
+}

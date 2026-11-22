@@ -49,11 +49,6 @@ type riggerRegistries struct {
 	// unpacked are the bundles of the object store unpacked into the cache
 	// (by name and size), guarded by mu.
 	unpacked map[string]bool
-
-	// globalMu guards globalDir, the index of the global registry the
-	// fetcher reads (useGlobal).
-	globalMu  sync.Mutex
-	globalDir string
 }
 
 // riggerRegistryIndex is what a registry offers at a commit.

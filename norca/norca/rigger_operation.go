@@ -28,6 +28,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
@@ -417,11 +418,16 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 		}
 	}
 
-	if err := s.prepareRiggerGlobal(ctx, args.Source); err != nil {
+	fetcher, err := s.riggerRequestFetcher()
+	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, opts...)
+	if err := s.prepareRiggerGlobal(ctx, fetcher, args.Source); err != nil {
+		return nil, nil, nil, err
+	}
+
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, fetcher, opts...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -456,11 +462,11 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 	return eng, st, values, nil
 }
 
-// prepareRiggerGlobal points the fetcher at the index of the global
-// registry at the commit of its last sync, or at an empty index when it
-// has none: a stack never reaches the global registry past a sync. A
-// published stack of the global registry needs the sync.
-func (s *Server) prepareRiggerGlobal(ctx context.Context, address string) error {
+// prepareRiggerGlobal points the fetcher of a request at the index of the
+// global registry at the commit of its last sync, or leaves it the empty
+// index when it has none: a stack never reaches the global registry past a
+// sync. A published stack of the global registry needs the sync.
+func (s *Server) prepareRiggerGlobal(ctx context.Context, fetcher *fetch.Fetcher, address string) error {
 	r, err := s.riggerRegistriesOf()
 	if err != nil {
 		return err
@@ -478,7 +484,7 @@ func (s *Server) prepareRiggerGlobal(ctx context.Context, address string) error 
 		}
 
 		if reg.Status.Commit != "" {
-			return r.useGlobal(ctx, reg)
+			return r.useGlobal(ctx, fetcher, reg)
 		}
 	}
 
@@ -488,31 +494,17 @@ func (s *Server) prepareRiggerGlobal(ctx context.Context, address string) error 
 		}
 	}
 
-	return r.useNoGlobal()
+	return nil
 }
 
-// useNoGlobal points the fetcher at an empty index: the global registry was
-// never synced.
-func (r *riggerRegistries) useNoGlobal() error {
+// noGlobalDir is an empty index: that of a global registry never synced.
+func (r *riggerRegistries) noGlobalDir() (string, error) {
 	dir := filepath.Join(filepath.Dir(r.fetcher.TreeDir("x")), "..", "global-not-synced")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
+		return "", err
 	}
 
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return err
-	}
-
-	r.globalMu.Lock()
-	defer r.globalMu.Unlock()
-
-	if r.globalDir != abs {
-		r.fetcher.SetGlobalRegistry(abs)
-		r.globalDir = abs
-	}
-
-	return nil
+	return filepath.Abs(dir)
 }
 
 // startRiggerOperation plans an apply or a destroy of a stack, records it as
