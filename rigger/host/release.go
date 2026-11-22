@@ -168,6 +168,9 @@ type ReleaseReader interface {
 	// Owned returns the current revisions of the releases a stack owns,
 	// for prune (design 9.3).
 	Owned(ctx context.Context, owner string) ([]Revision, error)
+	// List returns the current revisions of the releases of a namespace,
+	// for what a module requires to be installed (design 6.5).
+	List(ctx context.Context, namespace string) ([]Revision, error)
 }
 
 // ReleasePlanner compares what a release should be with what the cluster

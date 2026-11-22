@@ -53,6 +53,10 @@ func (faultyReleases) Apply(context.Context, host.ApplyRequest) (host.Revision, 
 	panic(faultText)
 }
 
+func (faultyReleases) List(context.Context, string) ([]host.Revision, error) {
+	return nil, nil
+}
+
 func (faultyReleases) Owned(context.Context, string) ([]host.Revision, error) {
 	panic(faultText)
 }

@@ -41,6 +41,8 @@ func (fakeReleases) History(context.Context, host.ReleaseRef) ([]host.Revision, 
 	return nil, nil
 }
 
+func (fakeReleases) List(context.Context, string) ([]host.Revision, error) { return nil, nil }
+
 func (fakeReleases) Owned(context.Context, string) ([]host.Revision, error) { return nil, nil }
 
 func (fakeReleases) Plan(context.Context, host.ApplyRequest) (host.Plan, error) {

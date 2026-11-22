@@ -80,6 +80,22 @@ func (f *fakeCluster) Owned(_ context.Context, owner string) ([]host.Revision, e
 	return out, nil
 }
 
+// List returns the current revisions of the releases of a namespace.
+func (f *fakeCluster) List(_ context.Context, namespace string) ([]host.Revision, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var out []host.Revision
+
+	for ref := range f.releases {
+		if rev, ok := f.revision(ref); ok && ref.Namespace == namespace {
+			out = append(out, rev)
+		}
+	}
+
+	return out, nil
+}
+
 func (f *fakeCluster) Plan(_ context.Context, req host.ApplyRequest) (host.Plan, error) {
 	return host.Plan{Release: req.Release, Changes: []host.Change{{Kind: "job", Name: "x", Action: host.ActionUpdate}}}, nil
 }

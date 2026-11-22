@@ -283,6 +283,25 @@ func (r riggerReleases) History(ctx context.Context, ref host.ReleaseRef) ([]hos
 	return out, nil
 }
 
+func (r riggerReleases) List(ctx context.Context, namespace string) ([]host.Revision, error) {
+	var resp structs.ReleaseListResponse
+	if err := r.h.srv.RPC("Release.List", &structs.ReleaseListRequest{QueryOptions: r.h.query(namespace)}, &resp); err != nil {
+		return nil, err
+	}
+
+	rels, err := asAPI[[]*api.Release](resp.Releases)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]host.Revision, 0, len(*rels))
+	for _, rel := range *rels {
+		out = append(out, norcaapi.CurrentOf(rel))
+	}
+
+	return out, nil
+}
+
 func (r riggerReleases) Owned(ctx context.Context, owner string) ([]host.Revision, error) {
 	// The releases of the stack in every namespace the token may read.
 	req := &structs.ReleaseListRequest{

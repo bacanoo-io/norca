@@ -388,6 +388,11 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 
 	ref := host.ReleaseRef{Namespace: in.Namespace, Name: in.Release}
 
+	alone := []requirer{{ref: ref, module: md, source: in.Source, vars: vars}}
+	if moreDiags := e.checkRequires(ctx, alone, []host.ReleaseRef{ref}); moreDiags.HasErrors() {
+		return nil, append(diags, moreDiags...)
+	}
+
 	o, err := installOrigin(m, in)
 	if err != nil {
 		return nil, append(diags, errorDiags("Signatures not read", err)...)

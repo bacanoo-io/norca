@@ -51,8 +51,9 @@ type ReleaseResult struct {
 	Enabled   bool
 	Namespace string
 	// Values are the values the stack gives the module, sensitive ones
-	// marked.
+	// marked; Vars the variables of the module with them and the defaults.
 	Values cty.Value
+	Vars   cty.Value
 	Result *Result
 	// DependsOn are the releases it reads or names in depends_on.
 	DependsOn []string
@@ -487,6 +488,8 @@ func (r *stackRun) release(n *node) (*ReleaseResult, hcl.Diagnostics) {
 	rr.Values = MarkSensitive(rel.Module, values)
 
 	vars, moreDiags := Variables(rel.Module, inputs)
+	rr.Vars = vars
+
 	diags = append(diags, moreDiags...)
 
 	if moreDiags.HasErrors() {

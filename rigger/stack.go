@@ -236,6 +236,10 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, diags
 	}
 
+	if moreDiags := e.checkRequiredVersion(ctx, s.s); moreDiags.HasErrors() {
+		return nil, append(diags, moreDiags...)
+	}
+
 	plan := &StackPlan{Stack: s.Name(), Region: s.Region(), namespace: eval.StackNamespace(s.s), generated: map[string]string{}}
 
 	existing, err := e.readGenerated(ctx, plan)
@@ -272,6 +276,10 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 
 	if err := e.planReleases(ctx, plan, res); err != nil {
 		return nil, append(diags, errorDiags("Releases not compared", err)...)
+	}
+
+	if moreDiags := e.checkRequires(ctx, stackRequirers(res), plannedReleases(plan)); moreDiags.HasErrors() {
+		return nil, append(diags, moreDiags...)
 	}
 
 	if err := e.planSecrets(ctx, plan); err != nil {

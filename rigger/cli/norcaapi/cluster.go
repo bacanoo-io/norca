@@ -31,11 +31,9 @@ func (c *Cluster) Info(ctx context.Context) (host.ClusterInfo, error) {
 		return host.ClusterInfo{}, err
 	}
 
-	info := host.ClusterInfo{}
-
-	if cfg, ok := self.Config["Version"].(map[string]any); ok {
-		info.Version, _ = cfg["Version"].(string)
-	}
+	// NorcaVersion, not Config.Version: that is the version of the API
+	// Norca is compatible with.
+	info := host.ClusterInfo{Version: self.NorcaVersion}
 
 	if region, ok := self.Config["Region"].(string); ok {
 		info.Region = region
