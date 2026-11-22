@@ -40,7 +40,10 @@ func (e *Engine) resolveLockedParts(ctx context.Context, s *lang.Stack, rules []
 
 		fs, err := e.fetchLockedStack(ctx, p, entry)
 		if err == nil {
-			p.Signers, err = verifyTrust(trustRule(rules, p.Address.Registry), fs.signed(), entry.Signers)
+			content := fs.signed()
+			content.unindexed = p.Address.Kind == source.KindGlobal && fs.listing == nil
+
+			p.Signers, err = verifyTrust(trustRule(rules, p.Address.Registry), content, entry.Signers)
 		}
 
 		if err != nil {
@@ -69,6 +72,11 @@ func (e *Engine) fetchLockedStack(ctx context.Context, p *lang.StackPart, entry 
 
 	if req.Kind == source.KindGlobal {
 		req.Repository = entry.Repository
+
+		// Where the index said it is, for a tree in a cache or a bundle.
+		if entry.Path != "" {
+			req.Path = entry.Path
+		}
 	}
 
 	fs, err := e.fetchPublished(ctx, req)

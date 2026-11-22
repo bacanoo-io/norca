@@ -182,6 +182,7 @@ func (e *Engine) trust(rules []eval.TrustRule, r *lang.StackRelease, fm *fetched
 	signers, err := verifyTrust(trustRule(rules, r.Address.Registry), signedContent{
 		source: r.Source, version: fm.origin.Version, digest: fm.origin.Digest,
 		signatures: fm.signatures, keys: fm.keys, listed: fm.listed,
+		unindexed: r.Address.Kind == source.KindGlobal && !fm.listed,
 	}, locked)
 	if err != nil {
 		return err
@@ -199,13 +200,17 @@ type signedContent struct {
 	// keys are the keys of the namespace of a version an index lists.
 	keys   [][]byte
 	listed bool
+	// unindexed is set for content of the global registry without its index
+	// (a cache, a bundle): the keys of its namespace are not known.
+	unindexed bool
 }
 
 // verifyTrust verifies the signatures of fetched content with the keys of
 // a trust rule and of its namespace; it returns the keys that sign it. A
 // rule that requires a signature, or an index that lists the version,
 // needs one; locked are the signers the lock file records, which must
-// still sign.
+// still sign. Without the index of the global registry only those of them
+// are checked whose key the rule has: the digest of the lock pins the rest.
 func verifyTrust(rule eval.TrustRule, c signedContent, locked []string) ([]string, error) {
 	keys := make([]sign.PublicKey, 0, len(rule.Keys)+len(c.keys))
 
@@ -234,6 +239,10 @@ func verifyTrust(rule eval.TrustRule, c signedContent, locked []string) ([]strin
 	}
 
 	for _, id := range locked {
+		if c.unindexed && !slices.ContainsFunc(keys, func(k sign.PublicKey) bool { return k.ID == id }) {
+			continue
+		}
+
 		if !slices.Contains(signers, id) {
 			return nil, fmt.Errorf("%s %s: the lock file records a signature of %s, which no longer verifies; run rigger stack sync", c.source, c.version, id)
 		}
