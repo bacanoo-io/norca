@@ -26,7 +26,8 @@ import (
 // client packs the files a loaded stack reads, and a server loads the stack
 // from them to plan and apply it itself (4.6). The archive is a gzip
 // compressed tar of the files at their paths in the root the stack was
-// loaded from, and a manifest that names the directory of the stack.
+// loaded from, and a manifest that names the directory of the stack. A
+// local module is sent the same way (Module.Archive, LoadModuleFiles).
 
 // stackManifest is the name of the manifest in an archive of a stack.
 const stackManifest = ".rigger-stack.json"
@@ -63,12 +64,33 @@ func (s *Stack) Archive() ([]byte, error) {
 		}
 	}
 
-	files, err := stackFiles(s.s.Root, dirs)
+	return packFiles(s.s.Root, dirs, s.s.Dir)
+}
+
+// Archive packs the files of a module loaded from files, as Stack.Archive
+// packs a stack: every regular file of its directory and of the directories
+// of its child modules, with a manifest that names its directory. A server
+// loads it with Engine.LoadModuleFiles (design/rig-integration.md 4.6 of
+// norca: a local module sent to a server).
+func (m *Module) Archive() ([]byte, error) {
+	if m.origin != nil {
+		return nil, errors.New("a fetched module is installed by its source, not sent as files")
+	}
+
+	root, dirs := m.Files()
+
+	return packFiles(root, dirs, m.mod.Dir)
+}
+
+// packFiles packs the regular files under dirs of root, and a manifest that
+// names dir, into a gzip compressed tar.
+func packFiles(root fs.FS, dirs []string, dir string) ([]byte, error) {
+	files, err := stackFiles(root, dirs)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, err := json.Marshal(stackArchiveManifest{Dir: s.s.Dir})
+	manifest, err := json.Marshal(stackArchiveManifest{Dir: dir})
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +119,7 @@ func (s *Stack) Archive() ([]byte, error) {
 	}
 
 	if buf.Len() > maxStackArchiveBytes {
-		return nil, fmt.Errorf("the files of the stack are %d bytes compressed, more than %d", buf.Len(), maxStackArchiveBytes)
+		return nil, fmt.Errorf("the files are %d bytes compressed, more than %d", buf.Len(), maxStackArchiveBytes)
 	}
 
 	return buf.Bytes(), nil
@@ -171,6 +193,18 @@ func (e *Engine) LoadStackFiles(ctx context.Context, archive []byte) (*Stack, hc
 	}
 
 	return e.LoadStack(ctx, files, dir)
+}
+
+// LoadModuleFiles loads a module from the files a client packed with
+// Module.Archive, bounded and checked as LoadStackFiles does; it reads
+// nothing but these files.
+func (e *Engine) LoadModuleFiles(ctx context.Context, archive []byte) (*Module, hcl.Diagnostics) {
+	files, dir, err := readStackArchive(archive)
+	if err != nil {
+		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Invalid files of a module", Detail: err.Error() + "."}}
+	}
+
+	return e.LoadModuleAt(ctx, files, dir)
 }
 
 func readStackArchive(archive []byte) (fstest.MapFS, string, error) {

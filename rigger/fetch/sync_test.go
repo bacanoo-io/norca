@@ -108,6 +108,23 @@ func TestSync_Mirror(t *testing.T) {
 	if commit != fourth {
 		t.Errorf("Sync() = %s, want the new head %s", commit, fourth)
 	}
+
+	// A version tagged after the mirror was fetched in this run is fetched
+	// once more by its tag, as a server installs it.
+	fifth := commitTo(t, src, "1.4.0", "web/v1.4.0")
+
+	_, got, err := f.Tree(ctx, remote, "web/v1.4.0")
+	if err != nil {
+		t.Fatalf("a version tagged after the mirror was fetched: %v", err)
+	}
+
+	if got != fifth {
+		t.Errorf("Tree() commit = %s, want %s", got, fifth)
+	}
+
+	if _, _, err := f.Tree(ctx, remote, "web/v9.9.9"); err == nil {
+		t.Error("a tag no one has was found")
+	}
 }
 
 // commitTo commits a new version of modules/web to the repository in dir

@@ -167,3 +167,54 @@ func checkSent(t *testing.T, names []string) {
 		t.Errorf("entries %v", names)
 	}
 }
+
+// A local module packed with Archive loads again from its files, with the
+// same digest and its child module beside it; nothing else of the root is
+// sent.
+func TestModule_ArchiveAndLoadModuleFiles(t *testing.T) {
+	t.Parallel()
+
+	root := fstest.MapFS{
+		"mods/web/metadata.hcl":  {Data: []byte("module {\n  name    = \"web\"\n  version = \"1.0.0\"\n}\n")},
+		"mods/web/modules.hcl":   {Data: []byte("module \"lib\" {\n  source = \"../lib\"\n}\n")},
+		"mods/web/.hidden/x.txt": {Data: []byte("hidden")},
+		"mods/lib/metadata.hcl":  {Data: []byte("module {\n  name    = \"lib\"\n  version = \"0.1.0\"\n}\n")},
+		"mods/other/notes.txt":   {Data: []byte("not of the module")},
+	}
+
+	e := engine(t)
+
+	m, diags := e.LoadModuleAt(t.Context(), root, "mods/web")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	archive, err := m.Archive()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	names := archiveNames(t, archive)
+	if !containsAll(names, ".rigger-stack.json", "mods/web/metadata.hcl", "mods/web/modules.hcl", "mods/lib/metadata.hcl") ||
+		slices.Contains(names, "mods/other/notes.txt") || slices.Contains(names, "mods/web/.hidden/x.txt") {
+		t.Errorf("entries %v", names)
+	}
+
+	loaded, diags := e.LoadModuleFiles(t.Context(), archive)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	want, err := m.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := loaded.Digest(); err != nil || got != want || loaded.Metadata().Name != "web" {
+		t.Errorf("loaded %s digest %s (%v), want web digest %s", loaded.Metadata().Name, got, err, want)
+	}
+
+	if _, diags := e.LoadModuleFiles(t.Context(), []byte("not an archive")); !diags.HasErrors() {
+		t.Error("an archive that is not one was loaded")
+	}
+}

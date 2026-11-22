@@ -223,6 +223,17 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	commit, err := tagCommit(r, ref)
 	if err != nil {
+		// A host that runs long (a server) fetched the mirror earlier: a
+		// version tagged since is fetched once more.
+		if _, local := localPath(req.Repository); !local {
+			if fresh, ferr := f.refresh(ctx, req.Repository); ferr == nil {
+				r = fresh
+				commit, err = tagCommit(r, ref)
+			}
+		}
+	}
+
+	if err != nil {
 		return source.Fetched{}, fmt.Errorf("%s has no tag %s: %w", req.Repository, ref, fs.ErrNotExist)
 	}
 

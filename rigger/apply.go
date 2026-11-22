@@ -311,17 +311,10 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 	}
 
 	ref := host.ReleaseRef{Namespace: in.Namespace, Name: in.Release}
-	o := moduleOrigin{module: m.mod, source: m.mod.Dir}
 
-	// A signed module carries its signatures, for the admission of the
-	// server (design 8.2).
-	sigs, err := sign.ReadSignatures(m.fsys, ".")
+	o, err := installOrigin(m, in)
 	if err != nil {
 		return nil, append(diags, errorDiags("Signatures not read", err)...)
-	}
-
-	for _, s := range sigs {
-		o.signatures = append(o.signatures, host.Signature{Payload: s.Payload, Signature: s.Signature})
 	}
 
 	rp, err := e.planRelease(ctx, ref, "", in.Region, o, eval.MarkSensitive(m.mod, valuesObject(in.Values)), res, set)
@@ -330,6 +323,33 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 	}
 
 	return &rp, diags
+}
+
+// installOrigin is what the release of an install records of its module: the
+// source, tag, signers and signatures of a fetched module; for a module
+// loaded from files, the source of the install (else its directory) and
+// the signatures in its directory, for the admission of the server
+// (design 8.2).
+func installOrigin(m *Module, in Install) (moduleOrigin, error) {
+	if m.origin != nil {
+		return *m.origin, nil
+	}
+
+	o := moduleOrigin{module: m.mod, source: m.mod.Dir}
+	if in.Source != "" {
+		o.source = in.Source
+	}
+
+	sigs, err := sign.ReadSignatures(m.fsys, ".")
+	if err != nil {
+		return moduleOrigin{}, err
+	}
+
+	for _, s := range sigs {
+		o.signatures = append(o.signatures, host.Signature{Payload: s.Payload, Signature: s.Signature})
+	}
+
+	return o, nil
 }
 
 // ApplyInstall applies the plan of one release; of the options only Adopt

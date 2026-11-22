@@ -26,6 +26,11 @@ type Install struct {
 	Namespace string
 	Region    string
 	Values    Values
+
+	// Source is the address a release records for a module loaded from
+	// files (LoadModule): "local" for one a server was sent; empty records
+	// its directory. A fetched module records its own source.
+	Source string
 }
 
 // Result is an evaluated module: plain data that serializes, except the

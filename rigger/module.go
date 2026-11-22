@@ -34,6 +34,11 @@ const (
 type Module struct {
 	mod  *lang.Module
 	fsys fs.FS
+
+	// origin and fetched are set for a module fetched from a source
+	// (FetchModule): what a release records of it, and what verified it.
+	origin  *moduleOrigin
+	fetched *ModuleOrigin
 }
 
 // Digest returns the tree digest of the module and its local child modules
