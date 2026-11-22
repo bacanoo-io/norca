@@ -88,7 +88,7 @@ func (f *Fetcher) auth(ctx context.Context, repo, url string) (transport.AuthMet
 		return nil, err
 	}
 
-	if !strings.HasPrefix(url, "ssh://") {
+	if !SSHRepository(url) {
 		if c.Password == "" {
 			return nil, nil
 		}
@@ -101,13 +101,19 @@ func (f *Fetcher) auth(ctx context.Context, repo, url string) (transport.AuthMet
 		return auth, nil
 	}
 
-	return sshAuth(repo, c)
+	ep, err := transport.NewEndpoint(url)
+	if err != nil {
+		return nil, fmt.Errorf("the address of %s: %w", repo, err)
+	}
+
+	return sshAuth(repo, ep.User, c)
 }
 
 // sshAuth returns the ssh authentication of credentials: a key, else the
-// agent, with the known hosts given; nil without either.
-func sshAuth(repo string, c *Credentials) (transport.AuthMethod, error) {
-	user := cmp.Or(c.SSHUser, "git")
+// agent, with the known hosts given; nil without either. The user is that
+// of the credentials, else of the address, else git.
+func sshAuth(repo, addressUser string, c *Credentials) (transport.AuthMethod, error) {
+	user := cmp.Or(c.SSHUser, addressUser, "git")
 
 	var cb gossh.HostKeyCallback
 

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"strings"
 )
 
@@ -241,6 +242,14 @@ func parseRegistry(address string, registries map[string]string) (Request, error
 	return req, nil
 }
 
+// scpAddress is user@host:path, with no // after the colon (that is a URL).
+var scpAddress = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:/?[^/\\]`)
+
+// IsSCPAddress reports whether a repository is written as git writes one
+// for ssh, user@host:path. It stays as written: its path is of the home of
+// the user, which an ssh URL doesn't say.
+func IsSCPAddress(repository string) bool { return scpAddress.MatchString(repository) }
+
 type gitAddress struct {
 	repository, path, tagPrefix string
 }
@@ -259,7 +268,10 @@ func gitRepository(address string) (gitAddress, bool) {
 	rest := strings.TrimPrefix(address, scheme)
 	host, _, _ := strings.Cut(rest, "/")
 
-	if scheme == "" && !strings.HasPrefix(address, "/") && !strings.Contains(host, ".") {
+	// An scp-like address names a host as it is, with a dot or without.
+	named := strings.HasPrefix(address, "/") || IsSCPAddress(address) || strings.Contains(host, ".")
+
+	if scheme == "" && !named {
 		return gitAddress{}, false
 	}
 

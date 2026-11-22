@@ -194,7 +194,7 @@ func TestGitCredentials(t *testing.T) {
 	}
 
 	basic, ok := auth.(*originAuth)
-	if !ok || basic.Username != "git" || basic.Password != "token" {
+	if !ok || basic.Username != gitUser || basic.Password != "token" {
 		t.Errorf("auth %#v, want basic auth git/token", auth)
 	}
 

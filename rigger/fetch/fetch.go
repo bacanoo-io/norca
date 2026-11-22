@@ -142,9 +142,19 @@ func (f *Fetcher) Fetch(ctx context.Context, req source.Request) (source.Fetched
 	}
 }
 
-// repositoryURL is the URL a repository is read by: a host and a path is
-// https.
+// SSHRepository reports whether a repository is read over ssh: an ssh URL
+// or an scp-like address.
+func SSHRepository(repo string) bool {
+	return strings.HasPrefix(repo, "ssh://") || source.IsSCPAddress(repo)
+}
+
+// repositoryURL is the URL a repository is read by: an scp-like address is
+// one for git, another host and path is https.
 func repositoryURL(repo string) string {
+	if source.IsSCPAddress(repo) {
+		return repo
+	}
+
 	for _, s := range []string{"https://", "http://", "ssh://", "file://", "/"} {
 		if strings.HasPrefix(repo, s) {
 			return repo

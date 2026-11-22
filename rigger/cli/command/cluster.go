@@ -7,7 +7,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -68,11 +67,12 @@ func newFetcher() (*fetch.Fetcher, error) {
 // gitCredentials are the credentials of the rigger program for git
 // repositories (the fetcher reads them with go-git, not with the git
 // program, so the credential helpers and ~/.ssh/config of git do not
-// apply): an ssh URL authenticates with the keys of the ssh agent and the
-// known hosts of the user; an https URL with RIGGER_GIT_PASSWORD (a token)
-// and RIGGER_GIT_USERNAME when they are set, else anonymously.
+// apply): an ssh URL and user@host:path authenticate with the keys of the
+// ssh agent and the known hosts of the user; an https URL with
+// RIGGER_GIT_PASSWORD (a token) and RIGGER_GIT_USERNAME when they are set,
+// else anonymously.
 func gitCredentials(_ context.Context, repository string) (*fetch.Credentials, error) {
-	if strings.HasPrefix(repository, "ssh://") {
+	if fetch.SSHRepository(repository) {
 		return &fetch.Credentials{SSHAgent: true}, nil
 	}
 

@@ -331,7 +331,7 @@ func checkCredentialsFit(source string, c *fetch.Credentials) error {
 	switch {
 	case strings.HasPrefix(source, "/") || strings.HasPrefix(source, "file://"):
 		return fmt.Errorf("a source on the servers takes no credentials")
-	case strings.HasPrefix(source, "ssh://") || strings.Contains(strings.SplitN(source, "/", 2)[0], "@"):
+	case fetch.SSHRepository(source):
 		if len(c.SSHKey) == 0 || len(c.KnownHosts) == 0 {
 			return fmt.Errorf("an ssh source needs the items ssh_private_key and known_hosts")
 		}
