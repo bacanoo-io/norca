@@ -149,11 +149,8 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 	e := &evaluator{run: r, sources: m.Sources, base: base}
 
 	for _, lr := range m.Resources {
-		if err := r.ctx.Err(); err != nil {
-			return nil, cty.NilVal, append(diags, &hcl.Diagnostic{
-				Severity: hcl.DiagError, Summary: "Evaluation stopped",
-				Detail: "The evaluation was stopped: " + err.Error() + ".", Subject: lr.Block.DefRange.Ptr(),
-			})
+		if over := stopped(r.ctx, lr.Block.DefRange); over.HasErrors() {
+			return nil, cty.NilVal, append(diags, over...)
 		}
 
 		more, moreDiags := e.resource(lr)
@@ -179,6 +176,20 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 	res.Outputs = outputs
 
 	return res, values, diags
+}
+
+// stopped is the error of an evaluation whose time is up or that was
+// cancelled, where it stops.
+func stopped(ctx context.Context, rng hcl.Range) hcl.Diagnostics {
+	err := ctx.Err()
+	if err == nil {
+		return nil
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError, Summary: "Evaluation stopped",
+		Detail: "The evaluation was stopped: " + err.Error() + ".", Subject: rng.Ptr(),
+	}}
 }
 
 // count counts n more resources against the limit of the engine.
@@ -223,6 +234,10 @@ func (r *run) values(m *lang.Module, base *hcl.EvalContext, facts Facts, prefix 
 	for _, key := range order {
 		n := nodes[key]
 		name := key[strings.IndexByte(key, '.')+1:]
+
+		if over := stopped(r.ctx, n.rng); over.HasErrors() {
+			return append(diags, over...)
+		}
 
 		if n.local != nil {
 			v, moreDiags := n.local.Expr.Value(base)

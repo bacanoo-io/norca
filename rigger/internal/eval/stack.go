@@ -285,6 +285,10 @@ func (r *stackRun) values() hcl.Diagnostics {
 		n := nodes[key]
 		name := key[strings.IndexByte(key, '.')+1:]
 
+		if over := stopped(r.ctx, n.rng); over.HasErrors() {
+			return append(diags, over...)
+		}
+
 		if n.local != nil {
 			v, moreDiags := n.local.Expr.Value(r.base)
 			diags = append(diags, moreDiags...)

@@ -334,7 +334,10 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 	md := m.mod.Metadata
 	facts := eval.Facts{Release: in.Release, Namespace: in.Namespace, Region: in.Region, ModuleName: md.Name, ModuleVersion: md.Version}
 
-	res, moreDiags := eval.Evaluate(ctx, m.mod, vars, facts, e.evalConfig())
+	evalCtx, cancel := e.evaluationContext(ctx)
+	defer cancel()
+
+	res, moreDiags := eval.Evaluate(evalCtx, m.mod, vars, facts, e.evalConfig())
 	diags = append(diags, moreDiags...)
 
 	if moreDiags.HasErrors() {

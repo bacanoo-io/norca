@@ -228,13 +228,6 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, errorDiags("No cluster", ErrNoCluster)
 	}
 
-	if e.limits.Duration > 0 {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, e.limits.Duration)
-		defer cancel()
-	}
-
 	vars, diags := eval.Variables(s.s.Vars, inputs(values))
 	if diags.HasErrors() {
 		return nil, diags
@@ -247,7 +240,10 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, errorDiags("Generated values not read", err)
 	}
 
-	res, moreDiags := eval.EvaluateStack(ctx, s.s, vars, func(name string) (string, bool) {
+	evalCtx, cancel := e.evaluationContext(ctx)
+	defer cancel()
+
+	res, moreDiags := eval.EvaluateStack(evalCtx, s.s, vars, func(name string) (string, bool) {
 		if v, ok := existing[name]; ok {
 			return v, true
 		}

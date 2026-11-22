@@ -90,12 +90,8 @@ func (e *Engine) evaluate(ctx context.Context, m *Module, in Install) (*Result, 
 		return nil, diags
 	}
 
-	if e.limits.Duration > 0 {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, e.limits.Duration)
-		defer cancel()
-	}
+	ctx, cancel := e.evaluationContext(ctx)
+	defer cancel()
 
 	vars, diags := e.variables(ctx, m, in.Values)
 	if diags.HasErrors() {
@@ -133,6 +129,17 @@ func (e *Engine) evaluate(ctx context.Context, m *Module, in Install) (*Result, 
 	}
 
 	return res, diags
+}
+
+// evaluationContext bounds the time of an evaluation (Limits.Duration). It
+// is for the evaluation only: the calls to the cluster around it have the
+// context of the caller.
+func (e *Engine) evaluationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if e.limits.Duration > 0 {
+		return context.WithTimeout(ctx, e.limits.Duration)
+	}
+
+	return context.WithCancel(ctx)
 }
 
 // checkInstall checks that the facts of an install are given.

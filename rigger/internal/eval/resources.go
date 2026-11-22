@@ -73,6 +73,10 @@ func (e *evaluator) resource(r *lang.Resource) ([]Resource, hcl.Diagnostics) {
 	var out []Resource
 
 	for _, in := range instances {
+		if over := stopped(e.ctx, r.Block.DefRange); over.HasErrors() {
+			return out, append(diags, over...)
+		}
+
 		ctx := e.base.NewChild()
 		ctx.Variables = in.vars
 
