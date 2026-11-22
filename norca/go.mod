@@ -25,6 +25,13 @@ replace github.com/bacanoo-io/norca/norca/api => ./api
 
 // The decoders are modules of their own, so that other modules (rigger/cli)
 // use them without the program module (design/rig-integration.md, 4.1).
+// Rigger, the package manager, is in the same repository (rigger/ and
+// rigger/cli): the server embeds its library (design/rig-integration.md 4.3).
+replace (
+	github.com/bacanoo-io/norca/rigger => ../rigger
+	github.com/bacanoo-io/norca/rigger/cli => ../rigger/cli
+)
+
 replace (
 	github.com/bacanoo-io/norca/norca/helper/externalspec => ./helper/externalspec
 	github.com/bacanoo-io/norca/norca/helper/resourcespec => ./helper/resourcespec
@@ -46,6 +53,8 @@ require (
 	github.com/bacanoo-io/norca/norca/helper/externalspec v0.0.0
 	github.com/bacanoo-io/norca/norca/helper/resourcespec v0.0.0
 	github.com/bacanoo-io/norca/norca/jobspec2 v0.0.0
+	github.com/bacanoo-io/norca/rigger v0.0.0
+	github.com/bacanoo-io/norca/rigger/cli v0.0.0
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/brianvoe/gofakeit/v6 v6.20.1
