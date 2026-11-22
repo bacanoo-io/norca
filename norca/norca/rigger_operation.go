@@ -450,6 +450,12 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 			"the stack %s is of the namespace %q: send the request in that namespace", st.Name(), st.Namespace())
 	}
 
+	// A stack without a region is of global, as the CLI sends it.
+	if region := s.Region(); st.Region() != region {
+		return nil, nil, nil, structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"the stack %s is of the region %q, these servers of %q: send the request to that region", st.Name(), st.Region(), region)
+	}
+
 	var values rigger.Values
 	if args.Values != "" {
 		if values, diags = rigger.ParseValues("values.vars.hcl", []byte(args.Values)); diags.HasErrors() {
