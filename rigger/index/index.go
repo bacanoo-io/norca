@@ -165,7 +165,8 @@ type Advisory struct {
 	Decision string `json:"decision,omitempty"`
 }
 
-// For returns the advisories of a version.
+// For returns the advisories of a version, however the version is written:
+// an advisory is on a version, not on its text (sameVersion).
 func (a *Advisories) For(kind Kind, namespace, name, v string) []Advisory {
 	if a == nil {
 		return nil
@@ -174,7 +175,7 @@ func (a *Advisories) For(kind Kind, namespace, name, v string) []Advisory {
 	var out []Advisory
 
 	for _, adv := range a.Advisories {
-		if adv.Kind == kind && adv.Namespace == namespace && adv.Name == name && adv.Version == v {
+		if adv.Kind == kind && adv.Namespace == namespace && adv.Name == name && sameVersion(adv.Version, v) {
 			out = append(out, adv)
 		}
 	}
@@ -191,6 +192,44 @@ func (a *Advisories) Blocked(kind Kind, namespace, name, v string) (Advisory, bo
 	}
 
 	return Advisory{}, false
+}
+
+// sameVersion reports whether a and b name one version: 1.0.0, v1.0.0 and
+// 1.0.0+build are one, since a leading v is only a way of writing and build
+// metadata takes no part in the order of versions (an entry lists one
+// version of a place in that order). A block that misses its version
+// because of how it is written is a version offered that was to be kept
+// out. Texts that are not versions are the same only when they are equal.
+func sameVersion(a, b string) bool {
+	if a == b {
+		return true
+	}
+
+	va, err := version.Parse(a)
+	if err != nil {
+		return false
+	}
+
+	vb, err := version.Parse(b)
+
+	return err == nil && version.Compare(va, vb) == 0
+}
+
+// parseVersion parses a version of a file of the index. It is written in
+// one way there, as version.Version writes it (no leading v), so that the
+// text of a version names it: Entry.Version and the tags of a registry find
+// a version by its text.
+func parseVersion(s string) (version.Version, error) {
+	v, err := version.Parse(s)
+	if err != nil {
+		return version.Version{}, err
+	}
+
+	if written := v.String(); written != s {
+		return version.Version{}, fmt.Errorf("%w: %q is written %s in the index", version.ErrInvalid, s, written)
+	}
+
+	return v, nil
 }
 
 // Version returns the listed version v, nil for none.
@@ -378,9 +417,10 @@ func Marshal(v any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Validate checks the fields of an entry: names, versions in ascending
-// order without repetition, sources, digests and signatures in their
-// formats; a stack's versions may pin modules, a module's may not.
+// Validate checks the fields of an entry: names, versions written without
+// a leading v and in ascending order without repetition, sources, digests
+// and signatures in their formats; a stack's versions may pin modules, a
+// module's may not.
 func (e *Entry) Validate(kind Kind) error {
 	if !ValidName(e.Namespace) || !ValidName(e.Name) {
 		return fmt.Errorf("%w: %q/%q is not a namespace and a name", ErrInvalid, e.Namespace, e.Name)
@@ -389,7 +429,7 @@ func (e *Entry) Validate(kind Kind) error {
 	var prev version.Version
 
 	for i, v := range e.Versions {
-		parsed, err := version.Parse(v.Version)
+		parsed, err := parseVersion(v.Version)
 		if err != nil {
 			return fmt.Errorf("%w: version %q: %w", ErrInvalid, v.Version, err)
 		}
@@ -479,7 +519,8 @@ func (ns *Namespace) Validate() error {
 	return nil
 }
 
-// Validate checks the advisories.
+// Validate checks the advisories; the version of one is written as the
+// entries write theirs.
 func (a *Advisories) Validate() error {
 	for _, adv := range a.Advisories {
 		switch {
@@ -495,8 +536,8 @@ func (a *Advisories) Validate() error {
 			return fmt.Errorf("%w: block of %s/%s %s without a recorded decision", ErrInvalid, adv.Namespace, adv.Name, adv.Version)
 		}
 
-		if _, err := version.Parse(adv.Version); err != nil {
-			return fmt.Errorf("%w: advisory of version %q", ErrInvalid, adv.Version)
+		if _, err := parseVersion(adv.Version); err != nil {
+			return fmt.Errorf("%w: advisory of version %q: %w", ErrInvalid, adv.Version, err)
 		}
 	}
 

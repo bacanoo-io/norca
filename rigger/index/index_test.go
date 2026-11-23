@@ -18,6 +18,8 @@ const (
 	norca  = "norca"
 	commit = "0123456789abcdef0123456789abcdef01234567"
 	digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	// first is the first version of the entries and advisories of the tests.
+	first = "1.0.0"
 )
 
 func version(v string) index.Version {
@@ -82,6 +84,7 @@ func TestEntry_Validate(t *testing.T) {
 		}, expected: "pins no modules"},
 		{name: "an invalid name", change: func(e *index.Entry) { e.Name = "Nats" }, expected: "is not a namespace and a name"},
 		{name: "a category of no list", change: func(e *index.Entry) { e.Versions[0].Category = "databases" }, expected: "category"},
+		{name: "a version with a leading v", change: func(e *index.Entry) { e.Versions[1].Version = "v1.1.0" }, expected: `"v1.1.0" is written 1.1.0 in the index`},
 	}
 
 	for _, tt := range tests {
@@ -94,6 +97,53 @@ func TestEntry_Validate(t *testing.T) {
 			err := e.Validate(index.KindModule)
 			if err == nil || !strings.Contains(err.Error(), tt.expected) {
 				t.Fatalf("Validate = %v, want %q", err, tt.expected)
+			}
+
+			if !errors.Is(err, index.ErrInvalid) {
+				t.Errorf("Validate = %v, want it to be ErrInvalid", err)
+			}
+		})
+	}
+}
+
+// An advisory names its version as the entries write it, so that it is
+// found by the version it is on.
+func TestAdvisories_Validate(t *testing.T) {
+	t.Parallel()
+
+	advisory := func(v string) *index.Advisories {
+		return &index.Advisories{Advisories: []index.Advisory{{
+			Kind: index.KindModule, Namespace: norca, Name: nats, Version: v, Level: index.LevelBlocked,
+			Reason: "a secret", Decision: "https://example.org/1",
+		}}}
+	}
+
+	tests := []struct {
+		name     string
+		version  string
+		expected string
+	}{
+		{name: "a version", version: first},
+		{name: "a pre-release with build metadata", version: "1.0.0-rc.1+build.5"},
+		{name: "a leading v", version: "v1.0.0", expected: `"v1.0.0" is written 1.0.0 in the index`},
+		{name: "not a version", version: "1.0", expected: `advisory of version "1.0"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := advisory(tt.version).Validate()
+			if tt.expected == "" {
+				if err != nil {
+					t.Fatalf("Validate = %v, want no error", err)
+				}
+
+				return
+			}
+
+			if !errors.Is(err, index.ErrInvalid) || !strings.Contains(err.Error(), tt.expected) {
+				t.Fatalf("Validate = %v, want an invalid index file with %q", err, tt.expected)
 			}
 		})
 	}
@@ -153,5 +203,58 @@ func TestAdvisories(t *testing.T) {
 
 	if a, err := index.ReadAdvisories(fstest.MapFS{}); err != nil || len(a.Advisories) != 0 {
 		t.Fatalf("no file: %v, %v", a, err)
+	}
+}
+
+// An advisory is on a version, not on a way of writing it: the block of
+// 1.0.0 holds for v1.0.0 and for 1.0.0 with build metadata, which are the
+// same version in the order of versions.
+func TestAdvisories_For(t *testing.T) {
+	t.Parallel()
+
+	block := func(name, v string) index.Advisory {
+		return index.Advisory{
+			Kind: index.KindModule, Namespace: norca, Name: name, Version: v, Level: index.LevelBlocked,
+			Reason: "a secret", Decision: "https://example.org/1",
+		}
+	}
+
+	a := &index.Advisories{Advisories: []index.Advisory{
+		block(nats, "v1.0.0"), block(nats, "1.1.0"), block(nats, "2.0.0-rc.1"), block("redis", "3.0.0"), block(nats, "main"),
+	}}
+
+	tests := []struct {
+		name    string
+		kind    index.Kind
+		module  string
+		version string
+		blocked bool
+	}{
+		{name: "the advisory has a leading v", kind: index.KindModule, module: nats, version: first, blocked: true},
+		{name: "the version has a leading v", kind: index.KindModule, module: nats, version: "v1.1.0", blocked: true},
+		{name: "both written the same way", kind: index.KindModule, module: nats, version: "1.1.0", blocked: true},
+		{name: "the version has build metadata", kind: index.KindModule, module: nats, version: "1.1.0+build.5", blocked: true},
+		{name: "a pre-release", kind: index.KindModule, module: nats, version: "2.0.0-rc.1", blocked: true},
+		{name: "the release of a blocked pre-release", kind: index.KindModule, module: nats, version: "2.0.0"},
+		{name: "another pre-release", kind: index.KindModule, module: nats, version: "2.0.0-rc.2"},
+		{name: "another version", kind: index.KindModule, module: nats, version: "1.0.1"},
+		{name: "another module", kind: index.KindModule, module: "redis", version: first},
+		{name: "another kind", kind: index.KindStack, module: nats, version: first},
+		{name: "a text that is no version, written the same", kind: index.KindModule, module: nats, version: "main", blocked: true},
+		{name: "a text that is no version", kind: index.KindModule, module: nats, version: "1.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, blocked := a.Blocked(tt.kind, norca, tt.module, tt.version); blocked != tt.blocked {
+				t.Errorf("Blocked(%s %s) = %v, want %v", tt.module, tt.version, blocked, tt.blocked)
+			}
+
+			if got := len(a.For(tt.kind, norca, tt.module, tt.version)) == 1; got != tt.blocked {
+				t.Errorf("For(%s %s) found an advisory: %v, want %v", tt.module, tt.version, got, tt.blocked)
+			}
+		})
 	}
 }
