@@ -144,6 +144,49 @@ func TestRun_GlobalRegistry(t *testing.T) {
 	tampered(t, reg, entry, stack)
 }
 
+// The check of a registry compares what a catalog shows of a version (its
+// description, category, keywords and license) with the source, as it
+// compares the rest of the entry: an entry edited by hand does not pass.
+//
+//nolint:paralleltest // publishedRegistry sets the environment of the publish (t.Setenv)
+func TestRun_IndexCheck_CatalogFields(t *testing.T) {
+	_, reg, entry, _ := publishedRegistry(t)
+
+	listed, err := os.ReadFile(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		// The entry has from; the test writes to in its place.
+		from, to string
+		expected string
+	}{
+		{name: "description", from: `"description": "Says hello"`, to: `"description": "Something else entirely"`, expected: `the description of the source is "Says hello"`},
+		{name: "category", from: `"category": "application"`, to: `"category": "database"`, expected: `the category of the source is "application"`},
+		{name: "keywords", from: `"greeting"`, to: `"official"`, expected: `the keywords of the source are ["greeting"]`},
+		{name: "license", from: `"license": "MPL-2.0"`, to: `"license": "Proprietary"`, expected: `the license of the source is "MPL-2.0"`},
+	}
+
+	//nolint:paralleltest // the subtests change the one entry of the registry
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			changed := strings.Replace(string(listed), tt.from, tt.to, 1)
+			if changed == string(listed) {
+				t.Fatalf("the entry does not hold %s:\n%s", tt.from, listed)
+			}
+
+			writeFile(t, entry, changed)
+
+			code, out, stderr := riggerRunAll(t, "index", "check", "-dir", reg)
+			if code != exitError || !strings.Contains(out, tt.expected) {
+				t.Errorf("check of an entry with another %s = %d, want the problem %q\nstdout:\n%s\nstderr:\n%s", tt.name, code, tt.expected, out, stderr)
+			}
+		})
+	}
+}
+
 // publishedStack publishes a stack over acme/greeter in the repository,
 // lists it, and installs it from the registry.
 func publishedStack(t *testing.T, repo, reg, keys string) {

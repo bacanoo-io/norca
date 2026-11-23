@@ -293,6 +293,16 @@ func compare(where string, got, v *index.Version, report func(string, ...any)) {
 		report("%s: the requirements are not those of the source", where)
 	case !sameJSON(got.Modules, v.Modules):
 		report("%s: the modules are not those the lock file of the source pins", where)
+	// What a catalog shows and filters on is of the metadata of the source
+	// too: an entry may not describe a version otherwise.
+	case got.Description != v.Description:
+		report("%s: the description of the source is %q, the entry lists %q", where, got.Description, v.Description)
+	case got.Category != v.Category:
+		report("%s: the category of the source is %q, the entry lists %q", where, got.Category, v.Category)
+	case !slices.Equal(got.Keywords, v.Keywords):
+		report("%s: the keywords of the source are %q, the entry lists %q", where, got.Keywords, v.Keywords)
+	case got.License != v.License:
+		report("%s: the license of the source is %q, the entry lists %q", where, got.License, v.License)
 	}
 }
 
