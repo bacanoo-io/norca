@@ -315,4 +315,118 @@ module('Acceptance | rigger catalog', function (hooks) {
     await click('[data-test-confirm-submit]');
     assert.dom('[data-test-registry-row="mirror"]').doesNotExist();
   });
+
+  test('a release of a module is upgraded from the registry it came from', async function (assert) {
+    useToken(null, 'management');
+    await fetch('/v1/rigger/install?namespace=default', {
+      method: 'PUT',
+      body: JSON.stringify({
+        Release: 'redis',
+        Registry: 'global',
+        Module: 'norca/redis',
+        ValuesJSON: { auth_enabled: true, redis_password: 's3cret' },
+      }),
+    });
+    await visit('/packages/default/redis');
+
+    assert.dom('[data-test-release-details]').includesText('Rigger');
+    assert.dom('[data-test-release-details]').includesText('norca/redis');
+    assert.dom('[data-test-release-details]').includesText('global');
+    assert
+      .dom('[data-test-edit-values]')
+      .doesNotExist('no pack command for a module');
+    assert.dom('[data-test-release-owner]').doesNotExist();
+
+    await click('[data-test-upgrade-release]');
+    assert
+      .dom('[data-test-upgrade-modal]')
+      .includesText('Sensitive values are not kept');
+    assert
+      .dom('[data-test-upgrade-modal] [data-test-form-release-name]')
+      .isDisabled();
+    await click('[data-test-upgrade-modal] [data-test-tab="security"]');
+    assert
+      .dom('[data-test-pack-field="auth_enabled"] input')
+      .isChecked('the values of the release');
+    assert
+      .dom('[data-test-pack-field="redis_password"] input')
+      .hasValue('', 'a sensitive value is not kept');
+    await click('[data-test-upgrade-modal] [data-test-tab="resources"]');
+    await fillIn('[data-test-pack-field="resources.memory"] input', '1024');
+    await click('[data-test-upgrade-modal] [data-test-btn-deploy]');
+
+    const body = lastBody('PUT', '/v1/rigger/install');
+    assert.strictEqual(body.Release, 'redis');
+    assert.strictEqual(body.Registry, 'global');
+    assert.strictEqual(body.Module, 'norca/redis');
+    assert.deepEqual(body.ValuesJSON, {
+      auth_enabled: true,
+      resources: { cpu: 500, memory: 1024 },
+    });
+    assert.dom('[data-test-upgrade-modal]').doesNotExist();
+  });
+
+  test('a release of a registry repository is upgraded by the name of its module', async function (assert) {
+    useToken(null, 'management');
+    await fetch('/v1/rigger/install?namespace=default', {
+      method: 'PUT',
+      body: JSON.stringify({
+        Release: 'web',
+        Registry: 'acme',
+        Module: 'web-app',
+        ValuesJSON: { image: 'nginx:1' },
+      }),
+    });
+    await visit('/packages/default/web');
+    await click('[data-test-upgrade-release]');
+    assert.ok(
+      lastRequest('GET', '/rigger/registry/acme/module').url.includes(
+        'name=web-app'
+      ),
+      'the module of the registry, not its source acme/web-app'
+    );
+    assert.dom('[data-test-pack-field="image"] input').hasValue('nginx:1');
+  });
+
+  test('a release of a stack is changed through its stack', async function (assert) {
+    useToken(null, 'management');
+    server.db.norcaReleases.insert({
+      Region: 'global',
+      ID: 'rel-db',
+      Namespace: 'default',
+      Name: 'shop-db',
+      Spec: {
+        pack: {
+          name: 'redis',
+          version: '0.3.0',
+          registry: 'global',
+          source: 'norca/redis',
+          manager: 'rigger',
+          digest: 'sha256:x',
+        },
+        owner: {
+          kind: 'stack',
+          namespace: 'apps',
+          name: 'shop',
+          version: '1.2.0',
+          part: 'data',
+        },
+        revision: 1,
+        maxHistory: 10,
+      },
+      Status: { phase: 'deployed', revision: 1, resources: [], conditions: [] },
+      History: [],
+      Events: [],
+      Drift: [],
+    });
+    await visit('/packages/default/shop-db');
+    assert
+      .dom('[data-test-release-owner]')
+      .includesText('apps/shop 1.2.0, part data');
+    assert.dom('[data-test-release-details]').includesText('apps/shop');
+    assert
+      .dom('[data-test-upgrade-release]')
+      .doesNotExist('the stack upgrades it');
+    await a11yAudit(assert, STRICT);
+  });
 });

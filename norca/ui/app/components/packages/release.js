@@ -32,6 +32,7 @@ import {
   phaseTone,
   RELEASE_KIND,
 } from 'nomad-ui/utils/releases';
+import { listRiggerRegistries, riggerBackend } from 'nomad-ui/utils/rigger';
 
 /**
  * A release: its resources in apply order, the revision history with
@@ -91,23 +92,74 @@ export default class PackagesRelease extends Component {
     return this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
   }
 
+  // A release that Rigger applied (the manager of its pack fields).
+  get isRigger() {
+    return this.deployedPack?.Manager === 'rigger';
+  }
+
+  // The stack that owns the release: its apply upgrades it.
+  get owner() {
+    return this.release?.Spec?.Owner || null;
+  }
+
+  // The registry of Rigger and the module to upgrade a release of Rigger
+  // from: the registry of the cluster an install recorded (Pack.Registry).
+  // A release of a stack is upgraded by its stack, one of a directory with
+  // the rigger program.
+  get riggerTarget() {
+    const pack = this.deployedPack;
+    if (!this.isRigger || this.owner || !pack?.Registry) return null;
+    const reg = (this.clusterRegistries || []).find(
+      (r) => r.name === pack.Registry
+    );
+    if (!reg) return null;
+    const prefix = `${reg.name}/`;
+    let module = pack.Name;
+    if (reg.spec?.type === 'global') module = pack.Source;
+    else if ((pack.Source || '').startsWith(prefix))
+      module = pack.Source.slice(prefix.length);
+    return {
+      registry: reg.name,
+      module,
+      name: pack.Name,
+      version: pack.Version || '',
+    };
+  }
+
   // The cluster registry and pack to upgrade the release from: the
   // registry it was installed from on the servers, or, for releases of
   // the CLI, a cluster registry of the source the CLI recorded.
   get upgradeTarget() {
+    if (this.isRigger) return this.riggerTarget;
     return upgradeTarget(this.deployedPack, this.clusterRegistries);
+  }
+
+  // The backend of the upgrade form of a release of Rigger; none for a
+  // pack, whose form has its own.
+  get upgradeBackend() {
+    const t = this.riggerTarget;
+    return t
+      ? riggerBackend({
+          token: this.token,
+          registry: t.registry,
+          module: t.module,
+        })
+      : undefined;
   }
 
   // A cluster registry to add for a CLI install from a registry the
   // cluster doesn't have.
   get registrySuggestion() {
-    if (!this.clusterRegistries || this.upgradeTarget) return null;
+    if (this.isRigger || !this.clusterRegistries || this.upgradeTarget)
+      return null;
     return registrySuggestion(this.deployedPack, this.clusterRegistries);
   }
 
   async loadRegistries() {
     try {
-      const r = await listPackRegistries(this.token, this.region);
+      const r = this.isRigger
+        ? await listRiggerRegistries(this.token, this.region)
+        : await listPackRegistries(this.token, this.region);
       this.clusterRegistries = r.body || [];
     } catch (e) {
       this.clusterRegistries = null;
@@ -118,6 +170,7 @@ export default class PackagesRelease extends Component {
   // it upgradable here.
   get canUploadPack() {
     return (
+      !this.isRigger &&
       Boolean(this.clusterRegistries) &&
       !this.upgradeTarget &&
       isLocalPack(this.deployedPack)
@@ -252,13 +305,33 @@ export default class PackagesRelease extends Component {
     return this.drift?.Resources || [];
   }
 
+  // The owner of a release of a stack: "namespace/name 1.2.0, part data".
+  get ownerText() {
+    const o = this.owner;
+    if (!o) return '';
+    const version = o.Version ? ` ${o.Version}` : '';
+    const part = o.Part ? `, part ${o.Part}` : '';
+    return `${o.Namespace}/${o.Name}${version}${part}`;
+  }
+
   get details() {
     const r = this.release;
     if (!r) return [];
     const op = r.Status?.LastOperation;
+    const what = this.isRigger
+      ? [
+          { title: 'Module', value: `${this.pack.Name} ${this.pack.Version}` },
+          { title: 'Source', value: this.pack.Source || '–', mono: true },
+          { title: 'Registry', value: this.pack.Registry || '–' },
+          { title: 'Stack', value: this.ownerText || '–' },
+        ]
+      : [
+          { title: 'Pack', value: `${this.pack.Name} ${this.pack.Version}` },
+          { title: 'Registry', value: this.pack.Registry || '–' },
+        ];
     return [
-      { title: 'Pack', value: `${this.pack.Name} ${this.pack.Version}` },
-      { title: 'Registry', value: this.pack.Registry || '–' },
+      ...what,
+      { title: 'Manager', value: this.isRigger ? 'Rigger' : 'pack' },
       { title: 'Digest', value: this.pack.Digest || '–', mono: true },
       { title: 'Signature', value: this.signature.title },
       { title: 'Deployed revision', value: r.Status?.Revision ?? '–' },

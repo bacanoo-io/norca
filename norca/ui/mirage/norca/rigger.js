@@ -377,13 +377,25 @@ export default function registerRiggerRoutes(server) {
       );
     }
     const version = payload.Version || item.versions[0];
+    // As the servers record it: the registry of the cluster, the source of
+    // the module, and no sensitive value in the revision.
     const pack = {
       name: item.name,
       version,
-      source: payload.Module,
+      registry: reg.Name,
+      source:
+        reg.Spec.type === 'global'
+          ? payload.Module
+          : `${reg.Name}/${item.name}`,
       manager: 'rigger',
       digest: `sha256:${item.name}${version}`,
     };
+    const sensitive = Object.entries(item.schema?.properties || {})
+      .filter(([, p]) => p['x-ui-secret'])
+      .map(([k]) => k);
+    const recorded = Object.fromEntries(
+      Object.entries(values).filter(([k]) => !sensitive.includes(k))
+    );
     const record = {
       Region: q.region || 'global',
       ID: existing?.ID || `rel-${name}`,
@@ -398,7 +410,7 @@ export default function registerRiggerRoutes(server) {
       },
       History: [
         revision(ns, name, n, version, {
-          spec: { pack, values },
+          spec: { pack, values: recorded },
           status: { phase: 'deployed', hooks: [] },
         }),
         ...(existing?.History || []),

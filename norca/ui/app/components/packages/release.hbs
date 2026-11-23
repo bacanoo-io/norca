@@ -17,7 +17,9 @@
           <Ui::Button @icon="player-play" @isLoading={{eq this.busy "test"}} data-test-run-tests {{on "click" this.runTests}}>Run tests</Ui::Button>
           <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
           {{#if this.deployedRevision}}
-            <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
+            {{#unless this.isRigger}}
+              <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
+            {{/unless}}
             {{#if this.upgradeTarget}}
               <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
             {{else if this.registrySuggestion}}
@@ -62,6 +64,13 @@
         </Ui::Alert>
       {{else if this.drift}}
         <Ui::Alert @tone="success" class="mb-3" data-test-release-in-sync>The resources match revision {{this.drift.Revision}}.</Ui::Alert>
+      {{/if}}
+
+      {{#if this.owner}}
+        <Ui::Alert @tone="info" @title="Part of the stack {{this.ownerText}}" class="mb-3" data-test-release-owner>
+          The stack applies, upgrades and removes this release: change the stack and apply it.
+          {{#if this.owner.Source}}It came from <span class="font-monospace">{{this.owner.Source}}</span>.{{/if}}
+        </Ui::Alert>
       {{/if}}
 
       {{#if this.regionStates.length}}
@@ -308,9 +317,11 @@
     <Ui::Modal @title="Upgrade {{this.release.Name}}" @size="xl" @onClose={{this.closeUpgrade}} data-test-upgrade-modal>
       <p class="text-secondary">
         The servers render {{this.upgradeTarget.name}} of the {{this.upgradeTarget.registry}} registry with these values and
-        apply it as the next revision. Pick another version to upgrade the pack itself.
+        apply it as the next revision. Pick another version to upgrade the {{if this.isRigger "module" "pack"}} itself.
+        {{#if this.isRigger}}Sensitive values are not kept with a release: enter them again, or the module takes its default.{{/if}}
       </p>
       <Packages::SchemaForm
+        @backend={{this.upgradeBackend}}
         @isUpgrade={{true}}
         @registry={{this.upgradeTarget.registry}}
         @pack={{this.upgradeTarget.name}}
