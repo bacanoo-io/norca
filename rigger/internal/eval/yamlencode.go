@@ -42,7 +42,7 @@ func yamlKeyText(k string) string {
 		return k
 	}
 
-	return `"` + escapeString(k) + `"`
+	return `"` + yamlFormat.escape(k) + `"`
 }
 
 func (w *yamlWriter) document(v cty.Value) error {
@@ -175,7 +175,7 @@ func (w *yamlWriter) inline(v cty.Value) (string, error) {
 
 		return inlineList(items, services, ", ", w.inline)
 	default:
-		return scalarText(v)
+		return yamlFormat.scalar(v)
 	}
 }
 

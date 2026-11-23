@@ -139,6 +139,115 @@ user = "app"
 	}
 }
 
+// special are characters that a quoted string of a format does not take as
+// they are: the bell, DEL, NEL and another control character past the first
+// 128, the line and the paragraph separator, the byte order mark, and a
+// code point that is no character.
+var special = string([]rune{0x07, 0x7f, 0x85, 0x90, 0x2028, 0x2029, 0xfeff, 0xfffe})
+
+// Each format has its escapes for the characters it does not read as they
+// are. JSON, YAML and TOML read \uXXXX: a reader of YAML refuses a control
+// character, and reads NEL and the separators as a line break. NATS reads
+// \xHH, one byte, and no escape of a code point: what is longer than a byte
+// stays as it is, which NATS reads in a string. A key of NATS has no
+// escapes at all.
+func TestEncoders_Characters(t *testing.T) {
+	t.Parallel()
+
+	value := cty.ObjectVal(map[string]cty.Value{"s": cty.StringVal("a" + special + "b"), "k\a": cty.True})
+
+	const byCode = `"a\u0007\u007f\u0085\u0090\u2028\u2029\ufeff\ufffeb"`
+
+	tests := []struct {
+		name     string
+		fn       function.Function
+		expected string
+	}{
+		{name: "natsconf", fn: natsconf, expected: "\"k\a\": true\ns: " + `"a\x07\x7f` + special[2:] + "b\"\n"},
+		{name: "jsonencode", fn: jsonEncode, expected: `{"k\u0007":true,"s":` + byCode + `}`},
+		{name: "yamlencode", fn: yamlEncode, expected: `"k\u0007": true` + "\ns: " + byCode + "\n"},
+		{name: "tomlencode", fn: tomlEncode, expected: `"k\u0007" = true` + "\ns = " + byCode + "\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := tt.fn.Call([]cty.Value{value})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := out.AsString(); got != tt.expected {
+				t.Errorf("got\n%q\nwant\n%q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// A number is written without an exponent: NATS reads 1e-07 as a string and
+// refuses 1.5e-05, and a reader of YAML 1.1 takes 1e-05 for a string. NATS
+// and TOML read a whole number into 64 bits and refuse a larger one, which
+// is written as a float for them.
+func TestEncoders_Numbers(t *testing.T) {
+	t.Parallel()
+
+	value := cty.ObjectVal(map[string]cty.Value{
+		"big":   cty.MustParseNumberVal("2500000.5"),
+		"huge":  cty.MustParseNumberVal("1.5e30"),
+		"max":   cty.MustParseNumberVal("9223372036854775807"),
+		"min":   cty.MustParseNumberVal("-9223372036854775808"),
+		"neg":   cty.MustParseNumberVal("-0.5"),
+		"small": cty.MustParseNumberVal("0.00001"),
+		"tiny":  cty.MustParseNumberVal("1e-7"),
+		"whole": cty.NumberIntVal(12),
+		"wide":  cty.MustParseNumberVal("9223372036854775808"),
+		"zero":  cty.MustParseNumberVal("-0.0"),
+	})
+
+	// The lines of the formats that have one number on a line, and the
+	// two numbers that NATS and TOML read as floats.
+	lines := func(sep, huge, wide string) string {
+		return "big" + sep + "2500000.5\nhuge" + sep + huge + "\nmax" + sep + "9223372036854775807\nmin" + sep + "-9223372036854775808\n" +
+			"neg" + sep + "-0.5\nsmall" + sep + "0.00001\ntiny" + sep + "0.0000001\nwhole" + sep + "12\nwide" + sep + wide + "\nzero" + sep + "0\n"
+	}
+
+	const (
+		huge = "1500000000000000000000000000000"
+		wide = "9223372036854775808"
+	)
+
+	tests := []struct {
+		name     string
+		fn       function.Function
+		expected string
+	}{
+		{name: "natsconf", fn: natsconf, expected: lines(": ", huge+".0", wide+".0")},
+		{
+			name: "jsonencode", fn: jsonEncode,
+			expected: `{"big":2500000.5,"huge":` + huge + `,"max":9223372036854775807,"min":-9223372036854775808,` +
+				`"neg":-0.5,"small":0.00001,"tiny":0.0000001,"whole":12,"wide":` + wide + `,"zero":0}`,
+		},
+		{name: "yamlencode", fn: yamlEncode, expected: lines(": ", huge, wide)},
+		{name: "tomlencode", fn: tomlEncode, expected: lines(" = ", huge+".0", wide+".0")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := tt.fn.Call([]cty.Value{value})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := out.AsString(); got != tt.expected {
+				t.Errorf("got\n%s\nwant\n%s", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestEncoders_Errors(t *testing.T) {
 	t.Parallel()
 

@@ -35,6 +35,22 @@ type confWriter struct {
 // confKey is a key NATS reads without quotes.
 var confKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
+// confKeyText writes a key. NATS reads a key in quotes as it is, with no
+// escapes, up to the quote that ends it: the key goes between the quotes
+// it does not hold.
+func confKeyText(k string) (string, error) {
+	switch {
+	case confKey.MatchString(k):
+		return k, nil
+	case !strings.Contains(k, `"`):
+		return `"` + k + `"`, nil
+	case !strings.Contains(k, "'"):
+		return "'" + k + "'", nil
+	default:
+		return "", errors.New("the key holds both quotes, and NATS reads no escape in a key")
+	}
+}
+
 func (w *confWriter) entries(v cty.Value, depth int) error {
 	keys, m := sortedKeys(v)
 
@@ -56,9 +72,9 @@ func (w *confWriter) entry(k string, v cty.Value, depth int) error {
 		return nil
 	}
 
-	key := k
-	if !confKey.MatchString(k) {
-		key = `"` + escapeString(k) + `"`
+	key, err := confKeyText(k)
+	if err != nil {
+		return err
 	}
 
 	switch {
@@ -77,7 +93,7 @@ func (w *confWriter) entry(k string, v cty.Value, depth int) error {
 	case isList(v):
 		return w.list(key, v, depth)
 	default:
-		s, err := scalarText(v)
+		s, err := confFormat.scalar(v)
 		if err != nil {
 			return err
 		}
@@ -100,7 +116,7 @@ func (w *confWriter) list(key string, v cty.Value, depth int) error {
 	w.indent(depth)
 
 	if services != nil {
-		s, err := inlineList(items, services, ", ", scalarText)
+		s, err := inlineList(items, services, ", ", confFormat.scalar)
 		if err != nil {
 			return err
 		}
@@ -140,7 +156,7 @@ func (w *confWriter) item(v cty.Value, depth int) error {
 		return nil
 	}
 
-	s, err := scalarText(v)
+	s, err := confFormat.scalar(v)
 	if err != nil {
 		return err
 	}

@@ -42,7 +42,7 @@ func tomlKeyText(k string) string {
 		return k
 	}
 
-	return `"` + escapeString(k) + `"`
+	return `"` + tomlFormat.escape(k) + `"`
 }
 
 func tomlPath(path []string) string {
@@ -137,6 +137,6 @@ func tomlInline(v cty.Value) (string, error) {
 
 		return inlineList(items, services, ", ", tomlInline)
 	default:
-		return scalarText(v)
+		return tomlFormat.scalar(v)
 	}
 }

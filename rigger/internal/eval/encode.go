@@ -55,9 +55,30 @@ var errNotKnown = errors.New("the value is not known at install time")
 // errAddressesNotList is the error of service_addresses() used as a string.
 var errAddressesNotList = errors.New("service_addresses() gives a list; use it as one")
 
-// quoteString writes s as a double-quoted string, with \, ", and the
-// control characters escaped, which the four formats read the same way.
-func quoteString(s string) (string, error) {
+// format is what the formats of the encoders do not write the same way: the
+// escape of a character by its code, and a whole number of more than 64
+// bits.
+type format struct {
+	// hexEscapes writes a control character as \xHH, the only escape of a
+	// character by its code that NATS reads. The other formats read \uXXXX.
+	hexEscapes bool
+	// int64Only says that the format reads a whole number into 64 bits and
+	// refuses a larger one, which is written as a float then.
+	int64Only bool
+}
+
+// The formats of the four encoders.
+var (
+	jsonFormat = format{}
+	yamlFormat = format{}
+	tomlFormat = format{int64Only: true}
+	confFormat = format{hexEscapes: true, int64Only: true}
+)
+
+// quote writes s as a double-quoted string, with \, ", the line breaks and
+// the tab escaped, which the four formats read the same way, and the other
+// characters the format does not take as they are escaped by their code.
+func (f format) quote(s string) (string, error) {
 	if p, ok := wholePart(s); ok {
 		if p.Kind == runref.KindServices {
 			return "", errAddressesNotList
@@ -81,7 +102,7 @@ func quoteString(s string) (string, error) {
 
 	for _, seg := range segs {
 		if seg.Part == nil {
-			b.WriteString(escapeString(seg.Text))
+			b.WriteString(f.escape(seg.Text))
 
 			continue
 		}
@@ -103,8 +124,8 @@ func quoteString(s string) (string, error) {
 	return b.String(), nil
 }
 
-// escapeString escapes a string for the inside of double quotes.
-func escapeString(s string) string {
+// escape escapes a string for the inside of double quotes.
+func (f format) escape(s string) string {
 	var b strings.Builder
 
 	for _, r := range s {
@@ -118,7 +139,9 @@ func escapeString(s string) string {
 			b.WriteString(`\t`)
 		case r == '\r':
 			b.WriteString(`\r`)
-		case r < 0x20 || r == 0x7f:
+		case f.hexEscapes && isControl(r):
+			fmt.Fprintf(&b, `\x%02x`, r)
+		case !f.hexEscapes && needsCode(r):
 			fmt.Fprintf(&b, `\u%04x`, r)
 		default:
 			b.WriteRune(r)
@@ -126,6 +149,30 @@ func escapeString(s string) string {
 	}
 
 	return b.String()
+}
+
+// isControl reports a control character of one byte: \xHH of NATS is a
+// byte. NATS has no escape for a longer character, and reads every
+// character in a string as it is.
+func isControl(r rune) bool {
+	return r < 0x20 || r == 0x7f
+}
+
+// needsCode reports a character that JSON, YAML or TOML does not take as it
+// is in a quoted string, or reads as another one: the control characters
+// (a reader of YAML refuses them, and reads NEL, U+0085, as a line break),
+// the line and the paragraph separator (line breaks too for YAML 1.1), the
+// byte order mark, and U+FFFE and U+FFFF, which are no characters. All of
+// them fit \uXXXX.
+func needsCode(r rune) bool {
+	switch {
+	case r < 0x20, r >= 0x7f && r <= 0x9f:
+		return true
+	case r == 0x2028, r == 0x2029, r == 0xfeff, r == 0xfffe, r == 0xffff:
+		return true
+	default:
+		return false
+	}
 }
 
 // wholePart returns the part that is all of s.
@@ -142,25 +189,34 @@ func wholePart(s string) (runref.Part, bool) {
 	return *segs[0].Part, true
 }
 
-// numberText writes a number: an integer without a point.
-func numberText(v cty.Value) string {
-	f := v.AsBigFloat()
-	if f.IsInt() {
-		i, _ := f.Int(nil)
-
-		return i.String()
+// number writes a number in digits, a whole one without a point, and none
+// with an exponent: not every reader takes one. NATS reads 1e-07 as a
+// string and refuses 1.5e-05, and a reader of YAML 1.1 takes a number with
+// an exponent and no point for a string.
+func (f format) number(v cty.Value) string {
+	n := v.AsBigFloat()
+	if n.Sign() == 0 {
+		return "0"
 	}
 
-	return f.Text('g', -1)
+	text := n.Text('f', -1)
+
+	if f.int64Only && n.IsInt() {
+		if i, _ := n.Int(nil); !i.IsInt64() {
+			return text + ".0"
+		}
+	}
+
+	return text
 }
 
-// scalarText writes a string, a number or a bool.
-func scalarText(v cty.Value) (string, error) {
+// scalar writes a string, a number or a bool.
+func (f format) scalar(v cty.Value) (string, error) {
 	switch v.Type() {
 	case cty.String:
-		return quoteString(v.AsString())
+		return f.quote(v.AsString())
 	case cty.Number:
-		return numberText(v), nil
+		return f.number(v), nil
 	case cty.Bool:
 		return strconv.FormatBool(v.True()), nil
 	default:

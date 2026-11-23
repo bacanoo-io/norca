@@ -28,7 +28,7 @@ func jsonValue(v cty.Value) (string, error) {
 				return "", fmt.Errorf("%s: %w", k, err)
 			}
 
-			parts = append(parts, `"`+escapeString(k)+`":`+s)
+			parts = append(parts, `"`+jsonFormat.escape(k)+`":`+s)
 		}
 
 		return "{" + strings.Join(parts, ",") + "}", nil
@@ -40,6 +40,6 @@ func jsonValue(v cty.Value) (string, error) {
 
 		return inlineList(items, services, ",", jsonValue)
 	default:
-		return scalarText(v)
+		return jsonFormat.scalar(v)
 	}
 }
