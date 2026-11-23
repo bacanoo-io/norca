@@ -424,6 +424,13 @@ func secretItems(v cty.Value, rng hcl.Range) (cty.Value, map[string]host.Sensiti
 	plain := map[string]cty.Value{}
 
 	for name, item := range items.AsValueMap() {
+		// A null item is a value not given, sensitive or not: it is left
+		// out, as the items block leaves out an attribute that is null
+		// (design 4.1).
+		if item.IsNull() {
+			continue
+		}
+
 		if len(marks) == 0 && !item.ContainsMarked() {
 			s, diag := itemString(name, item, rng)
 			if diag != nil {
@@ -484,10 +491,10 @@ func readableItems(items cty.Value, sensitive bool, rng hcl.Range) (bool, hcl.Di
 
 // itemString returns a plain item of a Variable as Norca stores it, a string:
 // a number or a bool becomes its string, as HCL converts a value for a
-// string, the same as for a secret item (secretString). A list, a map, an
-// object or null has no string, and the server would refuse the Variable at
-// apply: it is an error here, naming the item. A value not known yet is left
-// for the host.
+// string, the same as for a secret item (secretString). A list, a map or an
+// object has no string, and the server would refuse the Variable at apply:
+// it is an error here, naming the item. A null item does not come here: it
+// is left out (secretItems). A value not known yet is left for the host.
 func itemString(name string, item cty.Value, rng hcl.Range) (cty.Value, *hcl.Diagnostic) {
 	if !item.IsKnown() {
 		return item, nil
@@ -500,26 +507,16 @@ func itemString(name string, item cty.Value, rng hcl.Range) (cty.Value, *hcl.Dia
 		}
 	}
 
-	what := ""
-
-	switch {
-	case item.IsNull():
-		what = "null"
-	case !item.Type().IsPrimitiveType():
-		what = article(item.Type().FriendlyName())
-	default:
-		s, err := convert.Convert(item, cty.String)
-		if err == nil {
+	if item.Type().IsPrimitiveType() {
+		if s, err := convert.Convert(item, cty.String); err == nil {
 			return s, nil
 		}
-
-		what = article(item.Type().FriendlyName())
 	}
 
 	return cty.NilVal, &hcl.Diagnostic{
 		Severity: hcl.DiagError, Summary: "Invalid item",
 		Detail: fmt.Sprintf("The item %s of the Variable is %s; an item of a Variable is a string "+
-			"(a number or a bool becomes one).", name, what),
+			"(a number or a bool becomes one).", name, article(item.Type().FriendlyName())),
 		Subject: rng.Ptr(),
 	}
 }
