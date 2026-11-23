@@ -628,6 +628,7 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 	conf.Backup = norcaBlocks.backup
 	conf.Bus = norcaBlocks.bus
 	conf.MetricsStore = norcaBlocks.metricsStore
+	conf.RiggerFetchLimits = norcaBlocks.riggerFetchLimits
 	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 	conf.SecretsExpiryWarning = norcaBlocks.secretsExpiryWarning

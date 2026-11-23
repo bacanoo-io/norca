@@ -755,6 +755,10 @@ type ServerConfig struct {
 	// MetricsStore configures the history of the task group usage.
 	MetricsStore *MetricsStoreConfig `hcl:"metrics_store"`
 
+	// Rigger configures what Rigger may fetch on the servers: the limits
+	// of one fetched commit.
+	Rigger *RiggerConfig `hcl:"rigger"`
+
 	// Secrets configures the server side of the built-in secret store.
 	Secrets *SecretsConfig `hcl:"secrets"`
 
@@ -804,6 +808,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Backup = s.Backup.Copy()
 	ns.Bus = s.Bus.Copy()
 	ns.MetricsStore = s.MetricsStore.Copy()
+	ns.Rigger = s.Rigger.Copy()
 	ns.Secrets = s.Secrets.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
@@ -2302,6 +2307,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.MetricsStore != nil {
 		result.MetricsStore = result.MetricsStore.Merge(b.MetricsStore)
+	}
+
+	if b.Rigger != nil {
+		result.Rigger = result.Rigger.Merge(b.Rigger)
 	}
 
 	if b.Secrets != nil {

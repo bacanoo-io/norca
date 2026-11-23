@@ -38,7 +38,15 @@ type registryTest struct {
 func newRegistryTest(t *testing.T) *registryTest {
 	t.Helper()
 
-	s, root, cleanup := TestACLServer(t, nil)
+	return newRegistryTestWith(t, nil)
+}
+
+// newRegistryTestWith is newRegistryTest on a server whose configuration cb
+// changes before it starts.
+func newRegistryTestWith(t *testing.T, cb func(*Config)) *registryTest {
+	t.Helper()
+
+	s, root, cleanup := TestACLServer(t, cb)
 	t.Cleanup(cleanup)
 	testutil.WaitForLeader(t, s.RPC)
 	waitOperatorKinds(t, s)
@@ -190,6 +198,55 @@ func describeItems(items []catalog.Item) string {
 	return strings.Join(parts, "; ")
 }
 
+// The fetcher of a server takes the limits of its configuration, and the
+// server default for each limit that is not set. The server defaults are
+// tighter than those of the library.
+func TestRiggerFetchLimits(t *testing.T) {
+	ci.Parallel(t)
+
+	def := fetch.Limits{TreeBytes: 1 << 30, FileBytes: 128 << 20, TreeFiles: 100_000}
+
+	tests := []struct {
+		name     string
+		set      fetch.Limits
+		expected fetch.Limits
+	}{
+		{name: "nothing set", expected: def},
+		{
+			name:     "all set",
+			set:      fetch.Limits{TreeBytes: 3 << 30, FileBytes: 1 << 20, TreeFiles: 500},
+			expected: fetch.Limits{TreeBytes: 3 << 30, FileBytes: 1 << 20, TreeFiles: 500},
+		},
+		{
+			name:     "the bytes of a tree set",
+			set:      fetch.Limits{TreeBytes: 2 << 20},
+			expected: fetch.Limits{TreeBytes: 2 << 20, FileBytes: def.FileBytes, TreeFiles: def.TreeFiles},
+		},
+		{
+			name:     "the bytes of a file set",
+			set:      fetch.Limits{FileBytes: 64},
+			expected: fetch.Limits{TreeBytes: def.TreeBytes, FileBytes: 64, TreeFiles: def.TreeFiles},
+		},
+		{
+			name:     "the files of a tree set",
+			set:      fetch.Limits{TreeFiles: 7},
+			expected: fetch.Limits{TreeBytes: def.TreeBytes, FileBytes: def.FileBytes, TreeFiles: 7},
+		},
+		{name: "a negative limit is not set", set: fetch.Limits{TreeBytes: -1, FileBytes: -1, TreeFiles: -1}, expected: def},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			must.Eq(t, tt.expected, riggerFetchLimits(tt.set))
+		})
+	}
+
+	lib := fetch.DefaultLimits()
+	must.Less(t, lib.TreeBytes, def.TreeBytes)
+	must.Less(t, lib.FileBytes, def.FileBytes)
+	must.Less(t, lib.TreeFiles, def.TreeFiles)
+}
+
 // The leader creates the registry global, shown in the UI only with what is
 // selected and not synced: it offers nothing until someone syncs it.
 func TestRiggerRegistry_Global(t *testing.T) {
@@ -337,6 +394,49 @@ func TestRiggerRegistry_FailedSync(t *testing.T) {
 
 	_, err = r.sync("missing")
 	must.ErrorContains(t, err, "not found")
+}
+
+// A registry whose commit has a file past the limit of the configuration of
+// the server fails its sync with the error of the limit, written into its
+// status; a registry within the limits syncs on the same server.
+func TestRiggerRegistry_SyncPastFetchLimit(t *testing.T) {
+	ci.Parallel(t)
+
+	r := newRegistryTestWith(t, func(c *Config) {
+		c.RiggerFetchLimits = fetch.Limits{FileBytes: 64}
+	})
+
+	// A file of exactly the limit is within it.
+	small := registryRepo(t)
+	small.commit(map[string]string{"modules/web/data.txt": strings.Repeat("x", 64)})
+	must.NoError(t, r.apply("small", map[string]any{"type": "git", "source": small.dir}))
+
+	synced, err := r.sync("small")
+	must.NoError(t, err)
+	must.Eq(t, riggerRegistryReady, synced.Status.Phase)
+	must.Eq(t, 2, synced.Status.Modules)
+
+	large := registryRepo(t)
+	head := large.commit(map[string]string{"modules/web/data.txt": strings.Repeat("x", 65)})
+	must.NoError(t, r.apply("large", map[string]any{"type": "git", "source": large.dir}))
+
+	_, err = r.sync("large")
+	must.ErrorContains(t, err, `sync of the registry "large"`)
+	must.ErrorContains(t, err, fetch.ErrTreeTooLarge.Error())
+	must.ErrorContains(t, err, "modules/web/data.txt has 65 bytes, more than 64")
+
+	failed := r.get("large")
+	must.Eq(t, riggerRegistryError, failed.Status.Phase)
+	must.StrContains(t, failed.Status.Message, fetch.ErrTreeTooLarge.Error())
+	must.Eq(t, "", failed.Status.Commit)
+
+	// The fetcher of a request (an install, a search of the modules of a
+	// registry) is made of the fetcher of the registries: the same limits.
+	f, err := r.s.riggerRequestFetcher()
+	must.NoError(t, err)
+
+	_, err = f.Checkout(t.Context(), large.dir, head.String())
+	must.ErrorIs(t, err, fetch.ErrTreeTooLarge)
 }
 
 // The checks of a write and of the calls: the type global is the registry

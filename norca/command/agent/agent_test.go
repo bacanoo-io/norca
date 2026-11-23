@@ -24,6 +24,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/raft"
 )
@@ -1755,6 +1756,61 @@ func TestAgent_ServerConfig_JobDefaultPriority_Bad(t *testing.T) {
 			_, err := convertServerConfig(conf)
 			must.Error(t, err)
 			must.ErrorContains(t, err, "job_default_priority cannot be")
+		})
+	}
+}
+
+// The limits of the rigger block reach the configuration of the server; a
+// limit that is not set stays zero, which is the default of a server. A
+// negative limit keeps the server from starting.
+func TestAgent_ServerConfig_RiggerFetchLimits(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name     string
+		rigger   *RiggerConfig
+		expected fetch.Limits
+		err      string
+	}{
+		{name: "no block"},
+		{
+			name:     "all limits",
+			rigger:   &RiggerConfig{FetchTreeMaxBytes: "2GiB", FetchFileMaxBytes: "64MiB", FetchTreeMaxFiles: 5000},
+			expected: fetch.Limits{TreeBytes: 2 << 30, FileBytes: 64 << 20, TreeFiles: 5000},
+		},
+		{
+			name:     "one limit",
+			rigger:   &RiggerConfig{FetchTreeMaxFiles: 5000},
+			expected: fetch.Limits{TreeFiles: 5000},
+		},
+		{
+			name:   "negative bytes",
+			rigger: &RiggerConfig{FetchFileMaxBytes: "-64MiB"},
+			err:    "invalid server rigger configuration: rigger.fetch_file_max_bytes must be a size that is not negative, not -64MiB",
+		},
+		{
+			name:   "negative files",
+			rigger: &RiggerConfig{FetchTreeMaxFiles: -5000},
+			err:    "invalid server rigger configuration: rigger.fetch_tree_max_files must not be negative, not -5000",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := DevConfig(nil)
+			must.NoError(t, conf.normalizeAddrs())
+
+			conf.Server.Rigger = tc.rigger
+
+			serverConf, err := convertServerConfig(conf)
+			if tc.err != "" {
+				must.ErrorContains(t, err, tc.err)
+
+				return
+			}
+
+			must.NoError(t, err)
+			must.Eq(t, tc.expected, serverConf.RiggerFetchLimits)
 		})
 	}
 }

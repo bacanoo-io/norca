@@ -59,6 +59,56 @@ type riggerRegistryIndex struct {
 	items          []catalog.Item
 }
 
+// The limits of the fetcher of a server (fetch.Limits) unless its
+// configuration sets others (Config.RiggerFetchLimits, the rigger block of
+// the server). They are tighter than the defaults of the library
+// (fetch.DefaultLimits: 4 GiB, 1 GiB and 1,000,000 files). Those are wide
+// on purpose, for the rigger program: it fetches what its own user names,
+// into the cache of that user. A server fetches the repositories other
+// people name, into the data directory that also holds the state of the
+// cluster, and it runs several fetches at a time, each with the whole
+// bound. A registry, a module or a stack is small against the bounds
+// below; whoever needs more sets it.
+const (
+	// defaultRiggerFetchTreeMaxBytes bounds the files of the tree of one
+	// fetched commit together.
+	defaultRiggerFetchTreeMaxBytes = 1 << 30
+	// defaultRiggerFetchFileMaxBytes bounds one file of a tree.
+	defaultRiggerFetchFileMaxBytes = 128 << 20
+	// defaultRiggerFetchTreeMaxFiles bounds the number of files of a tree.
+	defaultRiggerFetchTreeMaxFiles = 100_000
+)
+
+// riggerFetchLimits returns the limits of the fetcher of a server: those
+// set, and the default of a server for each that is not positive. Never
+// the defaults of the library, which fetch.Fetcher.SetLimits takes for a
+// limit that is not positive.
+func riggerFetchLimits(set fetch.Limits) fetch.Limits {
+	limits := fetch.Limits{
+		TreeBytes: defaultRiggerFetchTreeMaxBytes,
+		FileBytes: defaultRiggerFetchFileMaxBytes,
+		TreeFiles: defaultRiggerFetchTreeMaxFiles,
+	}
+
+	if set.TreeBytes > 0 {
+		limits.TreeBytes = set.TreeBytes
+	}
+
+	if set.FileBytes > 0 {
+		limits.FileBytes = set.FileBytes
+	}
+
+	if set.TreeFiles > 0 {
+		limits.TreeFiles = set.TreeFiles
+	}
+
+	return limits
+}
+
+// newRiggerRegistries returns the registries of a server with their cache
+// in dir. Its fetcher, and the fetchers of the requests made of it
+// (riggerRequestFetcher), have the limits of the configuration of the
+// server.
 func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 	r := &riggerRegistries{
 		srv:      srv,
@@ -69,6 +119,7 @@ func newRiggerRegistries(srv *Server, dir string) *riggerRegistries {
 		unpacked: map[string][]riggerBundledModule{},
 	}
 	r.fetcher.SetCredentials(r.credentials)
+	r.fetcher.SetLimits(riggerFetchLimits(srv.config.RiggerFetchLimits))
 
 	return r
 }

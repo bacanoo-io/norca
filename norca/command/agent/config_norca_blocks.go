@@ -15,6 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/secretstore"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 )
 
 // norcaServerBlocks are the Norca blocks of the server configuration,
@@ -28,6 +29,10 @@ type norcaServerBlocks struct {
 	bus          *bus.Config
 	metricsStore *metricsstore.Config
 	secretsAudit *secretstore.AuditFileConfig
+
+	// riggerFetchLimits are the limits of the rigger block; a limit of 0
+	// keeps the server default.
+	riggerFetchLimits fetch.Limits
 
 	// secretsExpiryWarning is the expiry warning window of the secrets
 	// watcher; 0 keeps the server default.
@@ -43,9 +48,10 @@ type norcaServerBlocks struct {
 }
 
 // convertNorcaServerBlocks converts and validates the Norca blocks of the
-// server configuration: admission, keyring, mtls, autoscaler, backup, secrets
-// and native_service_discovery. The agent runs it when it starts the server
-// and config validate runs it on the files, so both report the same errors.
+// server configuration: admission, keyring, mtls, autoscaler, backup, bus,
+// metrics_store, rigger, secrets and native_service_discovery. The agent runs
+// it when it starts the server and config validate runs it on the files, so
+// both report the same errors.
 func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks, error) {
 	out := &norcaServerBlocks{}
 	if s == nil {
@@ -98,6 +104,9 @@ func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks
 	}
 	if out.metricsStore, err = s.MetricsStore.toServerConfig(); err != nil {
 		return nil, fmt.Errorf("invalid server metrics_store configuration: %w", err)
+	}
+	if out.riggerFetchLimits, err = s.Rigger.fetchLimits(); err != nil {
+		return nil, fmt.Errorf("invalid server rigger configuration: %w", err)
 	}
 	if out.secretsAudit, err = s.Secrets.toAuditFileConfig(); err != nil {
 		return nil, err

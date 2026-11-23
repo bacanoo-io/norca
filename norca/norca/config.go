@@ -29,6 +29,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/scheduler"
 	"github.com/bacanoo-io/norca/norca/secretstore"
 	"github.com/bacanoo-io/norca/norca/version"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
@@ -525,6 +526,14 @@ type Config struct {
 	// clients publish on the bus, kept in <DataDir>/tsdb. nil (the default
 	// here) disables it; the agent enables it on servers.
 	MetricsStore *metricsstore.Config
+
+	// RiggerFetchLimits bound what the fetcher of Rigger writes into the
+	// cache of this server of one commit of a git repository: the bytes of
+	// its tree, the bytes of one file and the number of its files. A limit
+	// that is not positive takes the default of a server
+	// (riggerFetchLimits). The fetcher takes them when it is made: a
+	// change needs a restart.
+	RiggerFetchLimits fetch.Limits
 
 	// TelemetrySink is the in-memory sink of the agent's telemetry (what
 	// /v1/metrics shows). The metrics store reads the Raft commit and
