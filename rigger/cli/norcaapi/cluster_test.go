@@ -24,6 +24,11 @@ const (
 	releasesPath = "/releases"
 )
 
+// requestWait is how long a test waits for a request of Info to reach its
+// server. The request before it may take long on a machine that scans
+// local connections (20 seconds were seen on Windows).
+const requestWait = 2 * time.Minute
+
 // writeSelf answers /v1/agent/self as an agent of Norca 0.3.0.
 func writeSelf(t *testing.T, w http.ResponseWriter) {
 	t.Helper()
@@ -131,6 +136,69 @@ func TestCluster_InfoFeatures(t *testing.T) {
 	}
 }
 
+// hangingCluster is the client of a cluster that never answers the request
+// whose path ends with hangs: it waits until its client gives up, or the
+// test ends, and is told on the channel. The other requests are answered as
+// /v1/agent/self.
+func hangingCluster(t *testing.T, hangs string) (*api.Client, <-chan struct{}) {
+	t.Helper()
+
+	release := make(chan struct{})
+	hung := make(chan struct{}, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, hangs) {
+			writeSelf(t, w)
+
+			return
+		}
+
+		select {
+		case hung <- struct{}{}:
+		default:
+		}
+
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+
+	// Close waits for the requests: one whose client never gave up is let
+	// go first.
+	t.Cleanup(func() {
+		close(release)
+		srv.Close()
+	})
+
+	client, err := api.NewClient(&api.Config{Address: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return client, hung
+}
+
+// endsWithin waits for the end of a call, for d at most. A machine that
+// stood still for longer than d has both the end and the time when it goes
+// on: the end is waited for a little longer, so that it wins.
+func endsWithin[T any](done <-chan T, d time.Duration) (T, bool) {
+	select {
+	case v := <-done:
+		return v, true
+	case <-time.After(d):
+	}
+
+	select {
+	case v := <-done:
+		return v, true
+	case <-time.After(5 * time.Second):
+		var none T
+
+		return none, false
+	}
+}
+
 // Info ends when its context is done, whichever of its two requests waits
 // for the cluster.
 func TestCluster_Info_Cancelled(t *testing.T) {
@@ -149,38 +217,7 @@ func TestCluster_Info_Cancelled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			release := make(chan struct{})
-			hung := make(chan struct{}, 1)
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if !strings.HasSuffix(r.URL.Path, tt.hangs) {
-					writeSelf(t, w)
-
-					return
-				}
-
-				select {
-				case hung <- struct{}{}:
-				default:
-				}
-
-				select {
-				case <-r.Context().Done():
-				case <-release:
-				}
-			}))
-
-			// Close waits for the requests: one whose client never gave
-			// up is let go first.
-			t.Cleanup(func() {
-				close(release)
-				srv.Close()
-			})
-
-			client, err := api.NewClient(&api.Config{Address: srv.URL})
-			if err != nil {
-				t.Fatal(err)
-			}
+			client, hung := hangingCluster(t, tt.hangs)
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -196,19 +233,19 @@ func TestCluster_Info_Cancelled(t *testing.T) {
 			case <-hung:
 			case err := <-done:
 				t.Fatalf("Info() = %v before a request hung", err)
-			case <-time.After(30 * time.Second):
+			case <-time.After(requestWait):
 				t.Fatal("no request reached the server")
 			}
 
 			cancel()
 
-			select {
-			case err := <-done:
-				if !errors.Is(err, context.Canceled) {
-					t.Errorf("Info() = %v, want the error of the cancelled context", err)
-				}
-			case <-time.After(10 * time.Second):
+			err, ended := endsWithin(done, 10*time.Second)
+			if !ended {
 				t.Fatal("Info still waits for the cluster after its context was cancelled")
+			}
+
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("Info() = %v, want the error of the cancelled context", err)
 			}
 		})
 	}

@@ -218,6 +218,11 @@ func TestRun_Registry(t *testing.T) {
 	}
 }
 
+// requestWait is how long a test waits for a request of its command to
+// reach its server. The requests before it may each take long on a machine
+// that scans local connections (20 seconds were seen on Windows).
+const requestWait = 2 * time.Minute
+
 // hangingServer is a server of the HTTP API that never answers the requests
 // hangs picks: they wait until their client gives up, or the test ends. The
 // other requests go to next. A request that hangs is told on the channel.
@@ -265,19 +270,37 @@ func cancelWhenHung(t *testing.T, hung <-chan struct{}, cancel context.CancelFun
 	case <-hung:
 	case code := <-done:
 		t.Fatalf("the command ended with %d before a request hung", code)
-	case <-time.After(30 * time.Second):
+	case <-time.After(requestWait):
 		t.Fatal("no request reached the server")
 	}
 
 	cancel()
 
-	select {
-	case code := <-done:
-		return code
-	case <-time.After(10 * time.Second):
+	code, ended := endsWithin(done, 10*time.Second)
+	if !ended {
 		t.Fatal("the command still waits for the server after its context was cancelled")
+	}
 
-		return 0
+	return code
+}
+
+// endsWithin waits for the end of a command, for d at most. A machine that
+// stood still for longer than d has both the end and the time when it goes
+// on: the end is waited for a little longer, so that it wins.
+func endsWithin[T any](done <-chan T, d time.Duration) (T, bool) {
+	select {
+	case v := <-done:
+		return v, true
+	case <-time.After(d):
+	}
+
+	select {
+	case v := <-done:
+		return v, true
+	case <-time.After(5 * time.Second):
+		var none T
+
+		return none, false
 	}
 }
 

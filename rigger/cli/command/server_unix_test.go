@@ -97,7 +97,7 @@ func TestFollowOperation_DetachAtResult(t *testing.T) {
 		case <-ch:
 		case err := <-done:
 			t.Fatalf("followOperation() = %v before %s", err, what)
-		case <-time.After(30 * time.Second):
+		case <-time.After(requestWait):
 			t.Fatalf("waited in vain for %s", what)
 		}
 	}
@@ -110,12 +110,12 @@ func TestFollowOperation_DetachAtResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	select {
-	case err := <-done:
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("followOperation() = %v, want the error of the cancelled context", err)
-		}
-	case <-time.After(10 * time.Second):
+	err, ended := endsWithin(done, 10*time.Second)
+	if !ended {
 		t.Fatal("the command still reads the result after the second interrupt")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("followOperation() = %v, want the error of the cancelled context", err)
 	}
 }
