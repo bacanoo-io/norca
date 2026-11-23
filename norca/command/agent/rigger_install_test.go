@@ -130,6 +130,7 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 		}, &srel))
 		must.True(t, srel.Release.Spec.Pack.ServerRendered, must.Sprint("a module of a registry is applied as rendered by the server"))
 		must.Eq(t, "acme/web", srel.Release.Spec.Pack.Source)
+		must.Eq(t, "acme", srel.Release.Spec.Pack.Registry, must.Sprint("the registry of the cluster it came from, for an upgrade"))
 
 		again, _, err := client.Rigger().Install(req, true, nil)
 		must.NoError(t, err)
@@ -197,6 +198,7 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 			Name: "web-local", QueryOptions: structs.QueryOptions{Region: "global", Namespace: "local", AuthToken: s.RootToken.SecretID},
 		}, &srel))
 		must.False(t, srel.Release.Spec.Pack.ServerRendered, must.Sprint("a local module is applied as a client's"))
+		must.Eq(t, "", srel.Release.Spec.Pack.Registry, must.Sprint("a local module is of no registry"))
 
 		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "x", Registry: "acme", Files: files}, true, nil)
 		must.ErrorContains(t, err, "without a registry")

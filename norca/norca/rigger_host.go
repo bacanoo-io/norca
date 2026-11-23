@@ -43,6 +43,10 @@ type riggerHosts struct {
 	srv       *Server
 	token     string
 	namespace string
+	// registry is the registry of the cluster the module of an install
+	// came from, recorded as the registry of the pack fields; none for a
+	// stack, whose sources are its own.
+	registry string
 
 	// apply applies a release request (a dry run too); Release.Apply in
 	// the process unless set.
@@ -196,6 +200,10 @@ func (r riggerReleases) request(req host.ApplyRequest, dryRun bool) (*structs.Re
 	areq, err := norcaapi.ApplyRequest(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if r.h.registry != "" && areq.Pack != nil {
+		areq.Pack.Registry = r.h.registry
 	}
 
 	sreq, err := r.h.srv.config.ReleaseFromRendered(req.Release.Name, areq, req.Release.Namespace)

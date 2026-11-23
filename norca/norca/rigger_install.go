@@ -267,7 +267,9 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 	// A module of a registry is fetched and verified by the server: its
 	// release is admitted as rendered by the server. A local one is a
 	// client's.
-	eng, err := s.riggerServerEngine(args.AuthToken, namespace, !local, rpcCtx, src)
+	// A module of a registry records the registry of the cluster it came
+	// from: what an upgrade in the UI takes it from again.
+	eng, err := s.riggerServerEngine(args.AuthToken, namespace, args.Registry, !local, rpcCtx, src)
 	if err != nil {
 		return err
 	}
@@ -363,7 +365,7 @@ func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace st
 // sources of the request. The releases are applied as rendered by the
 // server when serverRendered is set and an index the servers synced vouches
 // for all that was fetched for them.
-func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool, rpcCtx *RPCContext,
+func (s *Server) riggerServerEngine(token, namespace, registry string, serverRendered bool, rpcCtx *RPCContext,
 	src *riggerSources, opts ...rigger.Option,
 ) (*rigger.Engine, error) {
 	// The bundles imported into the cluster are sources: unpacked into the
@@ -378,7 +380,7 @@ func (s *Server) riggerServerEngine(token, namespace string, serverRendered bool
 
 	src.bundled = bundled
 
-	h := &riggerHosts{srv: s, token: token, namespace: namespace}
+	h := &riggerHosts{srv: s, token: token, namespace: namespace, registry: registry}
 	h.apply = func(req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse) error {
 		return NewReleaseEndpoint(s, rpcCtx).applyInternal(req, resp, serverRendered && src.indexed(), "")
 	}
