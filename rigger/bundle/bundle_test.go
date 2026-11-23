@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,11 @@ func TestWriteRead(t *testing.T) {
 
 	if _, _, err := bundle.ReadBounded(bytes.NewReader(buf.Bytes()), 1<<20); err != nil {
 		t.Errorf("a bundle within its bound: %v", err)
+	}
+
+	// The largest bound of all is a bound too, not one of nothing.
+	if _, _, err := bundle.ReadBounded(bytes.NewReader(buf.Bytes()), math.MaxInt64); err != nil {
+		t.Errorf("a bundle within the largest bound: %v", err)
 	}
 }
 

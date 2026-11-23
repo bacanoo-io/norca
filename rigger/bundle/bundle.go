@@ -147,7 +147,7 @@ func ReadBounded(r io.Reader, maxBytes int64) (*Manifest, map[string]map[string]
 	}
 	defer gz.Close() //nolint:errcheck // read only
 
-	lr := &io.LimitedReader{R: gz, N: maxBytes + 1}
+	lr := &io.LimitedReader{R: gz, N: readlimit.Limit(maxBytes)}
 	tr := tar.NewReader(lr)
 
 	var manifest *Manifest
