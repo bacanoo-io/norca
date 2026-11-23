@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,6 +166,78 @@ func TestGitLocalRepository(t *testing.T) {
 	tags, err := f.Tags(context.Background(), "file://"+filepath.ToSlash(repo))
 	if err != nil || len(tags) != 2 {
 		t.Errorf("tags %+v, %v", tags, err)
+	}
+}
+
+// The path of the URL of a file is the path as the system writes it. On
+// Windows the drive follows a slash of the URL (file:///C:/repos/x), which
+// is no part of the path; elsewhere such a path is one below the root.
+func TestFileURLPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		path     string
+		windows  bool
+		expected string
+	}{
+		{name: "a drive", path: "/C:/repos/x", windows: true, expected: "C:/repos/x"},
+		{name: "a drive in lower case", path: "/c:/repos/x", windows: true, expected: "c:/repos/x"},
+		{name: "a drive alone", path: "/C:", windows: true, expected: "C:"},
+		{name: "a drive without the slash of the URL", path: "C:/repos/x", windows: true, expected: "C:/repos/x"},
+		{name: "no drive", path: "/repos/x", windows: true, expected: "/repos/x"},
+		{name: "a directory that ends in a colon", path: "/CC:/x", windows: true, expected: "/CC:/x"},
+		{name: "a file that starts like a drive", path: "/C:x", windows: true, expected: "/C:x"},
+		{name: "empty", path: "", windows: true, expected: ""},
+		{name: "a path like a drive, not on windows", path: "/C:/repos/x", expected: "/C:/repos/x"},
+		{name: "a path of unix", path: "/srv/repos/x", expected: "/srv/repos/x"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := fileURLPath(tt.path, tt.windows); got != tt.expected {
+				t.Errorf("fileURLPath(%q, %v) = %q, want %q", tt.path, tt.windows, got, tt.expected)
+			}
+		})
+	}
+}
+
+// A repository on the local file system is the same one by its path, by
+// its URL (file:///C:/repos/x on Windows) and by the URL without the slash
+// before a drive.
+func TestLocalPath_Addresses(t *testing.T) {
+	t.Parallel()
+
+	repo, _, second := testRepo(t)
+	slash := filepath.ToSlash(repo)
+
+	addresses := map[string]string{
+		"a path":           repo,
+		"a URL":            "file:///" + strings.TrimPrefix(slash, "/"),
+		"a URL of a drive": "file://" + slash,
+	}
+
+	f := New(t.TempDir())
+
+	for name, address := range addresses {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if !LocalRepository(address) {
+				t.Errorf("LocalRepository(%q) = false", address)
+			}
+
+			commit, err := f.Sync(t.Context(), address)
+			if err != nil || commit != second {
+				t.Errorf("Sync(%q) = %q, %v; want the head %s", address, commit, err, second)
+			}
+
+			if got, want := CanonicalRepository(address), CanonicalRepository(repo); got != want {
+				t.Errorf("CanonicalRepository(%q) = %q, want that of the path, %q", address, got, want)
+			}
+		})
 	}
 }
 

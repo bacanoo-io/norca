@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	git "github.com/go-git/go-git/v5"
@@ -65,11 +66,23 @@ func (f *Fetcher) SetCredentials(fn CredentialsFunc) {
 	f.credentials = fn
 }
 
+// fileURLPath returns the path of the URL of a file, given without its
+// scheme. On Windows the path of file:///C:/repos/x is /C:/repos/x, and the
+// slash before the drive is of the URL, not of the path.
+func fileURLPath(p string, windows bool) string {
+	if windows && len(p) >= 3 && p[0] == '/' && p[2] == ':' && (len(p) == 3 || p[3] == '/') &&
+		(p[1] >= 'a' && p[1] <= 'z' || p[1] >= 'A' && p[1] <= 'Z') {
+		return p[1:]
+	}
+
+	return p
+}
+
 // localPath returns the directory of a repository on the local file
 // system: a file:// URL or an absolute path.
 func localPath(repo string) (string, bool) {
 	if p, ok := strings.CutPrefix(repo, "file://"); ok {
-		return filepath.FromSlash(p), true
+		return filepath.FromSlash(fileURLPath(p, runtime.GOOS == "windows")), true
 	}
 
 	if strings.HasPrefix(repo, "/") || filepath.IsAbs(repo) {

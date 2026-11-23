@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -268,8 +269,9 @@ type gitAddress struct {
 	repository, path, tagPrefix string
 }
 
-// gitRepository reads a git address: a URL, an absolute path, or a host
-// name (with a dot) and a path; //<dir> names the module inside.
+// gitRepository reads a git address: a URL, an absolute path (on Windows a
+// path of a drive too), or a host name (with a dot) and a path; //<dir>
+// names the module inside.
 func gitRepository(address string) (gitAddress, bool) {
 	scheme := ""
 
@@ -283,7 +285,7 @@ func gitRepository(address string) (gitAddress, bool) {
 	host, _, _ := strings.Cut(rest, "/")
 
 	// An scp-like address names a host as it is, with a dot or without.
-	named := strings.HasPrefix(address, "/") || IsSCPAddress(address) || strings.Contains(host, ".")
+	named := strings.HasPrefix(address, "/") || filepath.IsAbs(address) || IsSCPAddress(address) || strings.Contains(host, ".")
 
 	if scheme == "" && !named {
 		return gitAddress{}, false

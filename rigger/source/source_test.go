@@ -5,6 +5,7 @@ package source_test
 
 import (
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -43,6 +44,52 @@ func TestParse(t *testing.T) {
 		tt.expected.Source = tt.address
 		if tt.err == nil && got != tt.expected {
 			t.Errorf("Parse(%q) = %+v, want %+v", tt.address, got, tt.expected)
+		}
+	}
+}
+
+// An absolute path is a git repository on the machine that fetches it. On
+// Windows that is a path of a drive, with either separator; elsewhere such
+// a text is no path, and no source.
+func TestParse_DrivePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		address    string
+		repository string
+		path       string
+	}{
+		{address: `C:\repos\mods`, repository: `C:\repos\mods`, path: "."},
+		{address: "C:/repos/mods", repository: "C:/repos/mods", path: "."},
+		{address: "c:/repos/mods//web", repository: "c:/repos/mods", path: "web"},
+		{address: `D:\repos\mods//modules/web`, repository: `D:\repos\mods`, path: "modules/web"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := source.Parse(tt.address, nil)
+
+			if runtime.GOOS != "windows" {
+				if !errors.Is(err, source.ErrAddress) {
+					t.Errorf("Parse(%q) = %+v, %v; want ErrAddress where it is no path", tt.address, got, err)
+				}
+
+				return
+			}
+
+			if err != nil || got.Kind != source.KindGit || got.Repository != tt.repository || got.Path != tt.path {
+				t.Errorf("Parse(%q) = %+v, %v; want the git repository %s, path %s", tt.address, got, err, tt.repository, tt.path)
+			}
+		})
+	}
+
+	// A drive without a path below it, and a path of the current directory
+	// of a drive, are no absolute paths anywhere.
+	for _, address := range []string{"C:", "C:repos/mods"} {
+		if got, err := source.Parse(address, nil); err == nil {
+			t.Errorf("Parse(%q) = %+v, want an error", address, got)
 		}
 	}
 }
