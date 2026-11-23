@@ -17,14 +17,22 @@ import (
 
 	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/module"
+	"github.com/bacanoo-io/norca/rigger/version"
 )
 
 // moduleName is the name of a module or of a release: the rule of the
 // deployer (design 6.4).
 var moduleName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
-// semver is a version of a module (design 7.2).
-var semver = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+// validVersion reports whether s is a version of a module or of a stack
+// (design 7.2): one version.Parse takes, written as a tag, the index and
+// the lock file write it, without a leading v. The metadata has no rule of
+// its own, so that a version it takes is one the rest of Rigger reads.
+func validVersion(s string) bool {
+	v, err := version.Parse(s)
+
+	return err == nil && v.String() == s
+}
 
 // metadataFile is metadata.hcl of a module.
 type metadataFile struct {
@@ -106,7 +114,7 @@ func (b *moduleBlock) metadata(rng hcl.Range, what string) (module.Metadata, hcl
 
 	// A module of a stack's own needs no version (design 6.4); publishing
 	// needs one.
-	if b.Version != "" && !semver.MatchString(b.Version) {
+	if b.Version != "" && !validVersion(b.Version) {
 		diags = append(diags, errorAt(rng, "Invalid version",
 			fmt.Sprintf("%q is not a semver version such as 1.2.0.", b.Version)))
 	}

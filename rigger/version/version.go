@@ -7,6 +7,7 @@
 package version
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -25,11 +26,20 @@ type Version struct {
 // ErrInvalid is the error of a text that is not a version or a constraint.
 var ErrInvalid = errors.New("invalid version")
 
-// Parse parses a version, with an optional leading v.
+// Parse parses a version of Semantic Versioning 2.0.0, with an optional
+// leading v: three numbers, then an optional pre-release after a dash and
+// optional build metadata after a plus, both identifiers of letters, digits
+// and dashes separated by dots. No number, and no identifier of a
+// pre-release that is a number, starts with a zero it does not need.
+//
+// Parse is the one check of a version that comes from outside (an index, a
+// tag of a repository or of an OCI registry), so a text it takes holds
+// nothing but those characters: no white space, no path, no control
+// character.
 func Parse(s string) (Version, error) {
 	text := strings.TrimPrefix(s, "v")
 
-	text, build, _ := strings.Cut(text, "+")
+	text, build, hasBuild := strings.Cut(text, "+")
 	core, pre, hasPre := strings.Cut(text, "-")
 
 	parts := strings.Split(core, ".")
@@ -41,24 +51,65 @@ func Parse(s string) (Version, error) {
 
 	for i, p := range parts {
 		n, err := strconv.ParseUint(p, 10, 64)
-		if err != nil || (len(p) > 1 && p[0] == '0') {
+		if err != nil || padded(p) {
 			return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
 		}
 
 		nums[i] = n
 	}
 
-	v := Version{Major: nums[0], Minor: nums[1], Patch: nums[2], Build: build}
+	v := Version{Major: nums[0], Minor: nums[1], Patch: nums[2]}
 
 	if hasPre {
-		if pre == "" {
-			return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+		v.Pre = strings.Split(pre, ".")
+
+		for _, id := range v.Pre {
+			if !isIdentifier(id) || (isNumber(id) && padded(id)) {
+				return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+			}
+		}
+	}
+
+	if hasBuild {
+		for id := range strings.SplitSeq(build, ".") {
+			if !isIdentifier(id) {
+				return Version{}, fmt.Errorf("%w: %q", ErrInvalid, s)
+			}
 		}
 
-		v.Pre = strings.Split(pre, ".")
+		v.Build = build
 	}
 
 	return v, nil
+}
+
+// isIdentifier reports whether s is an identifier of a pre-release or of
+// build metadata: one or more ASCII letters, digits and dashes.
+func isIdentifier(s string) bool {
+	for i := range len(s) {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && c != '-' {
+			return false
+		}
+	}
+
+	return s != ""
+}
+
+// isNumber reports whether s is one or more ASCII digits.
+func isNumber(s string) bool {
+	for i := range len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+
+	return s != ""
+}
+
+// padded reports whether a number starts with a zero it does not need.
+func padded(s string) bool {
+	return len(s) > 1 && s[0] == '0'
 }
 
 // String writes the version without a leading v.
@@ -116,30 +167,32 @@ func Compare(a, b Version) int {
 // comparePre orders two identifiers of a pre-release: numbers by value and
 // before words, words by their bytes.
 func comparePre(a, b string) int {
-	na, ea := strconv.ParseUint(a, 10, 64)
-	nb, eb := strconv.ParseUint(b, 10, 64)
+	na, nb := isNumber(a), isNumber(b)
 
 	switch {
-	case ea == nil && eb == nil:
-		return cmpUint(na, nb)
-	case ea == nil:
+	case na && nb:
+		return compareNumbers(a, b)
+	case na:
 		return -1
-	case eb == nil:
+	case nb:
 		return 1
 	default:
 		return strings.Compare(a, b)
 	}
 }
 
-func cmpUint(a, b uint64) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
+// compareNumbers orders two texts of digits by their value. A number of a
+// pre-release has no limit of size, so the texts are not converted: without
+// the zeros before them the longer is the larger, and two of one length are
+// in the order of their bytes.
+func compareNumbers(a, b string) int {
+	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+
+	if len(a) != len(b) {
+		return cmp.Compare(len(a), len(b))
 	}
+
+	return strings.Compare(a, b)
 }
 
 // Constraint is a set of conditions on a version, all of which must hold.
