@@ -6,6 +6,7 @@ package eval
 import (
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -47,6 +48,17 @@ func TestTextBlock(t *testing.T) {
 		},
 		{name: "the attribute", src: "rules = \"node {}\"\n"},
 		{name: "both", src: "rules = \"x\"\nrules {\n}\n", err: "one attribute holding the text, or one block"},
+		{
+			// $${ is how HCL writes the two characters ${ in a string.
+			name: "a runtime reference",
+			src:  "rules {\n  description = \"dc ${runtime(\"node.datacenter\")}\"\n}\n",
+			want: "description = \"dc $${node.datacenter}\"\n",
+		},
+		{
+			name: "a reference only a task template resolves",
+			src:  "rules {\n  description = secret_ref(\"p\", \"i\")\n}\n",
+			err:  "p.hcl:2,17-37: Value not encoded; The value of description could not be encoded: secret_ref: can be used only in the data of a task template.",
+		},
 	}
 
 	for _, tt := range tests {
@@ -58,9 +70,12 @@ func TestTextBlock(t *testing.T) {
 				t.Fatal(diags)
 			}
 
-			ctx := &hcl.EvalContext{Variables: map[string]cty.Value{
-				"var": cty.ObjectVal(map[string]cty.Value{"ns": cty.StringVal("apps"), "none": cty.NullVal(cty.String)}),
-			}}
+			ctx := &hcl.EvalContext{
+				Variables: map[string]cty.Value{
+					"var": cty.ObjectVal(map[string]cty.Value{"ns": cty.StringVal("apps"), "none": cty.NullVal(cty.String)}),
+				},
+				Functions: moduleFunctions(fstest.MapFS{}, 0),
+			}
 
 			in := cty.ObjectVal(map[string]cty.Value{"rules": cty.StringVal("node {}"), "name": cty.StringVal("p")})
 

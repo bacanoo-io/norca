@@ -14,8 +14,9 @@ import (
 // renderBlock writes a block as it evaluates, as HCL for a decoder of the
 // host (host.ResourceDecoder): its attributes as values in the order of the
 // module (a null one left out), its blocks in their order, dynamic blocks
-// expanded, without the names of skip at the top. A sensitive value is
-// refused: the text goes to the host.
+// expanded, without the names of skip at the top. A runtime reference is
+// written as outside a task template, ${...}. A sensitive value is refused:
+// the text goes to the host.
 func renderBlock(block *hcl.Block, label string, ctx *hcl.EvalContext, skip map[string]bool, x *expansion) ([]byte, hcl.Diagnostics) {
 	f := hclwrite.NewEmptyFile()
 
@@ -62,6 +63,16 @@ func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip ma
 
 		if !v.IsWhollyKnown() {
 			diags = append(diags, unknownDiag(a.Name, a.Expr.Range()))
+
+			continue
+		}
+
+		// The reader of the text does not know a runtime reference as it is
+		// inside the engine: it is resolved as in the value of a block the
+		// engine encodes itself (marshal).
+		v, err := resolveRuntime(v)
+		if err != nil {
+			diags = append(diags, valueDiag(a.Name, err, a.Expr.Range()))
 
 			continue
 		}

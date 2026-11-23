@@ -4,10 +4,93 @@
 package eval_test
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/bacanoo-io/norca/rigger/internal/eval"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
+
+// sourceDecoder is a decoder of the host that keeps the block it is given:
+// the spec of an object is the text of its block, as a JSON string.
+type sourceDecoder struct{}
+
+func (sourceDecoder) Kinds() []resource.Kind {
+	return []resource.Kind{resource.KindObject}
+}
+
+func (sourceDecoder) DecodeResource(_ context.Context, _ resource.Kind, _ string, src []byte) (json.RawMessage, hcl.Diagnostics) {
+	data, err := json.Marshal(string(src))
+	if err != nil {
+		return nil, hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Not encoded", Detail: err.Error()}}
+	}
+
+	return data, nil
+}
+
+// The block a decoder of the host is given has its runtime references
+// resolved as outside a task template, as the value of a block the engine
+// encodes itself has: the decoder does not know the form of a reference
+// inside the engine. $${ is how HCL writes the two characters ${ in a
+// string.
+func TestEvaluate_DecodedRuntimeReferences(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		value    string
+		source   string // in the text the decoder is given
+		expected string // in the diagnostics
+	}{
+		{name: "a whole value", value: `runtime_env("HOME")`, source: `a = "$${HOME}"`},
+		{name: "a part of a string", value: `"${runtime("node.datacenter")}/x"`, source: `a = "$${node.datacenter}/x"`},
+		{name: "an item of a list", value: `["a", runtime_env("HOME")]`, source: `a = ["a", "$${HOME}"]`},
+		{name: "no reference", value: `"a"`, source: `a = "a"`},
+		{
+			name: "a reference only a task template resolves", value: `secret_ref("p", "i")`,
+			expected: "x.object.hcl:3,9-29: Value not encoded; The value of a could not be encoded: secret_ref: can be used only in the data of a task template.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := load(t, module(map[string]string{xObject: "object \"x\" {\n  spec {\n    a = " + tt.value + "\n  }\n}\n"}))
+
+			res, diags := eval.Evaluate(t.Context(), m, cty.EmptyObjectVal, facts, eval.Config{
+				FileBytes: 1 << 20, Resources: 10, Decoder: sourceDecoder{},
+			})
+
+			if tt.expected != "" {
+				if got := diags.Error(); len(diags) != 1 || !strings.Contains(got, tt.expected) {
+					t.Errorf("diagnostics = %q, want the one that contains %q", got, tt.expected)
+				}
+
+				return
+			}
+
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			var source string
+			if err := json.Unmarshal(res.Resources[0].Spec, &source); err != nil {
+				t.Fatal(err)
+			}
+
+			if !strings.Contains(source, tt.source) {
+				t.Errorf("the decoder was given\n%s\nwant it to contain %s", source, tt.source)
+			}
+		})
+	}
+}
 
 // The items of a Variable are strings in Norca: a number or a bool becomes
 // its string, as HCL converts a value for a string; a list, a map or an
