@@ -246,6 +246,78 @@ func TestLocalPath_Addresses(t *testing.T) {
 	}
 }
 
+// Two runs of the program share a cache and know nothing of each other's
+// locks. A clone that fails leaves alone what another run has at the place
+// of the mirror, and clones of one repository at the same time end with one
+// mirror that is whole.
+func TestUpdateMirror_OtherRuns(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a clone that fails", func(t *testing.T) {
+		t.Parallel()
+
+		f := New(t.TempDir())
+		mirror := f.mirrorDir(noNetwork)
+
+		// What another run is writing there: not yet a repository.
+		theirs := filepath.Join(mirror, "objects", "pack", "tmp_pack_of_another_run")
+		write(t, theirs, "pack")
+
+		if _, err := f.updateMirror(t.Context(), noNetwork, mirror, nil); err == nil {
+			t.Fatal("a clone of a repository no one serves = nil")
+		}
+
+		if _, err := os.Stat(theirs); err != nil {
+			t.Errorf("the failed clone removed what another run had at the mirror: %v", err)
+		}
+
+		entries, err := os.ReadDir(filepath.Dir(mirror))
+		if err != nil || len(entries) != 1 {
+			t.Errorf("the failed clone left %d entries beside the mirror, %v", len(entries), err)
+		}
+	})
+
+	t.Run("clones at the same time", func(t *testing.T) {
+		t.Parallel()
+
+		src, _, second := testRepo(t)
+		cache := t.TempDir()
+
+		const runs = 8
+
+		errs := make(chan error, runs)
+		mirror := New(cache).mirrorDir(src)
+
+		for range runs {
+			go func() {
+				// A fetcher of its own is a run of its own: no lock is shared.
+				_, err := New(cache).updateMirror(t.Context(), src, mirror, nil)
+				errs <- err
+			}()
+		}
+
+		for range runs {
+			if err := <-errs; err != nil {
+				t.Errorf("a clone beside another = %v", err)
+			}
+		}
+
+		r, err := git.PlainOpen(mirror)
+		if err != nil {
+			t.Fatalf("the mirror after the clones: %v", err)
+		}
+
+		if commit, err := headCommit(r); err != nil || commit != second {
+			t.Errorf("the mirror after the clones has the head %s, %v; want %s", commit, err, second)
+		}
+
+		entries, err := os.ReadDir(filepath.Dir(mirror))
+		if err != nil || len(entries) != 1 {
+			t.Errorf("the clones left %d entries in the cache beside the mirror, %v", len(entries), err)
+		}
+	})
+}
+
 // The credentials of the host become the authentication of go-git: a
 // password (a token) over https, nothing without credentials.
 func TestGitCredentials(t *testing.T) {

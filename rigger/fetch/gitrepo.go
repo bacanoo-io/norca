@@ -271,6 +271,10 @@ func (f *Fetcher) setUpdated(dir string) {
 }
 
 // updateMirror fetches the mirror in dir, or clones it when there is none.
+// The lock of the fetcher is of one run: another run of the program may
+// use the same cache, so a clone is made in a directory of its own and
+// renamed into place when it is complete. A clone that fails removes only
+// what it wrote, and of two clones at once the first is kept.
 func (f *Fetcher) updateMirror(ctx context.Context, url, dir string, auth transport.AuthMethod) (*git.Repository, error) {
 	if r, err := git.PlainOpen(dir); err == nil {
 		err := r.FetchContext(ctx, &git.FetchOptions{
@@ -292,14 +296,29 @@ func (f *Fetcher) updateMirror(ctx context.Context, url, dir string, auth transp
 		return nil, err
 	}
 
-	r, err := git.PlainCloneContext(ctx, dir, true, &git.CloneOptions{URL: url, Auth: auth, Mirror: true, Tags: git.AllTags})
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), filepath.Base(dir)+".tmp-")
 	if err != nil {
-		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+
+	if _, err := git.PlainCloneContext(ctx, tmp, true, &git.CloneOptions{URL: url, Auth: auth, Mirror: true, Tags: git.AllTags}); err != nil {
+		_ = os.RemoveAll(tmp)
 
 		return nil, fmt.Errorf("git clone %s: %w", source.Redact(url), err)
 	}
 
-	return r, nil
+	if err := os.Rename(tmp, dir); err != nil {
+		_ = os.RemoveAll(tmp)
+
+		// Another run cloned it meanwhile: its mirror is the mirror.
+		if r, openErr := git.PlainOpen(dir); openErr == nil {
+			return r, nil
+		}
+
+		return nil, fmt.Errorf("the mirror of %s: %s is in the way and is no repository (remove it): %w", source.Redact(url), dir, err)
+	}
+
+	return git.PlainOpen(dir)
 }
 
 // peel returns the commit a tag or a commit hash names.
