@@ -80,6 +80,10 @@ func serverStack(ctx context.Context, logger *slog.Logger, stderr io.Writer, f *
 	req := &api.RiggerStackRequest{Source: f.address, Version: f.version, Prune: f.prune, Adopt: f.adopt}
 	namespace, region := f.namespace, f.region
 
+	// The variables of a published stack are known to the servers only: its
+	// -var values are sent as readValues guesses them without a form.
+	var form map[string]any
+
 	if f.address == "" {
 		s, err := localStack(ctx, logger, stderr, f)
 		if err != nil {
@@ -92,9 +96,10 @@ func serverStack(ctx context.Context, logger *slog.Logger, stderr io.Writer, f *
 
 		namespace = s.Namespace()
 		region = cmp.Or(region, s.Region())
+		form = s.FormSchema()
 	}
 
-	values, diags := readValues(&renderFlags{files: f.files, vars: f.vars})
+	values, diags := readValues(&renderFlags{files: f.files, vars: f.vars}, form)
 	if diags.HasErrors() {
 		return nil, nil, reportDiags(stderr, f.dir, diags)
 	}
@@ -397,7 +402,7 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 		return reportDiags(stderr, f.dir, diags)
 	}
 
-	values, diags := readValues(&f.renderFlags)
+	values, diags := readValues(&f.renderFlags, m.FormSchema())
 	if diags.HasErrors() {
 		return reportDiags(stderr, f.dir, diags)
 	}

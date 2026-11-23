@@ -137,7 +137,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags := flag.NewFlagSet("rigger stack "+cmd, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Var(&f.files, "f", "a file of values of the stack (values/dev.vars.hcl); may be given more than once")
-	flags.Var(&f.vars, "var", "a value of the stack, name=value; may be given more than once")
+	flags.Var(&f.vars, "var", "a value of the stack, name=value; may be given more than once"+varSyntax)
 	flags.BoolVar(&f.json, "json", false, "write the plan or the status as JSON")
 	flags.BoolVar(&f.prune, "prune", false, "apply: uninstall the releases the stack owns and no longer has")
 	flags.BoolVar(&f.adopt, "adopt", false, "apply: take over releases the pack manager applied or another stack owns")
@@ -195,7 +195,7 @@ func loadStack(ctx context.Context, eng *rigger.Engine, f *stackFlags) (*rigger.
 			return s, nil, diags, nil
 		}
 
-		values, moreDiags := readValues(&renderFlags{files: f.files, vars: f.vars})
+		values, moreDiags := readValues(&renderFlags{files: f.files, vars: f.vars}, s.FormSchema())
 
 		return s, values, append(diags, moreDiags...), nil
 	}
@@ -219,7 +219,7 @@ func loadStack(ctx context.Context, eng *rigger.Engine, f *stackFlags) (*rigger.
 		return s, nil, diags, nil
 	}
 
-	values, moreDiags := readValues(&renderFlags{files: f.files, vars: f.vars})
+	values, moreDiags := readValues(&renderFlags{files: f.files, vars: f.vars}, s.FormSchema())
 
 	return s, values, append(diags, moreDiags...), nil
 }

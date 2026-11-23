@@ -43,7 +43,7 @@ func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	flags := flag.NewFlagSet("rigger install", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Var(&f.files, "f", "a file of values (*.vars.hcl); may be given more than once")
-	flags.Var(&f.vars, "var", "a value, name=value; may be given more than once")
+	flags.Var(&f.vars, "var", "a value, name=value; may be given more than once"+varSyntax)
 	flags.StringVar(&f.name, "name", "", "name of the release")
 	flags.StringVar(&f.namespace, "namespace", "default", "namespace of the release")
 	flags.StringVar(&f.region, "region", "", "region of the release (default: the region of the cluster)")
@@ -90,7 +90,7 @@ func install(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 		return reportDiags(stderr, f.dir, diags)
 	}
 
-	values, diags := readValues(&f.renderFlags)
+	values, diags := readValues(&f.renderFlags, m.FormSchema())
 	if diags.HasErrors() {
 		return reportDiags(stderr, f.dir, diags)
 	}
