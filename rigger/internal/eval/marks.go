@@ -37,30 +37,37 @@ var errHidden = errors.New("it failed on a sensitive value, so the reason is not
 
 // hideSensitive returns f with the error of a call hidden when an argument
 // is sensitive. The errors of the standard functions quote their arguments,
-// and a diagnostic goes to the response and the log of a server. The
-// parameters let everything through: f keeps its own rules for null,
-// unknown and marked arguments.
+// and a diagnostic goes to the response and the log of a server.
 func hideSensitive(f function.Function) function.Function {
+	spec := wrapperSpec(f)
+
+	spec.Type = func(args []cty.Value) (cty.Type, error) {
+		ty, err := f.ReturnTypeForValues(args)
+
+		return ty, hiddenError(args, err)
+	}
+
+	spec.Impl = func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		v, err := f.Call(args)
+
+		return v, hiddenError(args, err)
+	}
+
+	return function.New(spec)
+}
+
+// wrapperSpec returns the start of the spec of a function that calls f:
+// the description and the parameters of f. The parameters let everything
+// through: f keeps its own rules for null, unknown and marked arguments.
+// The caller adds Type and Impl.
+func wrapperSpec(f function.Function) *function.Spec {
 	passAll := func(p function.Parameter) function.Parameter {
 		p.AllowNull, p.AllowUnknown, p.AllowDynamicType, p.AllowMarked = true, true, true, true
 
 		return p
 	}
 
-	spec := &function.Spec{
-		Description: f.Description(),
-		Params:      f.Params(),
-		Type: func(args []cty.Value) (cty.Type, error) {
-			ty, err := f.ReturnTypeForValues(args)
-
-			return ty, hiddenError(args, err)
-		},
-		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-			v, err := f.Call(args)
-
-			return v, hiddenError(args, err)
-		},
-	}
+	spec := &function.Spec{Description: f.Description(), Params: f.Params()}
 
 	for i, p := range spec.Params {
 		spec.Params[i] = passAll(p)
@@ -71,7 +78,7 @@ func hideSensitive(f function.Function) function.Function {
 		spec.VarParam = &p
 	}
 
-	return function.New(spec)
+	return spec
 }
 
 // hiddenError is err, or without its text when an argument is sensitive.

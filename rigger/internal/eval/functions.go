@@ -5,6 +5,7 @@ package eval
 
 import (
 	"errors"
+	"math"
 
 	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	"github.com/zclconf/go-cty/cty"
@@ -32,8 +33,9 @@ func Functions() map[string]function.Function {
 func standardFunctions() map[string]function.Function {
 	return map[string]function.Function{
 		"abs": stdlib.AbsoluteFunc, "ceil": stdlib.CeilFunc, "floor": stdlib.FloorFunc,
-		"log": stdlib.LogFunc, "max": stdlib.MaxFunc, "min": stdlib.MinFunc,
-		"parseint": stdlib.ParseIntFunc, "pow": stdlib.PowFunc, "signum": stdlib.SignumFunc,
+		"log": numeric(stdlib.LogFunc, func(num, base float64) float64 { return math.Log(num) / math.Log(base) }),
+		"max": stdlib.MaxFunc, "min": stdlib.MinFunc,
+		"parseint": stdlib.ParseIntFunc, "pow": numeric(stdlib.PowFunc, math.Pow), "signum": stdlib.SignumFunc,
 
 		"chomp": stdlib.ChompFunc, "format": stdlib.FormatFunc, "formatlist": stdlib.FormatListFunc,
 		"indent": stdlib.IndentFunc, "join": stdlib.JoinFunc, "lower": stdlib.LowerFunc,
@@ -65,6 +67,30 @@ func standardFunctions() map[string]function.Function {
 		"tolist": toType(cty.List(cty.DynamicPseudoType)), "toset": toType(cty.Set(cty.DynamicPseudoType)),
 		"tomap": toType(cty.Map(cty.DynamicPseudoType)),
 	}
+}
+
+// numeric returns f, a function of two numbers of the standard library that
+// computes in float64 as compute does, with an error where the result is
+// not a number (NaN): the logarithm of a negative number, a root of one.
+// cty has no such number and panics on it; the call then fails with the
+// text of the panic and its stack.
+func numeric(f function.Function, compute func(a, b float64) float64) function.Function {
+	spec := wrapperSpec(f)
+
+	spec.Type = f.ReturnTypeForValues
+
+	spec.Impl = func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		var a, b float64
+
+		// An argument that is null or not known is left to f.
+		if toGo(args[0], &a) == nil && toGo(args[1], &b) == nil && math.IsNaN(compute(a, b)) {
+			return cty.NilVal, errors.New("the result is not a number")
+		}
+
+		return f.Call(args)
+	}
+
+	return function.New(spec)
 }
 
 // jsonDecode is jsondecode(str) within the bound of the nesting: the
