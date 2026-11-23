@@ -63,9 +63,13 @@ var constraintSchema = &hcl.BodySchema{
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "attribute", LabelNames: []string{labelName}},
-		{Type: "item"},
+		{Type: blockItem},
 	},
 }
+
+// blockItem is the item block of a validation; its other block is
+// attribute "<name>".
+const blockItem = "item"
 
 // constraintAttrs decodes the attributes of a validation block.
 var constraintAttrs = map[string]func(*Constraint, *hcl.Attribute, cty.Value) hcl.Diagnostics{
@@ -141,10 +145,24 @@ func decodeConstraint(block *hcl.Block) (*Constraint, hcl.Diagnostics) {
 	}
 
 	for _, b := range content.Blocks {
+		// One item block and one attribute block of a name: a second one
+		// would replace the first, and with it what the first requires.
+		prev, what := c.Item, "The block has an item block"
+		if b.Type != blockItem {
+			prev, what = c.Attributes[b.Labels[0]], fmt.Sprintf("The attribute %q has a block", b.Labels[0])
+		}
+
+		if prev != nil {
+			diags = append(diags, errorAt(b.DefRange, "Duplicate "+b.Type+" block",
+				fmt.Sprintf("%s already at %s; write the two as one block.", what, prev.Range)))
+
+			continue
+		}
+
 		inner, moreDiags := decodeConstraint(b)
 		diags = append(diags, moreDiags...)
 
-		if b.Type == "item" {
+		if b.Type == blockItem {
 			c.Item = inner
 
 			continue

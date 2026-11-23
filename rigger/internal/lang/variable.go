@@ -175,7 +175,20 @@ func decodeVariable(block *hcl.Block) (*Variable, hcl.Diagnostics) {
 
 	diags = append(diags, v.decodeAttributes(content.Attributes)...)
 
+	// One validation, one ui and one secret block: a second one would
+	// replace the first, and with it what the first says.
+	seen := map[string]hcl.Range{}
+
 	for _, b := range content.Blocks {
+		if prev, dup := seen[b.Type]; dup {
+			diags = append(diags, errorAt(b.DefRange, "Duplicate "+b.Type+" block",
+				fmt.Sprintf("The variable %q has a %s block already at %s; write the two as one block.", v.Name, b.Type, prev)))
+
+			continue
+		}
+
+		seen[b.Type] = b.DefRange
+
 		diags = append(diags, v.decodeBlock(b)...)
 	}
 
