@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -477,11 +478,24 @@ func (s *Stack) decodeRigger(b *hcl.Block) hcl.Diagnostics {
 	content, remain, diags := b.Body.PartialContent(riggerSchema)
 
 	for _, inner := range content.Blocks {
-		if inner.Type == "registry" {
-			s.Rigger.Registries = append(s.Rigger.Registries, inner)
-		} else {
+		if inner.Type != "registry" {
 			s.Rigger.Trust = append(s.Rigger.Trust, inner)
+
+			continue
 		}
+
+		// A registry has one block: a second one of its name would replace
+		// the repository the modules of the stack come from (Registries).
+		name := inner.Labels[0]
+
+		if i := slices.IndexFunc(s.Rigger.Registries, func(r *hcl.Block) bool { return r.Labels[0] == name }); i >= 0 {
+			diags = append(diags, errorAt(inner.DefRange, "Duplicate registry",
+				fmt.Sprintf("The registry %q is declared already at %s.", name, s.Rigger.Registries[i].DefRange)))
+
+			continue
+		}
+
+		s.Rigger.Registries = append(s.Rigger.Registries, inner)
 	}
 
 	s.Rigger.Range = b.DefRange
@@ -560,7 +574,7 @@ func (r *StackRelease) decodeConstant(name string, attr *hcl.Attribute) hcl.Diag
 		diags = gohcl.DecodeExpression(attr.Expr, nil, &wait)
 		r.Wait = &wait
 	case "max_history":
-		diags = gohcl.DecodeExpression(attr.Expr, nil, &r.MaxHistory)
+		return r.decodeMaxHistory(attr)
 	case "timeout":
 		var timeout string
 		if diags = gohcl.DecodeExpression(attr.Expr, nil, &timeout); diags.HasErrors() {
@@ -575,6 +589,27 @@ func (r *StackRelease) decodeConstant(name string, attr *hcl.Attribute) hcl.Diag
 
 		r.Timeout = d
 	}
+
+	return diags
+}
+
+// decodeMaxHistory decodes max_history: the number of revisions the server
+// keeps, zero to leave it to the server (host.Settings). A negative number
+// is neither, and would go to the host as it is.
+func (r *StackRelease) decodeMaxHistory(attr *hcl.Attribute) hcl.Diagnostics {
+	var n int
+
+	diags := gohcl.DecodeExpression(attr.Expr, nil, &n)
+	if diags.HasErrors() {
+		return diags
+	}
+
+	if n < 0 {
+		return append(diags, errorAt(attr.Expr.Range(), "Invalid max_history",
+			fmt.Sprintf("max_history is %d; it is the number of revisions the server keeps, 0 or more.", n)))
+	}
+
+	r.MaxHistory = n
 
 	return diags
 }
