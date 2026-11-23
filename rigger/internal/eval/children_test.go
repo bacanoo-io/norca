@@ -255,6 +255,42 @@ func TestEvaluate_ChildUnknownValue(t *testing.T) {
 	}
 }
 
+// A local that reads a child is evaluated after it, however it names it: as
+// an index with the name, or as the whole root module. Its name sorts
+// before the child, which reads another local.
+func TestEvaluate_ChildReferences(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		local    string
+		expected string // the output local.a as JSON
+	}{
+		{name: "by its name", local: `module.x.name`, expected: `"p-x-2.0.0"`},
+		{name: "an index with the name", local: `module["x"].name`, expected: `"p-x-2.0.0"`},
+		{name: "the whole root", local: `keys(module)`, expected: `["x"]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, diags := evaluateAt(t, family(map[string]string{
+				appModules:        callX,
+				appLocals:         "locals {\n  prefix = \"p\"\n  a      = " + tt.local + "\n}\n",
+				"app/outputs.hcl": "output \"a\" {\n  value = local.a\n}\n",
+			}), "app")
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			if got := string(res.Outputs[0].Value); got != tt.expected {
+				t.Errorf("local.a = %s, want %s", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestEvaluate_ChildOutputs(t *testing.T) {
 	t.Parallel()
 

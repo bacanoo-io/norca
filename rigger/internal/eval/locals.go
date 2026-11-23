@@ -81,23 +81,82 @@ func (n *node) refs() []string {
 	return out
 }
 
+// allValues stands for every value of a root in the key of a reference:
+// local.*.
+const allValues = "*"
+
 // valueRefs returns the keys of the locals and child modules an expression
-// reads.
+// reads. A value read by its name gives its key, whether the name is
+// written as an attribute (local.a) or as an index (local["a"]). A root
+// read in another way, as a whole (keys(local)) or with a name that is
+// computed (local[var.name]), reads every value of the root: the key is the
+// root with allValues, which reads resolves.
 func valueRefs(expr hcl.Expression) []string {
 	var refs []string
 
 	for _, t := range expr.Variables() {
 		root := t.RootName()
-		if (root != localsRoot && root != moduleRoot && root != stackRoot) || len(t) < 2 {
+		if root != localsRoot && root != moduleRoot && root != stackRoot {
 			continue
 		}
 
-		if attr, ok := t[1].(hcl.TraverseAttr); ok {
-			refs = append(refs, root+"."+attr.Name)
-		}
+		refs = append(refs, root+"."+refName(t))
 	}
 
 	return refs
+}
+
+// refName is the name of the value a reference reads of its root, or
+// allValues.
+func refName(t hcl.Traversal) string {
+	if len(t) < 2 {
+		return allValues
+	}
+
+	switch step := t[1].(type) {
+	case hcl.TraverseAttr:
+		return step.Name
+	case hcl.TraverseIndex:
+		if name, ok := stringValue(step.Key); ok {
+			return name
+		}
+	}
+
+	return allValues
+}
+
+// reads returns the keys of the nodes the node at key reads. A root read
+// as a whole is every other node of the root, by name: a value does not
+// wait for itself to read the others. A reference to no node is left to
+// the evaluation, which reports it.
+func reads(nodes map[string]*node, key string) []string {
+	var out []string
+
+	for _, ref := range nodes[key].refs() {
+		root, name, _ := strings.Cut(ref, ".")
+
+		if name != allValues {
+			if _, ok := nodes[ref]; ok {
+				out = append(out, ref)
+			}
+
+			continue
+		}
+
+		var all []string
+
+		for other := range nodes {
+			if other != key && strings.HasPrefix(other, root+".") {
+				all = append(all, other)
+			}
+		}
+
+		slices.Sort(all)
+
+		out = append(out, all...)
+	}
+
+	return out
 }
 
 // valueNodes gathers the locals of the locals blocks and the child modules.
@@ -179,11 +238,7 @@ func orderNodes(nodes map[string]*node) ([]string, hcl.Diagnostics) {
 
 		state[key] = visiting
 
-		for _, dep := range nodes[key].refs() {
-			if _, ok := nodes[dep]; !ok {
-				continue
-			}
-
+		for _, dep := range reads(nodes, key) {
 			if diags := visit(dep, append(path, key)); diags.HasErrors() {
 				return diags
 			}

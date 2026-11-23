@@ -84,6 +84,8 @@ type stackRun struct {
 	prefix string
 	// partReleases are the names of the releases of each part evaluated.
 	partReleases map[string][]string
+	// all are the locals, releases and parts of the stack by key.
+	all map[string]*node
 }
 
 // EvaluateStack evaluates a stack with the values of its variables (from
@@ -301,6 +303,8 @@ func (r *stackRun) values() hcl.Diagnostics {
 		return diags
 	}
 
+	r.all = nodes
+
 	locals, modules, parts := map[string]cty.Value{}, map[string]cty.Value{}, map[string]cty.Value{}
 
 	for _, key := range order {
@@ -374,7 +378,7 @@ func (r *stackRun) uniqueNames() hcl.Diagnostics {
 func (r *stackRun) dependencies(n *node) []string {
 	var deps []string
 
-	for _, ref := range n.refs() {
+	for _, ref := range reads(r.all, n.key) {
 		if dep, ok := strings.CutPrefix(ref, moduleRoot+"."); ok {
 			deps = append(deps, r.prefix+dep)
 		} else if part, ok := strings.CutPrefix(ref, stackRoot+"."); ok {
