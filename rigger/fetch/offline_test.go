@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"testing"
 
+	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
@@ -43,6 +44,7 @@ func TestUnreachable(t *testing.T) {
 		{name: "a proxy that can't be reached", err: &net.OpError{Op: "proxyconnect", Net: "tcp", Err: dial}, expected: true},
 		{name: "no ssh agent", err: fmt.Errorf("the ssh agent for x: %w: %w", errNoSSHAgent, errors.New("SSH_AUTH_SOCK")), expected: true},
 		{name: "no error"},
+		{name: "no directory of a local repository", err: fmt.Errorf("git repository /srv/x: %w: %w", errNoDirectory, git.ErrRepositoryNotExists)},
 		{name: "authentication required", err: fmt.Errorf("git clone x: %w", transport.ErrAuthenticationRequired)},
 		{name: "authorization failed", err: transport.ErrAuthorizationFailed},
 		{name: "no such repository", err: transport.ErrRepositoryNotFound},

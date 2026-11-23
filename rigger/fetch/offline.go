@@ -22,6 +22,14 @@ import (
 // caller, and without it the repository is not reached.
 var errNoSSHAgent = errors.New("no ssh agent")
 
+// errNoDirectory is the error of a repository on the local file system
+// whose directory this machine does not have: a stack moved, with a bundle,
+// to a machine where its repositories are not. A directory that is there
+// and is no repository is not this error. The cache serves a locked version
+// of such a repository (treeWithoutNetwork); it is no reason to read a
+// stack without the global registry, whose address is set on this machine.
+var errNoDirectory = errors.New("no such directory on this machine")
+
 // unreachable reports whether a fetch failed because the other side could
 // not be reached at all: no connection was made (no network, no such host,
 // nothing listens), or the ssh agent to connect with is not there.

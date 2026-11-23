@@ -261,7 +261,7 @@ func (f *Fetcher) BundleDir(repository, commit, dir, digest string) string {
 	return filepath.Join(f.cache, "bundles", repositoryKey(repository), commit, hex.EncodeToString(sum[:12]))
 }
 
-// cachedTree returns a tree of the commit the request locks when the
+// cachedTree returns a tree of the commit the request locks, for when the
 // repository can't be reached: the full tree, else the files of a bundle.
 func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 	if !commitPattern.MatchString(req.Commit) {
@@ -280,9 +280,26 @@ func (f *Fetcher) cachedTree(req source.Request) (source.Fetched, bool) {
 	return source.Fetched{}, false
 }
 
+// treeWithoutNetwork returns the cached tree of the commit the request
+// locks when the repository could not be opened because it can't be
+// reached, or because it is a directory this machine does not have (cause);
+// any other cause is returned.
+func (f *Fetcher) treeWithoutNetwork(ctx context.Context, req source.Request, cause error) (source.Fetched, error) {
+	if unreachable(ctx, cause) || ctx.Err() == nil && errors.Is(cause, errNoDirectory) {
+		if cached, ok := f.cachedTree(req); ok {
+			return cached, nil
+		}
+	}
+
+	return source.Fetched{}, cause
+}
+
 // gitFetch extracts the tree of the commit of the tag into the cache. When
-// the repository can't be reached, a cached tree of the commit the lock
-// file records serves (an install without a network, from a bundle).
+// the repository can't be reached (treeWithoutNetwork), a cached tree of the
+// commit the lock file records serves (an install without a network, from
+// a bundle). A repository that answers and refuses the caller does not make
+// the cache serve: the tree may be there because another caller, with
+// credentials, fetched it.
 func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
 	dir, err := treePath(req.Path)
 	if err != nil {
@@ -293,11 +310,7 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	r, err := f.openRepo(ctx, req.Repository)
 	if err != nil {
-		if cached, ok := f.cachedTree(req); ok {
-			return cached, nil
-		}
-
-		return source.Fetched{}, err
+		return f.treeWithoutNetwork(ctx, req, err)
 	}
 
 	ref := req.Ref
@@ -364,8 +377,9 @@ func (f *Fetcher) OCIDir(repository, manifest string) string {
 
 // ociFetch resolves the tag of a version to its manifest, refuses a
 // manifest other than the one the lock file records, and extracts its
-// layer into the cache. When the registry can't be reached, the cached
-// layer of the locked manifest serves.
+// layer into the cache. When the registry can't be reached (unreachable),
+// the cached layer of the locked manifest serves; not when it answers and
+// refuses, as for a git repository.
 func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
 	tag := req.Ref
 	if tag == "" {
@@ -385,6 +399,10 @@ func (f *Fetcher) ociFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	m, digest, err := f.oci.Resolve(ctx, req.Repository, tag)
 	if err != nil {
+		if !unreachable(ctx, err) {
+			return source.Fetched{}, err
+		}
+
 		if cached, ok := f.cachedLayer(req, lockedDir, origin); ok {
 			return cached, nil
 		}

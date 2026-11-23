@@ -212,6 +212,10 @@ func (f *Fetcher) openRepo(ctx context.Context, repo string) (*git.Repository, e
 	if dir, ok := localPath(repo); ok {
 		r, err := git.PlainOpen(dir)
 		if err != nil {
+			if _, statErr := os.Stat(dir); errors.Is(statErr, fs.ErrNotExist) {
+				return nil, fmt.Errorf("git repository %s: %w: %w", dir, errNoDirectory, err)
+			}
+
 			return nil, fmt.Errorf("git repository %s: %w", dir, err)
 		}
 
