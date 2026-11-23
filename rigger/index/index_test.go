@@ -67,6 +67,77 @@ func TestReadEntry(t *testing.T) {
 	}
 }
 
+// A file of the index is one JSON value. What follows it was not read at
+// all: a second entry, or text that is no JSON, passed as a valid file.
+func TestReadEntry_TrailingData(t *testing.T) {
+	t.Parallel()
+
+	entry, err := index.Marshal(index.Entry{Namespace: norca, Name: nats, Versions: []index.Version{version(first)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		entryPath     = "modules/n/norca/nats.json"
+		namespacePath = "namespaces/norca.json"
+		namespace     = `{"name": "norca", "owner": "bacanoo-io", "repositories": []}`
+		advisories    = `{"advisories": []}`
+	)
+
+	read := map[string]func(fsys fstest.MapFS) error{
+		entryPath: func(fsys fstest.MapFS) error {
+			_, err := index.ReadEntry(fsys, index.KindModule, norca, nats)
+
+			return err
+		},
+		namespacePath: func(fsys fstest.MapFS) error {
+			_, err := index.ReadNamespace(fsys, norca)
+
+			return err
+		},
+		index.AdvisoriesFile: func(fsys fstest.MapFS) error {
+			_, err := index.ReadAdvisories(fsys)
+
+			return err
+		},
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		data    string
+		invalid bool
+	}{
+		{name: "an entry", path: entryPath, data: string(entry)},
+		{name: "an entry and white space", path: entryPath, data: string(entry) + " \n\t\r\n"},
+		{name: "an entry and text that is no JSON", path: entryPath, data: string(entry) + "{garbage", invalid: true},
+		{name: "an entry and a second entry", path: entryPath, data: string(entry) + string(entry), invalid: true},
+		{name: "an entry and a closing brace", path: entryPath, data: string(entry) + "}", invalid: true},
+		{name: "an entry and null", path: entryPath, data: string(entry) + "null", invalid: true},
+		{name: "a namespace", path: namespacePath, data: namespace + "\n"},
+		{name: "a namespace and a second value", path: namespacePath, data: namespace + "\n" + namespace, invalid: true},
+		{name: "advisories", path: index.AdvisoriesFile, data: advisories + "\n"},
+		{name: "advisories and a second value", path: index.AdvisoriesFile, data: advisories + "\n[]", invalid: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := read[tt.path](fstest.MapFS{tt.path: {Data: []byte(tt.data)}})
+
+			switch {
+			case !tt.invalid && err != nil:
+				t.Errorf("read = %v, want no error", err)
+			case tt.invalid && !errors.Is(err, index.ErrInvalid):
+				t.Errorf("read = %v, want an invalid index file", err)
+			case tt.invalid && !strings.Contains(err.Error(), "after the JSON value"):
+				t.Errorf("read = %v, want it to name the data after the JSON value", err)
+			}
+		})
+	}
+}
+
 func TestEntry_Validate(t *testing.T) {
 	t.Parallel()
 

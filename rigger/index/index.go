@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"path"
 	"regexp"
@@ -389,13 +390,20 @@ func ReadAdvisories(fsys fs.FS) (*Advisories, error) {
 	return &a, nil
 }
 
-// decode reads JSON that has only known fields.
+// decode reads a file of the index: one JSON value that has only known
+// fields, and nothing but white space after it.
 func decode(data []byte, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+
+	// Decode stops after the first value. What follows it, a second value
+	// or text that is no JSON, would be a part of the file nothing checked.
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: there is data after the JSON value", ErrInvalid)
 	}
 
 	return nil
