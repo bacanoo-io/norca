@@ -13,15 +13,17 @@ import (
 )
 
 // order evaluates a stack of the releases app and db, with the module block
-// of app and the locals given, and returns its releases in their order,
-// each with the releases it depends on: "db app(db)". The names sort
-// against the references: app reads db.
+// of app and the file of the locals given, and returns its releases in
+// their order, each with the releases it depends on and the value its
+// module was given: `db app(db)="db-svc"`. The names sort against the
+// references: app reads db.
 func order(t *testing.T, app, locals string) string {
 	t.Helper()
 
 	fsys := fstest.MapFS{
 		"s/stack.hcl": {Data: []byte("rigger {\n  name = \"shop\"\n}\n\nmodule \"app\" {\n  source = \"./modules/m\"\n" + app + "}\n\n" +
-			"module \"db\" {\n  source = \"./modules/m\"\n}\n\n" + locals)},
+			"module \"db\" {\n  source = \"./modules/m\"\n}\n")},
+		"s/locals.hcl":              {Data: []byte(locals)},
 		"s/modules/m/metadata.hcl":  {Data: []byte("module {\n  name    = \"m\"\n  version = \"1.0.0\"\n}\n")},
 		"s/modules/m/variables.hcl": {Data: []byte("variable \"peer\" {\n  default = \"\"\n}\n")},
 		"s/modules/m/outputs.hcl":   {Data: []byte("output \"service\" {\n  value = \"${rigger.release}-svc\"\n}\n\noutput \"peer\" {\n  value = var.peer\n}\n")},
@@ -85,6 +87,36 @@ func TestEvaluateStack_ReleaseReferences(t *testing.T) {
 			t.Parallel()
 
 			if got := order(t, tt.app, tt.locals); got != tt.expected {
+				t.Errorf("releases = %s, want %s", got, tt.expected)
+			}
+		})
+	}
+}
+
+// A release depends on the releases it reads through the locals of the
+// stack too: a local is not a release, and what it reads is read by the
+// release that reads the local.
+func TestEvaluateStack_DependsOnThroughLocals(t *testing.T) {
+	t.Parallel()
+
+	const peer = "  values = { peer = local.a }\n"
+
+	tests := []struct {
+		name     string
+		locals   string
+		expected string
+	}{
+		{name: "a local that reads a release", locals: "locals {\n  a = module.db.service\n}\n", expected: `db app(db)="db-svc"`},
+		{name: "a local that reads such a local", locals: "locals {\n  a = upper(local.b)\n  b = module.db.service\n}\n", expected: `db app(db)="DB-SVC"`},
+		{name: "a local that reads every release", locals: "locals {\n  a = join(\",\", keys(module))\n}\n", expected: "Values refer to each other"},
+		{name: "a local that reads no release", locals: "locals {\n  a = \"v\"\n}\n", expected: `app="v" db`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := order(t, peer, tt.locals); !strings.Contains(got, tt.expected) {
 				t.Errorf("releases = %s, want %s", got, tt.expected)
 			}
 		})

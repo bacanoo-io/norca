@@ -374,17 +374,36 @@ func (r *stackRun) uniqueNames() hcl.Diagnostics {
 }
 
 // dependencies are the releases a node reads or names in depends_on: the
-// releases of the stack, and every release of a part.
+// releases of the stack, and every release of a part. What a local reads
+// is read by the node that reads the local: a local is no release, and
+// stands for the releases behind it. The nodes have no cycle here
+// (orderNodes), so the walk ends.
 func (r *stackRun) dependencies(n *node) []string {
 	var deps []string
 
-	for _, ref := range reads(r.all, n.key) {
-		if dep, ok := strings.CutPrefix(ref, moduleRoot+"."); ok {
-			deps = append(deps, r.prefix+dep)
-		} else if part, ok := strings.CutPrefix(ref, stackRoot+"."); ok {
-			deps = append(deps, r.partReleases[part]...)
+	seen := map[string]bool{}
+
+	var walk func(key string)
+
+	walk = func(key string) {
+		for _, ref := range reads(r.all, key) {
+			if seen[ref] {
+				continue
+			}
+
+			seen[ref] = true
+
+			if dep, ok := strings.CutPrefix(ref, moduleRoot+"."); ok {
+				deps = append(deps, r.prefix+dep)
+			} else if part, ok := strings.CutPrefix(ref, stackRoot+"."); ok {
+				deps = append(deps, r.partReleases[part]...)
+			} else {
+				walk(ref)
+			}
 		}
 	}
+
+	walk(n.key)
 
 	slices.Sort(deps)
 
