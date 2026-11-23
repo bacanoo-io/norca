@@ -115,14 +115,41 @@ func (c *converter) writeRaw(name string, data []byte) error {
 	return nil
 }
 
-// tidy leaves at most one empty line between two others: a removed block
-// leaves its own.
+// tidy leaves at most one empty line between two lines of HCL: a removed
+// block leaves its own. The empty lines of a heredoc and of a comment are
+// text of the pack, and stay; data that is not HCL stays as it is.
 func tidy(data []byte) []byte {
-	for bytes.Contains(data, []byte("\n\n\n")) {
-		data = bytes.ReplaceAll(data, []byte("\n\n\n"), []byte("\n\n"))
+	tokens, diags := hclsyntax.LexConfig(data, "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return data
 	}
 
-	return data
+	out := make([]byte, 0, len(data))
+	end, heredocs := 0, 0
+
+	for _, tok := range tokens {
+		// Between two tokens there are spaces, which are no tokens.
+		out = append(out, data[end:tok.Range.Start.Byte]...)
+		end = tok.Range.End.Byte
+
+		// The text of a heredoc is tokens of its own; a new line in it is
+		// one of an expression of its template.
+		if tok.Type == hclsyntax.TokenOHeredoc {
+			heredocs++
+		}
+
+		if tok.Type == hclsyntax.TokenCHeredoc {
+			heredocs--
+		}
+
+		if tok.Type == hclsyntax.TokenNewline && heredocs == 0 && bytes.HasSuffix(out, []byte("\n\n")) {
+			continue
+		}
+
+		out = append(out, tok.Bytes...)
+	}
+
+	return append(out, data[end:]...)
 }
 
 // parse reads an HCL file of the pack for writing.
