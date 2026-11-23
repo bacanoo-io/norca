@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"strings"
@@ -235,6 +236,36 @@ func actions(plan *rigger.StackPlan) string {
 	}
 
 	return strings.Join(out, " ")
+}
+
+// A directory that is none of the root holds no stack: none is returned
+// with the diagnostics, not one whose every method fails.
+func TestEngine_LoadStackInvalidDir(t *testing.T) {
+	t.Parallel()
+
+	e := engine(t)
+
+	loaders := map[string]func(context.Context, fs.FS, string) (*rigger.Stack, hcl.Diagnostics){
+		"LoadStack": e.LoadStack,
+		"ReadStack": e.ReadStack,
+	}
+
+	for name, load := range loaders {
+		for _, dir := range []string{"../s", "/s"} {
+			t.Run(name+" "+dir, func(t *testing.T) {
+				t.Parallel()
+
+				s, diags := load(t.Context(), stackFiles(twoReleases), dir)
+				if !strings.Contains(diags.Error(), "Stack not read") {
+					t.Errorf("diagnostics = %q, want the stack not read", diags.Error())
+				}
+
+				if s != nil {
+					noPanic(t, func() { t.Errorf("a stack named %q was returned, want none", s.Name()) })
+				}
+			})
+		}
+	}
 }
 
 func TestStack_PlanApply(t *testing.T) {

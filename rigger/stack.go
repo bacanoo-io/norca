@@ -94,7 +94,9 @@ func (s *Stack) LockedModules() []LockedModule {
 }
 
 // LoadStack loads the stack in the directory dir of root, and the modules
-// of its local sources, inside root (design 6.4).
+// of its local sources, inside root (design 6.4). With errors in the
+// diagnostics the stack is what could be read of it, and nil when dir is no
+// directory of root.
 func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (_ *Stack, retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "stack.load", &retDiags)
 
@@ -107,17 +109,28 @@ func (e *Engine) LoadStack(ctx context.Context, root fs.FS, dir string) (_ *Stac
 
 	span.End(ctx, diagsErr(diags))
 
-	return &Stack{s: s}, diags
+	return loadedStack(s), diags
 }
 
 // ReadStack loads the stack in the directory dir of root without fetching
-// the modules of its sources: for its metadata and its digest.
+// the modules of its sources: for its metadata and its digest. With errors
+// it returns what LoadStack does.
 func (e *Engine) ReadStack(ctx context.Context, root fs.FS, dir string) (_ *Stack, retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "stack.read", &retDiags)
 
 	s, diags := lang.LoadStack(ctx, root, dir, e.langLimits())
 
-	return &Stack{s: s}, diags
+	return loadedStack(s), diags
+}
+
+// loadedStack is the stack of what was loaded; nil when nothing was (dir is
+// no directory of the root), because no method of a stack without it works.
+func loadedStack(s *lang.Stack) *Stack {
+	if s == nil {
+		return nil
+	}
+
+	return &Stack{s: s}
 }
 
 // langLimits are the limits of the engine for loading.
