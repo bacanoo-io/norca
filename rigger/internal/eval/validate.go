@@ -129,10 +129,11 @@ func (k *checker) checkCollection(c *lang.Constraint, v cty.Value, path string) 
 	}
 
 	seen := map[string]string{}
+	place := 0
 
-	for it := v.ElementIterator(); it.Next(); {
+	for it := v.ElementIterator(); it.Next(); place++ {
 		key, item := it.Element()
-		itemPath := path + k.index(key)
+		itemPath := path + k.index(key, place)
 
 		k.checkItem(c, key, item, itemPath, path, seen)
 	}
@@ -149,19 +150,27 @@ func (k *checker) checkItem(c *lang.Constraint, key, item cty.Value, itemPath, p
 		k.fail(itemPath, "is %s, not one of %s", k.show(item), showValues(c.ItemOf))
 	}
 
-	if c.Unique {
+	// An item not known yet is not the same as another one.
+	if c.Unique && item.IsWhollyKnown() {
 		k.unique(seen, showValue(item), itemPath)
 	}
 
-	if c.UniqueBy != "" && item.Type().IsObjectType() && item.Type().HasAttribute(c.UniqueBy) {
-		k.unique(seen, showValue(item.GetAttr(c.UniqueBy)), itemPath+"."+c.UniqueBy)
+	if by, ok := attribute(item, c.UniqueBy); ok && by.IsWhollyKnown() {
+		k.unique(seen, showValue(by), itemPath+"."+c.UniqueBy)
 	}
 
 	k.check(c.Item, item, itemPath)
+	k.checkAttributes(c, item, itemPath)
+}
 
-	if c.Attributes != nil && item.Type().IsObjectType() {
-		k.checkAttributes(c, item, itemPath)
+// attribute returns the attribute name of v, when v is an object that has
+// it. An object that is null or not known yet has no attributes to read.
+func attribute(v cty.Value, name string) (cty.Value, bool) {
+	if name == "" || v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() || !v.Type().HasAttribute(name) {
+		return cty.NilVal, false
 	}
+
+	return v.GetAttr(name), true
 }
 
 // unique fails when shown was seen before at another path.
@@ -177,13 +186,9 @@ func (k *checker) unique(seen map[string]string, shown, path string) {
 
 // checkAttributes checks the attributes of an object.
 func (k *checker) checkAttributes(c *lang.Constraint, v cty.Value, path string) {
-	if c.Attributes == nil || !v.Type().IsObjectType() {
-		return
-	}
-
 	for name, inner := range c.Attributes {
-		if v.Type().HasAttribute(name) {
-			k.check(inner, v.GetAttr(name), path+"."+name)
+		if attr, ok := attribute(v, name); ok {
+			k.check(inner, attr, path+"."+name)
 		}
 	}
 }
@@ -201,13 +206,20 @@ func containsValue(values []cty.Value, v cty.Value) bool {
 }
 
 // index returns the index expression of a key: [1] or ["name"], the name
-// hidden in a sensitive map.
-func (k *checker) index(key cty.Value) string {
-	if key.Type() == cty.String {
-		return "[" + k.show(key) + "]"
+// hidden in a sensitive map. The key of an item of a set is the item: one
+// that is neither a string nor a number is named by its place in the order
+// of the set.
+func (k *checker) index(key cty.Value, place int) string {
+	if inner, _ := key.Unmark(); !inner.IsNull() && inner.IsKnown() {
+		switch inner.Type() {
+		case cty.String:
+			return "[" + k.show(key) + "]"
+		case cty.Number:
+			return "[" + inner.AsBigFloat().Text('f', -1) + "]"
+		}
 	}
 
-	return "[" + key.AsBigFloat().Text('f', -1) + "]"
+	return "[" + strconv.Itoa(place) + "]"
 }
 
 // showValue returns a short text of a value for a message.
