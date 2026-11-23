@@ -28,10 +28,12 @@ type Lock struct {
 	Stacks []*LockedModule `hcl:"stack,block"`
 }
 
-// LockedModule is the entry of one source.
+// LockedModule is the entry of one source. Version is empty for a module
+// whose metadata has none (design 6.4), so the lock file may leave it out,
+// as Bytes does: what pins such a module is its digest.
 type LockedModule struct {
 	Source     string `hcl:"source,label"`
-	Version    string `hcl:"version"`
+	Version    string `hcl:"version,optional"`
 	Constraint string `hcl:"constraint,optional"`
 	Repository string `hcl:"repository,optional"`
 	Path       string `hcl:"path,optional"`
