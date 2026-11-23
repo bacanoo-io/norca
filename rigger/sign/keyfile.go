@@ -28,6 +28,26 @@ const (
 	scryptP = 1
 )
 
+// The bounds of the parameters of scrypt of a key that is read. A key file
+// names its own, and scrypt takes 128*N*r bytes and p times the work: a file
+// is not let ask for more than a key file needs (this package writes 32 MiB,
+// cosign 64 MiB, both with p of 1).
+const (
+	maxScryptBytes = 256 << 20
+	maxScryptP     = 16
+)
+
+// checkScrypt refuses parameters of scrypt outside the bounds, before any
+// of their memory is taken.
+func checkScrypt(n, r, p int) error {
+	if n < 2 || r < 1 || p < 1 || p > maxScryptP || r > maxScryptBytes/128 || n > maxScryptBytes/128/r {
+		return fmt.Errorf("%w: the parameters of scrypt N=%d r=%d p=%d are out of bounds (at most %d MiB, p %d)",
+			ErrKey, n, r, p, maxScryptBytes>>20, maxScryptP)
+	}
+
+	return nil
+}
+
 // encryptedKey is the content of the PEM block.
 type encryptedKey struct {
 	KDF struct {
@@ -107,6 +127,10 @@ func ParsePrivateKey(text, password []byte) (*ecdsa.PrivateKey, error) {
 
 	if ek.KDF.Name != "scrypt" || ek.Cipher.Name != "nacl/secretbox" || len(ek.Cipher.Nonce) != 24 {
 		return nil, fmt.Errorf("%w: kdf %s, cipher %s", ErrKey, ek.KDF.Name, ek.Cipher.Name)
+	}
+
+	if err := checkScrypt(ek.KDF.Params.N, ek.KDF.Params.R, ek.KDF.Params.P); err != nil {
+		return nil, err
 	}
 
 	secret, err := scrypt.Key(password, ek.KDF.Salt, ek.KDF.Params.N, ek.KDF.Params.R, ek.KDF.Params.P, 32)
