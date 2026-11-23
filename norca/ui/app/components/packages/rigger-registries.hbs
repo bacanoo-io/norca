@@ -1,0 +1,286 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div {{this.setup}} data-test-rigger-registries>
+  {{#if this.loadError}}
+    <Ui::Alert
+      @tone="danger"
+      @title="The registries could not be loaded"
+      class="mb-3"
+      data-test-registries-error
+    >{{this.loadError}}</Ui::Alert>
+  {{/if}}
+
+  <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+    <p class="text-secondary mb-0">
+      A registry is synced only when asked for; the catalog offers what its last
+      good sync found.
+    </p>
+    <Ui::Button
+      @variant="primary"
+      @icon="plus"
+      {{on "click" this.openAdd}}
+      data-test-btn-add-registry
+    >Add registry</Ui::Button>
+  </div>
+
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner
+        @showLabel={{true}}
+        @label="Loading the registries"
+      /></Ui::Card>
+  {{else if (not this.rows.length)}}
+    <Ui::Card>
+      <Ui::EmptyState
+        @icon="database"
+        @title="No registry"
+        @message="Add a Git registry of modules and stacks, or the global registry."
+        data-test-registries-empty
+      >
+        <Ui::Button
+          @variant="primary"
+          @icon="plus"
+          {{on "click" this.openAdd}}
+        >Add registry</Ui::Button>
+      </Ui::EmptyState>
+    </Ui::Card>
+  {{else}}
+    <Ui::Card @flush={{true}}>
+      <Ui::Table
+        @caption="Registries"
+        @columns={{array
+          (hash key="name" label="Name")
+          (hash key="source" label="Source")
+          (hash key="phase" label="Status")
+          (hash key="content" label="Content")
+          (hash key="lastSync" label="Last good sync")
+          (hash key="actions" label="Actions")
+        }}
+        @rows={{this.rows}}
+        data-test-registries-table
+        as |row|
+      >
+        <td data-test-registry-row={{row.name}}>
+          <div class="fw-bold">{{row.name}}</div>
+          <div class="small text-secondary">{{row.type}}{{#if
+              (eq row.display "selected")
+            }} · shows {{row.selected}} selected{{/if}}</div>
+        </td>
+        <td>
+          <span class="font-monospace small">{{row.source}}</span>
+          {{#if row.keys}}<div class="small text-secondary">{{row.keys}}
+              trusted
+              {{if (eq row.keys 1) "key" "keys"}}</div>{{/if}}
+          {{#if row.auth}}<div
+              class="small text-secondary"
+              data-test-registry-auth
+            >credentials:
+              <span class="font-monospace">{{row.auth}}</span></div>{{/if}}
+        </td>
+        <td data-test-registry-phase>
+          <Ui::StatusIndicator @tone={{row.phaseTone}} @label={{row.phase}} />
+          {{#if (eq row.phase "Error")}}<div
+              class="small text-danger mt-1"
+            >{{row.message}}</div>{{/if}}
+          {{#if row.missing.length}}<div
+              class="small text-warning mt-1"
+              data-test-registry-missing
+            >not in the index: {{join ", " row.missing}}</div>{{/if}}
+        </td>
+        <td data-test-registry-content>{{row.content}}</td>
+        <td
+          class="text-secondary"
+          title={{row.lastGoodSyncTitle}}
+          data-test-registry-synced
+        >
+          {{or row.lastGoodSync "never"}}
+          {{#if row.commit}}<div
+              class="small font-monospace"
+            >{{row.commit}}</div>{{/if}}
+          {{#if row.isOld}}<div
+              class="small text-warning"
+              data-test-registry-old
+            >old index</div>{{/if}}
+        </td>
+        <td class="text-end text-nowrap">
+          <Ui::Button
+            @size="sm"
+            @icon="refresh"
+            @isLoading={{eq this.syncing row.name}}
+            {{on "click" (fn this.sync row)}}
+            data-test-btn-sync={{row.name}}
+          >Sync</Ui::Button>
+          <Ui::Button
+            @size="sm"
+            @icon="pencil"
+            @iconOnly={{true}}
+            @label="Edit {{row.name}}"
+            {{on "click" (fn this.openEdit row.registry)}}
+            data-test-btn-edit={{row.name}}
+          />
+          <Ui::Button
+            @size="sm"
+            @variant="outline-danger"
+            @icon="trash"
+            @iconOnly={{true}}
+            @label="Remove {{row.name}}"
+            {{on "click" (fn this.askDelete row)}}
+            data-test-btn-delete={{row.name}}
+          />
+        </td>
+      </Ui::Table>
+    </Ui::Card>
+  {{/if}}
+
+  {{#if this.editing}}
+    <Ui::Modal
+      @title={{if
+        this.editing.isNew
+        "Add registry"
+        (concat "Edit " this.formName)
+      }}
+      @size="lg"
+      @onClose={{this.closeEdit}}
+      data-test-registry-modal
+    >
+      {{#if this.formError}}
+        <Ui::Alert
+          @tone="danger"
+          class="mb-3"
+          data-test-registry-form-error
+        >{{this.formError}}</Ui::Alert>
+      {{/if}}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <Ui::Field
+            @label="Name"
+            @required={{true}}
+            @help="Lowercase letters, digits and dashes."
+            as |f|
+          >
+            <Ui::Input
+              @id={{f.id}}
+              @value={{this.formName}}
+              @onInput={{this.setName}}
+              @disabled={{not this.editing.isNew}}
+              data-test-input-reg-name
+            />
+          </Ui::Field>
+        </div>
+        <div class="col-md-6">
+          <Ui::Field @label="Type" as |f|>
+            <Ui::Select
+              @id={{f.id}}
+              @value={{this.formType}}
+              @options={{this.types}}
+              @onChange={{this.setType}}
+              data-test-select-reg-type
+            />
+          </Ui::Field>
+        </div>
+      </div>
+      <Ui::Field
+        @label="Source"
+        @required={{true}}
+        @help="The Git address: https://host/path, host/path, ssh:// or user@host:path."
+        as |f|
+      >
+        <Ui::Input
+          @id={{f.id}}
+          @value={{this.formSource}}
+          @onInput={{this.setSource}}
+          @placeholder="https://git.example.com/acme/rigger-modules"
+          @monospace={{true}}
+          data-test-input-reg-source
+        />
+      </Ui::Field>
+      <Ui::Field @label="The catalog shows" as |f|>
+        <Ui::Select
+          @id={{f.id}}
+          @value={{this.formDisplay}}
+          @options={{this.displays}}
+          @onChange={{this.setDisplay}}
+          data-test-select-reg-display
+        />
+      </Ui::Field>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <Ui::Field @label="Credentials namespace" as |f|>
+            <Ui::Input
+              @id={{f.id}}
+              @value={{this.formAuthNamespace}}
+              @onInput={{this.setAuthNamespace}}
+              @placeholder="default"
+              data-test-input-reg-auth-namespace
+            />
+          </Ui::Field>
+        </div>
+        <div class="col-md-8">
+          <Ui::Field
+            @label="Credentials Variable"
+            @help="A private source: username and password (or token) for https, ssh_private_key and known_hosts for ssh. Whoever writes or uses the registry needs read on it."
+            as |f|
+          >
+            <Ui::Input
+              @id={{f.id}}
+              @value={{this.formAuthPath}}
+              @onInput={{this.setAuthPath}}
+              @placeholder="registries/acme (empty: a public source)"
+              @monospace={{true}}
+              data-test-input-reg-auth-path
+            />
+          </Ui::Field>
+        </div>
+      </div>
+      <Ui::Field
+        @label="Trusted keys"
+        @help="Public keys that sign the modules, separated by blank lines. With keys, a version without a signature of one of them is not installed."
+        as |f|
+      >
+        <Ui::Input
+          @id={{f.id}}
+          @multiline={{true}}
+          @monospace={{true}}
+          @rows={{5}}
+          @value={{this.formKeys}}
+          @onInput={{this.setKeys}}
+          @placeholder="-----BEGIN PUBLIC KEY-----"
+          data-test-input-reg-keys
+        />
+      </Ui::Field>
+      <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+        <Ui::Button
+          @variant="ghost"
+          {{on "click" this.closeEdit}}
+          data-test-btn-cancel-registry
+        >Cancel</Ui::Button>
+        <Ui::Button
+          @variant="primary"
+          @icon="check"
+          @isLoading={{this.isSaving}}
+          {{on "click" this.save}}
+          data-test-btn-save-registry
+        >
+          {{if this.editing.isNew "Add and sync" "Save and sync"}}
+        </Ui::Button>
+      </div>
+    </Ui::Modal>
+  {{/if}}
+
+  {{#if this.toDelete}}
+    <Ui::Confirm
+      @title="Remove {{this.toDelete.name}}?"
+      @confirmLabel="Remove"
+      @confirmIcon="trash"
+      @tone="danger"
+      @isRunning={{this.isDeleting}}
+      @onConfirm={{this.confirmDelete}}
+      @onClose={{this.cancelDelete}}
+      data-test-registry-delete-confirm
+    >
+      Its modules leave the catalog. The releases installed from it keep
+      running.
+    </Ui::Confirm>
+  {{/if}}
+</div>

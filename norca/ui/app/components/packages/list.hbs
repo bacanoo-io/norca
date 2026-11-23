@@ -19,9 +19,9 @@
     {{! the panel the tabs control (aria-controls) }}
     <div id="packages-panel" role="tabpanel">
     {{#if (eq this.activeSection "catalog")}}
-      <Packages::Catalog />
+      <Packages::RiggerCatalog />
     {{else if (eq this.activeSection "registries")}}
-      <Packages::Registries />
+      <Packages::RiggerRegistries />
     {{else}}
       {{#if this.isLoading}}
         <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the releases" /></Ui::Card>
@@ -49,7 +49,7 @@
           @noun="releases"
           @viewState={{this.list.viewState}}
           @onApplyView={{this.list.applyView}}
-          @emptyMessage={{if this.list.searchTerm "No release matches the search." "No package is installed. Install one from the Catalog tab or with norca pack run; it appears here as a release with its revisions."}}
+          @emptyMessage={{if this.list.searchTerm "No release matches the search." "No package is installed. Install a module from the Catalog tab or with rigger install; it appears here as a release with its revisions."}}
           data-test-release-list
         >
           <:filters>

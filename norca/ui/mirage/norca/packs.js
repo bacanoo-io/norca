@@ -12,7 +12,7 @@ import { revision } from './releases';
 // types. A sync takes the packs of the source from SOURCES; a source that
 // is not there fails as an unreachable registry does.
 
-const REDIS_SCHEMA = {
+export const REDIS_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   type: 'object',
   title: 'redis',
@@ -134,7 +134,7 @@ const REDIS_SCHEMA = {
   },
 };
 
-const APP_SCHEMA = {
+export const APP_SCHEMA = {
   type: 'object',
   title: 'web-app',
   'x-ui-tabs': [
@@ -254,8 +254,9 @@ function atomicOf(db, ns) {
 }
 
 function uploadsOf(db, registry) {
-  return collection(db, 'norcaPackUploads')
-    .filter((u) => u.registry === registry);
+  return collection(db, 'norcaPackUploads').filter(
+    (u) => u.registry === registry
+  );
 }
 
 function packsOf(db, reg) {
@@ -430,7 +431,9 @@ export default function registerPackRoutes(server) {
     const { registry } = request.params;
     const digest = decodeURIComponent(request.params.digest);
     const uploads = collection(db, 'norcaPackUploads');
-    const found = uploads.filter((u) => u.registry === registry && u.digest === digest);
+    const found = uploads.filter(
+      (u) => u.registry === registry && u.digest === digest
+    );
     if (!found.length)
       return error(404, `registry "${registry}" has no upload ${digest}`);
     found.forEach((u) => uploads.remove(u.id));

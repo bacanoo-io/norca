@@ -9,7 +9,6 @@ import {
   currentURL,
   fillIn,
   select,
-  settled,
   triggerEvent,
   visit,
 } from '@ember/test-helpers';
@@ -233,236 +232,24 @@ module('Acceptance | packages', function (hooks) {
     useToken(null, 'management');
     server.db.norcaReleases.remove();
     await visit('/packages');
-    assert.dom('[data-test-ui-table-empty]').includesText('norca pack run');
-  });
-
-  test('the catalog lists the packs of the registries, newest version first', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="catalog"]');
-
-    assert
-      .dom('[data-test-pack-card]')
-      .exists({ count: 2 }, 'one card per pack');
-    assert.dom('[data-test-pack-card="builtin/redis"]').includesText('7.2.4');
-    assert.dom('[data-test-pack-card="builtin/redis"]').includesText('Signed');
-    assert
-      .dom(
-        '[data-test-pack-card="builtin/loadbalancer-operator"] [data-test-pack-incompatible]'
-      )
-      .exists();
-
-    await select('[data-test-catalog-category]', 'networking');
-    assert.dom('[data-test-pack-card]').exists({ count: 1 });
-    await select('[data-test-catalog-category]', '');
-
-    await click('[data-test-btn-readme="builtin/redis"]');
-    assert.dom('[data-test-pack-readme]').includesText('In-memory data store');
-    await a11yAudit(assert, STRICT);
-  });
-
-  test('a pack is installed from its variables form', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="catalog"]');
-    await click('[data-test-btn-install="builtin/redis"]');
-
-    assert.dom('[data-test-form-release-name]').hasValue('redis');
-    assert.dom('[data-test-tab="general"]').hasText('General');
-    assert.dom('[data-test-tab="resources"]').exists();
-    assert.dom('[data-test-tab="security"]').exists();
-    assert.dom('[data-test-pack-field="namespace"] select').exists();
-
-    // x-ui-show-if: replicas only for the replica mode.
-    await click('[data-test-tab="resources"]');
-    assert.dom('[data-test-pack-field="replicas"]').doesNotExist();
-    assert
-      .dom('[data-test-pack-field="resources.cpu"]')
-      .exists('object attributes are fields');
-    await click(
-      '[data-test-pack-field="resources.cpu"] [data-test-pack-preset="1000"]'
-    );
-
-    await click('[data-test-tab="general"]');
-    await click('[data-test-radio-option="replica"]');
-    await fillIn('[data-test-pack-field="datacenters"] textarea', 'dc1, dc2');
-    await fillIn('[data-test-pack-field="extra_env"] textarea', 'not a pair');
-    await click('[data-test-tab="resources"]');
-    // The slider and its number field are one value.
-    assert
-      .dom('[data-test-pack-field="replicas"]')
-      .hasAttribute('data-test-pack-widget', 'slider');
-    assert.dom('[data-test-pack-slider-min]').hasText('1');
-    assert.dom('[data-test-pack-slider-max]').hasText('9');
-    await fillIn(
-      '[data-test-pack-field="replicas"] [data-test-pack-slider]',
-      '6'
-    );
-    assert
-      .dom('[data-test-pack-field="replicas"] input[type="number"]')
-      .hasValue('6');
-    await fillIn('[data-test-pack-field="replicas"] input[type="number"]', '3');
-    assert.dom('[data-test-pack-slider]').hasValue('3');
-
-    await click('[data-test-tab="security"]');
-    assert.dom('[data-test-pack-field="redis_password"]').doesNotExist();
-    await click('[data-test-pack-field="auth_enabled"] input');
-    await fillIn('[data-test-pack-field="redis_password"] input', 's3cret');
-    assert
-      .dom('[data-test-pack-field="redis_password"]')
-      .includesText('nomad/jobs/redis');
-
-    // The text of a map that does not parse blocks the install.
-    await click('[data-test-btn-plan]');
-    assert.notOk(lastRequest('POST', '/plan-pack'));
-    assert.dom('[data-test-tab="general"] .badge').hasText('1');
-    assert
-      .dom('[data-test-pack-field="extra_env"] [data-test-field-error]')
-      .includesText('key=value');
-    await fillIn(
-      '[data-test-pack-field="extra_env"] textarea',
-      'LOG_LEVEL=debug'
-    );
-
-    await click('[data-test-tab="cli"]');
-    const command = document.querySelector(
-      '[data-test-form-cli-command] pre'
-    ).textContent;
-    assert.ok(command.includes("--registry='builtin'"));
-    assert.ok(command.includes("--var 'replicas=3'"));
-    assert.ok(
-      command.includes("--var-secret 'nomad/jobs/redis:password=<secret>'")
-    );
-    assert.notOk(command.includes('s3cret'), 'no secret in the command');
-    assert.notOk(command.includes('--atomic'), 'atomic left to the namespace');
-
-    // Atomic mode: the namespace default, or set for this install.
-    assert
-      .dom('[data-test-form-atomic] [data-test-radio-option="default"]')
-      .isChecked();
-    await click('[data-test-form-atomic] [data-test-radio-option="off"]');
-    await click('[data-test-tab="cli"]');
-    assert.ok(
-      document
-        .querySelector('[data-test-form-cli-command] pre')
-        .textContent.includes('--atomic=false')
-    );
-
-    await click('[data-test-btn-plan]');
-    assert
-      .dom('[data-test-plan-result] [data-test-plan-action="create"]')
-      .exists();
-
-    await click('[data-test-btn-deploy]');
-    const body = lastBody('POST', '/v1/release/redis/deploy-pack');
-    assert.strictEqual(body.Registry, 'builtin');
-    assert.false(body.Atomic, 'the atomic mode chosen');
-    assert.strictEqual(body.Pack, 'redis');
-    assert.strictEqual(body.Version, '7.2.4');
-    assert.deepEqual(
-      body.Values,
-      {
-        mode: 'replica',
-        replicas: 3,
-        datacenters: ['dc1', 'dc2'],
-        extra_env: { LOG_LEVEL: 'debug' },
-        resources: { cpu: 1000, memory: 256 },
-        auth_enabled: true,
-      },
-      'only the changes, without the secret'
-    );
-    assert.deepEqual(body.Secrets, [
-      { Path: 'nomad/jobs/redis', Items: { password: 's3cret' } },
-    ]);
-    assert.strictEqual(currentURL(), '/packages/default/redis');
-  });
-
-  test('the values are edited as JSON too', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="catalog"]');
-    await click('[data-test-btn-install="builtin/redis"]');
-    await click('[data-test-tab="general"]');
-    await click('[data-test-radio-option="replica"]');
-
-    await click('[data-test-tab="json"]');
-    const editor = () =>
-      document.querySelector('[data-test-form-json] .CodeMirror').CodeMirror;
-    assert.deepEqual(JSON.parse(editor().getValue()), { mode: 'replica' });
-
-    editor().setValue('{"mode": "replica", "replicas": 4');
-    await settled();
-    assert.dom('[data-test-form-json-error]').includesText('Not valid JSON');
-    await click('[data-test-btn-deploy]');
-    assert.notOk(lastRequest('POST', '/deploy-pack'), 'blocked by the JSON');
-    assert.dom('[data-test-tab="json"] .badge').hasText('1');
-
-    editor().setValue('{"mode": "replica", "replicas": 4, "nope": 1}');
-    await settled();
-    assert.dom('[data-test-form-json-error]').includesText('nope');
-
-    editor().setValue('{"mode": "replica", "replicas": 4}');
-    await settled();
-    assert.dom('[data-test-form-json-error]').doesNotExist();
-    await click('[data-test-tab="resources"]');
-    assert
-      .dom('[data-test-pack-field="replicas"] input[type="number"]')
-      .hasValue('4');
-
-    await click('[data-test-btn-deploy]');
-    assert.deepEqual(lastBody('POST', '/v1/release/redis/deploy-pack').Values, {
-      mode: 'replica',
-      replicas: 4,
-    });
-  });
-
-  test('required variables and versions', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="registries"]');
-    await click('[data-test-btn-add-registry]');
-    await fillIn('[data-test-input-reg-name]', 'apps');
-    await fillIn('[data-test-input-reg-source]', 'oci://ghcr.io/example/packs');
-    await click('[data-test-btn-save-registry]');
-
-    await click('[data-test-tab="catalog"]');
-    await click('[data-test-btn-install="apps/web-app"]');
-    await click('[data-test-btn-deploy]');
-    assert.notOk(lastRequest('POST', '/deploy-pack'));
-    assert
-      .dom('[data-test-pack-field="image"] [data-test-field-error]')
-      .hasText('Image is required');
-    await fillIn('[data-test-pack-field="image"] input', 'nginx:1');
-    await fillIn('[data-test-form-release-name]', 'web');
-    await click('[data-test-btn-deploy]');
-    assert.deepEqual(lastBody('POST', '/v1/release/web/deploy-pack').Values, {
-      image: 'nginx:1',
-    });
-
-    // Another version reloads the form of that version.
-    await visit('/packages');
-    await click('[data-test-tab="catalog"]');
-    await click('[data-test-btn-install="builtin/redis"]');
-    await select('[data-test-form-version]', '7.0.15');
-    assert.ok(
-      lastRequest('GET', '/v1/pack/builtin/redis').url.includes(
-        'version=7.0.15'
-      )
-    );
-    await click('[data-test-btn-deploy]');
-    assert.strictEqual(lastBody('POST', '/deploy-pack').Version, '7.0.15');
+    assert.dom('[data-test-ui-table-empty]').includesText('rigger install');
   });
 
   test('a release from a cluster registry is upgraded with its values', async function (assert) {
     useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="catalog"]');
-    await click('[data-test-btn-install="builtin/redis"]');
-    await click('[data-test-tab="security"]');
-    await click('[data-test-pack-field="auth_enabled"] input');
-    await fillIn('[data-test-pack-field="redis_password"] input', 's3cret');
-    await click('[data-test-btn-deploy]');
-    assert.strictEqual(currentURL(), '/packages/default/redis');
+    // A pack installed by the servers (norca pack run on the servers, or a
+    // UI before Rigger): the catalog of the UI installs modules of Rigger.
+    await fetch('/v1/release/redis/deploy-pack?namespace=default', {
+      method: 'POST',
+      body: JSON.stringify({
+        Registry: 'builtin',
+        Pack: 'redis',
+        Version: '7.2.4',
+        Values: { auth_enabled: true },
+        Secrets: [{ Path: 'nomad/jobs/redis', Items: { password: 's3cret' } }],
+      }),
+    });
+    await visit('/packages/default/redis');
 
     await click('[data-test-upgrade-release]');
     assert
@@ -543,40 +330,6 @@ module('Acceptance | packages', function (hooks) {
       .hasValue('nginx:1', 'the values of the CLI install');
   });
 
-  test('packs are uploaded and removed on the Registries tab', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="registries"]');
-
-    const file = new File(['archive'], 'web-app-1.2.0.tgz', {
-      type: 'application/gzip',
-    });
-    await triggerEvent('[data-test-btn-upload-pack] input', 'change', {
-      files: [file],
-    });
-    assert.ok(
-      lastRequest('PUT', '/v1/pack-upload').url.includes(
-        'filename=web-app-1.2.0.tgz'
-      )
-    );
-    assert
-      .dom('[data-test-registry-row="uploads"]')
-      .includesText('Uploaded packs');
-    assert
-      .dom('[data-test-registry-upload="web-app-1.2.0.tgz"]')
-      .includesText('web-app@1.2.0');
-
-    await click('[data-test-tab="catalog"]');
-    assert.dom('[data-test-pack-card="uploads/web-app"]').exists();
-
-    await click('[data-test-tab="registries"]');
-    await click('[data-test-btn-remove-upload="web-app-1.2.0.tgz"]');
-    assert.ok(lastRequest('DELETE', '/v1/pack-upload/uploads/'));
-    assert
-      .dom('[data-test-registry-upload="web-app-1.2.0.tgz"]')
-      .doesNotExist();
-  });
-
   test('a release from a local directory is upgraded after its pack is uploaded', async function (assert) {
     useToken(null, 'management');
     const pack = {
@@ -613,97 +366,5 @@ module('Acceptance | packages', function (hooks) {
       .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
       .hasValue('nginx:1');
     assert.dom('[data-test-upgrade-modal]').includesText('uploads registry');
-  });
-
-  test('pack registries are added, synced, edited and removed', async function (assert) {
-    useToken(null, 'management');
-    await visit('/packages');
-    await click('[data-test-tab="registries"]');
-
-    assert
-      .dom('[data-test-registry-row="builtin"]')
-      .includesText('Server directory');
-    assert.dom('[data-test-registry-packs]').hasText('3');
-
-    await click('[data-test-btn-add-registry]');
-    await click('[data-test-btn-save-registry]');
-    assert
-      .dom('[data-test-registry-form-error]')
-      .hasText('The name is required');
-
-    await fillIn('[data-test-input-reg-name]', 'apps');
-    await select('[data-test-select-reg-type]', 'oci');
-    await fillIn('[data-test-input-reg-source]', 'oci://ghcr.io/example/packs');
-    await fillIn('[data-test-input-reg-ref]', 'v1');
-    await select('[data-test-select-reg-interval]', '1h');
-    await fillIn('[data-test-input-reg-auth-path]', 'registries/ghcr');
-    await fillIn(
-      '[data-test-input-reg-keys]',
-      '-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n\nkey-2'
-    );
-    await click('[data-test-btn-save-registry]');
-    assert.deepEqual(lastBody('POST', '/v1/pack-registry'), {
-      Name: 'apps',
-      Spec: {
-        type: 'oci',
-        source: 'oci://ghcr.io/example/packs',
-        defaultRef: 'v1',
-        syncInterval: '1h',
-        authSecret: { path: 'registries/ghcr' },
-        trustedKeys: [
-          '-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----',
-          'key-2',
-        ],
-      },
-    });
-    assert.dom('[data-test-registry-modal]').doesNotExist();
-    assert.dom('[data-test-registry-row="apps"]').exists();
-    assert
-      .dom('[data-test-registry-auth]')
-      .includesText('default/registries/ghcr');
-    const apps = [
-      ...document.querySelectorAll(
-        '[data-test-registries-table] [data-test-ui-table-row]'
-      ),
-    ].find((r) => r.textContent.includes('apps'));
-    assert
-      .dom(apps.querySelector('[data-test-registry-next-sync]'))
-      .includesText('next in an hour');
-
-    // A source the servers cannot fetch is saved with the error.
-    await click('[data-test-btn-add-registry]');
-    await fillIn('[data-test-input-reg-name]', 'broken');
-    await select('[data-test-select-reg-type]', 'git');
-    await fillIn(
-      '[data-test-input-reg-source]',
-      'https://example.com/missing.git'
-    );
-    await click('[data-test-btn-save-registry]');
-    const broken = [
-      ...document.querySelectorAll(
-        '[data-test-registries-table] [data-test-ui-table-row]'
-      ),
-    ].find((r) => r.textContent.includes('broken'));
-    assert
-      .dom(broken.querySelector('[data-test-registry-phase]'))
-      .includesText('Error');
-    assert
-      .dom(broken.querySelector('[data-test-registry-phase]'))
-      .includesText('not found');
-
-    await click('[data-test-btn-sync="builtin"]');
-    assert.ok(lastRequest('POST', '/v1/pack-registry/builtin/sync'));
-
-    await click('[data-test-btn-edit="apps"]');
-    assert.dom('[data-test-input-reg-name]').isDisabled();
-    assert.dom('[data-test-input-reg-ref]').hasValue('v1');
-    assert.dom('[data-test-select-reg-interval]').hasValue('1h');
-    assert.dom('[data-test-input-reg-auth-path]').hasValue('registries/ghcr');
-    await click('[data-test-btn-cancel-registry]');
-
-    await click('[data-test-btn-delete="broken"]');
-    await click('[data-test-confirm-submit]');
-    assert.ok(lastRequest('DELETE', '/v1/pack-registry/broken'));
-    assert.dom('[data-test-registry-row="broken"]').doesNotExist();
   });
 });

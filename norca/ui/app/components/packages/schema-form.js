@@ -33,10 +33,94 @@ import {
 const OWN_TABS = ['json', 'cli'];
 
 /**
+ * The backend of a pack of a cluster registry: what the form loads, plans
+ * and applies. Another backend (utils/rigger: riggerBackend) has the same
+ * members.
+ */
+function packBackend(form) {
+  return {
+    kind: 'pack',
+    noun: 'pack',
+    hasAtomic: true,
+    hasDescription: true,
+    hasAdopt: false,
+    async load(region, version) {
+      const r = await getCatalogPack(
+        form.token,
+        region,
+        form.args.registry,
+        form.args.pack,
+        version
+      );
+      return { detail: r.body, version: r.body?.Pack?.Version || version };
+    },
+    schema(detail) {
+      return detail?.UIFormSchema;
+    },
+    storedSecrets() {
+      return [];
+    },
+    versions(detail) {
+      return detail?.Versions || [];
+    },
+    compatibility(detail) {
+      const e = detail?.Pack || {};
+      if (!detail || e.Compatible !== false) return null;
+      const missing = (e.MissingFeatures || []).join(', ');
+      return missing || `requires Norca ${e.Requires?.Norca || ''}`.trim();
+    },
+    body({ version, values, secrets, description, atomic }) {
+      const body = {
+        Registry: form.args.registry,
+        Pack: form.args.pack,
+        Version: version,
+        Values: values,
+      };
+      if (secrets.length) body.Secrets = secrets;
+      if (description) body.Description = description;
+      if (atomic !== undefined) body.Atomic = atomic;
+      return body;
+    },
+    async plan(region, namespace, release, body) {
+      const r = await planPackRelease(
+        form.token,
+        region,
+        namespace,
+        release,
+        body
+      );
+      return {
+        changes: r.body?.Changes || [],
+        warnings: r.body?.Warnings || [],
+      };
+    },
+    async apply(region, namespace, release, body) {
+      const r = await deployPackRelease(
+        form.token,
+        region,
+        namespace,
+        release,
+        body
+      );
+      return r.body;
+    },
+    command(state) {
+      return runCommand({
+        registry: form.args.registry,
+        pack: form.args.pack,
+        form: form.form,
+        ...state,
+      });
+    },
+  };
+}
+
+/**
  * The install (or upgrade) form of a pack of a cluster registry. The
  * servers synthesize the form schema from the variables of the pack
  * (GET /v1/pack/:registry/:pack), render the pack with the values and
- * apply it as a release revision (plan-pack, deploy-pack).
+ * apply it as a release revision (plan-pack, deploy-pack). With @backend
+ * (utils/rigger: riggerBackend) it is the form of a module of Rigger.
  *
  *   <Packages::SchemaForm @registry="builtin" @pack="redis" @version="1.0.0"
  *     @detail={{this.detail}} @region={{this.region}}
@@ -73,10 +157,16 @@ export default class PackagesSchemaForm extends Component {
   @tracked draftErrors = {};
   @tracked errors = {};
 
+  // Adopt takes over a release another manager applied or a stack owns
+  // (a backend with hasAdopt).
+  @tracked adopt = false;
+
   @tracked isPlanning = false;
   @tracked isDeploying = false;
   @tracked plan = null;
   @tracked actionError = null;
+
+  backend = this.args.backend || packBackend(this);
 
   constructor() {
     super(...arguments);
@@ -99,15 +189,17 @@ export default class PackagesSchemaForm extends Component {
   }
 
   get form() {
-    return formSchema(this.detail?.UIFormSchema);
+    return formSchema(this.backend.schema(this.detail));
   }
 
-  get entry() {
-    return this.detail?.Pack || {};
+  // The variables a job reads from the secret store at run time: named,
+  // not asked for.
+  get storedSecrets() {
+    return this.backend.storedSecrets(this.detail);
   }
 
   get versions() {
-    const list = [...(this.detail?.Versions || [])];
+    const list = [...this.backend.versions(this.detail)];
     if (this.version && !list.includes(this.version)) list.push(this.version);
     return [...new Set(list)].sort(compareVersionsDesc);
   }
@@ -242,15 +334,14 @@ export default class PackagesSchemaForm extends Component {
   }
 
   get cliCommand() {
-    return runCommand({
-      registry: this.args.registry,
-      pack: this.args.pack,
+    return this.backend.command({
       version: this.version,
       release: this.releaseName,
       namespace: this.namespace,
       atomic: this.atomicValue,
       values: this.payloadValues,
       secrets: this.payloadSecrets,
+      adopt: this.adopt,
       form: this.form,
     });
   }
@@ -260,10 +351,7 @@ export default class PackagesSchemaForm extends Component {
   }
 
   get compatibilityProblem() {
-    const e = this.entry;
-    if (!this.detail || e.Compatible !== false) return null;
-    const missing = (e.MissingFeatures || []).join(', ');
-    return missing || `requires Norca ${e.Requires?.Norca || ''}`.trim();
+    return this.backend.compatibility(this.detail);
   }
 
   get canSubmit() {
@@ -290,15 +378,7 @@ export default class PackagesSchemaForm extends Component {
   }
 
   fetchDetail(version) {
-    return waitForPromise(
-      getCatalogPack(
-        this.token,
-        this.region,
-        this.args.registry,
-        this.args.pack,
-        version
-      )
-    );
+    return waitForPromise(this.backend.load(this.region, version));
   }
 
   async load(version) {
@@ -318,8 +398,8 @@ export default class PackagesSchemaForm extends Component {
       }
       // Keep the values the user set that the new version still has.
       const keep = this.detail ? this.payloadValues : this.args.initialValues;
-      this.detail = r.body;
-      this.version = r.body?.Pack?.Version || version;
+      this.detail = r.detail;
+      this.version = r.version;
       this.reset(keep);
     } catch (e) {
       this.loadError = errorMessage(e);
@@ -356,6 +436,11 @@ export default class PackagesSchemaForm extends Component {
 
   @action setDescription(value) {
     this.description = value;
+  }
+
+  @action setAdopt(value) {
+    this.adopt = value;
+    this.plan = null;
   }
 
   clearError(id) {
@@ -419,16 +504,15 @@ export default class PackagesSchemaForm extends Component {
   }
 
   get requestBody() {
-    const body = {
-      Registry: this.args.registry,
-      Pack: this.args.pack,
-      Version: this.version,
-      Values: this.payloadValues,
-    };
-    if (this.payloadSecrets.length) body.Secrets = this.payloadSecrets;
-    if (this.description.trim()) body.Description = this.description.trim();
-    if (this.atomicValue !== undefined) body.Atomic = this.atomicValue;
-    return body;
+    return this.backend.body({
+      version: this.version,
+      release: this.releaseName.trim(),
+      values: this.payloadValues,
+      secrets: this.payloadSecrets,
+      description: this.description.trim(),
+      atomic: this.atomicValue,
+      adopt: this.adopt,
+    });
   }
 
   @action async runPlan() {
@@ -437,17 +521,14 @@ export default class PackagesSchemaForm extends Component {
     if (!this.check()) return;
     this.isPlanning = true;
     try {
-      const r = await planPackRelease(
-        this.token,
-        this.region,
-        this.namespace,
-        this.releaseName.trim(),
-        this.requestBody
+      this.plan = await waitForPromise(
+        this.backend.plan(
+          this.region,
+          this.namespace,
+          this.releaseName.trim(),
+          this.requestBody
+        )
       );
-      this.plan = {
-        changes: r.body?.Changes || [],
-        warnings: r.body?.Warnings || [],
-      };
     } catch (e) {
       this.actionError = errorMessage(e);
     } finally {
@@ -460,20 +541,22 @@ export default class PackagesSchemaForm extends Component {
     if (!this.check()) return;
     this.isDeploying = true;
     try {
-      const r = await deployPackRelease(
-        this.token,
-        this.region,
-        this.namespace,
-        this.releaseName.trim(),
-        this.requestBody
+      const body = await waitForPromise(
+        this.backend.apply(
+          this.region,
+          this.namespace,
+          this.releaseName.trim(),
+          this.requestBody
+        )
       );
-      this.notifications.add({
-        title: this.isUpgrade
-          ? `${this.releaseName} upgraded to revision ${r.body?.Revision}`
-          : `${this.releaseName} installed`,
-        color: 'success',
-      });
-      this.args.onDeployed?.(r.body, {
+      let title = this.isUpgrade
+        ? `${this.releaseName} upgraded to revision ${body?.Revision}`
+        : `${this.releaseName} installed`;
+      if (body?.Action === 'unchanged') {
+        title = `${this.releaseName} is unchanged (revision ${body.Revision})`;
+      }
+      this.notifications.add({ title, color: 'success' });
+      this.args.onDeployed?.(body, {
         name: this.releaseName.trim(),
         namespace: this.namespace,
         region: this.region,

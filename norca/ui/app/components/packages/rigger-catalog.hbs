@@ -1,0 +1,287 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div {{this.setup}} data-test-rigger-catalog>
+  {{#if this.registriesError}}
+    <Ui::Alert
+      @tone="danger"
+      @title="The registries could not be loaded"
+      class="mb-3"
+      data-test-catalog-error
+    >{{this.registriesError}}</Ui::Alert>
+  {{/if}}
+
+  {{#if this.isLoadingRegistries}}
+    <Ui::Card><Ui::Spinner
+        @showLabel={{true}}
+        @label="Loading the catalog"
+      /></Ui::Card>
+  {{else if (not this.registries.length)}}
+    <Ui::Card>
+      <Ui::EmptyState
+        @icon="package"
+        @title="No registry"
+        @message="Add a registry of Rigger on the Registries tab and sync it; its modules appear here."
+        data-test-catalog-no-registry
+      />
+    </Ui::Card>
+  {{else}}
+    <div class="row g-2 mb-3">
+      <div class="col-md-3">
+        <Ui::Select
+          @label="Registry"
+          @value={{this.registryName}}
+          @options={{this.registryOptions}}
+          @onChange={{this.setRegistry}}
+          data-test-catalog-registry
+        />
+      </div>
+      <div class="col-md-4">
+        <Ui::Input
+          @type="search"
+          @icon="search"
+          @placeholder="Search name or description..."
+          @value={{this.text}}
+          @onInput={{this.setText}}
+          aria-label="Search modules"
+          data-test-catalog-search
+        />
+      </div>
+      <div class="col-6 col-md-3">
+        <Ui::Select
+          @label="Category"
+          @value={{this.category}}
+          @options={{this.categoryOptions}}
+          @onChange={{this.setCategory}}
+          data-test-catalog-category
+        />
+      </div>
+      <div class="col-6 col-md-2">
+        <Ui::Input
+          @placeholder="Keyword"
+          @value={{this.keyword}}
+          @onInput={{this.setKeyword}}
+          aria-label="Keyword"
+          data-test-catalog-keyword
+        />
+      </div>
+    </div>
+
+    <div
+      class="d-flex flex-wrap align-items-center gap-3 mb-3 small text-secondary"
+      data-test-catalog-sync
+    >
+      {{#if this.lastSync.at}}
+        <span>Index of
+          {{this.lastSync.at}}
+          ·
+          <span class="font-monospace">{{this.lastSync.commit}}</span></span>
+      {{/if}}
+      {{#if (eq this.registry.spec.display "selected")}}
+        <Ui::Switch
+          @switch={{true}}
+          @inline={{true}}
+          @label="The whole index, not only what is selected"
+          @checked={{this.showAll}}
+          @onChange={{this.setShowAll}}
+          data-test-catalog-show-all
+        />
+      {{/if}}
+    </div>
+
+    {{#if this.isOld}}
+      <Ui::Alert
+        @tone="warning"
+        @title="The index is {{this.indexAge}} days old"
+        class="mb-3"
+        data-test-catalog-old
+      >
+        Newer versions are offered after the next sync of the registry
+        (Registries tab).
+      </Ui::Alert>
+    {{/if}}
+
+    {{#if this.notSynced}}
+      <Ui::Card>
+        <Ui::EmptyState
+          @icon="refresh"
+          @title="The registry has not been synced"
+          @message="Sync it on the Registries tab; nothing is offered before its first sync."
+          data-test-catalog-not-synced
+        />
+      </Ui::Card>
+    {{else if this.searchError}}
+      <Ui::Alert
+        @tone="danger"
+        @title="The search failed"
+        class="mb-3"
+        data-test-catalog-search-error
+      >{{this.searchError}}</Ui::Alert>
+    {{else if this.isSearching}}
+      <Ui::Card><Ui::Spinner
+          @showLabel={{true}}
+          @label="Searching"
+        /></Ui::Card>
+    {{else if (not this.cards.length)}}
+      <Ui::Card>
+        <Ui::EmptyState
+          @icon="package"
+          @title="No module matches"
+          @message={{if
+            this.showsSelection
+            "Nothing selected matches. Show the whole index, or change the search."
+            "Change the search or the filters."
+          }}
+          data-test-catalog-empty
+        />
+      </Ui::Card>
+    {{else}}
+      <div class="row row-cards" data-test-catalog-grid>
+        {{#each this.cards as |card|}}
+          <div class="col-md-6 col-xl-4">
+            <Ui::Card class="h-100" data-test-module-card={{card.key}}>
+              <div
+                class="d-flex align-items-start justify-content-between gap-2 mb-1"
+              >
+                <h3 class="mb-0 d-flex align-items-center gap-2">
+                  <Ui::Icon
+                    @name={{card.icon}}
+                    class="text-primary"
+                    title={{card.categoryText}}
+                    data-test-module-category-icon={{card.icon}}
+                  />{{card.address}}
+                </h3>
+                {{#if card.newest}}
+                  <Ui::Badge
+                    @color="blue"
+                    title={{if
+                      (gt card.versions.length 1)
+                      (concat card.versions.length " versions")
+                    }}
+                  >{{card.newest}}</Ui::Badge>
+                {{else}}
+                  <Ui::Badge @color="secondary">no version</Ui::Badge>
+                {{/if}}
+              </div>
+              <div class="small text-secondary mb-2">
+                {{#if card.categoryText}}{{card.categoryText}}{{/if}}{{#if
+                  card.license
+                }} · {{card.license}}{{/if}}
+              </div>
+              <p class="text-secondary small mb-2">{{or
+                  card.description
+                  "No description."
+                }}</p>
+              {{#if card.keywords.length}}
+                <div class="d-flex flex-wrap gap-1 mb-3">
+                  {{#each card.keywords as |k|}}<Ui::Badge
+                      @color="secondary"
+                    >{{k}}</Ui::Badge>{{/each}}
+                </div>
+              {{/if}}
+              <div class="d-flex gap-2 mt-auto pt-2 border-top">
+                <Ui::Button
+                  @size="sm"
+                  @icon="book"
+                  class="flex-fill"
+                  {{on "click" (fn this.open card "readme")}}
+                  data-test-btn-readme={{card.key}}
+                >README</Ui::Button>
+                <Ui::Button
+                  @size="sm"
+                  @variant="primary"
+                  @icon="rocket"
+                  class="flex-fill"
+                  @disabled={{not card.newest}}
+                  {{on "click" (fn this.open card "install")}}
+                  data-test-btn-install={{card.key}}
+                >Install</Ui::Button>
+              </div>
+            </Ui::Card>
+          </div>
+        {{/each}}
+      </div>
+      <Ui::Pagination
+        @total={{this.shownTotal}}
+        @page={{this.page}}
+        @pageSize={{this.pageSize}}
+        @onPageChange={{this.setPage}}
+        @onPageSizeChange={{this.setPageSize}}
+        @noun="modules"
+        class="mt-3"
+      />
+    {{/if}}
+  {{/if}}
+
+  {{#if this.selected}}
+    <Ui::SidePanel
+      @title="{{this.selected.address}} · {{this.registryName}}"
+      @wide={{true}}
+      @onClose={{this.close}}
+      data-test-module-panel
+    >
+      {{#if this.iconURL}}
+        <img
+          src={{this.iconURL}}
+          alt=""
+          role="presentation"
+          width="64"
+          height="64"
+          class="mb-3"
+          data-test-module-icon
+        />
+      {{/if}}
+      <Ui::Tabs
+        @label="Module"
+        @tabs={{array
+          (hash id="install" label="Install" icon="rocket")
+          (hash id="readme" label="README" icon="book")
+        }}
+        @selected={{this.panelTab}}
+        @onSelect={{this.setPanelTab}}
+        @panelId="module-panel"
+        class="mb-3"
+      />
+      <div id="module-panel" role="tabpanel">
+        {{#if this.detailError}}
+          <Ui::Alert
+            @tone="danger"
+            @title="The module could not be loaded"
+            data-test-module-detail-error
+          >{{this.detailError}}</Ui::Alert>
+        {{else if (not this.detail)}}
+          <Ui::Spinner @showLabel={{true}} @label="Loading the module" />
+        {{else if (eq this.panelTab "readme")}}
+          <div data-test-module-readme>
+            {{#if this.detail.Readme}}
+              <pre
+                class="norca-code norca-code-wrap"
+              >{{this.detail.Readme}}</pre>
+            {{else}}
+              <p class="text-secondary">The module has no README.</p>
+            {{/if}}
+          </div>
+        {{/if}}
+        {{! The form stays rendered on the README tab so the values are kept. }}
+        {{#if this.detail}}
+          <div
+            class={{if (eq this.panelTab "readme") "d-none"}}
+            data-test-module-install
+          >
+            <Packages::SchemaForm
+              @backend={{this.backend}}
+              @registry={{this.registryName}}
+              @pack={{this.selected.name}}
+              @version={{this.selected.newest}}
+              @detail={{this.detail}}
+              @region={{this.region}}
+              @onDeployed={{this.deployed}}
+              @onClose={{this.close}}
+            />
+          </div>
+        {{/if}}
+      </div>
+    </Ui::SidePanel>
+  {{/if}}
+</div>

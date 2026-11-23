@@ -14,6 +14,7 @@ import registerDeploymentRoutes from './deployments';
 import registerReleaseRoutes, { seedReleases } from './releases';
 import registerPackRoutes, { seedPacks } from './packs';
 import registerObjectRoutes, { seedObjects } from './objects';
+import registerRiggerRoutes, { seedRigger } from './rigger';
 import registerSecretRoutes, { seedSecrets } from './secrets';
 import registerCertificateRoutes, { seedCertificates } from './certificates';
 
@@ -27,6 +28,7 @@ export function registerNorcaAreas(server) {
   registerReleaseRoutes(server);
   registerPackRoutes(server);
   registerObjectRoutes(server);
+  registerRiggerRoutes(server);
   registerSecretRoutes(server);
 }
 
@@ -39,6 +41,7 @@ export function seedNorcaAreas(server) {
   seedReleases(server);
   seedPacks(server);
   seedObjects(server);
+  seedRigger(server);
   seedSecrets(server);
   seedCertificates(server);
 }
