@@ -42,9 +42,9 @@ var ErrBlocked = errors.New("blocked by the global registry")
 
 // readIndex returns the files of the global registry: a directory as it is,
 // else the tree of the default branch of its mirror in the cache, fetched
-// once per run. When the repository can't be reached, the mirror of an
-// earlier run serves: entries are never changed, only advisories may be
-// missing.
+// once per run. When the repository can't be reached (unreachable), the
+// mirror of an earlier run serves: entries are never changed, only
+// advisories may be missing.
 func (f *Fetcher) readIndex(ctx context.Context) (*globalIndex, error) {
 	f.indexMu.Lock()
 	defer f.indexMu.Unlock()
@@ -75,7 +75,13 @@ func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
 
 	r, err := f.openRepo(ctx, f.global)
 	if err != nil {
-		// Without a network the mirror of an earlier run serves.
+		// Without a network the mirror of an earlier run serves; a
+		// registry that refuses, or a request that ended, is not answered
+		// from it.
+		if !unreachable(ctx, err) {
+			return nil, err
+		}
+
 		cached, openErr := git.PlainOpen(f.mirrorDir(f.global))
 		if openErr != nil {
 			return nil, err
@@ -142,20 +148,16 @@ func (f *Fetcher) globalVersions(ctx context.Context, req source.Request) ([]sou
 
 // globalFetch fetches a listed version from the repository of its author,
 // at the commit the entry records, with the listing the engine checks it
-// by. When the global registry can't be read at all, a version the lock
-// file records is fetched as the git source it is (from a tree in the
-// cache or a bundle), without the listing.
+// by. On a machine without a network (design 7.3: the registry can't be
+// reached and the cache has no mirror of it) a version the lock file
+// records is fetched as the git source it is (from a tree in the cache or a
+// bundle), without the listing. A registry that was reached and can't be
+// read says nothing of the version, also not that it is blocked: that is an
+// error, not a reason to fetch without the listing.
 func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.Fetched, error) {
 	idx, err := f.readIndex(ctx)
 	if err != nil {
-		if req.Commit != "" && req.Repository != "" {
-			return f.gitFetch(ctx, source.Request{
-				Source: req.Source, Kind: source.KindGit, Repository: req.Repository, Path: req.Path,
-				Version: req.Version, Ref: req.Ref, Commit: req.Commit, Digest: req.Digest,
-			})
-		}
-
-		return source.Fetched{}, err
+		return f.fetchWithoutIndex(ctx, req, err)
 	}
 
 	kind := entryKind(req)
@@ -205,6 +207,20 @@ func (f *Fetcher) globalFetch(ctx context.Context, req source.Request) (source.F
 	fetched.Listing = listing
 
 	return fetched, nil
+}
+
+// fetchWithoutIndex fetches a version the lock file records as the git
+// source it is, when the index could not be read because the registry
+// can't be reached (cause); any other cause is returned.
+func (f *Fetcher) fetchWithoutIndex(ctx context.Context, req source.Request, cause error) (source.Fetched, error) {
+	if !unreachable(ctx, cause) || req.Commit == "" || req.Repository == "" {
+		return source.Fetched{}, cause
+	}
+
+	return f.gitFetch(ctx, source.Request{
+		Source: req.Source, Kind: source.KindGit, Repository: req.Repository, Path: req.Path,
+		Version: req.Version, Ref: req.Ref, Commit: req.Commit, Digest: req.Digest,
+	})
 }
 
 // Tag is a tag of a repository and the commit it points to.

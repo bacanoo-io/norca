@@ -209,7 +209,7 @@ func TestFetcher_CredentialsInAddress(t *testing.T) {
 					return err
 				},
 				"the global registry": func() error {
-					_, err := f.Versions(t.Context(), source.Request{Kind: source.KindGlobal, Namespace: "norca", Name: "web"})
+					_, err := f.Versions(t.Context(), source.Request{Kind: source.KindGlobal, Namespace: webNamespace, Name: webName})
 
 					return err
 				},

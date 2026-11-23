@@ -155,7 +155,7 @@ func sshAuth(repo, addressUser string, c *Credentials) (transport.AuthMethod, er
 	case c.SSHAgent:
 		agent, err := gitssh.NewSSHAgentAuth(user)
 		if err != nil {
-			return nil, fmt.Errorf("the ssh agent for %s: %w", repo, err)
+			return nil, fmt.Errorf("the ssh agent for %s: %w: %w", repo, errNoSSHAgent, err)
 		}
 
 		if cb != nil {
