@@ -246,7 +246,7 @@ func (e *evaluator) instance(r *lang.Resource, body hcl.Body, hook *hcl.Block, c
 		return e.decoded(r, ctx)
 	}
 
-	w := &walker{skip: metaNames, expansion: &e.expansion}
+	w := &walker{skip: metaNames, expansion: &e.expansion, document: textBlocks[r.Type.Kind]}
 
 	v, diags := w.value(r.Block.Body, ctx)
 	if diags.HasErrors() {

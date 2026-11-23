@@ -4,11 +4,15 @@
 package eval
 
 import (
+	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 )
 
 // walker evaluates bodies of the native syntax with no schema, and notes
@@ -25,6 +29,10 @@ type walker struct {
 	test bool
 	// expansion bounds what the dynamic blocks make.
 	expansion *expansion
+	// document is the block type at the top whose content is a document of
+	// the host, written out as text (textBlocks): the host judges how its
+	// blocks are labelled, the walker does not. Empty for none.
+	document string
 }
 
 // markedAttr is an attribute whose value holds a sensitive value: its path
@@ -83,7 +91,9 @@ func (w *walker) body(body hcl.Body, ctx *hcl.EvalContext, path []string) (cty.V
 		w.emptyDynamics(syntax.Blocks, path, values)
 	}
 
-	diags = append(diags, addBlocks(values, blocks)...)
+	inDocument := w.document != "" && len(path) > 0 && path[0] == w.document
+
+	diags = append(diags, addBlocks(values, blocks, !inDocument)...)
 
 	return cty.ObjectVal(values), diags
 }
@@ -109,8 +119,10 @@ func (w *walker) emptyDynamics(blocks hclsyntax.Blocks, path []string, values ma
 	}
 }
 
-// addBlocks adds the evaluated blocks to the values of a body, by type.
-func addBlocks(values map[string]cty.Value, blocks []evaluatedBlock) hcl.Diagnostics {
+// addBlocks adds the evaluated blocks to the values of a body, by type. With
+// labelled, blocks of one type that can't all be in the value are an error
+// (checkLabels).
+func addBlocks(values map[string]cty.Value, blocks []evaluatedBlock, labelled bool) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	types := []string{}
@@ -135,10 +147,62 @@ func addBlocks(values map[string]cty.Value, blocks []evaluatedBlock) hcl.Diagnos
 			continue
 		}
 
+		if labelled {
+			diags = append(diags, checkLabels(byType[typ])...)
+		}
+
 		values[typ] = blocksValue(byType[typ])
 	}
 
 	return diags
+}
+
+// checkLabels reports the blocks of one type that the value of their body
+// can't hold next to the others. The blocks are an object by label, by the
+// first then the second, or a tuple when they have none (blocksValue): a
+// block with the labels of another one, or with another number of labels
+// than the first, has no place of its own there, and would be dropped.
+func checkLabels(blocks []evaluatedBlock) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	first := blocks[0]
+	seen := map[string]bool{}
+
+	for _, b := range blocks {
+		if len(b.labels) != len(first.labels) {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Blocks with different labels",
+				Detail: fmt.Sprintf("The %s blocks of one body have the same number of labels: this one has %d, and the one at %s has %d.",
+					b.typ, len(b.labels), first.rng, len(first.labels)),
+				Subject: b.rng.Ptr(),
+			})
+
+			continue
+		}
+
+		labels := quotedLabels(b.labels)
+		if len(b.labels) > 0 && seen[labels] {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError, Summary: "Duplicate block",
+				Detail:  fmt.Sprintf("The block %s %s is in one body twice.", b.typ, labels),
+				Subject: b.rng.Ptr(),
+			})
+		}
+
+		seen[labels] = true
+	}
+
+	return diags
+}
+
+// quotedLabels writes the labels of a block as its header has them: "a" "b".
+func quotedLabels(labels []string) string {
+	quoted := make([]string, len(labels))
+	for i, l := range labels {
+		quoted[i] = strconv.Quote(l)
+	}
+
+	return strings.Join(quoted, " ")
 }
 
 // evaluatedBlock is a block with its labels and its value.
@@ -336,17 +400,30 @@ func dynamicLabels(b *hclsyntax.Block, ctx *hcl.EvalContext) ([]string, hcl.Diag
 		})
 	}
 
-	if v.IsNull() || !v.CanIterateElements() {
-		return nil, diags
+	// A value that is no list, or an item that has no string, is not left
+	// out: the block would have fewer labels than the module wrote, and
+	// another place in the value of its body.
+	invalid := &hcl.Diagnostic{
+		Severity: hcl.DiagError, Summary: invalidDynamic,
+		Detail: "The labels of a dynamic block are a list of strings, the labels of each block it makes.", Subject: attr.Expr.Range().Ptr(),
+	}
+
+	if v.IsNull() || (!v.Type().IsListType() && !v.Type().IsTupleType()) {
+		return nil, append(diags, invalid)
 	}
 
 	var labels []string
 
 	for it := v.ElementIterator(); it.Next(); {
 		_, l := it.Element()
-		if s, ok := stringValue(l); ok {
-			labels = append(labels, s)
+
+		// A number or a bool is its string, as for the decoder of a job.
+		s, err := convert.Convert(l, cty.String)
+		if err != nil || s.IsNull() || !s.IsKnown() {
+			return nil, append(diags, invalid)
 		}
+
+		labels = append(labels, s.AsString())
 	}
 
 	return labels, diags
