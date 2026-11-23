@@ -203,6 +203,17 @@ These replace the hand-written `{{ with nomadSecret ... }}` and
 template may still be written by hand; the functions are for values that end
 up inside generated configuration (see `examples/registry/modules/nats`).
 
+Since 2026-11-24 (bug report of 2026-11-23, L2, L3, E7, E12): a runtime
+value that is the whole value of a string of an encoder is quoted for
+`service_address()` too, and outside a task template as well; there the
+client writes the value in place of `${...}` and can't escape it, so a
+value with a backslash or a quote of its own is not what the configuration
+reads. A block the host decodes (an object of a kind, the `rules` of an ACL
+policy) gets its runtime references resolved as an encoded block does.
+`local["a"]` and `module["x"]` with a constant key are the references
+`local.a` and `module.x`; a root read as a whole (`keys(local)`,
+`local[var.name]`) reads every other value of that root.
+
 ### 4.3 What replaces what
 
 | Template construct | In Rigger |
@@ -451,6 +462,16 @@ variable is an error; a variable without a value and default is an error. All
 values are checked (`validation`, `rule`) before evaluation, and a stack
 checks every module before it changes anything.
 
+Since 2026-11-24 (bug report of 2026-11-23, C2) the value of `-var
+name=value` is read by the type of the variable: for a string, a number or
+a bool it is the text as written, which the engine converts (`tag=1.20`
+stays `1.20` for a string); for a list or an object it is a constant
+expression of HCL (`tags=["a", "b"]`). For a variable without a type, or
+one of a published stack the servers fetch, the text is guessed as before,
+but a number is taken only when it is written as it is printed (`1.20`,
+`007` and `1e3` stay texts). A value larger than 1000 digits is refused
+(12.4).
+
 ### 6.2 Validation added
 
 `unique_by = "<attribute>"` for lists of objects, `one_of = [...]`,
@@ -602,9 +623,27 @@ module "worker" {
 
 Registry backends are an interface (section 11).
 
+Since 2026-11-24 (bug report of 2026-11-23, F1, F5): **an address carries
+no credentials.** A user or a password in an http(s) address
+(`https://user:token@host/repo`, `user@host/path`) or in an `oci://`
+address, and a password in an ssh address, is refused
+(`source.ErrCredentials`): an address is written into the lock file, the
+record of a release, the cache and errors, and go-git would send such
+credentials on after a redirect. The credentials of a host are given apart
+(8.4). The user of an ssh address (`ssh://user@host/path`,
+`user@host:path`) stays. On Windows `file:///C:/repos/x`, `C:\repos\x` and
+`C:/repos/x//dir` are git sources.
+
 ### 7.2 Versions
 
-- Every module has its own semver in `metadata.hcl`.
+- Every module has its own semver in `metadata.hcl`. Since 2026-11-24 (bug
+  report of 2026-11-23, L7) a version is one of Semantic Versioning 2.0.0
+  and nothing else, in `metadata.hcl`, tags, constraints, the index and the
+  lock file: the identifiers of a pre-release and of build metadata are
+  letters, digits and dashes, none is empty, a numeric one of a pre-release
+  has no zero before it, and numeric identifiers of any size are ordered by
+  value. A leading `v` is taken in tags and constraints, not in
+  `metadata.hcl` and not in the index (7.3).
 - In a git repository with several modules a version is the tag
   `<module>/v<version>` (the Go convention), so one module can be released
   without the others; a repository with one module uses `v<version>`.
@@ -860,6 +899,13 @@ signed tag note in git.
 the commit or manifest, the tree digest, the key IDs. `--lock=verify`
 (default in CI), `update`, `require`. A module with child modules from other
 sources carries its own lock.
+
+Since 2026-11-24 (bug report of 2026-11-23, L1, K2, K3, F6): the `version`
+of an entry is left out for a module without one (6.4), and such a lock is
+read again; a sync that keeps a version writes the repository and the path
+it fetched the version from now, so a lock follows a registry that moved;
+two releases (or two parts) of one source share one entry and each gets
+the module; a commit of an entry is the full hash, 40 or 64 hex digits.
 
 ### 8.4 Access to private registries
 
@@ -1205,6 +1251,13 @@ leader's rights. So the core:
   reads the host's files; a host may add functions, a module can't;
 - has **limits** the host sets: size of a module and of a file, number of
   resources, depth and steps of evaluation, time;
+  since 2026-11-24 (bug report of 2026-11-23, F8, K1, K7, E15) also: what
+  the fetcher extracts of one commit (`fetch.Limits`: 4 GiB a tree, 1 GiB a
+  file and 1,000,000 files unless the host sets others with
+  `Fetcher.SetLimits`), the signatures of fetched content (64 files of
+  64 KiB), a number of at most 1000 digits (literals, computed numbers and
+  values), and the time limit holds for `ValidateStack` too; a sync counts
+  the modules against the limit as a load does;
 - touches the network only through `Source` / `Fetcher` and the cluster only
   through the host;
 - keeps a **stable, versioned API** (semver of the Go module); a host built
@@ -1794,6 +1847,15 @@ Phase 6 as built (2026-11-18), the global registry:
   repository); `rigger stack publish [dir] -key <key>` does the same for a
   stack, validated with its lock file. A tag is never made twice, and a
   module with changes not committed is refused. Nothing is pushed.
+  Since 2026-11-24 (bug report of 2026-11-23, C1, C5): what is validated,
+  signed and tagged is the module **as the commit of HEAD has it**, read as
+  a registry reads the tree of the tag, not the files on disk (git may have
+  them otherwise: `core.autocrlf`, a file it ignores). Changes not
+  committed in a child module refuse the publish too; a module that is
+  valid on disk and not in its commit is refused; the commit of the
+  signature may differ from the signed commit only in `.rigger-signatures`;
+  a signature that could not be committed is taken back. `rigger key sign`
+  still signs the files on disk.
 - **Stacks in a registry (7.5):** a stack with `metadata.hcl` (a `stack`
   block with the name of its `rigger` block and a version) is published; its
   own modules and their children lie in its `modules/`, and its tree digest

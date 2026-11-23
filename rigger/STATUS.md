@@ -16,6 +16,34 @@ values, loads and evaluations are bounded; what those bounds can't hold (a
 stack overflow, the memory of the process) waits for evaluation in a
 process of its own.
 
+2026-11-24: the findings of the bug report of 2026-11-23 are fixed (52 of
+55; three wait for a decision of the maintainer: how a constraint takes
+the pre-releases of the version its upper bound excludes, what a plan does
+with a deployed release that is disabled, and `RIGGER_VAR_<name>`). What
+changed holds over what is below.
+- Sources: an address carries no credentials; the cache serves a locked
+  version only when the source can't be reached (not after a refusal); the
+  global registry fails closed when its index is reached and can't be
+  read; a tree extracted of a commit, the tags of an OCI repository, the
+  tokens a client keeps and the parameters of a key file are bounded; an
+  OCI registry elsewhere can't lead the client to this machine.
+- Language: a version is strict semver; an advisory holds for its version
+  however it is written; a second `validation`, `ui`, `secret`, `item`,
+  `attribute` or `registry` block is an error; `local["a"]` is a reference,
+  and a bare `local` / `module` reads every other value; blocks with the
+  same labels are an error; a runtime value that is a whole encoded string
+  is quoted everywhere; the encoders write no exponent, escape by format
+  and refuse an infinite number; `templatefile` returns a string.
+- Engine: `ValidateStack` keeps the time limit; a sync fills every release
+  and part of a shared source, records where it fetched, and counts the
+  modules; an archive leaves out every name that starts with a dot;
+  `-adopt` takes over only what the plan showed.
+- Program: `module publish` and `stack publish` sign the commit of HEAD;
+  `-var` reads its value by the type of the variable; the registry
+  commands end with their context; `index check` compares the description,
+  category, keywords and license too; lock files, formatted files, index
+  entries and the credentials file are written by a rename.
+
 2026-11-18. Phases 1 to 4 and 6 of the design (`design/rigger-design.md`,
 section 15) are done, and phase 5 but for its lab case: modules load,
 validate, evaluate and are tested; stacks are planned and applied as
