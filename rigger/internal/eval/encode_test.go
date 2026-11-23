@@ -33,6 +33,14 @@ const (
 	routes  = `{{ $first := true }}{{ range nomadService "c" }}{{ if ne .AllocID (env "NORCA_ALLOC_ID") }}{{ if $first }}, {{ else }}, {{ end }}{{ $first = false }}"r://{{ .Address }}:{{ .Port }}"{{ end }}{{ end }}`
 )
 
+// The encoders by the name of their function, for the names of the tests.
+const (
+	natsName = "natsconf"
+	jsonName = "jsonencode"
+	yamlName = "yamlencode"
+	tomlName = "tomlencode"
+)
+
 // encodeInput is the value all encoders write.
 func encodeInput() cty.Value {
 	return cty.ObjectVal(map[string]cty.Value{
@@ -64,7 +72,7 @@ func TestEncoders(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "natsconf",
+			name: natsName,
 			fn:   natsconf,
 			expected: `debug: false
 "my users": [
@@ -83,13 +91,13 @@ store {
 `,
 		},
 		{
-			name: "jsonencode",
+			name: jsonName,
 			fn:   jsonEncode,
 			expected: `{"debug":false,"my users":[{"pw":` + pw + `,"user":"app"}],"name":"a \"quoted\"\nname","port":4222,"ratio":0.5,` +
 				`"routes":["r://seed:1"` + strings.ReplaceAll(routes, ", ", ",") + `],"store":{"dir":"` + envDir + `"},"tls":null}`,
 		},
 		{
-			name: "yamlencode",
+			name: yamlName,
 			fn:   yamlEncode,
 			expected: `debug: false
 "my users":
@@ -105,7 +113,7 @@ tls: null
 `,
 		},
 		{
-			name: "tomlencode",
+			name: tomlName,
 			fn:   tomlEncode,
 			expected: `debug = false
 name = "a \"quoted\"\nname"
@@ -163,10 +171,10 @@ func TestEncoders_Characters(t *testing.T) {
 		fn       function.Function
 		expected string
 	}{
-		{name: "natsconf", fn: natsconf, expected: "\"k\a\": true\ns: " + `"a\x07\x7f` + special[2:] + "b\"\n"},
-		{name: "jsonencode", fn: jsonEncode, expected: `{"k\u0007":true,"s":` + byCode + `}`},
-		{name: "yamlencode", fn: yamlEncode, expected: `"k\u0007": true` + "\ns: " + byCode + "\n"},
-		{name: "tomlencode", fn: tomlEncode, expected: `"k\u0007" = true` + "\ns = " + byCode + "\n"},
+		{name: natsName, fn: natsconf, expected: "\"k\a\": true\ns: " + `"a\x07\x7f` + special[2:] + "b\"\n"},
+		{name: jsonName, fn: jsonEncode, expected: `{"k\u0007":true,"s":` + byCode + `}`},
+		{name: yamlName, fn: yamlEncode, expected: `"k\u0007": true` + "\ns: " + byCode + "\n"},
+		{name: tomlName, fn: tomlEncode, expected: `"k\u0007" = true` + "\ns = " + byCode + "\n"},
 	}
 
 	for _, tt := range tests {
@@ -222,14 +230,14 @@ func TestEncoders_Numbers(t *testing.T) {
 		fn       function.Function
 		expected string
 	}{
-		{name: "natsconf", fn: natsconf, expected: lines(": ", huge+".0", wide+".0")},
+		{name: natsName, fn: natsconf, expected: lines(": ", huge+".0", wide+".0")},
 		{
-			name: "jsonencode", fn: jsonEncode,
+			name: jsonName, fn: jsonEncode,
 			expected: `{"big":2500000.5,"huge":` + huge + `,"max":9223372036854775807,"min":-9223372036854775808,` +
 				`"neg":-0.5,"small":0.00001,"tiny":0.0000001,"whole":12,"wide":` + wide + `,"zero":0}`,
 		},
-		{name: "yamlencode", fn: yamlEncode, expected: lines(": ", huge, wide)},
-		{name: "tomlencode", fn: tomlEncode, expected: lines(" = ", huge+".0", wide+".0")},
+		{name: yamlName, fn: yamlEncode, expected: lines(": ", huge, wide)},
+		{name: tomlName, fn: tomlEncode, expected: lines(" = ", huge+".0", wide+".0")},
 	}
 
 	for _, tt := range tests {
