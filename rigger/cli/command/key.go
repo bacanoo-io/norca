@@ -96,16 +96,21 @@ func generateKey(w io.Writer, out string) error {
 		return err
 	}
 
+	id, err := sign.KeyID(&key.PublicKey)
+	if err != nil {
+		return err
+	}
+
 	if err := writeNew(out+".key", private, 0o600); err != nil {
 		return err
 	}
 
 	if err := writeNew(out+".pub", public, 0o644); err != nil {
-		return err
-	}
+		// The pair is written whole or not at all: a private key without
+		// its public key is of no use, and its file would refuse the name
+		// to the next run.
+		_ = os.Remove(filepath.Clean(out + ".key"))
 
-	id, err := sign.KeyID(&key.PublicKey)
-	if err != nil {
 		return err
 	}
 
@@ -114,20 +119,26 @@ func generateKey(w io.Writer, out string) error {
 	return err
 }
 
-// writeNew writes a file that must not exist yet.
+// writeNew writes a file that must not exist yet. A file it could not
+// write whole is removed.
 func writeNew(p string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(filepath.Clean(p), os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
+	p = filepath.Clean(p)
+
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
 	if err != nil {
 		return err
 	}
 
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-
-		return err
+	_, err = f.Write(data)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
 	}
 
-	return f.Close()
+	if err != nil {
+		_ = os.Remove(p)
+	}
+
+	return err
 }
 
 // signed is what a signature names: a module, or a published stack.
