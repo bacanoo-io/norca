@@ -1,0 +1,13 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{page-title @model.name " - Stacks"}}
+<PageLayout>
+  <Packages::RiggerStack
+    @namespace={{@model.namespace}}
+    @name={{@model.name}}
+    @operation={{this.operation}}
+    @onOperation={{this.setOperation}}
+  />
+</PageLayout>

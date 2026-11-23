@@ -776,6 +776,10 @@ stacks/data-platform/
   storage, developer-tools, ai and other, so a catalog filters on it and
   shows an icon of each; the index of the global registry lists the
   description, category, keywords and license of each version.
+  Since 2026-11-23 (4.8d of norca) `metadata.hcl` of a stack also takes
+  the `ui` block with the tabs of its form, as a module's does: the web UI
+  applies a published stack from a form of its `variables.hcl`
+  (`Stack.FormSchema`).
 - **Its modules** are registry modules (by address and version constraint,
   never by a path into the repository, also for modules of the same
   registry) and modules of its own in `modules/`. The registry modules may

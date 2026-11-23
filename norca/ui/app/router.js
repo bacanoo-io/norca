@@ -171,6 +171,7 @@ Router.map(function () {
   });
 
   this.route('packages', function () {
+    this.route('stack', { path: '/stack/:namespace/:name' });
     this.route('release', { path: '/:namespace/:name' });
   });
 

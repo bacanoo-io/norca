@@ -70,6 +70,7 @@
         <Ui::Alert @tone="info" @title="Part of the stack {{this.ownerText}}" class="mb-3" data-test-release-owner>
           The stack applies, upgrades and removes this release: change the stack and apply it.
           {{#if this.owner.Source}}It came from <span class="font-monospace">{{this.owner.Source}}</span>.{{/if}}
+          <LinkTo @route="packages.stack" @models={{array this.owner.Namespace this.owner.Name}} data-test-release-owner-link>Open the stack</LinkTo>
         </Ui::Alert>
       {{/if}}
 

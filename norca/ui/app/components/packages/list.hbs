@@ -18,7 +18,9 @@
 
     {{! the panel the tabs control (aria-controls) }}
     <div id="packages-panel" role="tabpanel">
-    {{#if (eq this.activeSection "catalog")}}
+    {{#if (eq this.activeSection "stacks")}}
+      <Packages::RiggerStacks />
+    {{else if (eq this.activeSection "catalog")}}
       <Packages::RiggerCatalog />
     {{else if (eq this.activeSection "registries")}}
       <Packages::RiggerRegistries />

@@ -108,8 +108,45 @@ export const MODULES = {
       category: 'application',
       schema: APP_SCHEMA,
     }),
+    {
+      kind: 'stack',
+      namespace: '',
+      name: 'site',
+      versions: ['1.1.0', '1.0.0'],
+      description: 'A web site with its database',
+      category: 'platform',
+      keywords: ['web'],
+      readme: '# site\n\nA web application and its database.\n',
+      schema: {
+        type: 'object',
+        properties: {
+          domain: { type: 'string', title: 'Domain', 'x-ui-order': 10 },
+          replicas: {
+            type: 'number',
+            title: 'Replicas',
+            default: 2,
+            'x-ui-order': 20,
+          },
+        },
+        required: ['domain'],
+      },
+      // The releases of an apply: their names and modules.
+      releases: [
+        { name: 'site-db', module: 'postgres', part: 'data' },
+        { name: 'site-web', module: 'web-app', part: 'web' },
+      ],
+    },
   ],
 };
+
+export const OPERATION_KIND = 'Operation';
+
+// The address a stack request names a published stack by.
+function stackSource(reg, item) {
+  return reg.Spec.type === 'global'
+    ? `${item.namespace}/${item.name}`
+    : `${reg.Spec.source}//stacks/${item.name}`;
+}
 
 const DAY = 86400000;
 
@@ -203,6 +240,324 @@ export function seedRigger(server) {
       11
     )
   );
+
+  collection(db, 'norcaObjectKinds').insert({
+    Group: GROUP,
+    Kind: OPERATION_KIND,
+    Description: 'An apply or a destroy of a stack of Rigger (built in)',
+    Namespaced: true,
+    Columns: [{ Name: 'Phase', Path: 'status.phase' }],
+  });
+}
+
+// A stack applied before (after seedRigger): the site of acme in the
+// default namespace, its releases and the operation that applied it.
+export function seedRiggerStack(server) {
+  const db = server.db;
+  const repo = 'https://git.example.com/acme/rigger-modules';
+  const site = MODULES[repo].find((i) => i.kind === 'stack');
+  const source = `${repo}//stacks/site`;
+  for (const r of site.releases) {
+    insertStackRelease(db, 'default', 'site', source, '1.0.0', r);
+  }
+  insertOperation(db, 'default', 'op-site-1', {
+    stack: 'site',
+    action: 'apply',
+    source,
+    version: '1.0.0',
+    phase: 'Succeeded',
+    startedAt: new Date(Date.now() - DAY).toISOString(),
+    releases: site.releases,
+  });
+}
+
+// A release a stack owns, as the servers record it.
+function insertStackRelease(db, namespace, stack, source, version, r) {
+  const c = collection(db, 'norcaReleases');
+  const existing = c.where(
+    (x) => x.Name === r.name && (x.Namespace || 'default') === namespace
+  )[0];
+  const n = (existing?.Spec.revision || 0) + 1;
+  const pack = {
+    name: r.module,
+    version: '1.0.0',
+    manager: 'rigger',
+    source: r.module,
+  };
+  const record = {
+    Region: 'global',
+    ID: existing?.ID || `rel-${r.name}`,
+    Namespace: namespace,
+    Name: r.name,
+    Spec: {
+      pack,
+      revision: n,
+      maxHistory: 10,
+      owner: {
+        kind: 'stack',
+        namespace,
+        name: stack,
+        version,
+        source,
+        part: r.part,
+      },
+    },
+    Status: {
+      phase: 'deployed',
+      revision: n,
+      resources: [{ type: 'job', namespace, name: r.name, hook: '' }],
+      conditions: [],
+    },
+    History: [
+      revision(namespace, r.name, n, '1.0.0', {
+        spec: { pack, values: {} },
+        status: { phase: 'deployed', hooks: [] },
+      }),
+      ...(existing?.History || []),
+    ],
+    Events: [],
+    Drift: [],
+  };
+  if (existing) c.update(existing.id, record);
+  else c.insert(record);
+  return n;
+}
+
+// An operation of a stack, finished: its outcomes and its log.
+function insertOperation(db, namespace, name, o) {
+  const at = o.startedAt || new Date().toISOString();
+  const outcomes = o.releases.map((r) => ({
+    namespace,
+    release: r.name,
+    action: o.action === 'destroy' ? 'uninstall' : 'install',
+    revision: r.revision,
+  }));
+  const log = [
+    { time: at, level: 'INFO', msg: `stack.${o.action}`, stack: o.stack },
+    ...outcomes.map((x) => ({
+      time: at,
+      level: 'INFO',
+      msg: `release.${x.action}`,
+      release: `${namespace}/${x.release}`,
+    })),
+    { time: at, level: 'INFO', msg: `stack.${o.action} done`, stack: o.stack },
+  ];
+  const obj = {
+    Group: GROUP,
+    Kind: OPERATION_KIND,
+    Name: name,
+    Namespace: namespace,
+    Labels: {},
+    Spec: {
+      stack: o.stack,
+      action: o.action,
+      source: o.source,
+      version: o.version,
+      requestedBy: 'management',
+    },
+    Status: {
+      phase: o.phase,
+      plan: outcomes,
+      outcomes,
+      startedAt: at,
+      finishedAt: at,
+      logStored: true,
+    },
+    Generation: 1,
+    CreateIndex: 20,
+    ModifyIndex: 20,
+    Events: [],
+    Log: log,
+  };
+  collection(db, 'norcaObjects').insert(obj);
+  return obj;
+}
+
+function operationOf(db, name, namespace) {
+  return collection(db, 'norcaObjects').where(
+    (o) =>
+      o.Group === GROUP &&
+      o.Kind === OPERATION_KIND &&
+      o.Name === name &&
+      (o.Namespace || 'default') === (namespace || 'default')
+  )[0];
+}
+
+function operationView(o) {
+  return {
+    namespace: o.Namespace,
+    name: o.Name,
+    spec: o.Spec,
+    status: o.Status,
+  };
+}
+
+// The published stack a stack request names: its registry and item.
+function publishedStack(db, source) {
+  for (const reg of collection(db, 'norcaObjects').where(
+    (o) => o.Group === GROUP && o.Kind === KIND
+  )) {
+    const item = (MODULES[reg.Spec.source] || []).find(
+      (i) => i.kind === 'stack' && stackSource(reg, i) === source
+    );
+    if (item) return { reg, item };
+  }
+  return null;
+}
+
+function registerStackRoutes(server) {
+  server.get(
+    '/rigger/registry/:name/stack',
+    function ({ db }, { params, queryParams: q }) {
+      const reg = registryOf(db, params.name);
+      if (!reg) return error(404, `registry "${params.name}" not found`);
+      const item = itemOf(reg, q.name || '');
+      if (!item || item.kind !== 'stack')
+        return error(404, `stack ${q.name} is not in the registry`);
+      const version = q.version || item.versions[0];
+      if (!item.versions.includes(version))
+        return error(404, `${q.name} has no version ${version}`);
+      return json({
+        Source: stackSource(reg, item),
+        Metadata: {
+          name: item.name,
+          version,
+          description: item.description,
+          category: item.category,
+          keywords: item.keywords,
+        },
+        Readme: item.readme || '',
+        FormSchema: item.schema,
+        Versions: item.versions,
+        Meets: true,
+        Unmet: [],
+        Warnings: [],
+      });
+    }
+  );
+
+  server.put('/rigger/stack/:action', function ({ db }, request) {
+    const payload = body(request);
+    const ns = request.queryParams.namespace || 'default';
+    const found = publishedStack(db, payload.Source);
+    if (!found) return error(404, `no stack at ${payload.Source}`);
+    const { item } = found;
+    const version = payload.Version || item.versions[0];
+    const owned = (r) => {
+      const o = r.Spec?.owner;
+      return (
+        o && o.kind === 'stack' && o.namespace === ns && o.name === item.name
+      );
+    };
+    const releases = collection(db, 'norcaReleases').where(owned);
+    const action = request.params.action;
+
+    if (action === 'plan') {
+      const values = payload.ValuesJSON || {};
+      const missing = (item.schema?.required || []).filter(
+        (k) => !(k in values)
+      );
+      if (missing.length)
+        return error(400, `variable ${missing.join(', ')} has no value`);
+      return json({
+        Plan: {
+          stack: item.name,
+          region: 'global',
+          releases: item.releases.map((r) => ({
+            release: { namespace: ns, name: r.name },
+            action: releases.some((x) => x.Name === r.name)
+              ? 'upgrade'
+              : 'install',
+            module: { source: r.module, version: '1.0.0' },
+          })),
+          outputs: [],
+        },
+        Warnings: [],
+      });
+    }
+    if (action === 'status') {
+      return json({
+        Stack: item.name,
+        Releases: releases.map((r) => ({
+          revision: {
+            release: { namespace: ns, name: r.Name },
+            number: r.Spec.revision,
+          },
+          drift:
+            r.Name === 'site-db'
+              ? [{ kind: 'job', name: r.Name, detail: 'count 1 → 2' }]
+              : [],
+        })),
+      });
+    }
+    if (action !== 'apply' && action !== 'destroy')
+      return error(404, `unknown stack action ${action}`);
+
+    const running = collection(db, 'norcaObjects').where(
+      (o) =>
+        o.Kind === OPERATION_KIND &&
+        o.Spec.stack === item.name &&
+        o.Status.phase === 'Running'
+    );
+    if (running.length)
+      return error(409, `stack ${item.name} has an operation running`);
+    const done = item.releases.map((r) => ({ ...r }));
+    if (action === 'apply') {
+      for (const r of done) {
+        r.revision = insertStackRelease(
+          db,
+          ns,
+          item.name,
+          payload.Source,
+          version,
+          r
+        );
+      }
+    } else {
+      for (const r of releases) collection(db, 'norcaReleases').remove(r.id);
+    }
+    const n = collection(db, 'norcaObjects').where(
+      (o) => o.Kind === OPERATION_KIND
+    ).length;
+    const op = insertOperation(db, ns, `op-${item.name}-${n + 1}`, {
+      stack: item.name,
+      action,
+      source: payload.Source,
+      version,
+      phase: 'Succeeded',
+      startedAt: new Date().toISOString(),
+      releases: done,
+    });
+    return json(operationView(op));
+  });
+
+  server.get('/rigger/operation/:name/log', function ({ db }, request) {
+    const q = request.queryParams;
+    const op = operationOf(db, request.params.name, q.namespace);
+    if (!op) return error(404, `operation ${request.params.name} not found`);
+    const after = Number(q.after || 0);
+    return json({
+      Lines: (op.Log || [])
+        .map((line, i) => ({ Seq: i + 1, Line: line }))
+        .filter((l) => l.Seq > after),
+      Phase: op.Status.phase,
+      Finished: op.Status.phase !== 'Running',
+    });
+  });
+
+  server.put('/rigger/operation/:name/cancel', function ({ db }, request) {
+    const op = operationOf(
+      db,
+      request.params.name,
+      request.queryParams.namespace
+    );
+    if (!op) return error(404, `operation ${request.params.name} not found`);
+    if (op.Status.phase !== 'Running')
+      return error(409, `operation ${op.Name} has finished`);
+    const status = { ...op.Status, phase: 'Cancelled' };
+    collection(db, 'norcaObjects').update(op.id, { Status: status });
+    return json(operationView({ ...op, Status: status }));
+  });
 }
 
 function registryOf(db, name) {
@@ -427,6 +782,8 @@ export default function registerRiggerRoutes(server) {
       Revision: n,
     });
   });
+
+  registerStackRoutes(server);
 }
 
 export function riggerRegistry(db, name) {

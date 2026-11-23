@@ -1,0 +1,36 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-rigger-stacks {{this.setup}}>
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the stacks" /></Ui::Card>
+  {{else if this.loadError}}
+    <Ui::Alert @tone="danger" @title="The stacks could not be loaded" data-test-stacks-error>{{this.loadError}}</Ui::Alert>
+  {{else}}
+    <Ui::Card @flush={{true}}>
+      <Ui::Table
+        @inCard={{true}}
+        @caption="Stacks of Rigger"
+        @columns={{array (hash key="name" label="Stack") (hash key="source" label="Source") (hash key="releases" label="Releases") (hash key="operation" label="Last operation")}}
+        @rows={{this.rows}}
+        @emptyMessage="No stack owns a release here. Apply a stack from the Catalog (kind Stacks)."
+        as |s|
+      >
+        <td data-test-stack-row={{s.key}}>
+          <LinkTo @route="packages.stack" @models={{array s.namespace s.name}}>{{s.name}}</LinkTo>
+          <div class="small text-secondary">{{s.namespace}}</div>
+        </td>
+        <td class="small"><span class="font-monospace">{{or s.source "–"}}</span>{{#if s.version}} {{s.version}}{{/if}}</td>
+        <td>{{s.releases}}</td>
+        <td data-test-stack-last-operation>
+          {{#if s.operation}}
+            {{s.operation.spec.action}}: {{s.operation.status.phase}}
+          {{else}}
+            –
+          {{/if}}
+        </td>
+      </Ui::Table>
+    </Ui::Card>
+  {{/if}}
+</div>

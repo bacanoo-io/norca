@@ -321,3 +321,231 @@ export function riggerBackend({ token, registry, module }) {
     },
   };
 }
+
+// A version of a published stack of a registry: Source (the address to
+// apply it by), Metadata, Readme, FormSchema, Versions, Meets, Unmet,
+// Warnings. The schema keeps its keys.
+export async function riggerStackDetail(
+  token,
+  region,
+  registry,
+  stack,
+  version
+) {
+  const r = await apiRequest(
+    token,
+    `/v1/rigger/registry/${enc(registry)}/stack`,
+    {
+      params: { region, name: stack, version: version || undefined },
+    }
+  );
+  return r;
+}
+
+// A request of a stack: plan, status, apply or destroy. body: { Source,
+// Version, ValuesJSON, Prune, Adopt }; an apply and a destroy answer the
+// operation they started.
+export function riggerStackRequest(token, region, namespace, action, body) {
+  return apiRequest(token, `/v1/rigger/stack/${action}`, {
+    method: 'PUT',
+    params: { region, namespace },
+    data: body,
+  });
+}
+
+export const OPERATION_KIND = 'Operation';
+
+// The operations of a namespace (objects of the kind
+// rigger.norca.io/Operation), of one stack when stack is given, the newest
+// first.
+export async function listRiggerOperations(token, region, namespace, stack) {
+  const r = await apiRequest(
+    token,
+    `/v1/objects/${REGISTRY_GROUP}/${OPERATION_KIND}`,
+    {
+      params: { region, namespace },
+    }
+  );
+  const list = Array.isArray(r.body) ? r.body : r.body?.Objects || [];
+  return list
+    .map((o) => ({
+      name: o.Name,
+      namespace: o.Namespace,
+      spec: o.Spec || {},
+      status: o.Status || {},
+    }))
+    .filter((o) => !stack || o.spec.stack === stack)
+    .sort((a, b) =>
+      String(b.status.startedAt || '').localeCompare(
+        String(a.status.startedAt || '')
+      )
+    );
+}
+
+// A page of the log of an operation after the sequence after, waiting up
+// to wait for the first record: { Lines, Phase, Finished, LogUnavailable }.
+export function riggerOperationLog(
+  token,
+  region,
+  namespace,
+  name,
+  after,
+  wait
+) {
+  return apiRequest(token, `/v1/rigger/operation/${enc(name)}/log`, {
+    params: {
+      region,
+      namespace,
+      after: after ? String(after) : undefined,
+      wait: wait || undefined,
+    },
+  });
+}
+
+export function cancelRiggerOperation(token, region, namespace, name) {
+  return apiRequest(token, `/v1/rigger/operation/${enc(name)}/cancel`, {
+    method: 'PUT',
+    params: { region, namespace },
+  });
+}
+
+export function isFinishedOperation(phase) {
+  return ['Succeeded', 'Failed', 'Cancelled', 'Interrupted'].includes(phase);
+}
+
+// The registry of the cluster and the name of a published stack by the
+// address a stack is applied by: <namespace>/<name> of the global
+// registry, or <repository>//stacks/<name> of a registry repository.
+export function stackOfSource(registries, source) {
+  const s = String(source || '');
+  for (const reg of registries || []) {
+    const repo = String(reg.status?.source || reg.spec?.source || '').replace(
+      /\/+$/,
+      ''
+    );
+    if (
+      reg.spec?.type !== 'global' &&
+      repo &&
+      s.startsWith(`${repo}//stacks/`)
+    ) {
+      return { registry: reg.name, stack: s.slice(`${repo}//stacks/`.length) };
+    }
+  }
+  const global = (registries || []).find((r) => r.spec?.type === 'global');
+  if (global && /^[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*$/.test(s)) {
+    return { registry: global.name, stack: s };
+  }
+  return null;
+}
+
+/**
+ * The backend of the form of a published stack of a registry: the form of
+ * its variables, a plan of its releases, and an apply that starts an
+ * operation (Packages::SchemaForm with @backend).
+ */
+export function riggerStackBackend({ token, registry, stack }) {
+  let source = '';
+  return {
+    kind: 'rigger-stack',
+    noun: 'stack',
+    hasAtomic: false,
+    hasDescription: false,
+    hasAdopt: true,
+    hasReleaseName: false,
+    applyLabel: 'Apply',
+    async load(region, version) {
+      const r = await riggerStackDetail(
+        token,
+        region,
+        registry,
+        stack,
+        version
+      );
+      source = r.body?.Source || '';
+      return { detail: r.body, version: r.body?.Metadata?.version || version };
+    },
+    schema(detail) {
+      return riggerFormSchema(detail?.FormSchema);
+    },
+    storedSecrets(detail) {
+      return riggerStoredSecrets(detail?.FormSchema);
+    },
+    versions(detail) {
+      return detail?.Versions || [];
+    },
+    compatibility(detail) {
+      if (!detail || detail.Meets !== false) return null;
+      return (
+        (detail.Unmet || []).join('; ') ||
+        'The cluster does not meet its requirements.'
+      );
+    },
+    body({ version, values, adopt, detail }) {
+      const body = { Source: detail?.Source || source, Version: version };
+      if (Object.keys(values || {}).length) body.ValuesJSON = values;
+      if (adopt) body.Adopt = true;
+      return body;
+    },
+    async plan(region, namespace, release, body) {
+      const r = await riggerStackRequest(
+        token,
+        region,
+        namespace,
+        'plan',
+        body
+      );
+      const plan = r.body?.Plan || {};
+      const releases = plan.releases || [];
+      return {
+        changes: releases.map((p) => ({
+          Action: p.action,
+          Type: `release ${p.module?.source || ''} ${
+            p.module?.version || ''
+          }`.trim(),
+          Namespace: p.release?.namespace,
+          Name: p.release?.name,
+        })),
+        warnings: [
+          ...(r.body?.Warnings || []),
+          ...releases
+            .filter((p) => p.takes_over)
+            .map(
+              (p) =>
+                `${p.release?.namespace}/${p.release?.name} belongs to ${p.takes_over}: the apply takes it over only with adopt`
+            ),
+        ],
+      };
+    },
+    async apply(region, namespace, release, body) {
+      const r = await riggerStackRequest(
+        token,
+        region,
+        namespace,
+        'apply',
+        body
+      );
+      return { Operation: r.body?.name, Stack: r.body?.spec?.stack };
+    },
+    command({ namespace, values, adopt, version, form }) {
+      const secret = new Set(
+        (form?.fields || []).filter((f) => f.secret).map((f) => f.key)
+      );
+      const shown = Object.fromEntries(
+        Object.entries(values || {}).map(([k, v]) => [
+          k,
+          secret.has(k) ? '<secret>' : v,
+        ])
+      );
+      const body = { Source: source, Version: version };
+      if (Object.keys(shown).length) body.ValuesJSON = shown;
+      if (adopt) body.Adopt = true;
+      return [
+        'curl -X PUT -H "X-Nomad-Token: $NORCA_TOKEN" \\',
+        `  "$NORCA_ADDR/v1/rigger/stack/apply?namespace=${encodeURIComponent(
+          namespace || 'default'
+        )}" \\`,
+        `  -d ${shellQuote(JSON.stringify(body))}`,
+      ].join('\n');
+    },
+  };
+}

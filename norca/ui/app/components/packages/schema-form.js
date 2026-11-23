@@ -491,7 +491,7 @@ export default class PackagesSchemaForm extends Component {
       draftErrors: this.draftErrors,
       upgrade: this.isUpgrade,
     });
-    if (!this.releaseName.trim())
+    if (this.hasReleaseName && !this.releaseName.trim())
       errors.__name = 'The release name is required';
     if (this.jsonError) errors.__json = this.jsonError;
     this.errors = errors;
@@ -512,7 +512,18 @@ export default class PackagesSchemaForm extends Component {
       description: this.description.trim(),
       atomic: this.atomicValue,
       adopt: this.adopt,
+      detail: this.detail,
     });
+  }
+
+  // A form of a release has its name; one of a stack has none of its own.
+  get hasReleaseName() {
+    return this.backend.hasReleaseName !== false;
+  }
+
+  get applyLabel() {
+    if (this.backend.applyLabel) return this.backend.applyLabel;
+    return this.isUpgrade ? 'Upgrade' : 'Install';
   }
 
   @action async runPlan() {
@@ -554,6 +565,11 @@ export default class PackagesSchemaForm extends Component {
         : `${this.releaseName} installed`;
       if (body?.Action === 'unchanged') {
         title = `${this.releaseName} is unchanged (revision ${body.Revision})`;
+      }
+      if (body?.Operation) {
+        title = `The apply of ${body.Stack || 'the stack'} runs as ${
+          body.Operation
+        }`;
       }
       this.notifications.add({ title, color: 'success' });
       this.args.onDeployed?.(body, {

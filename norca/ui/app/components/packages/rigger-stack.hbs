@@ -1,0 +1,144 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-rigger-stack {{this.setup}}>
+  <Ui::PageHeader @pretitle={{concat "Stacks / " @namespace}} @title={{@name}}>
+    <:subtitle>
+      {{#if this.source}}
+        <span class="font-monospace" data-test-stack-source>{{this.source}}</span>{{#if this.version}} {{this.version}}{{/if}}
+      {{/if}}
+    </:subtitle>
+    <:actions>
+      <Ui::Button @icon="refresh" @isLoading={{this.isCheckingStatus}} @disabled={{not this.source}} {{on "click" this.checkStatus}} data-test-stack-status>Check status</Ui::Button>
+      {{#if this.backend}}
+        <Ui::Button @variant="primary" @icon="rocket" {{on "click" this.openApply}} data-test-stack-apply>Apply again</Ui::Button>
+      {{/if}}
+      <Ui::Button @variant="outline-danger" @icon="trash" @disabled={{not this.source}} {{on "click" this.askDestroy}} data-test-stack-destroy>Destroy</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the stack" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Alert @tone="danger" @title="The stack could not be loaded" data-test-stack-error>{{this.loadError}}</Ui::Alert>
+    {{else}}
+      {{#if this.actionError}}
+        <Ui::Alert @tone="danger" class="mb-3" data-test-stack-action-error>{{this.actionError}}</Ui::Alert>
+      {{/if}}
+      {{#if this.statusError}}
+        <Ui::Alert @tone="danger" @title="The status could not be read" class="mb-3" data-test-stack-status-error>{{this.statusError}}</Ui::Alert>
+      {{/if}}
+
+      <div class="row row-cards">
+        <div class="col-lg-5">
+          <Ui::Card @title="Releases" @flush={{true}} data-test-stack-releases>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Releases of the stack"
+              @columns={{array (hash key="name" label="Release") (hash key="module" label="Module") (hash key="phase" label="Status") (hash key="drift" label="Drift")}}
+              @rows={{this.releaseRows}}
+              @emptyMessage="The stack owns no release."
+              as |r|
+            >
+              <td data-test-stack-release={{r.name}}>
+                <LinkTo @route="packages.release" @models={{array r.namespace r.name}}>{{r.name}}</LinkTo>
+                <div class="small text-secondary">{{r.namespace}}{{#if r.part}} · part {{r.part}}{{/if}}</div>
+              </td>
+              <td>{{r.module}}</td>
+              <td><Ui::StatusIndicator @tone={{r.phaseTone}} @label={{r.phase}} /></td>
+              <td data-test-stack-release-drift>{{or r.drift "–"}}</td>
+            </Ui::Table>
+          </Ui::Card>
+
+          <Ui::Card @title="Operations" @flush={{true}} class="mt-3" data-test-stack-operations>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Operations of the stack"
+              @columns={{array (hash key="name" label="Operation") (hash key="phase" label="Status") (hash key="started" label="Started")}}
+              @rows={{this.operations}}
+              @emptyMessage="No apply or destroy of the stack is kept."
+              as |o|
+            >
+              <td data-test-stack-operation={{o.name}}>
+                <button type="button" class="btn btn-link p-0" {{on "click" (fn this.selectOperation o.name)}}>{{o.spec.action}}</button>
+                <div class="small text-secondary font-monospace">{{o.name}}</div>
+              </td>
+              <td>{{o.status.phase}}</td>
+              <td class="small text-secondary">{{o.status.startedAt}}</td>
+            </Ui::Table>
+          </Ui::Card>
+        </div>
+
+        <div class="col-lg-7">
+          {{#if this.operation}}
+            <Ui::Card @title="{{this.operation.spec.action}} {{this.operation.name}}" data-test-stack-operation-detail>
+              <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                <Ui::StatusIndicator @tone={{this.operationTone}} @label={{this.operation.status.phase}} data-test-operation-phase />
+                {{#if this.isRunning}}
+                  <Ui::Button @size="sm" @icon="player-stop" {{on "click" this.cancel}} data-test-operation-cancel>Cancel before the next release</Ui::Button>
+                {{/if}}
+              </div>
+              {{#if this.operation.status.error}}
+                <Ui::Alert @tone="danger" class="mb-3" data-test-operation-error>{{this.operation.status.error}}</Ui::Alert>
+              {{/if}}
+              <ul class="list-unstyled mb-3" data-test-operation-outcomes>
+                {{#each this.outcomes as |o|}}
+                  <li><span class="font-monospace">{{o.namespace}}/{{o.release}}</span>: {{o.text}}{{#if o.revision}} (revision {{o.revision}}){{/if}}</li>
+                {{/each}}
+              </ul>
+              {{#if this.logNote}}
+                <Ui::Alert @tone="warning" class="mb-2" data-test-operation-log-note>{{this.logNote}}</Ui::Alert>
+              {{/if}}
+              <div class="norca-code norca-code-wrap small" data-test-operation-log>
+                {{#each this.log as |l|}}
+                  <div class={{l.tone}}>{{l.time}} {{l.level}} {{l.msg}} <span class="text-secondary">{{l.fields}}</span></div>
+                {{else}}
+                  {{#unless this.isFollowing}}<span class="text-secondary">No record.</span>{{/unless}}
+                {{/each}}
+                {{#if this.isFollowing}}<Ui::Spinner @label="Following the log" />{{/if}}
+              </div>
+            </Ui::Card>
+          {{else}}
+            <Ui::Card>
+              <Ui::EmptyState @icon="history" @title="No operation" @message="Apply the stack to see its operation and its log here." data-test-stack-no-operation />
+            </Ui::Card>
+          {{/if}}
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.applying}}
+    <Ui::SidePanel @title="Apply {{@name}}" @wide={{true}} @onClose={{this.closeApply}} data-test-stack-apply-panel>
+      <Packages::SchemaForm
+        @backend={{this.backend}}
+        @registry={{this.published.registry}}
+        @pack={{@name}}
+        @version={{this.version}}
+        @namespace={{@namespace}}
+        @lockNamespace={{true}}
+        @region={{this.region}}
+        @onDeployed={{this.applied}}
+        @onClose={{this.closeApply}}
+      />
+    </Ui::SidePanel>
+  {{/if}}
+
+  {{#if this.toDestroy}}
+    <Ui::Confirm
+      @title="Destroy {{@name}}?"
+      @confirmLabel="Destroy"
+      @confirmIcon="trash"
+      @typedValue={{@name}}
+      @isRunning={{this.isDestroying}}
+      @error={{this.actionError}}
+      @onConfirm={{this.confirmDestroy}}
+      @onClose={{this.cancelDestroy}}
+      data-test-stack-destroy-confirm
+    >
+      <p>The servers uninstall every release of the stack in reverse order, as an operation; its log is shown here.</p>
+    </Ui::Confirm>
+  {{/if}}
+</div>

@@ -33,12 +33,22 @@ export default function registerReleaseRoutes(server) {
     const namespace = request.queryParams.namespace || 'default';
     const region = request.queryParams.region;
     const prefix = request.queryParams.prefix || '';
+    // owner: <kind>/<namespace>/<name> of the stack that owns a release.
+    const owner = request.queryParams.owner || '';
+    const ownedBy = (r) => {
+      const o = r.Spec?.Owner || r.Spec?.owner;
+      if (!o) return '';
+      return `${o.Kind || o.kind}/${o.Namespace || o.namespace}/${
+        o.Name || o.name
+      }`;
+    };
     return json(
       collection(db, 'norcaReleases')
         .where(
           (r) =>
             inNamespace(r, namespace) &&
             r.Name.startsWith(prefix) &&
+            (!owner || ownedBy(r) === owner) &&
             (!region || !r.Region || r.Region === region)
         )
         .map(view)

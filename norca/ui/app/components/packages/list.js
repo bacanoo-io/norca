@@ -45,6 +45,7 @@ export default class PackagesList extends Component {
         icon: 'package',
         count: this.isLoading ? undefined : this.rows.length,
       },
+      { id: 'stacks', label: 'Stacks', icon: 'stack-2' },
       { id: 'catalog', label: 'Catalog', icon: 'layout-grid' },
       { id: 'registries', label: 'Registries', icon: 'database' },
     ];

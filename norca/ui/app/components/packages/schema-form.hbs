@@ -18,14 +18,16 @@
   {{/if}}
 
   <div class="row g-3 mb-1">
-    <div class="col-md-5">
-      <Ui::Field @label="Release name" @required={{true}} @error={{get this.errors "__name"}} @help={{if this.isUpgrade "" "Lowercase letters, digits and dashes."}} as |f|>
-        <Ui::Input @id={{f.id}} @invalid={{f.invalid}} @value={{this.releaseName}} @onInput={{this.setReleaseName}} @disabled={{this.isUpgrade}} data-test-form-release-name />
-      </Ui::Field>
-    </div>
+    {{#if this.hasReleaseName}}
+      <div class="col-md-5">
+        <Ui::Field @label="Release name" @required={{true}} @error={{get this.errors "__name"}} @help={{if this.isUpgrade "" "Lowercase letters, digits and dashes."}} as |f|>
+          <Ui::Input @id={{f.id}} @invalid={{f.invalid}} @value={{this.releaseName}} @onInput={{this.setReleaseName}} @disabled={{this.isUpgrade}} data-test-form-release-name />
+        </Ui::Field>
+      </div>
+    {{/if}}
     <div class="col-md-4">
       <Ui::Field @label="Namespace" as |f|>
-        <Ui::Select @id={{f.id}} @value={{this.namespace}} @options={{this.namespaceOptions}} @onChange={{this.setNamespace}} @disabled={{this.isUpgrade}} data-test-form-namespace />
+        <Ui::Select @id={{f.id}} @value={{this.namespace}} @options={{this.namespaceOptions}} @onChange={{this.setNamespace}} @disabled={{or this.isUpgrade @lockNamespace}} data-test-form-namespace />
       </Ui::Field>
     </div>
     <div class="col-md-3">
@@ -180,7 +182,7 @@
         <Ui::Button @variant="ghost" {{on "click" @onClose}} data-test-btn-cancel>Cancel</Ui::Button>
       {{/if}}
       <Ui::Button @variant="primary" @icon="rocket" @isLoading={{this.isDeploying}} @disabled={{not this.canSubmit}} {{on "click" this.deploy}} data-test-btn-deploy>
-        {{if this.isUpgrade "Upgrade" "Install"}}
+        {{this.applyLabel}}
       </Ui::Button>
     </div>
   </div>

@@ -28,7 +28,16 @@
     </Ui::Card>
   {{else}}
     <div class="row g-2 mb-3">
-      <div class="col-md-3">
+      <div class="col-6 col-md-2">
+        <Ui::Select
+          @label="Kind"
+          @value={{this.kind}}
+          @options={{this.kindOptions}}
+          @onChange={{this.setKind}}
+          data-test-catalog-kind
+        />
+      </div>
+      <div class="col-6 col-md-2">
         <Ui::Select
           @label="Registry"
           @value={{this.registryName}}
@@ -37,14 +46,14 @@
           data-test-catalog-registry
         />
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <Ui::Input
           @type="search"
           @icon="search"
           @placeholder="Search name or description..."
           @value={{this.text}}
           @onInput={{this.setText}}
-          aria-label="Search modules"
+          aria-label="Search the catalog"
           data-test-catalog-search
         />
       </div>
@@ -127,7 +136,7 @@
       <Ui::Card>
         <Ui::EmptyState
           @icon="package"
-          @title="No module matches"
+          @title={{if this.isStacks "No stack matches" "No module matches"}}
           @message={{if
             this.showsSelection
             "Nothing selected matches. Show the whole index, or change the search."
@@ -196,7 +205,7 @@
                   @disabled={{not card.newest}}
                   {{on "click" (fn this.open card "install")}}
                   data-test-btn-install={{card.key}}
-                >Install</Ui::Button>
+                >{{if (eq card.kind "stack") "Apply" "Install"}}</Ui::Button>
               </div>
             </Ui::Card>
           </div>
@@ -208,7 +217,7 @@
         @pageSize={{this.pageSize}}
         @onPageChange={{this.setPage}}
         @onPageSizeChange={{this.setPageSize}}
-        @noun="modules"
+        @noun={{if this.isStacks "stacks" "modules"}}
         class="mt-3"
       />
     {{/if}}
@@ -233,9 +242,13 @@
         />
       {{/if}}
       <Ui::Tabs
-        @label="Module"
+        @label={{if (eq this.selected.kind "stack") "Stack" "Module"}}
         @tabs={{array
-          (hash id="install" label="Install" icon="rocket")
+          (hash
+            id="install"
+            label=(if (eq this.selected.kind "stack") "Apply" "Install")
+            icon="rocket"
+          )
           (hash id="readme" label="README" icon="book")
         }}
         @selected={{this.panelTab}}
@@ -247,11 +260,11 @@
         {{#if this.detailError}}
           <Ui::Alert
             @tone="danger"
-            @title="The module could not be loaded"
+            @title="It could not be loaded"
             data-test-module-detail-error
           >{{this.detailError}}</Ui::Alert>
         {{else if (not this.detail)}}
-          <Ui::Spinner @showLabel={{true}} @label="Loading the module" />
+          <Ui::Spinner @showLabel={{true}} @label="Loading" />
         {{else if (eq this.panelTab "readme")}}
           <div data-test-module-readme>
             {{#if this.detail.Readme}}
@@ -259,7 +272,7 @@
                 class="norca-code norca-code-wrap"
               >{{this.detail.Readme}}</pre>
             {{else}}
-              <p class="text-secondary">The module has no README.</p>
+              <p class="text-secondary">It has no README.</p>
             {{/if}}
           </div>
         {{/if}}

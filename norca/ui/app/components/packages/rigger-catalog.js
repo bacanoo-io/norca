@@ -19,6 +19,8 @@ import {
   indexAgeDays,
   listRiggerRegistries,
   riggerBackend,
+  riggerStackBackend,
+  riggerStackDetail,
   riggerModuleDetail,
   riggerModuleIcon,
   searchRiggerRegistry,
@@ -44,6 +46,8 @@ export default class PackagesRiggerCatalog extends Component {
   @tracked isLoadingRegistries = true;
   @tracked registriesError = null;
 
+  // module or stack: what the catalog lists.
+  @tracked kind = 'module';
   @tracked text = '';
   @tracked category = '';
   @tracked keyword = '';
@@ -116,7 +120,7 @@ export default class PackagesRiggerCatalog extends Component {
   get selection() {
     const text = this.text.trim().toLowerCase();
     return (this.registry?.status?.shown || []).filter((item) => {
-      if (item.kind !== 'module') return false;
+      if (item.kind !== this.kind) return false;
       if (this.category && item.category !== this.category) return false;
       if (this.keyword && !(item.keywords || []).includes(this.keyword))
         return false;
@@ -186,7 +190,7 @@ export default class PackagesRiggerCatalog extends Component {
     try {
       const r = await waitForPromise(
         searchRiggerRegistry(this.token, this.region, this.registryName, {
-          kind: 'module',
+          kind: this.kind,
           text: this.text.trim(),
           category: this.category,
           keyword: this.keyword.trim(),
@@ -248,8 +252,31 @@ export default class PackagesRiggerCatalog extends Component {
     this.refresh();
   }
 
+  get kindOptions() {
+    return [
+      { value: 'module', label: 'Modules' },
+      { value: 'stack', label: 'Stacks' },
+    ];
+  }
+
+  get isStacks() {
+    return this.kind === 'stack';
+  }
+
+  @action setKind(kind) {
+    this.kind = kind;
+    this.refresh();
+  }
+
   get backend() {
     if (!this.selected) return null;
+    if (this.selected.kind === 'stack') {
+      return riggerStackBackend({
+        token: this.token,
+        registry: this.registryName,
+        stack: this.selected.address,
+      });
+    }
     return riggerBackend({
       token: this.token,
       registry: this.registryName,
@@ -264,8 +291,10 @@ export default class PackagesRiggerCatalog extends Component {
     this.detail = null;
     this.detailError = null;
     try {
+      const detail =
+        card.kind === 'stack' ? riggerStackDetail : riggerModuleDetail;
       const r = await waitForPromise(
-        riggerModuleDetail(
+        detail(
           this.token,
           this.region,
           this.registryName,
@@ -311,6 +340,21 @@ export default class PackagesRiggerCatalog extends Component {
 
   @action deployed(response, release) {
     this.close();
+    // An apply of a stack runs as an operation, followed on the stack page.
+    if (response?.Operation) {
+      this.router.transitionTo(
+        'packages.stack',
+        release.namespace,
+        response.Stack,
+        {
+          queryParams: {
+            region: release.region || null,
+            operation: response.Operation,
+          },
+        }
+      );
+      return;
+    }
     this.router.transitionTo(
       'packages.release',
       release.namespace,
