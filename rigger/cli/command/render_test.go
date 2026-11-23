@@ -6,9 +6,11 @@ package command
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -294,6 +296,53 @@ func TestVarValue(t *testing.T) {
 
 			if got := varValue(tt.text, tt.jsonType); !got.RawEquals(tt.expected) {
 				t.Errorf("varValue(%q, %q) = %#v, want %#v", tt.text, tt.jsonType, got, tt.expected)
+			}
+		})
+	}
+}
+
+// After a step of a command its warnings are written and the command goes
+// on; its errors are written and end it.
+func TestCheckDiags(t *testing.T) {
+	t.Parallel()
+
+	warning := &hcl.Diagnostic{Severity: hcl.DiagWarning, Summary: "Advisory", Detail: "greets too loudly."}
+	failure := &hcl.Diagnostic{Severity: hcl.DiagError, Summary: "Release not compared", Detail: "no leader."}
+
+	tests := []struct {
+		name     string
+		diags    hcl.Diagnostics
+		expected error
+		// written is what standard error has; empty for nothing at all.
+		written []string
+	}{
+		{name: "nothing"},
+		{name: "a warning", diags: hcl.Diagnostics{warning}, written: []string{"Warning: Advisory", "greets too loudly."}},
+		{name: "an error", diags: hcl.Diagnostics{failure}, expected: errReported, written: []string{"Error: Release not compared"}},
+		{
+			name: "a warning and an error", diags: hcl.Diagnostics{warning, failure}, expected: errReported,
+			written: []string{"Warning: Advisory", "Error: Release not compared"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderr bytes.Buffer
+
+			if err := checkDiags(&stderr, ".", tt.diags); !errors.Is(err, tt.expected) || (tt.expected == nil && err != nil) {
+				t.Errorf("checkDiags() = %v, want %v", err, tt.expected)
+			}
+
+			if len(tt.written) == 0 && stderr.Len() > 0 {
+				t.Errorf("standard error has %q, want nothing", stderr.String())
+			}
+
+			for _, want := range tt.written {
+				if !strings.Contains(stderr.String(), want) {
+					t.Errorf("standard error has no %q:\n%s", want, stderr.String())
+				}
 			}
 		})
 	}

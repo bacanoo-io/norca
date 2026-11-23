@@ -368,11 +368,7 @@ func planApplyStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.
 		return err
 	}
 
-	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
-	}
-
-	return nil
+	return checkDiags(stderr, f.dir, diags)
 }
 
 // planSigns are the signs of the actions of a plan.

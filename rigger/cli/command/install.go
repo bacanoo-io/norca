@@ -108,8 +108,8 @@ func install(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 
 	rp, diags := eng.PlanInstall(ctx, m, rigger.Install{Release: f.name, Namespace: f.namespace, Region: region, Values: values},
 		host.Settings{Wait: true, Timeout: f.timeout})
-	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
+	if err := checkDiags(stderr, f.dir, diags); err != nil {
+		return err
 	}
 
 	if rp.Action == rigger.ActionUnchanged {

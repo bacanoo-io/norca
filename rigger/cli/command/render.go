@@ -288,7 +288,6 @@ func writtenAs(v cty.Value, text string) bool {
 	return err == nil && s.AsString() == text
 }
 
-// reportDiags writes diagnostics and returns errReported.
 // writeWarnings writes the diagnostics of an operation that went on: its
 // warnings (advisories of the global registry, unused variables).
 func writeWarnings(w io.Writer, dir string, diags hcl.Diagnostics) error {
@@ -299,10 +298,23 @@ func writeWarnings(w io.Writer, dir string, diags hcl.Diagnostics) error {
 	return writeDiags(w, dir, diags)
 }
 
+// reportDiags writes diagnostics and returns errReported.
 func reportDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 	if err := writeDiags(w, dir, diags); err != nil {
 		return err
 	}
 
 	return errReported
+}
+
+// checkDiags is how a command goes on after a step of the engine: the
+// errors of the step are written and end the command (errReported); without
+// errors its warnings are written, and the command goes on. A step whose
+// diagnostics are looked at for errors only loses its warnings.
+func checkDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
+	if diags.HasErrors() {
+		return reportDiags(w, dir, diags)
+	}
+
+	return writeWarnings(w, dir, diags)
 }
