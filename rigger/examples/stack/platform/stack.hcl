@@ -75,18 +75,23 @@ module "nats" {
 }
 
 # ---------------------------------------------------------------------------
-# Built into rigger
+# Built into rigger (an idea of the design, section 12.8: not built)
 # ---------------------------------------------------------------------------
 
-# The base of audit is a module of rigger itself: no registry, no version, no
-# signature. Run by the standalone rigger it gets the changes through a leaf
-# node (AUDIT.md); once rigger is embedded in the Norca servers it sits on the
-# internal bus. What is audited is declared in a resource file of a module
-# (modules/shop-api/shop.audit.hcl); subjects, streams, consumers and tokens
-# are the business of this module.
-module "audit" {
-  source = "builtin/audit"
-}
+# The base of audit is to be a module of rigger itself: no registry, no
+# version, no signature. Run by the standalone rigger it gets the changes
+# through a leaf node (AUDIT.md); once rigger is embedded in the Norca servers
+# it sits on the internal bus. What is audited is declared in a resource file
+# of a module (modules/shop-api/shop.audit.hcl); subjects, streams, consumers
+# and tokens are the business of this module.
+#
+# rigger has no such module yet, and a stack that names a built-in module
+# rigger does not have is refused, so the block is a comment here. When the
+# module is built, the stack imports it like its other modules:
+#
+#   module "audit" {
+#     source = "builtin/audit"
+#   }
 
 # ---------------------------------------------------------------------------
 # The stack's own modules

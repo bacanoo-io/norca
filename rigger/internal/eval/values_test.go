@@ -6,6 +6,7 @@ package eval_test
 import (
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -205,6 +206,54 @@ func TestVariables_Examples(t *testing.T) {
 				}
 
 				if _, diags := eval.Variables(m, inputs); diags.HasErrors() {
+					t.Error(diags)
+				}
+			})
+		}
+	}
+}
+
+// The value files of the stacks of examples/ are valid for the variables
+// and the rules of their stacks: values/ of a stack of one's own, examples/
+// of a published stack. It needs no module of the stack, so it holds for a
+// stack whose modules examples/ does not have, too.
+func TestVariables_ExampleStacks(t *testing.T) {
+	t.Parallel()
+
+	for _, dir := range exampleStacks(t) {
+		s, diags := lang.LoadStack(t.Context(), os.DirFS("../../examples"), dir, limits)
+		if diags.HasErrors() {
+			t.Fatalf("%s: %s", dir, diags)
+		}
+
+		examples, err := fs.Glob(s.FS, "examples/*.vars.hcl")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// A stack without a value file is one that needs no value.
+		files := slices.Concat(examples, s.ValueFiles)
+		if len(files) == 0 {
+			if _, diags := eval.Variables(s.Vars, nil); diags.HasErrors() {
+				t.Errorf("%s has no value file, neither in values/ nor in examples/, and needs values: %s", dir, diags)
+			}
+		}
+
+		for _, p := range files {
+			t.Run(dir+"/"+p, func(t *testing.T) {
+				t.Parallel()
+
+				src, err := fs.ReadFile(s.FS, p)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				inputs, diags := eval.ParseValues(p, src)
+				if diags.HasErrors() {
+					t.Fatal(diags)
+				}
+
+				if _, diags := eval.Variables(s.Vars, inputs); diags.HasErrors() {
 					t.Error(diags)
 				}
 			})

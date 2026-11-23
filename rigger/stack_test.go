@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -265,6 +266,41 @@ func TestEngine_LoadStackInvalidDir(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Every stack of examples/ reads without a diagnostic, by what a program
+// reads of a stack without fetching its modules: its name, its digest, and
+// of a published stack the metadata, which names it as its rigger block
+// does (design 7.5).
+func TestEngine_ReadStack_Examples(t *testing.T) {
+	t.Parallel()
+
+	for _, dir := range exampleStacks(t) {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			s, diags := engine(t).ReadStack(t.Context(), os.DirFS(examplesDir), dir)
+			for _, d := range diags {
+				t.Errorf("ReadStack(): %s", d)
+			}
+
+			if diags.HasErrors() {
+				return
+			}
+
+			if s.Name() == "" {
+				t.Error("the stack has no name")
+			}
+
+			if digest, err := s.Digest(); err != nil || !strings.HasPrefix(digest, "sha256:") {
+				t.Errorf("Digest() = %q, %v", digest, err)
+			}
+
+			if md := s.Metadata(); md != nil && (md.Name != s.Name() || md.Version == "") {
+				t.Errorf("the metadata names the stack %q %q, the rigger block %q", md.Name, md.Version, s.Name())
+			}
+		})
 	}
 }
 

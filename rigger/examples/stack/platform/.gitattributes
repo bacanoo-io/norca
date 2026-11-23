@@ -1,0 +1,4 @@
+# The digest of a module of the stack is computed over file contents, and a
+# sync writes the lock file with LF: keep line ends the same on every
+# machine.
+* text=auto eol=lf

@@ -1,23 +1,14 @@
-# The secrets of the stack, created once with generated values and kept on a
-# later apply. `for_each` makes one per database and per application.
+# The secret of the stack, created once with a generated value and kept on a
+# later apply.
 
 secret "postgres/superuser" {
   items = { password = "!generate:postgres-superuser" }
 }
 
-secret "database" {
-  for_each = { for d in var.databases : d.name => d }
-
-  path = "postgres/apps/${each.key}"
-  items = {
-    user     = coalesce(each.value.owner, each.key)
-    password = "!generate:postgres-${each.key}"
-  }
-}
-
-secret "bus-user" {
-  for_each = toset(var.bus_applications)
-
-  path  = "nats/users/${each.key}"
-  items = { password = "!generate:nats-${each.key}" }
-}
+# The modules read one more secret per database (postgres/apps/<name>: user,
+# password) and one per application of the bus (nats/users/<name>:
+# password). A secret block names one path, written in its label, so a stack
+# can't make a secret for each element of a variable. A stack of one's own
+# writes a block for each (examples/stack/platform/secrets.hcl); here, where
+# the databases and the applications are values of whoever installs the
+# stack, they create these secrets before the first apply (README.md).

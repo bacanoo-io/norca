@@ -1,4 +1,9 @@
+EXAMPLE ONLY: this file stands for the public key the external registry
+signs its modules with. It is a key as `rigger key generate` writes one
+(ECDSA P-256), made for the example; its private key was thrown away, and
+it is not a key of github.com/bacanoo-io/norca-registry.
+
 -----BEGIN PUBLIC KEY-----
-EXAMPLE ONLY: the public key the external registry signs its modules with
-goes here (ECDSA P-256, as written by `rigger key generate`).
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEnh12g7H6YC3Cp+Jc/G0sh4WU/rH
+JtQIvQYZfOjhx/A8zKzBlnkCsoZe+IHJfxMXpTPc9lnXoNLKZiua3Lw3zw==
 -----END PUBLIC KEY-----

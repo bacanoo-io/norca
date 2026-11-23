@@ -1,4 +1,8 @@
+The public key the modules of the example registry (examples/registry) are
+signed with. The tests write it, with the signatures and the lock files
+(examples/README.md); its private key was thrown away.
+
 -----BEGIN PUBLIC KEY-----
-EXAMPLE ONLY: the public key of the registry's signing key goes here
-(ECDSA P-256, as written by `rigger key generate`).
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqZ+ozPmG8YuH9ZYFoqo8VPUADo20
+pHEpPIc2rT9GoBw65QMWnjO++2ctsOwEPzc1nIxuchpW+EBQN3wKetdPGQ==
 -----END PUBLIC KEY-----

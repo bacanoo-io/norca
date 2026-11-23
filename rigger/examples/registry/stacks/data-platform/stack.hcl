@@ -5,6 +5,7 @@
 
 rigger {
   required_version = ">= 0.1.0"
+  name             = "data-platform" # the name metadata.hcl publishes the stack by
 
   registry "example" {
     source = "github.com/example/rigger-registry"

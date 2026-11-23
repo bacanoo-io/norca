@@ -1,5 +1,6 @@
 rigger {
   required_version = ">= 0.1.0"
+  name             = "observability" # the name metadata.hcl publishes the stack by
 
   # The external registry the modules come from.
   registry "norca" {

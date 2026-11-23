@@ -9,6 +9,8 @@ registry/
     lib/placement/     a child module other modules use (no resources, only outputs)
     nats/              a NATS cluster: users in accounts, TLS, the changes of the region
     postgres/          a PostgreSQL server: databases, an init hook, periodic backups
+    redis/             the built-in pack redis of norca as a module, its faults kept
+      .rigger-signatures/  in every published module: its signatures, one file per key
   stacks/
     data-platform/     postgres + nats of this registry, with their secrets
     observability/     modules of another registry (norca), wired and sized,
@@ -28,6 +30,8 @@ A stack of a registry is a tested composition others install as one thing.
   stack's digest and are not published separately.
 - Its **lock file is published with it**, so a version of the stack always
   means the same module versions.
+- Its `rigger` block names it as `metadata.hcl` does: the name is the owner of
+  the releases it installs.
 
 ## Versions and tags
 
@@ -42,18 +46,34 @@ A stack of a registry is a tested composition others install as one thing.
 ## Publishing
 
 ```shell
-rigger module validate modules/nats        # schemas, examples, tests, icon
-rigger module publish modules/nats --sign  # tag nats/v1.0.0, signature of its tree digest
+rigger key generate -out registry          # registry.key (encrypted with RIGGER_KEY_PASSWORD), registry.pub
 
-rigger stack sync     stacks/data-platform        # resolve the modules, write the lock
-rigger stack validate stacks/data-platform        # schemas, examples, the lock
-rigger stack publish  stacks/data-platform --sign # tag data-platform/v1.2.0
+rigger module validate modules/nats                  # schemas, examples, tests, icon
+rigger module publish  modules/nats -key registry.key # the signature of its tree digest, committed; tag nats/v1.0.0
+
+rigger stack sync stacks/data-platform               # resolve the modules, write the lock
+cd stacks/data-platform
+rigger stack validate -f examples/shop.vars.hcl      # evaluate with the example values
+rigger stack publish  -f examples/shop.vars.hcl -key ../../registry.key # validate, sign, tag data-platform/v1.2.0
 ```
+
+`rigger stack validate` and `publish` evaluate a stack with the files of its
+`values/`, or with those given with `-f`. A published stack keeps its value
+files in `examples/`, and one with a variable without a default
+(`data-platform`) is evaluated only with `-f`. Nothing is pushed: the tags
+and the commits of the signatures are pushed by hand.
+
+A signature is a file `.rigger-signatures/<key ID>.json` in the module or the
+stack. The directory is hidden, so the tree digest it signs leaves it out.
+The modules here carry the signatures of the key of the examples
+(`../README.md`, "The lock files and the signatures").
 
 ## Using it
 
 ```hcl
 rigger {
+  name = "shop"
+
   registry "example" {
     source = "github.com/example/rigger-registry"
   }
@@ -72,5 +92,5 @@ module "nats" {
 - Secrets come from the secret store of the cluster, never from a variable.
 - Every module has at least one file in `examples/` and one test; every
   stack at least one file in `examples/`, planned in CI.
-- CI: `rigger fmt -check`, `rigger module validate`, `rigger module test`, license
-  and sign-off checks.
+- CI: `rigger fmt -check`, `rigger module validate`, `rigger module test`,
+  `rigger stack validate`, license and sign-off checks.

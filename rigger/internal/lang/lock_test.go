@@ -5,6 +5,8 @@ package lang_test
 
 import (
 	"bytes"
+	"os"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -118,6 +120,44 @@ func TestParseLock_Errors(t *testing.T) {
 
 			if got := all.String(); !strings.Contains(got, tt.expected) {
 				t.Errorf("diagnostics = %q, want them to contain %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// The lock files of examples/ are lock files of today: each parses without
+// a diagnostic, and is what Bytes writes of it, to the comment and the order
+// of the entries: the file rigger stack sync writes of this lock. Whether a
+// sync of the stack finds what the file records is the test of the engine
+// (TestSyncStack_Examples).
+func TestParseLock_Examples(t *testing.T) {
+	t.Parallel()
+
+	locks := examplesWith(t, lang.LockFile)
+	if len(locks) == 0 {
+		t.Fatal("examples/ has no lock file")
+	}
+
+	for _, dir := range locks {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			src, err := os.ReadFile(path.Join(examplesDir, dir, lang.LockFile))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			lock, diags := lang.ParseLock(src)
+			for _, d := range diags {
+				t.Errorf("ParseLock(): %s", d)
+			}
+
+			if diags.HasErrors() {
+				return
+			}
+
+			if written := lock.Bytes(); !bytes.Equal(written, src) {
+				t.Errorf("the lock file is not what Bytes writes of it:\n%s\nthe file:\n%s", written, src)
 			}
 		})
 	}

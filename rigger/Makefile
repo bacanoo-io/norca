@@ -5,7 +5,7 @@
 GO ?= go
 MODULES := . cli
 
-.PHONY: all build test race vet lint fmt tidy audit check-licenses integration clean help
+.PHONY: all build test race vet lint fmt tidy audit check-licenses integration examples clean help
 
 all: vet test build
 
@@ -48,6 +48,10 @@ check-licenses:
 ## integration: the tests against a running agent (norca agent -dev; NORCA_ADDR)
 integration:
 	$(GO) -C cli test -tags integration -count=1 ./...
+
+## examples: write the signatures and the lock files of examples/ again, after a change of a module or a stack there (examples/README.md)
+examples:
+	$(GO) test -count=1 -run '^TestSyncStack_Examples$$' . -update
 
 ## clean: remove build output
 clean:

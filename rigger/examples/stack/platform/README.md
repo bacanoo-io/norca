@@ -1,14 +1,15 @@
 # Stack "platform"
 
-One region's shop platform: five releases from three kinds of modules.
+One region's shop platform: four releases from two kinds of modules, and
+the place of a fifth from a third kind.
 
 | Release | Module | From |
 | --- | --- | --- |
 | `postgres` | `example/postgres ~> 0.3` | the registry, signed, locked |
 | `nats` | `example/nats ~> 1.0` | the registry, signed, locked |
-| `audit` | `builtin/audit` | built into rigger |
 | `shop-api` | `./modules/shop-api` | the stack's own |
 | `shop-worker` | `./modules/shop-worker` | the stack's own |
+| (`audit`) | `builtin/audit` | built into rigger: an idea of the design, not built, so `stack.hcl` has it as a comment ("Audit" below) |
 
 ```
 platform/
@@ -23,9 +24,15 @@ platform/
     shop-api/
     shop-worker/
   keys/                public keys the stack trusts
-  rigger.lock.hcl         written by `rigger stack sync`
-  .rigger/                local data of rigger (not in version control)
+  rigger.lock.hcl      written by `rigger stack sync`
+  .gitattributes       LF line ends: the digest of a module is over file contents
+  .rigger/             local data of rigger (not in version control)
 ```
+
+`rigger.lock.hcl` is the file a sync writes for this stack against
+`../../registry`, and `keys/example-registry.pub` is the key the modules
+there are signed with: the tests run the sync and keep both true
+(`../../README.md`, "The lock files and the signatures").
 
 ## How the releases depend on each other
 
@@ -64,9 +71,11 @@ second apply keeps them.
 
 ## Audit
 
-The stack writes no audit module of its own: it imports the base that rigger
-carries, `builtin/audit` (an idea, not designed in detail), and declares
-what is audited in a resource file, `modules/shop-api/shop.audit.hcl`:
+The stack writes no audit module of its own: it is to import the base that
+rigger carries, `builtin/audit` (an idea, not designed in detail and not
+built: a stack that names it is refused today, so the block is a comment in
+`stack.hcl`), and declares what is audited in a resource file,
+`modules/shop-api/shop.audit.hcl`:
 namespaces, kinds of resources, actions, how long, who may read. Run by the
 standalone rigger the changes come from outside: with `bus_servers` set, the
 `nats` module receives the changes of the Norca region into its account

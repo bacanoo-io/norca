@@ -4,12 +4,17 @@
 package eval_test
 
 import (
+	"io/fs"
+	"os"
+	"path"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/bacanoo-io/norca/rigger/internal/eval"
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
+	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
 // order evaluates a stack of the releases app and db, with the module block
@@ -120,5 +125,123 @@ func TestEvaluateStack_DependsOnThroughLocals(t *testing.T) {
 				t.Errorf("releases = %s, want %s", got, tt.expected)
 			}
 		})
+	}
+}
+
+// exampleStacks returns the directories of the stacks of examples/, found
+// by walking: a stack that is added is tested without a change of the tests.
+func exampleStacks(t *testing.T) []string {
+	t.Helper()
+
+	var dirs []string
+
+	err := fs.WalkDir(os.DirFS("../../examples"), ".", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && d.Name() == "stack.hcl" {
+			dirs = append(dirs, path.Dir(p))
+		}
+
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(dirs) == 0 {
+		t.Fatal("examples/ has no stack")
+	}
+
+	return dirs
+}
+
+// The trust of the stacks of examples/ is trust a stack of today has
+// (design 8.2): the blocks evaluate, a rule of a registry names a registry
+// of the stack, every key is a public key that verifies signatures, and the
+// signers of the lock file are keys of the trust. A text in the place of a
+// key (as the examples had) is found only when a module is checked against
+// it, which needs the module.
+func TestStackTrust_Examples(t *testing.T) {
+	t.Parallel()
+
+	for _, dir := range exampleStacks(t) {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			s, diags := lang.LoadStack(t.Context(), os.DirFS("../../examples"), dir, limits)
+			if diags.HasErrors() {
+				t.Fatalf("LoadStack(): %s", diags)
+			}
+
+			rules, diags := eval.StackTrust(s, limits.FileBytes)
+			for _, d := range diags {
+				t.Errorf("StackTrust(): %s", d)
+			}
+
+			checkLockedSigners(t, s, trustKeys(t, s, rules))
+		})
+	}
+}
+
+// trustKeys checks the trust rules of a stack, and returns the IDs of the
+// keys of each by its registry (the default rule by "").
+func trustKeys(t *testing.T, s *lang.Stack, rules []eval.TrustRule) map[string][]string {
+	t.Helper()
+
+	registries, diags := s.Registries()
+	if diags.HasErrors() {
+		t.Fatalf("Registries(): %s", diags)
+	}
+
+	keys := map[string][]string{}
+
+	for _, rule := range rules {
+		keys[rule.Registry] = []string{}
+
+		if _, ok := registries[rule.Registry]; rule.Registry != "" && !ok {
+			t.Errorf("a trust block is for the registry %q, which the stack does not have", rule.Registry)
+		}
+
+		if rule.Require && len(rule.Keys) == 0 {
+			t.Errorf("the trust of the registry %q requires a signature and has no key", rule.Registry)
+		}
+
+		for i, text := range rule.Keys {
+			key, err := sign.ParsePublicKey([]byte(text))
+			if err != nil {
+				t.Errorf("public key %d of the trust of the registry %q: %v", i+1, rule.Registry, err)
+
+				continue
+			}
+
+			keys[rule.Registry] = append(keys[rule.Registry], key.ID)
+		}
+	}
+
+	return keys
+}
+
+// checkLockedSigners fails the test when the lock file of a stack records,
+// for a module of a registry of the stack, a signer that is no key of the
+// trust of that registry (its own rule, else the default one). A sync
+// writes no other; the keys of a namespace of the global registry, which
+// its index gives, are not in a stack and are not checked.
+func checkLockedSigners(t *testing.T, s *lang.Stack, keys map[string][]string) {
+	t.Helper()
+
+	for _, r := range s.Releases {
+		entry := s.Lock.Module(r.Source)
+		if r.Address == nil || r.Address.Registry == "" || entry == nil {
+			continue
+		}
+
+		trusted, ok := keys[r.Address.Registry]
+		if !ok {
+			trusted = keys[""]
+		}
+
+		for _, id := range entry.Signers {
+			if !slices.Contains(trusted, id) {
+				t.Errorf("the lock file records the signer %s of %s, which is no key of the trust of the stack", id, r.Source)
+			}
+		}
 	}
 }
