@@ -24,6 +24,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
 )
 
 // SignatureDir is the directory of the signatures of a module, inside the
@@ -186,8 +188,19 @@ func FileName(keyID string) string {
 	return strings.TrimPrefix(keyID, "sha256:") + ".json"
 }
 
+// The bounds of the signatures of a module, which come with content fetched
+// from others: the number of signature files in SignatureDir and the size
+// of each. A signature is a statement of a few hundred bytes and what signs
+// it, one file for each key.
+const (
+	MaxSignatures     = 64
+	MaxSignatureBytes = 64 << 10
+)
+
 // ReadSignatures reads the signatures in SignatureDir of the module in
-// directory dir of fsys; none when there is no such directory.
+// directory dir of fsys; none when there is no such directory. More than
+// MaxSignatures of them, or one of more than MaxSignatureBytes, is an error:
+// none is left out or cut short.
 func ReadSignatures(fsys fs.FS, dir string) ([]Signature, error) {
 	sigDir := path.Join(dir, SignatureDir)
 
@@ -207,18 +220,39 @@ func ReadSignatures(fsys fs.FS, dir string) ([]Signature, error) {
 			continue
 		}
 
-		data, err := fs.ReadFile(fsys, path.Join(sigDir, e.Name()))
-		if err != nil {
-			return nil, err
+		if len(sigs) == MaxSignatures {
+			return nil, fmt.Errorf("%s: %w: %d signatures", sigDir, readlimit.ErrTooLarge, MaxSignatures)
 		}
 
-		var s Signature
-		if err := json.Unmarshal(data, &s); err != nil {
-			return nil, fmt.Errorf("%s: %w", e.Name(), err)
+		s, err := readSignature(fsys, sigDir, e.Name())
+		if err != nil {
+			return nil, err
 		}
 
 		sigs = append(sigs, s)
 	}
 
 	return sigs, nil
+}
+
+// readSignature reads the signature file name of sigDir, at most
+// MaxSignatureBytes of it.
+func readSignature(fsys fs.FS, sigDir, name string) (Signature, error) {
+	f, err := fsys.Open(path.Join(sigDir, name))
+	if err != nil {
+		return Signature{}, err
+	}
+	defer f.Close() //nolint:errcheck // read only
+
+	data, err := readlimit.ReadAll(f, MaxSignatureBytes)
+	if err != nil {
+		return Signature{}, fmt.Errorf("%s: %w", name, err)
+	}
+
+	var s Signature
+	if err := json.Unmarshal(data, &s); err != nil {
+		return Signature{}, fmt.Errorf("%s: %w", name, err)
+	}
+
+	return s, nil
 }

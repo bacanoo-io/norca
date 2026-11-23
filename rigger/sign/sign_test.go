@@ -6,9 +6,12 @@ package sign_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"testing/fstest"
 
+	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
 	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
@@ -61,6 +64,78 @@ func TestSignVerify(t *testing.T) {
 
 	if sigs, err := sign.ReadSignatures(fsys, "none"); err != nil || len(sigs) != 0 {
 		t.Errorf("ReadSignatures of a module without signatures = %v, %v", sigs, err)
+	}
+}
+
+// signatureFile is a signature file of size bytes.
+func signatureFile(t *testing.T, size int) *fstest.MapFile {
+	t.Helper()
+
+	empty, err := json.Marshal(sign.Signature{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := json.Marshal(sign.Signature{Payload: strings.Repeat("x", size-len(empty))})
+	if err != nil || len(data) != size {
+		t.Fatalf("a signature of %d bytes: %d bytes, %v", size, len(data), err)
+	}
+
+	return &fstest.MapFile{Data: data}
+}
+
+// signatureDir is the directory of the signatures of the module m with n
+// signatures and what else a directory may hold.
+func signatureDir(t *testing.T, n int) fstest.MapFS {
+	t.Helper()
+
+	fsys := fstest.MapFS{
+		"m/.rigger-signatures/README.md":      {Data: []byte("not a signature")},
+		"m/.rigger-signatures/old/1.json":     {Data: []byte("not read")},
+		"m/.rigger-signatures/dir.json/x.txt": {Data: []byte("a directory")},
+	}
+
+	for i := range n {
+		fsys[fmt.Sprintf("m/.rigger-signatures/%04d.json", i)] = signatureFile(t, 64)
+	}
+
+	return fsys
+}
+
+// The signatures come with content fetched from others: their number and
+// the size of each are bounded, and more is an error, not a part of them.
+func TestReadSignatures_Bounds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		fsys     fstest.MapFS
+		expected int
+		tooLarge bool
+	}{
+		{name: "as many signatures as the bound", fsys: signatureDir(t, sign.MaxSignatures), expected: sign.MaxSignatures},
+		{name: "one signature more", fsys: signatureDir(t, sign.MaxSignatures+1), tooLarge: true},
+		{
+			name:     "a signature of the size of the bound",
+			fsys:     fstest.MapFS{"m/.rigger-signatures/a.json": signatureFile(t, sign.MaxSignatureBytes)},
+			expected: 1,
+		},
+		{
+			name:     "a signature one byte larger",
+			fsys:     fstest.MapFS{"m/.rigger-signatures/a.json": signatureFile(t, sign.MaxSignatureBytes+1)},
+			tooLarge: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sigs, err := sign.ReadSignatures(tt.fsys, "m")
+			if errors.Is(err, readlimit.ErrTooLarge) != tt.tooLarge || len(sigs) != tt.expected || (err != nil) != tt.tooLarge {
+				t.Errorf("ReadSignatures() = %d signatures, %v; want %d, over the bound %t", len(sigs), err, tt.expected, tt.tooLarge)
+			}
+		})
 	}
 }
 
