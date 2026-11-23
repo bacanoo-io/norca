@@ -4,6 +4,7 @@
 package command
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -25,6 +26,16 @@ func newClient(region string) (*api.Client, error) {
 	}
 
 	return api.NewClient(cfg)
+}
+
+// queryOptions and writeOptions are the options of a request of the API that
+// ends when ctx is done.
+func queryOptions(ctx context.Context) *api.QueryOptions {
+	return (&api.QueryOptions{}).WithContext(ctx)
+}
+
+func writeOptions(ctx context.Context) *api.WriteOptions {
+	return (&api.WriteOptions{}).WithContext(ctx)
 }
 
 // clusterEngine returns an engine with the ports over the cluster of the

@@ -5,6 +5,7 @@ package norcaapi
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -26,9 +27,11 @@ func NewCluster(client *api.Client) *Cluster {
 // Info returns the version and the region of the agent the client talks
 // to, and the release API as a feature when the servers have it.
 func (c *Cluster) Info(ctx context.Context) (host.ClusterInfo, error) {
-	self, err := c.client.Agent().Self()
-	if err != nil {
-		return host.ClusterInfo{}, err
+	// Not Agent().Self(), which takes no options: the request would not end
+	// with ctx.
+	var self api.AgentSelf
+	if _, err := c.client.Raw().Query("/v1/agent/self", &self, query(ctx, "")); err != nil {
+		return host.ClusterInfo{}, fmt.Errorf("the agent of the cluster: %w", err)
 	}
 
 	// NorcaVersion, not Config.Version: that is the version of the API

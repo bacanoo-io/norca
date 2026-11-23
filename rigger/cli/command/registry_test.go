@@ -5,12 +5,14 @@ package command
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
 )
@@ -213,5 +215,113 @@ func TestRun_Registry(t *testing.T) {
 	selected, _ := json.Marshal(fake.objects[fakeGlobal].Spec["selected"])
 	if string(selected) != `[{"kind":"stack","name":"site","namespace":"norca"}]` {
 		t.Errorf("selected = %s, want the stack norca/site only", selected)
+	}
+}
+
+// hangingServer is a server of the HTTP API that never answers the requests
+// hangs picks: they wait until their client gives up, or the test ends. The
+// other requests go to next. A request that hangs is told on the channel.
+func hangingServer(t *testing.T, next http.Handler, hangs func(*http.Request) bool) (*httptest.Server, <-chan struct{}) {
+	t.Helper()
+
+	release := make(chan struct{})
+	hung := make(chan struct{}, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hangs(r) {
+			next.ServeHTTP(w, r)
+
+			return
+		}
+
+		select {
+		case hung <- struct{}{}:
+		default:
+		}
+
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+
+	// Close waits for the requests: those of a client that never gave up
+	// are let go first.
+	t.Cleanup(func() {
+		close(release)
+		srv.Close()
+	})
+
+	return srv, hung
+}
+
+// cancelWhenHung cancels the context of a command when its request hangs on
+// the server, and returns how the command ended; the test fails when it
+// goes on waiting for the server.
+func cancelWhenHung(t *testing.T, hung <-chan struct{}, cancel context.CancelFunc, done <-chan int) int {
+	t.Helper()
+
+	select {
+	case <-hung:
+	case code := <-done:
+		t.Fatalf("the command ended with %d before a request hung", code)
+	case <-time.After(30 * time.Second):
+		t.Fatal("no request reached the server")
+	}
+
+	cancel()
+
+	select {
+	case code := <-done:
+		return code
+	case <-time.After(10 * time.Second):
+		t.Fatal("the command still waits for the server after its context was cancelled")
+
+		return 0
+	}
+}
+
+// A registry command ends when its context is done (a Ctrl-C), whichever
+// request it waits for: the servers may be slow, or never answer.
+func TestRun_Registry_Cancelled(t *testing.T) {
+	always := func(*http.Request) bool { return true }
+
+	tests := []struct {
+		name  string
+		args  []string
+		hangs func(*http.Request) bool
+	}{
+		{name: "the registries", args: []string{"list"}, hangs: always},
+		{name: "the status of a registry", args: []string{cmdStatus, fakeGlobal}, hangs: always},
+		{name: "the sync of a registry", args: []string{cmdRegistrySync, fakeAcme}, hangs: always},
+		{name: "a search", args: []string{cmdRegistrySearch, fakeAcme, "web"}, hangs: always},
+		{name: "select, reading the registry", args: []string{cmdRegistrySelect, fakeGlobal, "stack", "norca/site"}, hangs: always},
+		{
+			name: "select, writing the selection", args: []string{cmdRegistrySelect, fakeGlobal, "stack", "norca/site"},
+			hangs: func(r *http.Request) bool { return r.Method != http.MethodGet },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, hung := hangingServer(t, newFakeRegistries(), tt.hangs)
+			t.Setenv("NORCA_ADDR", srv.URL)
+			t.Setenv("NORCA_TOKEN", "")
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			var stdout, stderr bytes.Buffer
+
+			done := make(chan int, 1)
+
+			go func() {
+				done <- Run(ctx, append([]string{flagLogLevel, "error", cmdRegistry}, tt.args...), &stdout, &stderr)
+			}()
+
+			if code := cancelWhenHung(t, hung, cancel, done); code != exitError || !strings.Contains(stderr.String(), context.Canceled.Error()) {
+				t.Errorf("Run() = %d, stderr %q, want the error of the cancelled context", code, stderr.String())
+			}
+		})
 	}
 }

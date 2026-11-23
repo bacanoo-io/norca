@@ -299,7 +299,9 @@ func followOperation(ctx context.Context, logger *slog.Logger, stdout, stderr io
 		}
 	}
 
-	op, _, err := client.Rigger().Operation(name, nil)
+	// With follow, as the requests before: the second interrupt ends this
+	// one too.
+	op, _, err := client.Rigger().Operation(name, queryOptions(follow))
 	if err != nil {
 		return err
 	}

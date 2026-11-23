@@ -78,19 +78,22 @@ func runRegistry(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wri
 
 	positional = append(positional, flags.Args()...)
 
-	return run(ctx, logger, stderr, "registry."+cmd, func(context.Context) error {
+	return run(ctx, logger, stderr, "registry."+cmd, func(ctx context.Context) error {
 		client, err := newClient(f.region)
 		if err != nil {
 			return err
 		}
 
-		return registryCommand(stdout, client.Rigger(), cmd, positional, f)
+		return registryCommand(ctx, stdout, client.Rigger(), cmd, positional, f)
 	})
 }
 
-func registryCommand(w io.Writer, rigger *api.Rigger, cmd string, args []string, f registryFlags) error {
+// registryCommand runs a registry command. Every request ends with ctx: the
+// client of the API has no time limit of its own, and a server that does
+// not answer would hold the command until it is killed.
+func registryCommand(ctx context.Context, w io.Writer, rigger *api.Rigger, cmd string, args []string, f registryFlags) error {
 	if cmd == "list" {
-		regs, _, err := rigger.Registries(nil)
+		regs, _, err := rigger.Registries(queryOptions(ctx))
 		if err != nil {
 			return err
 		}
@@ -106,14 +109,14 @@ func registryCommand(w io.Writer, rigger *api.Rigger, cmd string, args []string,
 
 	switch cmd {
 	case cmdStatus:
-		reg, _, err := rigger.Registry(name, nil)
+		reg, _, err := rigger.Registry(name, queryOptions(ctx))
 		if err != nil {
 			return err
 		}
 
 		return writeRegistryStatus(w, reg)
 	case cmdRegistrySync:
-		reg, _, err := rigger.SyncRegistry(name, nil)
+		reg, _, err := rigger.SyncRegistry(name, writeOptions(ctx))
 		if err != nil {
 			return err
 		}
@@ -125,14 +128,14 @@ func registryCommand(w io.Writer, rigger *api.Rigger, cmd string, args []string,
 			Offset: f.offset, Limit: f.limit,
 		}
 
-		found, _, err := rigger.SearchRegistry(name, query, nil)
+		found, _, err := rigger.SearchRegistry(name, query, queryOptions(ctx))
 		if err != nil {
 			return err
 		}
 
 		return writeSearch(w, found, f.offset)
 	case cmdRegistrySelect, cmdRegistryUnselect:
-		return registrySelect(w, rigger, name, cmd == cmdRegistrySelect, args[1:])
+		return registrySelect(ctx, w, rigger, name, cmd == cmdRegistrySelect, args[1:])
 	default:
 		return fmt.Errorf("unknown registry command %q", cmd)
 	}
@@ -140,7 +143,7 @@ func registryCommand(w io.Writer, rigger *api.Rigger, cmd string, args []string,
 
 // registrySelect adds a module or stack to what a registry shows in the UI,
 // or takes it off, with a check-and-set on the registry as it was read.
-func registrySelect(w io.Writer, rigger *api.Rigger, name string, add bool, args []string) error {
+func registrySelect(ctx context.Context, w io.Writer, rigger *api.Rigger, name string, add bool, args []string) error {
 	if len(args) != 2 || (args[0] != "module" && args[0] != "stack") {
 		return errRegistryRef
 	}
@@ -150,7 +153,7 @@ func registrySelect(w io.Writer, rigger *api.Rigger, name string, add bool, args
 		ref.Namespace, ref.Name = ns, n
 	}
 
-	reg, _, err := rigger.Registry(name, nil)
+	reg, _, err := rigger.Registry(name, queryOptions(ctx))
 	if err != nil {
 		return err
 	}
@@ -162,7 +165,7 @@ func registrySelect(w io.Writer, rigger *api.Rigger, name string, add bool, args
 		selected, verb = append(selected, ref), "selected"
 	}
 
-	if _, err := rigger.SetSelected(reg, selected, nil); err != nil {
+	if _, err := rigger.SetSelected(reg, selected, writeOptions(ctx)); err != nil {
 		return err
 	}
 
