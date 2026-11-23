@@ -9,11 +9,14 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/hashicorp/hcl/v2"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/fetch"
@@ -106,7 +109,7 @@ func TestStack_ArchiveWithSourcedModule(t *testing.T) {
 	t.Parallel()
 
 	root := fstest.MapFS{
-		"s/stack.hcl": {Data: []byte(`rigger {
+		stackPath: {Data: []byte(`rigger {
   name      = "shop"
   region    = "eu"
   namespace = "apps"
@@ -146,7 +149,7 @@ module "app" {
 	}
 
 	names := archiveNames(t, archive)
-	if !containsAll(names, "s/stack.hcl", "s/rigger.lock.hcl", "s/modules/app/metadata.hcl") || len(names) != 4 {
+	if !containsAll(names, stackPath, "s/rigger.lock.hcl", "s/modules/app/metadata.hcl") || len(names) != 4 {
 		t.Errorf("entries %v", names)
 	}
 
@@ -160,24 +163,149 @@ module "app" {
 	}
 }
 
-// An archive that is not one of a stack is refused.
+// manifestName is the name of the manifest of an archive.
+const manifestName = ".rigger-stack.json"
+
+// Hidden files are no part of a stack or a module (their digest leaves them
+// out), and a working directory keeps secrets in them (.env, .netrc): an
+// archive holds none, in a hidden directory or not. A file named as the
+// manifest of the archive is hidden too, so it can't stand in for it.
+func TestArchive_HiddenFiles(t *testing.T) {
+	t.Parallel()
+
+	// The stack of the stack tests in the root itself, where a file can have
+	// the name of the manifest; its module db is the module of the test.
+	root := fstest.MapFS{}
+	for name, f := range stackFiles(twoReleases) {
+		root[strings.TrimPrefix(name, "s/")] = f
+	}
+
+	// Every hidden file says to be a manifest of another directory.
+	for _, name := range []string{
+		".env", ".netrc", manifestName, ".rigger/generated.hcl", "values/.env",
+		"modules/db/.env", "modules/db/" + manifestName, "modules/db/files/.token", "modules/db/.git/config",
+	} {
+		root[name] = &fstest.MapFile{Data: []byte(`{"dir":"elsewhere"}`)}
+	}
+
+	db, err := fs.Sub(root, "modules/db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name     string
+		repack   func(*testing.T, fs.FS) ([]byte, string, hcl.Diagnostics)
+		root     fs.FS
+		expected string
+	}{
+		{name: "a stack", repack: repackStack, root: root, expected: "shop"},
+		{name: "a module", repack: repackModule, root: db, expected: "db"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			archive, loaded, diags := tt.repack(t, tt.root)
+
+			names := archiveNames(t, archive)
+			if len(names) < 2 || names[0] != manifestName {
+				t.Fatalf("entries %v, want the manifest first and the files", names)
+			}
+
+			for _, n := range names[1:] {
+				if strings.HasPrefix(n, ".") || strings.Contains(n, "/.") {
+					t.Errorf("%s was sent", n)
+				}
+			}
+
+			if diags.HasErrors() || loaded != tt.expected {
+				t.Errorf("the archive loads as %q, want %q: %v", loaded, tt.expected, diags)
+			}
+		})
+	}
+}
+
+// repackStack loads the stack in root, packs it and loads the archive: it
+// returns the archive and the name of the stack the archive loads as.
+func repackStack(t *testing.T, root fs.FS) ([]byte, string, hcl.Diagnostics) {
+	t.Helper()
+
+	e := engine(t)
+
+	s, diags := e.LoadStack(t.Context(), root, ".")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	archive, err := s.Archive()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, diags := e.LoadStackFiles(t.Context(), archive)
+	if diags.HasErrors() {
+		return archive, "", diags
+	}
+
+	return archive, loaded.Name(), nil
+}
+
+// repackModule is repackStack for the module in root.
+func repackModule(t *testing.T, root fs.FS) ([]byte, string, hcl.Diagnostics) {
+	t.Helper()
+
+	e := engine(t)
+
+	m, diags := e.LoadModule(t.Context(), root)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	archive, err := m.Archive()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, diags := e.LoadModuleFiles(t.Context(), archive)
+	if diags.HasErrors() {
+		return archive, "", diags
+	}
+
+	return archive, loaded.Metadata().Name, nil
+}
+
+// An archive that is not one of a stack is refused: without a manifest, with
+// an entry outside the root, with a file or the manifest twice.
 func TestLoadStackFiles_Invalid(t *testing.T) {
 	t.Parallel()
 
 	e := engine(t)
 
+	manifest := [2]string{manifestName, `{"dir":"s"}`}
+	stack := [2]string{stackPath, "rigger {\n  name = \"s\"\n}\n"}
+
 	for name, archive := range map[string][]byte{
-		"not gzip":     []byte("plain"),
-		"no manifest":  tarGz(t, map[string]string{"s/stack.hcl": "rigger {\n  name = \"s\"\n}\n"}),
-		"outside root": tarGz(t, map[string]string{".rigger-stack.json": `{"dir":"s"}`, "../x": "y"}),
+		"not gzip":      []byte("plain"),
+		"no manifest":   tarGz(t, stack),
+		"outside root":  tarGz(t, manifest, [2]string{"../x", "y"}),
+		"a file twice":  tarGz(t, manifest, stack, stack),
+		"two manifests": tarGz(t, manifest, stack, manifest),
 	} {
 		if _, diags := e.LoadStackFiles(t.Context(), archive); !diags.HasErrors() {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+
+	// The archive the cases above differ from.
+	if _, diags := e.LoadStackFiles(t.Context(), tarGz(t, manifest, stack)); diags.HasErrors() {
+		t.Errorf("a manifest and a stack: %v", diags)
+	}
 }
 
-func tarGz(t *testing.T, files map[string]string) []byte {
+// tarGz is an archive of the entries, each a name and its content, in order.
+func tarGz(t *testing.T, entries ...[2]string) []byte {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -185,7 +313,9 @@ func tarGz(t *testing.T, files map[string]string) []byte {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	for name, data := range files {
+	for _, e := range entries {
+		name, data := e[0], e[1]
+
 		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
 			t.Fatal(err)
 		}
@@ -228,7 +358,7 @@ func checkSent(t *testing.T, names []string) {
 		}
 	}
 
-	if !containsAll(names, ".rigger-stack.json", "s/stack.hcl", "s/modules/db/metadata.hcl", "shared/app/metadata.hcl") {
+	if !containsAll(names, manifestName, stackPath, "s/modules/db/metadata.hcl", "shared/app/metadata.hcl") {
 		t.Errorf("entries %v", names)
 	}
 }
@@ -260,7 +390,7 @@ func TestModule_ArchiveAndLoadModuleFiles(t *testing.T) {
 	}
 
 	names := archiveNames(t, archive)
-	if !containsAll(names, ".rigger-stack.json", "mods/web/metadata.hcl", "mods/web/modules.hcl", "mods/lib/metadata.hcl") ||
+	if !containsAll(names, manifestName, "mods/web/metadata.hcl", "mods/web/modules.hcl", "mods/lib/metadata.hcl") ||
 		slices.Contains(names, "mods/other/notes.txt") || slices.Contains(names, "mods/web/.hidden/x.txt") {
 		t.Errorf("entries %v", names)
 	}

@@ -49,10 +49,13 @@ type stackArchiveManifest struct {
 
 // Archive packs the files of a local stack: every regular file of its
 // directory, and of the directories of its local modules and their child
-// modules. Directories whose name starts with a dot are left out: .rigger/
-// holds the local state of the stack, its generated secrets among them,
-// which a server never needs. A stack fetched from a source has no local
-// files to pack: the server fetches it by its source.
+// modules. Files and directories whose name starts with a dot are left out.
+// They are no part of a stack or a module (the digest leaves them out, and
+// nothing of the language reads them), and a server never needs them:
+// .rigger/ holds the local state of the stack, its generated secrets among
+// them, and a working directory keeps secrets in files as .env and .netrc.
+// A stack fetched from a source has no local files to pack: the server
+// fetches it by its source.
 func (s *Stack) Archive() ([]byte, error) {
 	if s.origin != nil {
 		return nil, errors.New("a published stack is fetched by its source, not sent as files")
@@ -130,7 +133,9 @@ func writeArchiveFiles(tw *tar.Writer, manifest []byte, files map[string][]byte)
 	return nil
 }
 
-// stackFiles reads the regular files under dirs of root, by their paths.
+// stackFiles reads the regular files under dirs of root, by their paths,
+// without the files and directories whose name starts with a dot. The
+// manifest of an archive has such a name, so no file can have its name.
 func stackFiles(root fs.FS, dirs []string) (map[string][]byte, error) {
 	files := map[string][]byte{}
 
@@ -142,15 +147,15 @@ func stackFiles(root fs.FS, dirs []string) (map[string][]byte, error) {
 				return err
 			}
 
-			if d.IsDir() {
-				if p != dir && strings.HasPrefix(d.Name(), ".") {
+			if p != dir && strings.HasPrefix(d.Name(), ".") {
+				if d.IsDir() {
 					return fs.SkipDir
 				}
 
 				return nil
 			}
 
-			if !d.Type().IsRegular() || files[p] != nil {
+			if d.IsDir() || !d.Type().IsRegular() || files[p] != nil {
 				return nil
 			}
 
@@ -188,9 +193,10 @@ func writeArchiveFile(tw *tar.Writer, name string, data []byte) error {
 
 // LoadStackFiles loads a stack from the files a client packed with
 // Stack.Archive. The files stay in memory; an entry that is not a regular
-// file or whose name is not a valid path is refused, and the archive is
-// bounded in size and number of files. The stack is then loaded as from a
-// directory (LoadStack), so it reads nothing but these files.
+// file, whose name is not a valid path, or that is there twice (a file or
+// the manifest) is refused, and the archive is bounded in size and number
+// of files. The stack is then loaded as from a directory (LoadStack), so it
+// reads nothing but these files.
 func (e *Engine) LoadStackFiles(ctx context.Context, archive []byte) (_ *Stack, retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "stack.load_files", &retDiags)
 
@@ -247,9 +253,16 @@ func readStackArchive(archive []byte) (fstest.MapFS, string, error) {
 			return nil, "", err
 		}
 
-		if m != nil {
-			manifest = m
+		if m == nil {
+			continue
 		}
+
+		// As a file is: an archive names its directory once.
+		if manifest != nil {
+			return nil, "", errors.New("the archive has more than one manifest")
+		}
+
+		manifest = m
 	}
 
 	if manifest == nil || !fs.ValidPath(manifest.Dir) {

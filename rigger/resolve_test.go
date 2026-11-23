@@ -207,7 +207,7 @@ func TestSyncStack_RegistryMoved(t *testing.T) {
 
 			e := newSyncEngine(t, tt.tree)
 			files := stackFiles("")
-			files["s/stack.hcl"] = stackAt(firstRegistry)
+			files[stackPath] = stackAt(firstRegistry)
 
 			_, lock, diags := e.SyncStack(t.Context(), files, "s", false)
 			if diags.HasErrors() {
@@ -219,7 +219,7 @@ func TestSyncStack_RegistryMoved(t *testing.T) {
 			}
 
 			files[lockPath] = &fstest.MapFile{Data: lock}
-			files["s/stack.hcl"] = stackAt(mirrorRegistry)
+			files[stackPath] = stackAt(mirrorRegistry)
 
 			moved, lock, diags := e.SyncStack(t.Context(), files, "s", false)
 			if diags.HasErrors() {

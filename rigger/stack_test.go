@@ -156,7 +156,7 @@ func (f *fakeCluster) Read(_ context.Context, path string) (map[string]host.Sens
 // output, as local modules.
 func stackFiles(stack string) fstest.MapFS {
 	return fstest.MapFS{
-		"s/stack.hcl":                 {Data: []byte(stack)},
+		stackPath:                     {Data: []byte(stack)},
 		"s/variables.hcl":             {Data: []byte("variable \"size\" {\n  default = 1\n}\n")},
 		"s/secrets.hcl":               {Data: []byte("secret \"apps/db\" {\n  items = { password = \"!generate:db\" }\n}\n")},
 		"s/modules/db/metadata.hcl":   {Data: []byte("module {\n  name    = \"db\"\n  version = \"1.0.0\"\n}\n")},
@@ -188,6 +188,9 @@ module "db" {
   values = { size = var.size, password = "!generate:db" }
 }
 `
+
+// stackPath is stack.hcl of the stack of the tests, in its root.
+const stackPath = "s/stack.hcl"
 
 // metadataFile is the file of the metadata of a module or a stack.
 const metadataFile = "metadata.hcl"
