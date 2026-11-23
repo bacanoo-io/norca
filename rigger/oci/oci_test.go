@@ -448,3 +448,62 @@ func TestClient_Tags_Invalid(t *testing.T) {
 		}
 	}
 }
+
+// The Location of an upload is a URL, or a reference from the request that
+// started the upload: a name alone is beside that request, not at the root
+// of the registry.
+func TestClient_PushBlob_Location(t *testing.T) {
+	t.Parallel()
+
+	const uploads = "https://" + testRegistry + "/v2/acme/web/blobs/uploads/"
+
+	tests := []struct {
+		name     string
+		location string
+		// expected is where the blob is put, without its query.
+		expected string
+		query    string
+	}{
+		{name: "a name", location: "upload-1?state=abc", expected: uploads + "upload-1", query: "abc"},
+		{name: "a path", location: "/v2/acme/web/blobs/uploads/upload-2?state=abc", expected: uploads + "upload-2", query: "abc"},
+		{name: "a URL of the registry", location: uploads + "upload-3", expected: uploads + "upload-3"},
+		{name: "a URL of a store", location: "https://storage.example.net/upload-4?state=abc", expected: "https://storage.example.net/upload-4", query: "abc"},
+		{name: "none", location: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var put []string
+
+			c := testClient(func(r *http.Request) *http.Response {
+				switch r.Method {
+				case http.MethodHead:
+					return answer(http.StatusNotFound, "")
+				case http.MethodPost:
+					return answer(http.StatusAccepted, "", "Location", tt.location)
+				default:
+					put = append(put, r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+" state="+r.URL.Query().Get("state")+" digest="+r.URL.Query().Get("digest")[:7])
+
+					return answer(http.StatusCreated, "")
+				}
+			})
+
+			err := c.pushBlob(t.Context(), testRegistry+"/acme/web", []byte("layer"))
+
+			if tt.expected == "" {
+				if !errors.Is(err, ErrRegistry) || len(put) != 0 {
+					t.Errorf("pushBlob() without a Location = %v, put to %v; want ErrRegistry and no upload", err, put)
+				}
+
+				return
+			}
+
+			want := tt.expected + " state=" + tt.query + " digest=sha256:"
+			if err != nil || len(put) != 1 || put[0] != want {
+				t.Errorf("pushBlob() put the blob to %v (err = %v), want %q", put, err, want)
+			}
+		})
+	}
+}

@@ -673,15 +673,9 @@ func (c *Client) pushBlob(ctx context.Context, repository string, data []byte) e
 		return fmt.Errorf("%w: upload: %s", ErrRegistry, start.Status)
 	}
 
-	loc, err := url.Parse(start.Header.Get("Location"))
+	target, err := uploadLocation(base+"/blobs/uploads/", start)
 	if err != nil {
 		return err
-	}
-
-	target := (&url.URL{Scheme: "x", Host: "x"}).ResolveReference(loc)
-	if loc.Host == "" {
-		b, _ := url.Parse(baseURL(host))
-		target = b.ResolveReference(loc)
 	}
 
 	q := target.Query()
@@ -700,6 +694,32 @@ func (c *Client) pushBlob(ctx context.Context, repository string, data []byte) e
 	}
 
 	return nil
+}
+
+// uploadLocation returns where the blob of an upload is put: the Location
+// of the answer that started it, a URL or a reference from the request of
+// that answer (requested, unless a redirect moved it).
+func uploadLocation(requested string, start *http.Response) (*url.URL, error) {
+	location := start.Header.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("%w: upload: no Location", ErrRegistry)
+	}
+
+	loc, err := url.Parse(location)
+	if err != nil {
+		return nil, fmt.Errorf("%w: upload: Location: %w", ErrRegistry, err)
+	}
+
+	from, err := url.Parse(requested)
+	if err != nil {
+		return nil, err
+	}
+
+	if start.Request != nil && start.Request.URL != nil {
+		from = start.Request.URL
+	}
+
+	return from.ResolveReference(loc), nil
 }
 
 // digestOf is the OCI digest of data.
