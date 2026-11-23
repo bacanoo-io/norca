@@ -595,12 +595,25 @@ func untar(data []byte, dir string) error {
 	}
 }
 
+// errSameName is the error of a file of a tree or a layer whose name is
+// taken by another file of it: an archive that names a file twice, or a
+// tree of git with two names that differ only by case (README, readme) on a
+// file system that takes them for one (Windows, macOS). Such a tree can't
+// be written there as it is.
+var errSameName = errors.New("another file of it has this name (two names that differ only by case are one on a file system of Windows or macOS)")
+
+// writeEntry writes a file that is not there yet: no entry writes over
+// another.
 func writeEntry(root *os.Root, name string, r io.Reader) error {
 	if err := root.MkdirAll(path.Dir(name), 0o750); err != nil {
 		return err
 	}
 
 	f, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o640)
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("%s: %w", name, errSameName)
+	}
+
 	if err != nil {
 		return err
 	}

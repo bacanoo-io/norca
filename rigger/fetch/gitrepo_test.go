@@ -7,14 +7,19 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/bacanoo-io/norca/rigger/source"
 )
@@ -359,5 +364,90 @@ func TestGitCredentials(t *testing.T) {
 
 	if _, err := f.auth(context.Background(), "ssh://example.com/r", "ssh://example.com/r"); err == nil {
 		t.Error("an invalid ssh key was accepted")
+	}
+}
+
+// commitInMemory makes a repository in memory with one commit of the files
+// given (names without a directory), and returns it and the commit: a tree
+// that a worktree of this system might not hold.
+func commitInMemory(t *testing.T, files map[string]string) (*git.Repository, string) {
+	t.Helper()
+
+	r, err := git.Init(memory.NewStorage(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store := func(kind plumbing.ObjectType, encode func(plumbing.EncodedObject) error) plumbing.Hash {
+		obj := r.Storer.NewEncodedObject()
+		obj.SetType(kind)
+
+		if err := encode(obj); err != nil {
+			t.Fatal(err)
+		}
+
+		h, err := r.Storer.SetEncodedObject(obj)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return h
+	}
+
+	tree := &object.Tree{}
+
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		blob := store(plumbing.BlobObject, func(obj plumbing.EncodedObject) error {
+			w, err := obj.Writer()
+			if err != nil {
+				return err
+			}
+
+			if _, err := w.Write([]byte(files[name])); err != nil {
+				return err
+			}
+
+			return w.Close()
+		})
+
+		tree.Entries = append(tree.Entries, object.TreeEntry{Name: name, Mode: filemode.Regular, Hash: blob})
+	}
+
+	commit := &object.Commit{Author: *testAuthor(), Committer: *testAuthor(), Message: "files", TreeHash: store(plumbing.TreeObject, tree.Encode)}
+
+	return r, store(plumbing.CommitObject, commit.Encode).String()
+}
+
+// Two files whose names differ only by case are two files in git and one
+// name on the file systems of Windows and macOS. Where they are two, both
+// are written; where they are one, the error says so and does not read as
+// a cache that is broken.
+func TestWriteTree_NamesByCase(t *testing.T) {
+	t.Parallel()
+
+	r, commit := commitInMemory(t, map[string]string{"README": "upper\n", "readme": "lower\n", "metadata.hcl": "module {}\n"})
+
+	probe := t.TempDir()
+	write(t, filepath.Join(probe, "Probe"), "")
+
+	_, statErr := os.Stat(filepath.Join(probe, "probe"))
+	byCase := statErr != nil
+
+	dir := t.TempDir()
+	err := writeTree(r, commit, dir, DefaultLimits())
+
+	if byCase {
+		upper, _ := os.ReadFile(filepath.Join(dir, "README"))
+		lower, _ := os.ReadFile(filepath.Join(dir, "readme"))
+
+		if err != nil || string(upper) != "upper\n" || string(lower) != "lower\n" {
+			t.Errorf("writeTree() = %v, README %q, readme %q; want both files", err, upper, lower)
+		}
+
+		return
+	}
+
+	if !errors.Is(err, errSameName) || !strings.Contains(err.Error(), "readme") {
+		t.Errorf("writeTree() on a file system that does not tell names by case = %v, want errSameName of readme", err)
 	}
 }
