@@ -47,10 +47,21 @@ const (
 //     any other condition is kept as written in x-ui-show-if-hcl, and the
 //     form then shows the field always.
 func (m *Module) FormSchema() map[string]any {
-	props := make(map[string]any, len(m.mod.Variables))
+	return formSchema(m.mod)
+}
+
+// FormSchema is the install form of a published stack: that of its
+// variables.hcl with the tabs of its metadata.hcl, as a module has one.
+func (s *Stack) FormSchema() map[string]any {
+	return formSchema(s.s.Vars)
+}
+
+// formSchema is the form of the variables and the tabs of mod.
+func formSchema(mod *lang.Module) map[string]any {
+	props := make(map[string]any, len(mod.Variables))
 	required := []string{}
 
-	for i, v := range m.mod.Variables {
+	for i, v := range mod.Variables {
 		props[v.Name] = variableSchema(v, (i+1)*10)
 
 		if v.Default == cty.NilVal {
@@ -60,9 +71,9 @@ func (m *Module) FormSchema() map[string]any {
 
 	out := map[string]any{keyType: jsonObject, "properties": props, "required": required}
 
-	if len(m.mod.Tabs) > 0 {
-		tabs := make([]map[string]any, 0, len(m.mod.Tabs))
-		for i, t := range m.mod.Tabs {
+	if len(mod.Tabs) > 0 {
+		tabs := make([]map[string]any, 0, len(mod.Tabs))
+		for i, t := range mod.Tabs {
 			tab := map[string]any{"id": t.Name, "label": t.Label, "order": i}
 			if t.Icon != "" {
 				tab["icon"] = t.Icon

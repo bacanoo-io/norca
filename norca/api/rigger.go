@@ -349,6 +349,34 @@ type RiggerModuleDetail struct {
 	Icon  bool
 }
 
+// RiggerStackDetail is what the form of a published stack of a registry
+// needs of a version: Source is the address to apply it by (with its
+// version), FormSchema the form of its variables.
+type RiggerStackDetail struct {
+	Source     string
+	Metadata   map[string]any
+	Readme     string
+	FormSchema map[string]any
+	// Versions are the versions of the stack, the newest first.
+	Versions []string
+	Meets    bool
+	Unmet    []string
+	Warnings []string
+}
+
+// StackDetail reads a version (a constraint; the newest when empty) of a
+// published stack of a registry.
+func (r *Rigger) StackDetail(registry, stack, version string, q *QueryOptions) (*RiggerStackDetail, *QueryMeta, error) {
+	var out RiggerStackDetail
+
+	qm, err := r.client.query(riggerModulePath(registry, "stack", stack, version), &out, q)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &out, qm, nil
+}
+
 // Install plans (plan) or applies one release of a module.
 func (r *Rigger) Install(req *RiggerInstallRequest, plan bool, w *WriteOptions) (*RiggerInstallResponse, *WriteMeta, error) {
 	path := "/v1/rigger/install"

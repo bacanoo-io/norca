@@ -136,6 +136,8 @@ func (b *moduleBlock) metadata(rng hcl.Range, what string) (module.Metadata, hcl
 // stackMetadataFile is metadata.hcl of a published stack (design 7.5).
 type stackMetadataFile struct {
 	Stack *moduleBlock `hcl:"stack,block"`
+	// UI has the tabs of the install form of the stack, as a module has.
+	UI *uiBlock `hcl:"ui,block"`
 }
 
 // decodeMetadata decodes metadata.hcl of a stack: its stack block, with the
@@ -157,6 +159,12 @@ func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 
 	meta, moreDiags := md.Stack.metadata(rng, "stack")
 	diags = append(diags, moreDiags...)
+
+	if md.UI != nil && s.Vars != nil {
+		for _, t := range md.UI.Tabs {
+			s.Vars.Tabs = append(s.Vars.Tabs, module.Tab{Name: t.Name, Label: t.Label, Icon: t.Icon})
+		}
+	}
 
 	switch {
 	case meta.Version == "":

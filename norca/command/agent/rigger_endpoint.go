@@ -17,9 +17,10 @@ import (
 // RiggerRegistryRequest handles /v1/rigger/registry/<name>/sync (PUT or
 // POST: sync the registry now), /v1/rigger/registry/<name>/search (GET: a
 // page of its index at the commit of its last good sync; query kind, text,
-// offset, limit), and /v1/rigger/registry/<name>/module and .../icon (GET: a
-// version of a module of the registry, what an install form needs of it and
-// its icon; query name, version). The registries themselves are objects of
+// category, keyword, offset, limit), /v1/rigger/registry/<name>/module and
+// .../icon (GET: a version of a module of the registry, what an install form
+// needs of it and its icon; query name, version), and .../stack (GET: the
+// same of a published stack). The registries themselves are objects of
 // the kind rigger.norca.io/Registry (/v1/object/rigger.norca.io/Registry/...).
 func (s *HTTPServer) RiggerRegistryRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
 	name, action, ok := strings.Cut(strings.TrimPrefix(req.URL.Path, "/v1/rigger/registry/"), "/")
@@ -34,6 +35,8 @@ func (s *HTTPServer) RiggerRegistryRequest(resp http.ResponseWriter, req *http.R
 		return s.riggerRegistrySearch(resp, req, name)
 	case "module", "icon":
 		return s.riggerModuleDetail(resp, req, name, action == "icon")
+	case "stack":
+		return s.riggerStackDetail(resp, req, name)
 	default:
 		return nil, CodedError(http.StatusNotFound, "unknown Rigger registry path")
 	}
@@ -300,6 +303,34 @@ func (s *HTTPServer) riggerOperationLog(resp http.ResponseWriter, req *http.Requ
 
 	var out norca.RiggerOperationLogResponse
 	if err := s.agent.RPC("Rigger.OperationLog", &args, &out); err != nil {
+		return nil, err
+	}
+
+	setMeta(resp, &out.QueryMeta)
+
+	return &out, nil
+}
+
+// riggerStackDetail answers .../stack: a version of a published stack of
+// the registry (query name, version).
+func (s *HTTPServer) riggerStackDetail(resp http.ResponseWriter, req *http.Request, registry string) (any, error) {
+	if req.Method != http.MethodGet {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	args := norca.RiggerDetailRequest{RiggerModuleRequest: norca.RiggerModuleRequest{
+		Registry: registry, Module: req.URL.Query().Get("name"), Version: req.URL.Query().Get("version"),
+	}}
+	if args.Module == "" {
+		return nil, CodedError(http.StatusBadRequest, "missing the name of the stack (query name)")
+	}
+
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out norca.RiggerStackDetailResponse
+	if err := s.agent.RPC("Rigger.StackDetail", &args, &out); err != nil {
 		return nil, err
 	}
 

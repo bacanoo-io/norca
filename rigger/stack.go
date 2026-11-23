@@ -59,6 +59,11 @@ func (s *Stack) Metadata() *module.Metadata {
 	return &md
 }
 
+// Readme is the README.md of the stack directory.
+func (s *Stack) Readme() ([]byte, error) {
+	return fs.ReadFile(s.s.FS, "README.md") // FS is the stack directory
+}
+
 // Digest is the tree digest of the stack directory (design 7.5): its own
 // modules, values and lock file included.
 func (s *Stack) Digest() (string, error) { return lang.StackDigest(s.s) }
