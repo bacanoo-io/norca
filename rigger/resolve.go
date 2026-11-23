@@ -323,7 +323,7 @@ func (e *Engine) fetchModule(ctx context.Context, req source.Request) (*fetchedM
 		return nil, ErrNoFetcher
 	}
 
-	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.fetch", "source", req.Source, "version", req.Version)
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.fetch", "source", source.Redact(req.Source), "version", req.Version)
 
 	fm, err := e.fetchAndLoad(ctx, req)
 	span.End(ctx, err)

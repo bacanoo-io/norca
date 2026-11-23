@@ -17,7 +17,7 @@ import (
 )
 
 // The encoders leave the quotes of a runtime value that is a whole string
-// to runref (encode.go, quoteString), and write their own around a string a
+// to runref (encode.go, format.quote), and write their own around a string a
 // runtime value is a part of. These tests go through both ends of that
 // contract: the output of an encoder, resolved as the host resolves it.
 

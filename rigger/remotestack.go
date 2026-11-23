@@ -43,7 +43,7 @@ type StackOrigin struct {
 func (e *Engine) FetchStack(ctx context.Context, address, constraint string) (_ *Stack, retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "stack.fetch", &retDiags)
 
-	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.fetch", "source", address, "version", constraint)
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "stack.fetch", "source", source.Redact(address), "version", constraint)
 
 	s, diags := e.fetchStack(ctx, address, constraint)
 	span.End(ctx, diagsErr(diags))

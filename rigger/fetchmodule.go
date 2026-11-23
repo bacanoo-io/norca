@@ -42,7 +42,7 @@ type ModuleOrigin struct {
 func (e *Engine) FetchModule(ctx context.Context, req source.Request, trustedKeys []string) (_ *Module, retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "module.fetch_verified", &retDiags)
 
-	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.fetch_verified", "source", req.Source, "version", req.Version)
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.fetch_verified", "source", source.Redact(req.Source), "version", req.Version)
 
 	m, err := e.fetchVerified(ctx, req, trustedKeys)
 	span.End(ctx, err)
