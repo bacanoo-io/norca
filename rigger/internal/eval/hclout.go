@@ -4,7 +4,6 @@
 package eval
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
@@ -62,10 +61,7 @@ func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip ma
 		}
 
 		if !v.IsWhollyKnown() {
-			diags = append(diags, &hcl.Diagnostic{
-				Severity: hcl.DiagError, Summary: "Unknown value",
-				Detail: fmt.Sprintf("The value of %s is not known at install time.", a.Name), Subject: a.Expr.Range().Ptr(),
-			})
+			diags = append(diags, unknownDiag(a.Name, a.Expr.Range()))
 
 			continue
 		}

@@ -411,12 +411,9 @@ func secretItems(v cty.Value, rng hcl.Range) (cty.Value, map[string]host.Sensiti
 	}
 
 	items, marks := v.GetAttr(itemsName).Unmark()
-	if !items.Type().IsObjectType() && !items.Type().IsMapType() {
-		if len(marks) > 0 || items.ContainsMarked() {
-			return v, nil, hcl.Diagnostics{sensitiveDiag("items that are not an object", rng)}
-		}
 
-		return v, nil, nil
+	if ok, diags := readableItems(items, len(marks) > 0, rng); !ok {
+		return v, nil, diags
 	}
 
 	var (
@@ -462,6 +459,27 @@ func secretItems(v cty.Value, rng hcl.Range) (cty.Value, map[string]host.Sensiti
 	attrs[itemsName] = cty.ObjectVal(plain)
 
 	return cty.ObjectVal(attrs), secrets, diags
+}
+
+// readableItems reports whether the items of a Variable are an object or a
+// map whose items can be taken one by one. Items not known at install time
+// are an error: the items of a value not known can't be read. Items of
+// another type are left as they are for the host, unless they are
+// sensitive.
+func readableItems(items cty.Value, sensitive bool, rng hcl.Range) (bool, hcl.Diagnostics) {
+	switch {
+	case !items.IsKnown():
+		return false, hcl.Diagnostics{{
+			Severity: hcl.DiagError, Summary: "Invalid items",
+			Detail: "The items of the Variable are not known at install time.", Subject: rng.Ptr(),
+		}}
+	case items.Type().IsObjectType() || items.Type().IsMapType():
+		return true, nil
+	case sensitive || items.ContainsMarked():
+		return false, hcl.Diagnostics{sensitiveDiag("items that are not an object", rng)}
+	default:
+		return false, nil
+	}
 }
 
 // itemString returns a plain item of a Variable as Norca stores it, a string:

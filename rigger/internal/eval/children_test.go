@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/bacanoo-io/norca/rigger/internal/eval"
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
@@ -162,6 +163,95 @@ func TestEvaluate_Children(t *testing.T) {
 				t.Errorf("spec = %s, want it to contain %s", res.Resources[0].Spec, tt.contains)
 			}
 		})
+	}
+}
+
+// A child module is not evaluated with a value that failed: the value is
+// not known, and the child would report what it makes of that, or fail on
+// it. The error of the value is the one reported.
+func TestEvaluate_ChildAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	// The module lib/l makes a block per item of a list.
+	lists := map[string]string{
+		"lib/l/metadata.hcl":  "module {\n  name    = \"l\"\n  version = \"1.0.0\"\n}\n",
+		"lib/l/variables.hcl": "variable \"items\" {\n  type = list(string)\n}\n",
+		"lib/l/y.norca.hcl":   "job \"y\" {\n  dynamic \"group\" {\n    for_each = var.items\n    labels   = [group.value]\n\n    content {\n      n = group.value\n    }\n  }\n}\n",
+		"lib/l/y.var.hcl":     "variable \"y\" {\n  path  = \"p\"\n  items = { for i in var.items : i => i }\n}\n",
+	}
+
+	const (
+		failedLocal = "locals {\n  a = regex(\"(\", \"x\")\n}\n"
+		failedChild = "module \"x\" {\n  source = \"../lib/x\"\n  prefix = regex(\"(\", \"x\")\n}\n"
+		regexFailed = "invalid regexp pattern"
+	)
+
+	tests := []struct {
+		name  string
+		files map[string]string
+	}{
+		{
+			name: "a failed local",
+			files: map[string]string{
+				appLocals:  failedLocal,
+				appModules: "module \"l\" {\n  source = \"../lib/l\"\n  items  = local.a\n}\n",
+			},
+		},
+		{
+			name: "a local that reads a failed local",
+			files: map[string]string{
+				appLocals:  failedLocal + "locals {\n  b = [upper(local.a)]\n}\n",
+				appModules: "module \"l\" {\n  source = \"../lib/l\"\n  items  = local.b\n}\n",
+			},
+		},
+		{
+			name: "a failed child",
+			files: map[string]string{
+				appModules: failedChild + "module \"l\" {\n  source = \"../lib/l\"\n  items  = [module.x.name]\n}\n",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := family(lists)
+			for name, data := range tt.files {
+				fsys[name] = &fstest.MapFile{Data: []byte(data)}
+			}
+
+			_, diags := evaluateAt(t, fsys, "app")
+
+			if len(diags) != 1 || !strings.Contains(diags.Error(), regexFailed) {
+				t.Errorf("diagnostics = %q, want the one that contains %q", diags, regexFailed)
+			}
+		})
+	}
+}
+
+// With no value that failed before it, a value not known at install time is
+// an error of the module block that gives it to the child.
+func TestEvaluate_ChildUnknownValue(t *testing.T) {
+	t.Parallel()
+
+	fsys := family(map[string]string{
+		"app/variables.hcl": "variable \"p\" {\n  type = string\n}\n",
+		appModules:          "module \"x\" {\n  source = \"../lib/x\"\n  prefix = var.p\n}\n",
+	})
+
+	m, diags := lang.LoadAt(t.Context(), fsys, "app", limits)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	vars := cty.ObjectVal(map[string]cty.Value{"p": cty.UnknownVal(cty.String)})
+
+	_, diags = eval.Evaluate(t.Context(), m, vars, facts, eval.Config{FileBytes: 1 << 20, Resources: 10, Jobs: eval.GenericJobs})
+
+	const want = "modules.hcl:3,12-17: Unknown value; The value of prefix is not known at install time."
+	if len(diags) != 1 || !strings.Contains(diags.Error(), want) {
+		t.Errorf("diagnostics = %q, want the one that contains %q", diags, want)
 	}
 }
 

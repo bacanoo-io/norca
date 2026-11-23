@@ -45,7 +45,7 @@ variable "token" {
 }
 `,
 	"w.norca.hcl": "job \"w\" {\n  count = var.n\n  id    = \"w${count.index}\"\n}\n",
-	"x.var.hcl":   "variable \"x\" {\n  for_each = toset([\"a\", \"b\"])\n  path     = \"p/${each.key}\"\n\n  items {\n    token = var.token\n  }\n}\n",
+	xVar:          "variable \"x\" {\n  for_each = toset([\"a\", \"b\"])\n  path     = \"p/${each.key}\"\n\n  items {\n    token = var.token\n  }\n}\n",
 	"outputs.hcl": "output \"names\" {\n  value = distinct([\"a\", \"b\", \"a\"])\n}\n",
 }
 

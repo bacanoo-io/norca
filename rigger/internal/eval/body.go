@@ -228,6 +228,14 @@ func expandDynamic(b *hclsyntax.Block, ctx *hcl.EvalContext, x *expansion) (stri
 		return "", nil, nil, append(diags, sensitiveDiag("the for_each of a dynamic block", attr.Expr.Range()))
 	}
 
+	// The items of a value not known can't be walked.
+	if !forEach.IsKnown() {
+		return "", nil, nil, append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError, Summary: invalidDynamic,
+			Detail: "The for_each of a dynamic block is not known at install time.", Subject: attr.Expr.Range().Ptr(),
+		})
+	}
+
 	content := slices.IndexFunc(b.Body.Blocks, func(c *hclsyntax.Block) bool { return c.Type == "content" })
 	if content < 0 || forEach.IsNull() || !forEach.CanIterateElements() {
 		return "", nil, nil, append(diags, &hcl.Diagnostic{
@@ -317,7 +325,18 @@ func dynamicLabels(b *hclsyntax.Block, ctx *hcl.EvalContext) ([]string, hcl.Diag
 		return nil, append(diags, sensitiveDiag("the labels of a dynamic block", attr.Expr.Range()))
 	}
 
-	if diags.HasErrors() || v.IsNull() || !v.CanIterateElements() {
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	if !v.IsKnown() {
+		return nil, append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError, Summary: invalidDynamic,
+			Detail: "The labels of a dynamic block are not known at install time.", Subject: attr.Expr.Range().Ptr(),
+		})
+	}
+
+	if v.IsNull() || !v.CanIterateElements() {
 		return nil, diags
 	}
 

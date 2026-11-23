@@ -248,7 +248,7 @@ func (r *run) values(m *lang.Module, base *hcl.EvalContext, facts Facts, prefix 
 			continue
 		}
 
-		v, moreDiags := r.child(n.child, base, facts, prefix, res)
+		v, moreDiags := r.child(n.child, base, facts, prefix, res, diags.HasErrors())
 		diags = append(diags, moreDiags...)
 
 		if moreDiags.HasErrors() {
@@ -264,16 +264,35 @@ func (r *run) values(m *lang.Module, base *hcl.EvalContext, facts Facts, prefix 
 
 // child evaluates a child module with the values its module block gives,
 // and returns its outputs.
-func (r *run) child(c *lang.Child, base *hcl.EvalContext, facts Facts, prefix string, res *Result) (cty.Value, hcl.Diagnostics) {
+//
+// A value that failed stands as a value not known, in the locals and the
+// outputs that read it too (values): a child given one is not evaluated,
+// and its outputs are not known either. failed says that a value failed
+// before; the error of that value is the one to report, so the child adds
+// none. With no failure before, a value not known is an error of its own.
+func (r *run) child(c *lang.Child, base *hcl.EvalContext, facts Facts, prefix string, res *Result, failed bool) (cty.Value, hcl.Diagnostics) {
 	inputs := map[string]Input{}
 
-	var diags hcl.Diagnostics
+	var (
+		diags   hcl.Diagnostics
+		unknown bool
+	)
 
 	for name, attr := range c.Args {
 		v, moreDiags := attr.Expr.Value(base)
 		diags = append(diags, moreDiags...)
 
 		if moreDiags.HasErrors() {
+			continue
+		}
+
+		if !v.IsWhollyKnown() {
+			unknown = true
+
+			if !failed {
+				diags = append(diags, unknownDiag(name, attr.Expr.Range()))
+			}
+
 			continue
 		}
 
@@ -290,8 +309,8 @@ func (r *run) child(c *lang.Child, base *hcl.EvalContext, facts Facts, prefix st
 		inputs[name] = Input{Value: v, Range: attr.Expr.Range().Ptr()}
 	}
 
-	if diags.HasErrors() {
-		return cty.NilVal, diags
+	if diags.HasErrors() || unknown {
+		return cty.DynamicVal, diags
 	}
 
 	vars, diags := Variables(c.Module, inputs)
@@ -478,6 +497,15 @@ func resolveRuntime(v cty.Value) (cty.Value, error) {
 
 		return cty.StringVal(s), nil
 	})
+}
+
+// unknownDiag is the error of the value of name, which is not known at
+// install time.
+func unknownDiag(name string, rng hcl.Range) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError, Summary: "Unknown value",
+		Detail: fmt.Sprintf("The value of %s is not known at install time.", name), Subject: rng.Ptr(),
+	}
 }
 
 func valueDiag(what string, err error, rng hcl.Range) *hcl.Diagnostic {

@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/bacanoo-io/norca/rigger/internal/eval"
 )
@@ -166,6 +167,8 @@ const (
 	localsHCL    = "locals.hcl"
 	variablesHCL = "variables.hcl"
 	xACL         = "x.acl.hcl"
+	xObject      = "x.object.hcl"
+	xVar         = "x.var.hcl"
 )
 
 // evaluateCase is a module of one or a few files, and what its evaluation
@@ -245,7 +248,7 @@ func evaluateCases() []evaluateCase {
 		},
 		{
 			name:     "dynamic blocks",
-			files:    map[string]string{"x.object.hcl": "object \"x\" {\n  dynamic \"port\" {\n    for_each = [\"a\", \"b\"]\n    labels   = [port.value]\n    content {\n      to = port.key\n    }\n  }\n}\n"},
+			files:    map[string]string{xObject: "object \"x\" {\n  dynamic \"port\" {\n    for_each = [\"a\", \"b\"]\n    labels   = [port.value]\n    content {\n      to = port.key\n    }\n  }\n}\n"},
 			contains: `"port":{"a":{"to":0},"b":{"to":1}}`,
 		},
 		{
@@ -255,14 +258,14 @@ func evaluateCases() []evaluateCase {
 		},
 		{
 			name:     "a sensitive value outside the items of a Variable",
-			files:    map[string]string{variablesHCL: tokenVariable, "x.var.hcl": `variable "x" { path = var.token }`},
+			files:    map[string]string{variablesHCL: tokenVariable, xVar: `variable "x" { path = var.token }`},
 			expected: "can't be used in a variable, except in its items",
 		},
 		{
 			name: "sensitive labels of a dynamic block",
 			files: map[string]string{
-				variablesHCL:   "variable \"names\" {\n  sensitive = true\n  default   = [\"a\"]\n}\n",
-				"x.object.hcl": "object \"x\" {\n  dynamic \"port\" {\n    for_each = [1]\n    labels   = var.names\n    content {\n    }\n  }\n}\n",
+				variablesHCL: "variable \"names\" {\n  sensitive = true\n  default   = [\"a\"]\n}\n",
+				xObject:      "object \"x\" {\n  dynamic \"port\" {\n    for_each = [1]\n    labels   = var.names\n    content {\n    }\n  }\n}\n",
 			},
 			expected: "A sensitive value can't be used in the labels of a dynamic block",
 		},
@@ -271,7 +274,7 @@ func evaluateCases() []evaluateCase {
 			files: map[string]string{
 				variablesHCL:  "variable \"db\" {\n  sensitive = true\n  default   = { password = \"pw\" }\n}\n",
 				"files/t.tpl": "password=${password}",
-				"x.var.hcl":   "variable \"x\" {\n  path = \"p\"\n\n  items {\n    conf = templatefile(\"files/t.tpl\", var.db)\n  }\n}\n",
+				xVar:          "variable \"x\" {\n  path = \"p\"\n\n  items {\n    conf = templatefile(\"files/t.tpl\", var.db)\n  }\n}\n",
 			},
 			contains: `"items":{}`,
 		},
@@ -412,5 +415,61 @@ func TestEvaluate_Hook(t *testing.T) {
 
 	if strings.Contains(string(res.Resources[0].Spec), "hook") {
 		t.Errorf("spec = %s; the decoder sees no hook block", res.Resources[0].Spec)
+	}
+}
+
+// A value that is not known at install time is an error where its items
+// are read, with the place: the items of a value not known can't be walked.
+func TestEvaluate_UnknownValues(t *testing.T) {
+	t.Parallel()
+
+	vars := cty.ObjectVal(map[string]cty.Value{
+		"list": cty.UnknownVal(cty.List(cty.String)),
+		"map":  cty.UnknownVal(cty.Map(cty.String)),
+	})
+
+	tests := []struct {
+		name     string
+		file     string
+		src      string
+		expected string
+	}{
+		{
+			name:     "the for_each of a dynamic block",
+			file:     xObject,
+			src:      "object \"x\" {\n  dynamic \"port\" {\n    for_each = var.list\n\n    content {\n      to = port.value\n    }\n  }\n}\n",
+			expected: "x.object.hcl:3,16-24: Invalid dynamic block; The for_each of a dynamic block is not known at install time.",
+		},
+		{
+			name:     "the for_each of a dynamic block of a job",
+			file:     appNorca,
+			src:      "job \"app\" {\n  dynamic \"group\" {\n    for_each = var.map\n\n    content {\n      n = group.value\n    }\n  }\n}\n",
+			expected: "app.norca.hcl:3,16-23: Invalid dynamic block; The for_each of a dynamic block is not known at install time.",
+		},
+		{
+			name:     "the labels of a dynamic block",
+			file:     xObject,
+			src:      "object \"x\" {\n  dynamic \"port\" {\n    for_each = [1]\n    labels   = var.list\n\n    content {\n    }\n  }\n}\n",
+			expected: "x.object.hcl:4,16-24: Invalid dynamic block; The labels of a dynamic block are not known at install time.",
+		},
+		{
+			name:     "the items of a Variable",
+			file:     xVar,
+			src:      "variable \"x\" {\n  path  = \"p\"\n  items = var.map\n}\n",
+			expected: "x.var.hcl:1,1-13: Invalid items; The items of the Variable are not known at install time.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := load(t, module(map[string]string{tt.file: tt.src}))
+
+			_, diags := eval.Evaluate(t.Context(), m, vars, facts, eval.Config{FileBytes: 1 << 20, Resources: 10, Jobs: eval.GenericJobs})
+			if !strings.Contains(diags.Error(), tt.expected) {
+				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
+			}
+		})
 	}
 }
