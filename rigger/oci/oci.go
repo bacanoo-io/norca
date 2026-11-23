@@ -119,6 +119,35 @@ func (c *Client) SetCredentials(fn CredentialsFunc) { c.credentials = fn }
 // maxTokenBytes bounds the answer of a token service.
 const maxTokenBytes = 1 << 20
 
+// What bounds the tokens a client keeps. A registry chooses the size of a
+// token and a caller the repositories, so a client that lives as long as a
+// server would grow by both. A token is only kept to save a request: a
+// client at its bound starts again with none, and a token past the bound of
+// its size is used and not kept.
+const (
+	maxCachedTokens     = 256
+	maxCachedTokenBytes = 16 << 10
+)
+
+// remember keeps the authorization of a registry and a scope for the next
+// request, within the bounds.
+func (c *Client) remember(key, auth string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(auth) > maxCachedTokenBytes {
+		delete(c.tokens, key)
+
+		return
+	}
+
+	if _, kept := c.tokens[key]; !kept && len(c.tokens) >= maxCachedTokens {
+		clear(c.tokens)
+	}
+
+	c.tokens[key] = auth
+}
+
 // maxResponseBytes bounds a response of a registry: a manifest or a blob.
 const maxResponseBytes = 256 << 20
 
@@ -258,9 +287,7 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 		return nil, err
 	}
 
-	c.mu.Lock()
-	c.tokens[key] = auth
-	c.mu.Unlock()
+	c.remember(key, auth)
 
 	return send(auth)
 }

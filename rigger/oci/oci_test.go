@@ -507,3 +507,78 @@ func TestClient_PushBlob_Location(t *testing.T) {
 		})
 	}
 }
+
+// tokenRegistry is a registry that asks every repository for a token of its
+// own, of the size given; requests counts the requests of tokens.
+func tokenRegistry(size int, requests *int) *Client {
+	return testClient(func(r *http.Request) *http.Response {
+		if r.URL.Path == "/token" {
+			*requests++
+
+			return answer(http.StatusOK, `{"token":"`+strings.Repeat("t", size)+`"}`)
+		}
+
+		if r.Header.Get("Authorization") == "" {
+			return answer(http.StatusUnauthorized, "", "WWW-Authenticate", `Bearer realm="https://`+testRegistry+`/token"`)
+		}
+
+		return answer(http.StatusOK, `{"tags":[]}`)
+	})
+}
+
+// A client that lives as long as a server keeps the tokens of the scopes it
+// was asked for: their number and their size have a bound, since both are
+// what a registry and its caller choose.
+func TestClient_TokensBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the number of tokens", func(t *testing.T) {
+		t.Parallel()
+
+		var requests int
+
+		c := tokenRegistry(8, &requests)
+
+		for i := range 3 * maxCachedTokens {
+			if _, err := c.Tags(t.Context(), testRegistry+"/acme/repo-"+strconv.Itoa(i)); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if n := len(c.tokens); n > maxCachedTokens {
+			t.Errorf("the client keeps %d tokens, more than the bound %d", n, maxCachedTokens)
+		}
+
+		// A token that is kept is used again.
+		before := requests
+
+		for range 2 {
+			if _, err := c.Tags(t.Context(), testRegistry+"/acme/again"); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if got := requests - before; got != 1 {
+			t.Errorf("two requests of one scope asked for %d tokens, want 1", got)
+		}
+	})
+
+	t.Run("the size of a token", func(t *testing.T) {
+		t.Parallel()
+
+		var requests int
+
+		c := tokenRegistry(maxCachedTokenBytes+1, &requests)
+
+		// A token past the bound works, and is not kept.
+		for range 2 {
+			if _, err := c.Tags(t.Context(), testRegistry+"/acme/web"); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if len(c.tokens) != 0 || requests != 2 {
+			t.Errorf("the client keeps %d tokens past the bound of their size, after %d requests of tokens", len(c.tokens), requests)
+		}
+	})
+}
