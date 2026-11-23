@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -385,8 +384,8 @@ func headCommit(r *git.Repository) (string, error) {
 
 // writeTree writes the regular files of the tree of a commit into dir,
 // through an os.Root (as an archive of the commit would be extracted:
-// links and submodules are not part of a module).
-func writeTree(r *git.Repository, commit, dir string) error {
+// links and submodules are not part of a module), within the limits given.
+func writeTree(r *git.Repository, commit, dir string, limits Limits) error {
 	h, err := commitHash(commit)
 	if err != nil {
 		return err
@@ -408,9 +407,15 @@ func writeTree(r *git.Repository, commit, dir string) error {
 	}
 	defer root.Close() //nolint:errcheck // the files are closed one by one
 
+	budget := &treeBudget{limits: limits}
+
 	return tree.Files().ForEach(func(file *object.File) error {
 		if file.Mode != filemode.Regular && file.Mode != filemode.Executable {
 			return nil
+		}
+
+		if err := budget.file(file.Name, file.Size); err != nil {
+			return err
 		}
 
 		rd, err := file.Reader()
@@ -418,7 +423,7 @@ func writeTree(r *git.Repository, commit, dir string) error {
 			return err
 		}
 
-		err = writeEntry(root, path.Clean(file.Name), io.Reader(rd))
+		err = writeEntry(root, path.Clean(file.Name), budget.reader(file.Name, rd))
 		closeErr := rd.Close()
 
 		return cmp.Or(err, closeErr)

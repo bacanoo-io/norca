@@ -75,6 +75,11 @@ func testRepo(t *testing.T) (dir, first, second string) {
 	return dir, first, second
 }
 
+// testAuthor is the author of the commits of the tests.
+func testAuthor() *object.Signature {
+	return &object.Signature{Name: "author", Email: "author@example.com", When: time.Unix(1700000000, 0)}
+}
+
 func mustHash(t *testing.T, r *git.Repository) [20]byte {
 	t.Helper()
 

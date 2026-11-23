@@ -62,6 +62,9 @@ type shared struct {
 	// credentials returns the credentials of a git repository; nil reads
 	// every repository anonymously (SetCredentials).
 	credentials CredentialsFunc
+
+	// limits bound what is extracted of one commit (SetLimits).
+	limits Limits
 }
 
 var _ source.Fetcher = (*Fetcher)(nil)
@@ -71,7 +74,7 @@ func New(dir string) *Fetcher {
 	installKeepOrigin()
 
 	return &Fetcher{
-		shared:  &shared{cache: dir, oci: oci.NewClient()},
+		shared:  &shared{cache: dir, oci: oci.NewClient(), limits: DefaultLimits()},
 		global:  DefaultGlobalRegistry,
 		updated: map[string]bool{},
 	}
@@ -324,8 +327,8 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 
 	tree := f.TreeDir(req.Repository, commit)
 	if _, err := os.Stat(tree); err != nil {
-		if err := extract(r, commit, tree); err != nil {
-			return source.Fetched{}, err
+		if err := f.extract(r, commit, tree); err != nil {
+			return source.Fetched{}, fmt.Errorf("%s %s: %w", source.Redact(req.Repository), ref, err)
 		}
 	}
 
@@ -480,8 +483,9 @@ func (f *Fetcher) extractLayer(ctx context.Context, repository, digest, dir stri
 }
 
 // extract writes the tree of a commit into dir, through a directory of its
-// own that is renamed into place when complete.
-func extract(r *git.Repository, commit, dir string) error {
+// own that is renamed into place when complete. A tree past the limits of
+// the fetcher leaves nothing behind.
+func (f *Fetcher) extract(r *git.Repository, commit, dir string) error {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o750); err != nil {
 		return err
 	}
@@ -491,7 +495,7 @@ func extract(r *git.Repository, commit, dir string) error {
 		return err
 	}
 
-	if err := writeTree(r, commit, tmp); err != nil {
+	if err := writeTree(r, commit, tmp, f.limits); err != nil {
 		_ = os.RemoveAll(tmp)
 
 		return err

@@ -97,7 +97,7 @@ func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
 
 	tree := filepath.Join(f.cache, "index", commit)
 	if _, err := os.Stat(tree); err != nil {
-		if err := extract(r, commit, tree); err != nil {
+		if err := f.extract(r, commit, tree); err != nil {
 			return nil, err
 		}
 	}

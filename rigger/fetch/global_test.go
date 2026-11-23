@@ -10,10 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
 
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/source"
@@ -99,8 +97,7 @@ func mirrorOf(t *testing.T, f *Fetcher, address string, files map[string]string)
 		t.Fatal(err)
 	}
 
-	sig := &object.Signature{Name: "test", Email: "test@example.com", When: time.Unix(1700000000, 0)}
-	if _, err := wt.Commit("index", &git.CommitOptions{Author: sig}); err != nil {
+	if _, err := wt.Commit("index", &git.CommitOptions{Author: testAuthor()}); err != nil {
 		t.Fatal(err)
 	}
 
