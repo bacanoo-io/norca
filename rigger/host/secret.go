@@ -6,6 +6,8 @@ package host
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 )
@@ -18,24 +20,41 @@ const redacted = "(sensitive)"
 var ErrSensitive = errors.New("host: a sensitive value is not encoded")
 
 // Sensitive is a value that must not appear in a plan, a log or a revision
-// (design 6.3). Printed with the fmt package or logged with slog it shows
-// "(sensitive)"; encoded as JSON or text it fails with ErrSensitive. Only
-// Reveal gives the value, where it is handed to the secret store.
+// (design 6.3). Printed with the fmt package, with any verb, or logged with
+// slog it shows "(sensitive)"; encoded as JSON or text it fails with
+// ErrSensitive. Only Reveal gives the value, where it is handed to the
+// secret store.
 //
-// The zero value is an empty sensitive value.
+// The zero value is an empty sensitive value. Two values are compared by
+// what Reveal gives, not with ==.
 type Sensitive struct {
-	value string
+	// value is behind a pointer. Where fmt can't call the methods of a type
+	// (a field that is not exported, a verb it refuses for a whole argument)
+	// it prints the fields by reflection: of a string its text, of a pointer
+	// in a struct its address.
+	value *string
 }
 
 // NewSensitive wraps a value that must not be shown.
 func NewSensitive(value string) Sensitive {
-	return Sensitive{value: value}
+	return Sensitive{value: &value}
 }
 
 // Reveal returns the value. Call it only where the value goes to the secret
 // store or to the workload, never for output.
 func (s Sensitive) Reveal() string {
-	return s.value
+	if s.value == nil {
+		return ""
+	}
+
+	return *s.value
+}
+
+// Format implements fmt.Formatter: no verb and no flag shows the value.
+// Without it fmt calls String only for the verbs of a string, and prints
+// the fields for every other (%d, %t, %c).
+func (Sensitive) Format(f fmt.State, _ rune) {
+	_, _ = io.WriteString(f, redacted)
 }
 
 // String implements fmt.Stringer: it never shows the value.
