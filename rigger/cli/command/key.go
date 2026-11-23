@@ -204,18 +204,33 @@ func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		return err
 	}
 
-	return writeSignature(stdout, dir, key, t)
-}
-
-// writeSignature signs the tree digest of t with key and writes the
-// signature into the .rigger-signatures directory of dir.
-func writeSignature(stdout io.Writer, dir string, key *ecdsa.PrivateKey, t signed) error {
-	s, err := sign.Sign(key, t.digest, t.name, t.version)
+	file, id, err := signatureFile(dir, key)
 	if err != nil {
 		return err
 	}
 
-	id, err := sign.KeyID(&key.PublicKey)
+	if err := writeSignature(file, key, t); err != nil {
+		return err
+	}
+
+	return reportSigned(stdout, t, id, file)
+}
+
+// signatureFile returns the file of the signature of a key in the
+// .rigger-signatures directory of dir, and the ID of the key.
+func signatureFile(dir string, key *ecdsa.PrivateKey) (file, id string, err error) {
+	id, err = sign.KeyID(&key.PublicKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(dir, sign.SignatureDir, sign.FileName(id)), id, nil
+}
+
+// writeSignature signs the tree digest of t with key and writes the
+// signature to file, in a .rigger-signatures directory.
+func writeSignature(file string, key *ecdsa.PrivateKey, t signed) error {
+	s, err := sign.Sign(key, t.digest, t.name, t.version)
 	if err != nil {
 		return err
 	}
@@ -225,17 +240,16 @@ func writeSignature(stdout io.Writer, dir string, key *ecdsa.PrivateKey, t signe
 		return err
 	}
 
-	sigDir := filepath.Join(dir, sign.SignatureDir)
-	if err := os.MkdirAll(sigDir, 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
 		return err
 	}
 
-	p := filepath.Join(sigDir, sign.FileName(id))
-	if err := os.WriteFile(p, append(data, '\n'), 0o644); err != nil { //nolint:gosec // G306: a signature is public
-		return err
-	}
+	return os.WriteFile(file, append(data, '\n'), 0o644) //nolint:gosec // G306: a signature is public
+}
 
-	_, err = fmt.Fprintf(stdout, "signed %s %s (%s) with %s: %s\n", t.name, t.version, t.digest, id, p)
+// reportSigned says that t was signed by the key of id into file.
+func reportSigned(stdout io.Writer, t signed, id, file string) error {
+	_, err := fmt.Fprintf(stdout, "signed %s %s (%s) with %s: %s\n", t.name, t.version, t.digest, id, file)
 
 	return err
 }

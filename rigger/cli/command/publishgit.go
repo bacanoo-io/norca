@@ -305,21 +305,24 @@ func repositoryOf(ctx context.Context, dir string) (top, rel string, err error) 
 // the commit to tag: that of the signature, which has the files of the
 // signed commit and nothing else of the version.
 func commitSignature(ctx context.Context, stdout io.Writer, top, rel, dir string, key *ecdsa.PrivateKey, h head) (string, error) {
-	if err := writeSignature(stdout, dir, key, h.signed); err != nil {
+	file, id, err := signatureFile(dir, key)
+	if err != nil {
 		return "", err
 	}
 
 	sigDir := path.Join(rel, sign.SignatureDir)
-	if _, err := gitOut(ctx, top, "add", "--", sigDir); err != nil {
+
+	committed, err := writeAndCommit(ctx, top, sigDir, file, key, h)
+	if err != nil {
 		return "", err
 	}
 
-	if staged, _ := gitOut(ctx, top, "diff", "--cached", "--name-only", "--", sigDir); staged == "" {
+	if err := reportSigned(stdout, h.signed, id, file); err != nil {
+		return "", err
+	}
+
+	if !committed {
 		return h.commit, nil
-	}
-
-	if _, err := gitOut(ctx, top, "commit", "--quiet", "-m", h.name+": sign "+h.version, "--", sigDir); err != nil {
-		return "", err
 	}
 
 	commit, err := gitOut(ctx, top, "rev-parse", "--verify", "HEAD^{commit}")
@@ -338,6 +341,57 @@ func commitSignature(ctx context.Context, stdout io.Writer, top, rel, dir string
 	}
 
 	return commit, err
+}
+
+// writeAndCommit writes the signature of h by key to file, in the directory
+// sigDir of the repository, and commits it; it reports whether there was
+// anything to commit.
+//
+// When the signature is not committed (a hook refuses the commit, git has
+// no author, gpg fails) it puts the file and the index back as they were. A
+// signature left staged or on disk is a change of the module, and every
+// later publish would refuse it (errDirty).
+func writeAndCommit(ctx context.Context, top, sigDir, file string, key *ecdsa.PrivateKey, h head) (committed bool, err error) {
+	old, readErr := os.ReadFile(file) //nolint:gosec // G304: the signature file of the module
+	if readErr != nil && !errors.Is(readErr, fs.ErrNotExist) {
+		return false, readErr
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Also when the command was cancelled: that is how a commit may fail.
+		_, _ = gitOut(context.WithoutCancel(ctx), top, "reset", "--quiet", "--", sigDir)
+
+		if readErr == nil {
+			_ = os.WriteFile(file, old, 0o644) //nolint:gosec // G306: a signature is public
+
+			return
+		}
+
+		// The directory too, if the signature was its only file.
+		_ = os.Remove(file)
+		_ = os.Remove(filepath.Dir(file))
+	}()
+
+	if err := writeSignature(file, key, h.signed); err != nil {
+		return false, err
+	}
+
+	if _, err := gitOut(ctx, top, "add", "--", sigDir); err != nil {
+		return false, err
+	}
+
+	staged, err := gitOut(ctx, top, "diff", "--cached", "--name-only", "--", sigDir)
+	if err != nil || staged == "" {
+		return false, err
+	}
+
+	_, err = gitOut(ctx, top, "commit", "--quiet", "-m", h.name+": sign "+h.version, "--", sigDir)
+
+	return err == nil, err
 }
 
 // gitOut runs git in dir and returns its output, trimmed.

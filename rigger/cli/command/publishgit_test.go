@@ -250,12 +250,7 @@ func TestPublishGit_HookChangesSignedTree(t *testing.T) {
 	keys := publishEnv(t)
 	module := filepath.Join(repo, "modules", "greeter")
 
-	hook := filepath.Join(repo, ".git", "hooks", "pre-commit")
-	writeFile(t, hook, "#!/bin/sh\necho '# added by a hook' >> modules/greeter/variables.hcl\ngit add modules/greeter/variables.hcl\n")
-
-	if err := os.Chmod(hook, 0o700); err != nil { //nolint:gosec // G302: git runs a hook only when it is executable
-		t.Fatal(err)
-	}
+	preCommitHook(t, repo, "echo '# added by a hook' >> modules/greeter/variables.hcl\ngit add modules/greeter/variables.hcl\n")
 
 	code, stdout, stderr := riggerRunAll(t, "module", "publish", module, "-key", filepath.Join(keys, "acme.key"))
 	if code != exitError || !strings.Contains(stderr, "changed more of the version than its signatures") {
@@ -265,6 +260,64 @@ func TestPublishGit_HookChangesSignedTree(t *testing.T) {
 	if strings.Contains(stdout, "tagged") {
 		t.Fatalf("the version was tagged:\n%s", stdout)
 	}
+}
+
+// preCommitHook makes script the pre-commit hook of the repository, and
+// returns its file.
+func preCommitHook(t *testing.T, repo, script string) string {
+	t.Helper()
+
+	hook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	writeFile(t, hook, "#!/bin/sh\n"+script)
+
+	if err := os.Chmod(hook, 0o700); err != nil { //nolint:gosec // G302: git runs a hook only when it is executable
+		t.Fatal(err)
+	}
+
+	return hook
+}
+
+// A commit of the signature that fails (a hook, no author, no gpg) leaves
+// nothing behind, staged or on disk: the next publish finds the module as
+// it was committed, and works.
+//
+//nolint:paralleltest // publishEnv sets the environment of the publish (t.Setenv)
+func TestPublishGit_FailedCommit(t *testing.T) {
+	repo := greeterRepo(t, "1.0.0")
+	keys := publishEnv(t)
+	module := filepath.Join(repo, "modules", "greeter")
+	key := filepath.Join(keys, "acme.key")
+
+	clean := func(when string) {
+		t.Helper()
+
+		status, err := gitOut(t.Context(), repo, "status", "--porcelain", "--ignored")
+		if err != nil || status != "" {
+			t.Fatalf("%s the repository has changes (%v):\n%s", when, err, status)
+		}
+	}
+
+	hook := preCommitHook(t, repo, "exit 1\n")
+
+	code, stdout, stderr := riggerRunAll(t, "module", "publish", module, "-key", key)
+	if code != exitError || !strings.Contains(stderr, "git commit") || strings.Contains(stdout, "signed") {
+		t.Fatalf("publish with a failing hook = %d, want the error of git commit and no signature\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+
+	clean("after a commit of a new signature that failed")
+
+	if err := os.Remove(hook); err != nil {
+		t.Fatal(err)
+	}
+
+	riggerRun(t, exitOK, []string{taggedGreeter}, "module", "publish", module, "-key", key)
+
+	// Published again without its tag, the version has a signature of the
+	// key already: a failed commit puts that one back.
+	gitIn(t, repo, "tag", "-d", "greeter/v1.0.0")
+	preCommitHook(t, repo, "exit 1\n")
+	riggerRunErr(t, "git commit", "module", "publish", module, "-key", key)
+	clean("after a commit of a signature that replaces one and failed")
 }
 
 // The lock file and the files of a published stack are signed as the
