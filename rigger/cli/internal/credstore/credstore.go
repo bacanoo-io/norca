@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
 )
 
 // Kind is the kind of a source: what the variables of the environment are
@@ -197,29 +199,7 @@ func (s *Store) change(fn func(*file) bool) error {
 		return err
 	}
 
-	tmp, err := os.CreateTemp(dir, ".credentials-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) //nolint:errcheck // gone after the rename
-
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-
-		return err
-	}
-
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
-		_ = tmp.Close()
-
-		return err
-	}
-
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmp.Name(), s.path)
+	return atomicfile.WriteMode(s.path, append(data, '\n'), 0o600)
 }
 
 func (s *Store) read() (*file, error) {

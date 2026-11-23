@@ -36,6 +36,33 @@ func writeTree(t *testing.T, files map[string]string) string {
 	return dir
 }
 
+// replaced returns a function that tells whether the file at p is another
+// file than it is now: written beside it and renamed over it, which is what
+// a reader and a run that is cut need, not written in place.
+func replaced(t *testing.T, p string) func() bool {
+	t.Helper()
+
+	before, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// On Windows a FileInfo reads what tells files apart from the path when
+	// it is first compared: now, while the path still names this file.
+	os.SameFile(before, before)
+
+	return func() bool {
+		t.Helper()
+
+		after, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return !os.SameFile(before, after)
+	}
+}
+
 // riggerRun runs the rigger program and checks its exit code and output.
 func riggerRun(t *testing.T, code int, wants []string, args ...string) string {
 	t.Helper()

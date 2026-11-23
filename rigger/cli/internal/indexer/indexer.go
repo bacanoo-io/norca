@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
 	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/index"
 	"github.com/bacanoo-io/norca/rigger/module"
@@ -434,5 +435,8 @@ func (ix *Indexer) writeEntry(kind index.Kind, e *index.Entry) error {
 		return err
 	}
 
-	return os.WriteFile(p, data, 0o644) //nolint:gosec // G306: the files of a public registry
+	// Never half written: an entry lists every version of its module, and
+	// an update that is cut would lose those listed before. The files of a
+	// registry are public.
+	return atomicfile.Write(p, data, 0o644)
 }

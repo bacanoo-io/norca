@@ -265,3 +265,31 @@ func tampered(t *testing.T, reg, entry, stack string) {
 		t.Fatalf("check of a changed version = %d:\n%s", code, out)
 	}
 }
+
+// An entry that gets a version is written beside the old one and takes its
+// place: an update that is cut leaves the entry that was there.
+//
+//nolint:paralleltest // publishedRegistry sets the environment of the publish (t.Setenv)
+func TestRun_IndexUpdate_ReplacesTheEntry(t *testing.T) {
+	repo, reg, entry, keys := publishedRegistry(t)
+
+	isReplaced := replaced(t, entry)
+
+	setVersion(t, repo, "1.2.0")
+	riggerRun(t, exitOK, []string{"as greeter/v1.2.0"}, "module", "publish", filepath.Join(repo, "modules", "greeter"), "-key", filepath.Join(keys, "acme.key"))
+	riggerRun(t, exitOK, []string{"listed module acme/greeter 1.2.0"}, "index", "update", "-dir", reg, "-today", "2026-11-19")
+
+	if !isReplaced() {
+		t.Error("the entry was written in place")
+	}
+
+	data, err := os.ReadFile(entry)
+	if err != nil || !strings.Contains(string(data), `"version": "1.0.0"`) || !strings.Contains(string(data), `"version": "1.2.0"`) {
+		t.Errorf("the entry = %s, %v, want the versions 1.0.0 and 1.2.0", data, err)
+	}
+
+	entries, err := os.ReadDir(filepath.Dir(entry))
+	if err != nil || len(entries) != 1 {
+		t.Errorf("the directory of the entry has %v (%v), want the entry alone", entries, err)
+	}
+}

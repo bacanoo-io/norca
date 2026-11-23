@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
@@ -541,7 +542,10 @@ func syncStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 		return err
 	}
 
-	if err := os.WriteFile(p, lock, 0o644); err != nil { //nolint:gosec // G306: the lock file is kept in version control, not secret
+	// Never half written: nothing reads half a lock file, and a sync that
+	// is cut would lose the versions the stack was locked to. The file is
+	// kept in version control, not secret.
+	if err := atomicfile.Write(p, lock, 0o644); err != nil {
 		return err
 	}
 

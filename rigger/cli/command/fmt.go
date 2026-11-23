@@ -19,6 +19,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+
+	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
 )
 
 // errUnformatted is the error of rigger fmt -check when a file is not
@@ -137,11 +139,8 @@ func formatFile(p string, check bool) (bool, hcl.Diagnostics, error) {
 		return true, nil, nil
 	}
 
-	info, err := os.Stat(p)
-	if err != nil {
-		return false, nil, err
-	}
-
-	// The person running rigger names the files to format.
-	return true, nil, os.WriteFile(p, out, info.Mode().Perm()) //nolint:gosec // G703: the path is the user's own argument
+	// The person running rigger names the files to format. The file keeps
+	// its mode, and is never half written: a format that is cut would
+	// lose what the file held.
+	return true, nil, atomicfile.Write(p, out, 0o644)
 }

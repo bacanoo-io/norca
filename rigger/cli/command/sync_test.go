@@ -153,3 +153,39 @@ func riggerRunErr(t *testing.T, want string, args ...string) {
 		t.Fatalf("rigger %s: stderr does not contain %q:\n%s", strings.Join(args, " "), want, stderr.String())
 	}
 }
+
+// A lock file that changes is written beside the old one and takes its
+// place: a sync that is cut leaves the lock that was there, not half of the
+// new one, which nothing could read.
+func TestRun_StackSync_ReplacesTheLock(t *testing.T) {
+	repo := registryRepo(t)
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+
+	stack := func(version string) string {
+		return "rigger {\n  name = \"greet\"\n\n  registry \"local\" {\n    source = \"file://" + repo + "\"\n  }\n}\n\n" +
+			"module \"hello\" {\n  source  = \"local/greeter\"\n  version = \"" + version + "\"\n}\n"
+	}
+
+	dir := writeTree(t, map[string]string{stackFile: stack("1.0.0")})
+	lock := filepath.Join(dir, lockFile)
+
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+
+	isReplaced := replaced(t, lock)
+
+	writeFile(t, filepath.Join(dir, stackFile), stack("1.1.0"))
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+
+	if !isReplaced() {
+		t.Error("the lock file was written in place")
+	}
+
+	if data, err := os.ReadFile(lock); err != nil || !strings.Contains(string(data), `"greeter/v1.1.0"`) {
+		t.Errorf("the lock file = %q, %v", data, err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 2 {
+		t.Errorf("the directory of the stack has %v (%v), want the stack and its lock alone", entries, err)
+	}
+}
