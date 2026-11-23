@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -90,9 +91,25 @@ type Client struct {
 // NewClient returns an anonymous client; SetCredentials gives it the
 // credentials of registries. Those of a registry go to it when it asks, and
 // to the token service it names over https, not to where an upload or a
-// redirect leads.
+// redirect leads. A registry that is not on this machine does not lead the
+// client to it (checkRedirect, tokenService, do).
 func NewClient() *Client {
-	return &Client{http: &http.Client{CheckRedirect: sameorigin.CheckRedirect}, tokens: map[string]string{}}
+	return &Client{http: &http.Client{CheckRedirect: checkRedirect}, tokens: map[string]string{}}
+}
+
+// errLocal is the error of a registry elsewhere that leads the client to
+// this machine. A service there answers this machine and no one else: its
+// answer to the token request would go back to the registry as the token.
+var errLocal = errors.New("a registry elsewhere leads to this machine")
+
+// checkRedirect is sameorigin.CheckRedirect, and refuses a redirect to this
+// machine of a request that did not start there.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > 0 && mayBeLocal(req.URL.Hostname()) && !mayBeLocal(via[0].URL.Hostname()) {
+		return fmt.Errorf("%w: %w: a redirect of %s to %s", ErrRegistry, errLocal, via[0].URL.Host, req.URL.Host)
+	}
+
+	return sameorigin.CheckRedirect(req, via)
 }
 
 // SetCredentials sets where the credentials of a registry come from: asked
@@ -140,20 +157,53 @@ func ref(repository string) (host, name string, err error) {
 // baseURL is the URL of a registry: http for localhost, as docker does,
 // https otherwise.
 func baseURL(host string) string {
-	name := host
-	if h, _, ok := strings.Cut(host, ":"); ok {
-		name = h
-	}
-
-	if isLocalhost(name) {
+	if isLocalhost(hostname(host)) {
 		return "http://" + host
 	}
 
 	return "https://" + host
 }
 
+// hostname is the name or the address of a host without its port and the
+// brackets of IPv6.
+func hostname(host string) string {
+	if u, err := url.Parse("//" + host); err == nil {
+		return u.Hostname()
+	}
+
+	return host
+}
+
+// isLocalhost reports whether a name or an address is this machine as a
+// registry is named: localhost, or a loopback address.
 func isLocalhost(name string) bool {
-	return name == "localhost" || name == "127.0.0.1" || name == "::1"
+	if strings.EqualFold(name, "localhost") {
+		return true
+	}
+
+	ip := net.ParseIP(name)
+
+	return ip != nil && ip.IsLoopback()
+}
+
+// mayBeLocal reports whether a name or an address a registry gave may be
+// this machine. It is wider than isLocalhost, for what is refused by it:
+// a name of the localhost domain, the address of no host (0.0.0.0), and an
+// address in a form net.ParseIP does not read and a resolver may (127.1,
+// 2130706433, 0x7f.0.0.1; a name of the DNS does not end in a number).
+func mayBeLocal(name string) bool {
+	name = strings.TrimSuffix(strings.ToLower(name), ".")
+	if name == "localhost" || strings.HasSuffix(name, ".localhost") {
+		return true
+	}
+
+	if ip := net.ParseIP(name); ip != nil {
+		return ip.IsLoopback() || ip.IsUnspecified()
+	}
+
+	last := name[strings.LastIndex(name, ".")+1:]
+
+	return last != "" && (strings.HasPrefix(last, "0x") || strings.Trim(last, "0123456789") == "")
 }
 
 // do sends a request, and once more with a token or credentials when the
@@ -180,8 +230,12 @@ func (c *Client) do(ctx context.Context, method, host, scope, target string, bod
 	}
 
 	// An upload may lead to another origin: it gets no credentials, and
-	// can't ask for them.
+	// can't ask for them. It does not lead to this machine.
 	if !own {
+		if u, err := url.Parse(target); err == nil && mayBeLocal(u.Hostname()) && !mayBeLocal(hostname(host)) {
+			return nil, fmt.Errorf("%w: %w: %s sends an upload to %s", ErrRegistry, errLocal, host, u.Host)
+		}
+
 		return send("")
 	}
 
@@ -239,15 +293,16 @@ func (c *Client) authorize(ctx context.Context, host, challenge, scope string) (
 
 		return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+password)), nil
 	case "bearer":
-		return c.token(ctx, parseChallenge(params), scope, user, password)
+		return c.token(ctx, host, parseChallenge(params), scope, user, password)
 	default:
 		return "", fmt.Errorf("%w: unknown challenge %q", ErrRegistry, challenge)
 	}
 }
 
-// tokenService is the URL of the token service of a challenge: https, or
-// http on localhost.
-func tokenService(address string) (*url.URL, error) {
+// tokenService is the URL of the token service of a challenge of the
+// registry host: https, or http on localhost; and on this machine only
+// when the registry is.
+func tokenService(host, address string) (*url.URL, error) {
 	realm, err := url.Parse(address)
 	if err != nil || address == "" {
 		return nil, fmt.Errorf("%w: a bearer challenge without a realm", ErrRegistry)
@@ -255,6 +310,10 @@ func tokenService(address string) (*url.URL, error) {
 
 	if realm.Scheme != "https" && (realm.Scheme != "http" || !isLocalhost(realm.Hostname())) {
 		return nil, fmt.Errorf("%w: the token service %s://%s is not https (http is for localhost only)", ErrRegistry, realm.Scheme, realm.Host)
+	}
+
+	if mayBeLocal(realm.Hostname()) && !mayBeLocal(hostname(host)) {
+		return nil, fmt.Errorf("%w: %w: %s names the token service %s://%s", ErrRegistry, errLocal, host, realm.Scheme, realm.Host)
 	}
 
 	return realm, nil
@@ -289,9 +348,9 @@ func parseChallenge(params string) map[string]string {
 	return out
 }
 
-// token gets a bearer token of a realm.
-func (c *Client) token(ctx context.Context, params map[string]string, scope, user, password string) (string, error) {
-	realm, err := tokenService(params["realm"])
+// token gets a bearer token of the realm that the registry host names.
+func (c *Client) token(ctx context.Context, host string, params map[string]string, scope, user, password string) (string, error) {
+	realm, err := tokenService(host, params["realm"])
 	if err != nil {
 		return "", err
 	}
