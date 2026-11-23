@@ -460,16 +460,40 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 
 	lock := &lang.Lock{}
 
+	diags = append(diags, e.syncReleases(ctx, s, lock, rules, upgrade)...)
+	diags = append(diags, e.syncParts(ctx, s, lock, rules, upgrade)...)
+
+	if diags.HasErrors() {
+		return nil, nil, diags
+	}
+
+	s.Lock = lock
+
+	return &Stack{s: s}, lock.Bytes(), diags
+}
+
+// syncReleases resolves the modules of the releases of a stack from
+// sources into the lock, and loads them into the releases. A source is one
+// entry of the lock file: the releases after the first that names it take
+// the module the first resolved.
+func (e *Engine) syncReleases(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	// The release that resolved each source.
+	resolved := map[string]*lang.StackRelease{}
+
 	for _, r := range s.Releases {
 		if r.Address == nil {
 			continue
 		}
 
-		if entry := lock.Module(r.Source); entry != nil {
-			if err := meets(r.Version, entry.Version); err != nil {
+		if first := resolved[r.Source]; first != nil {
+			if err := meets(r.Version, first.Locked.Version); err != nil {
 				diags = append(diags, diagAt(r.Block.DefRange, "Constraints differ", fmt.Sprintf(
 					"%s is used by more than one release; %s.", r.Source, err)))
 			}
+
+			r.Module, r.Locked, r.Signatures, r.Signers = first.Module, first.Locked, first.Signatures, first.Signers
 
 			continue
 		}
@@ -489,17 +513,10 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 		entry.Signers = r.Signers
 		r.Module, r.Locked = fm.module, entry
 		lock.Modules = append(lock.Modules, entry)
+		resolved[r.Source] = r
 	}
 
-	diags = append(diags, e.syncParts(ctx, s, lock, rules, upgrade)...)
-
-	if diags.HasErrors() {
-		return nil, nil, diags
-	}
-
-	s.Lock = lock
-
-	return &Stack{s: s}, lock.Bytes(), diags
+	return diags
 }
 
 // syncRelease resolves the module of one release: the locked version when

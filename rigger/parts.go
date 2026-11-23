@@ -95,17 +95,24 @@ func (e *Engine) fetchLockedStack(ctx context.Context, p *lang.StackPart, entry 
 // syncParts resolves the versions of the parts of a stack into the lock:
 // the locked version while it meets the constraint, unless upgrade, else
 // the newest that does. The modules of a part come from its own lock file.
+// A source is one entry of the lock file: the parts after the first that
+// names it take the published stack the first resolved.
 func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool) hcl.Diagnostics {
 	var diags hcl.Diagnostics
+
+	// The part that resolved each source.
+	resolved := map[string]*lang.StackPart{}
 
 	for _, p := range s.Parts {
 		rng := p.Block.DefRange
 
-		if entry := lock.Stack(p.Source); entry != nil {
-			if err := meets(p.Version, entry.Version); err != nil {
+		if first := resolved[p.Source]; first != nil {
+			if err := meets(p.Version, first.Locked.Version); err != nil {
 				diags = append(diags, diagAt(rng, "Constraints differ", fmt.Sprintf(
 					"%s is a part more than once; %s.", p.Source, err)))
 			}
+
+			p.Stack, p.Locked, p.Signatures, p.Signers = first.Stack, first.Locked, first.Signatures, first.Signers
 
 			continue
 		}
@@ -127,6 +134,7 @@ func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, 
 		entry.Signers = p.Signers
 		p.Stack, p.Locked, p.Signatures = fs.stack, entry, fs.signatures
 		lock.Stacks = append(lock.Stacks, entry)
+		resolved[p.Source] = p
 	}
 
 	return diags
