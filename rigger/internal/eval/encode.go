@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 	"github.com/bacanoo-io/norca/rigger/runref"
 )
 
@@ -196,15 +197,15 @@ func wholePart(s string) (runref.Part, bool) {
 // an exponent and no point for a string.
 func (f format) number(v cty.Value) (string, error) {
 	n := v.AsBigFloat()
-	if err := numberError(n); err != nil {
+
+	text, err := numberText(n)
+	if err != nil {
 		return "", err
 	}
 
 	if n.Sign() == 0 {
 		return "0", nil
 	}
-
-	text := n.Text('f', -1)
 
 	if f.int64Only && n.IsInt() {
 		if i, _ := n.Int(nil); !i.IsInt64() {
@@ -219,24 +220,76 @@ func (f format) number(v cty.Value) (string, error) {
 // give: it has no digits, and no format has another way to write it.
 var errInfinite = errors.New("the number is infinite and can't be written")
 
-// numberError is the error of a number that can't be written.
-func numberError(n *big.Float) error {
+// errDigits is the error of a number too long to write: the time to write
+// one grows by the square of its digits, where no time limit is looked at.
+// A literal is bounded as the module is read (syntax.MaxNumberDigits); this
+// is the same bound for a number that was computed, or read from JSON.
+var errDigits = fmt.Errorf("the number has more than %d digits, the limit of the engine", syntax.MaxNumberDigits)
+
+// The binary exponents past which a number has more digits than the bound
+// whatever its digits are: before the point from 2^3322, which is over
+// 10^1000, and after it under 2^-3326, which is under 10^-1001 (a digit of
+// ten is 3.3219 bits). Between them the text of the number is short.
+const (
+	maxWholeExp    = syntax.MaxNumberDigits * 3322 / 1000
+	minFractionExp = -(syntax.MaxNumberDigits+1)*3322/1000 - 1
+)
+
+// numberText writes a number in digits, without an exponent, or says why
+// it can't be written. The exponent is read first, which costs nothing: a
+// number far over the bound is refused before any of it is written. The
+// digits are counted as package syntax counts those of a literal, so that a
+// number written into a text the engine reads again is read there.
+func numberText(n *big.Float) (string, error) {
 	if n.IsInf() {
-		return errInfinite
+		return "", errInfinite
 	}
 
-	return nil
+	if exp := n.MantExp(nil); exp > maxWholeExp || exp < minFractionExp {
+		return "", errDigits
+	}
+
+	text := n.Text('f', -1)
+
+	whole, fraction, _ := strings.Cut(strings.TrimPrefix(text, "-"), ".")
+	if len(strings.TrimLeft(whole, "0"))+len(fraction) > syntax.MaxNumberDigits {
+		return "", errDigits
+	}
+
+	return text, nil
+}
+
+// numberError is the error of a number that can't be written.
+func numberError(n *big.Float) error {
+	_, err := numberText(n)
+
+	return err
+}
+
+// digitsError is the error of a number of more digits than the bound. An
+// infinite number has none: it is an error only where it is written.
+func digitsError(n *big.Float) error {
+	if n.IsInf() {
+		return nil
+	}
+
+	return numberError(n)
 }
 
 // checkNumbers reports the first number in v that can't be written.
 func checkNumbers(v cty.Value) error {
+	return walkNumbers(v, numberError)
+}
+
+// walkNumbers reports the first number in v that check refuses.
+func walkNumbers(v cty.Value, check func(*big.Float) error) error {
 	return cty.Walk(v, func(_ cty.Path, v cty.Value) (bool, error) {
 		v, _ = v.Unmark()
 		if v.IsNull() || !v.IsKnown() || v.Type() != cty.Number {
 			return true, nil
 		}
 
-		return true, numberError(v.AsBigFloat())
+		return true, check(v.AsBigFloat())
 	})
 }
 

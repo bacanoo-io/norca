@@ -97,6 +97,79 @@ func TestParseConfig_AtBound(t *testing.T) {
 	}
 }
 
+// A number literal is bounded by the digits it has written without its
+// exponent: a few characters of exponent make a number that takes seconds
+// and megabytes to write.
+func TestParse_NumberLiterals(t *testing.T) {
+	t.Parallel()
+
+	digits := strings.Repeat("7", syntax.MaxNumberDigits)
+
+	tests := []struct {
+		name    string
+		literal string
+		refused bool
+	}{
+		{name: "a whole number", literal: "4222"},
+		{name: "a fraction", literal: "12345.678"},
+		{name: "the largest float64", literal: "1.7976931348623157e308"},
+		{name: "the smallest float64", literal: "5e-324"},
+		{name: "as many digits as the bound", literal: digits},
+		{name: "as many digits after the point as the bound", literal: "0." + digits},
+		{name: "zeros before as many digits as the bound", literal: "000" + digits},
+		{name: "an exponent up to the bound", literal: "1e999"},
+		{name: "an exponent down to the bound", literal: "1E-1000"},
+		{name: "an exponent that moves the point inside the digits", literal: digits[1:] + ".5e-900"},
+		{name: "one digit more than the bound", literal: digits + "7", refused: true},
+		{name: "one digit more after the point", literal: "0." + digits + "7", refused: true},
+		{name: "one digit more once the exponent moved the point", literal: digits + ".5e-900", refused: true},
+		{name: "an exponent over the bound", literal: "1e1000", refused: true},
+		{name: "an exponent with a sign over the bound", literal: "1E+1000", refused: true},
+		{name: "an exponent under the bound", literal: "1e-1001", refused: true},
+		{name: "a fraction with an exponent under the bound", literal: "0.5e-1000", refused: true},
+		{name: "the number of the report", literal: "1e4000000", refused: true},
+		{name: "an exponent no integer holds", literal: "1e99999999999999999999999", refused: true},
+		{name: "zeros before an exponent over the bound", literal: "1e0000000001000", refused: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// In a file, in an expression and in a template.
+			_, config := syntax.ParseConfig([]byte("a = [1, "+tt.literal+"]\n"), "x.hcl")
+			_, expr := syntax.ParseExpression([]byte("f("+tt.literal+")"), "x.hcl")
+			_, template := syntax.ParseTemplate([]byte("n=${"+tt.literal+"}"), "x.tpl")
+
+			for where, diags := range map[string]hcl.Diagnostics{"a file": config, "an expression": expr, "a template": template} {
+				if !tt.refused {
+					if diags.HasErrors() {
+						t.Errorf("in %s: %v, want it read", where, diags)
+					}
+
+					continue
+				}
+
+				const want = "The text can't be read: it has a number of more than 1000 digits, the limit of the engine."
+				if len(diags) != 1 || diags[0].Summary != syntax.Summary || diags[0].Detail != want {
+					t.Errorf("in %s: %v, want %q", where, diags, want)
+				}
+			}
+		})
+	}
+}
+
+// A text that only looks like a number is none: a string, a name.
+func TestParse_NotNumberLiterals(t *testing.T) {
+	t.Parallel()
+
+	for _, src := range []string{"a = \"1e4000000\"\n", "a = e4000000\n", "a1e4000000 = 1\n", "a = <<E\n1e4000000\nE\n"} {
+		if _, diags := syntax.ParseConfig([]byte(src), "x.hcl"); diags.HasErrors() {
+			t.Errorf("%q: %v, want it read", src, diags)
+		}
+	}
+}
+
 // attributes are n attributes with a small value.
 func attributes(n int) string {
 	var b strings.Builder

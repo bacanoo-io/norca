@@ -8,8 +8,10 @@
 package syntax
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -25,6 +27,14 @@ const (
 	// so no rule of where an expression ends has to be copied from the
 	// parser.
 	MaxOperators = 20000
+	// MaxNumberDigits bounds the digits of a number literal as it is written
+	// without its exponent: those before the point, without zeros in front,
+	// and those after it. 1e999 has 1000, and so has 1e-1000. A
+	// number is kept with 512 bits, about 154 digits, so the bound is far
+	// from any number that is kept exactly; what it stops is the writing of
+	// the number, which takes time by the square of its digits and is
+	// done where no time limit is looked at (9 seconds for 1e4000000).
+	MaxNumberDigits = 1000
 )
 
 // Summary is the summary of the diagnostic of a text over a bound.
@@ -33,6 +43,7 @@ const Summary = "Text too complex"
 var (
 	errDepth     = fmt.Errorf("it is nested more than %d deep, the limit of the engine", MaxDepth)
 	errOperators = fmt.Errorf("it has more than %d operators and brackets, the limit of the engine", MaxOperators)
+	errNumber    = fmt.Errorf("it has a number of more than %d digits, the limit of the engine", MaxNumberDigits)
 )
 
 // ParseConfig is hclsyntax.ParseConfig within the bounds. A text over one
@@ -108,6 +119,10 @@ func check(tokens hclsyntax.Tokens) hcl.Diagnostics {
 	var operators int
 
 	for _, t := range tokens {
+		if t.Type == hclsyntax.TokenNumberLit && overDigits(t.Bytes) {
+			return tooComplex(errNumber, t.Range)
+		}
+
 		if deepens(t.Type) {
 			operators++
 			if operators > MaxOperators {
@@ -127,6 +142,43 @@ func check(tokens hclsyntax.Tokens) hcl.Diagnostics {
 	}
 
 	return nil
+}
+
+// overDigits reports a number literal that has more than MaxNumberDigits
+// digits when it is written without its exponent: its digits before the
+// point and after it, once the exponent has moved the point. The literal is
+// digits, then a point and digits, then e or E, a sign and digits, each
+// part after the first only when written; what the scanner gives as a
+// number and is not one is left to the parser.
+func overDigits(lit []byte) bool {
+	mantissa, exponent := lit, []byte(nil)
+	if i := bytes.IndexAny(lit, "eE"); i >= 0 {
+		mantissa, exponent = lit[:i], lit[i+1:]
+	}
+
+	whole, fraction, _ := bytes.Cut(mantissa, []byte("."))
+
+	// Zeros before the first digit are no digits of the number: 0.5.
+	whole = bytes.TrimLeft(whole, "0")
+
+	exp := 0
+
+	if len(exponent) > 0 {
+		digits := bytes.TrimLeft(bytes.TrimLeft(exponent, "+-"), "0")
+
+		// More digits than the bound has: over it, whatever they are.
+		if len(digits) > len(strconv.Itoa(MaxNumberDigits)) {
+			return true
+		}
+
+		// The scanner gives digits here; none left after the zeros is 0.
+		exp, _ = strconv.Atoi(string(digits))
+		if exponent[0] == '-' {
+			exp = -exp
+		}
+	}
+
+	return max(len(whole)+exp, 0)+max(len(fraction)-exp, 0) > MaxNumberDigits
 }
 
 func tooComplex(err error, rng hcl.Range) hcl.Diagnostics {

@@ -480,6 +480,37 @@ func TestEvaluate_UnknownValues(t *testing.T) {
 	}
 }
 
+// writtenNumber is a module of one file that writes a number the engine
+// can't write, and the one error its evaluation gives.
+type writtenNumber struct {
+	name     string
+	file     string
+	src      string
+	expected string
+}
+
+// writtenNumbers evaluates each module with a decoder of the host for its
+// objects, and wants the error.
+func writtenNumbers(t *testing.T, tests []writtenNumber) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := load(t, module(map[string]string{tt.file: tt.src}))
+
+			_, diags := eval.Evaluate(t.Context(), m, cty.EmptyObjectVal, facts, eval.Config{
+				FileBytes: 1 << 20, Resources: 10, Decoder: sourceDecoder{},
+			})
+
+			if got := diags.Error(); len(diags) != 1 || !strings.Contains(got, tt.expected) {
+				t.Errorf("diagnostics = %q, want the one that contains %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 // An infinite number, what 1/0 gives, has no digits: where the module
 // writes one it is an error with the place, not the text +Inf, which no
 // reader of the resource takes for a number.
@@ -488,12 +519,7 @@ func TestEvaluate_InfiniteNumbers(t *testing.T) {
 
 	const infinite = "the number is infinite and can't be written."
 
-	tests := []struct {
-		name     string
-		file     string
-		src      string
-		expected string
-	}{
+	writtenNumbers(t, []writtenNumber{
 		{
 			name:     "an output",
 			file:     outputsHCL,
@@ -524,21 +550,72 @@ func TestEvaluate_InfiniteNumbers(t *testing.T) {
 			src:      "policy \"x\" {\n  rules = jsonencode({ a = 1 / 0 })\n}\n",
 			expected: `x.acl.hcl:2,11-22: Error in function call; Call to function "jsonencode" failed: a: ` + infinite,
 		},
+	})
+}
+
+// A number of more digits than the bound is an error where the module
+// writes it, as a literal over the bound is when the module is read: the
+// time to write a number grows by the square of its digits. The numbers of
+// the tests are products, which no literal bound sees.
+func TestEvaluate_LongNumbers(t *testing.T) {
+	t.Parallel()
+
+	const (
+		long  = "1e999 * 1e999"
+		short = "1e-999 * 1e-999"
+		over  = "the number has more than 1000 digits, the limit of the engine."
+	)
+
+	writtenNumbers(t, []writtenNumber{
+		{
+			name:     "an output",
+			file:     outputsHCL,
+			src:      "output \"o\" {\n  value = [" + long + "]\n}\n",
+			expected: "outputs.hcl:2,11-26: Value not encoded; The value of output o could not be encoded: " + over,
+		},
+		{
+			name:     "an attribute of a resource",
+			file:     xACL,
+			src:      "policy \"x\" {\n  level = " + short + "\n}\n",
+			expected: "x.acl.hcl:1,1-11: Value not encoded; The value of acl-policy x could not be encoded: " + over,
+		},
+		{
+			name:     "an attribute of a block written for a decoder of the host",
+			file:     xObject,
+			src:      "object \"x\" {\n  spec {\n    a = " + long + "\n  }\n}\n",
+			expected: "x.object.hcl:3,9-22: Value not encoded; The value of a could not be encoded: " + over,
+		},
+		{
+			name:     "an item of a Variable",
+			file:     xVar,
+			src:      "variable \"x\" {\n  path = \"p\"\n\n  items {\n    n = " + long + "\n  }\n}\n",
+			expected: "x.var.hcl:1,1-13: Invalid item; The item n of the Variable has no text: " + over,
+		},
+		{
+			name:     "the value of an encoder",
+			file:     xACL,
+			src:      "policy \"x\" {\n  rules = yamlencode({ a = " + short + " })\n}\n",
+			expected: `x.acl.hcl:2,11-22: Error in function call; Call to function "yamlencode" failed: a: ` + over,
+		},
+	})
+}
+
+// At the bound a number is written, with all its digits.
+func TestEvaluate_NumberAtBound(t *testing.T) {
+	t.Parallel()
+
+	res, diags := evaluate(t, module(map[string]string{
+		outputsHCL: "output \"large\" {\n  value = 1e999\n}\n\noutput \"small\" {\n  value = 1e-1000\n}\n",
+	}), ``)
+	if diags.HasErrors() {
+		t.Fatal(diags)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	if got, want := string(res.Outputs[0].Value), "1"+strings.Repeat("0", 999); got != want {
+		t.Errorf("large = %s, want 1 and 999 zeros", got)
+	}
 
-			m := load(t, module(map[string]string{tt.file: tt.src}))
-
-			_, diags := eval.Evaluate(t.Context(), m, cty.EmptyObjectVal, facts, eval.Config{
-				FileBytes: 1 << 20, Resources: 10, Decoder: sourceDecoder{},
-			})
-
-			if got := diags.Error(); len(diags) != 1 || !strings.Contains(got, tt.expected) {
-				t.Errorf("diagnostics = %q, want the one that contains %q", got, tt.expected)
-			}
-		})
+	if got, want := string(res.Outputs[1].Value), "0."+strings.Repeat("0", 999)+"1"; got != want {
+		t.Errorf("small = %s, want 0.000...1 with 1000 digits after the point", got)
 	}
 }

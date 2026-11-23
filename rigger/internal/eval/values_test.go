@@ -212,6 +212,69 @@ func TestVariables_Examples(t *testing.T) {
 	}
 }
 
+// A value with a number of more digits than the bound is refused before it
+// is converted to the type of its variable or shown in a message: either
+// writes the number. Values written as HCL are refused as they are read;
+// those of JSON are read by another parser, which has no bound.
+func TestVariables_LongNumbers(t *testing.T) {
+	t.Parallel()
+
+	m := load(t, module(map[string]string{
+		variablesHCL: "variable \"s\" {\n  type    = string\n  default = \"\"\n}\n\nvariable \"n\" {\n  type    = number\n  default = 1\n\n  validation {\n    max = 5\n  }\n}\n\n" +
+			"variable \"o\" {\n  type    = map(list(number))\n  default = {}\n}\n\nvariable \"secret\" {\n  type      = string\n  default   = \"\"\n  sensitive = true\n}\n",
+	}))
+
+	const over = ": the number has more than 1000 digits, the limit of the engine."
+
+	tests := []struct {
+		name     string
+		json     string
+		expected string
+	}{
+		{name: "for a string", json: `{"s": 1e4000000}`, expected: "v.json:1,7-16: Invalid value; var.s" + over},
+		{name: "for a number with a validation", json: `{"n": 1e-4000000}`, expected: "v.json:1,7-17: Invalid value; var.n" + over},
+		{name: "inside a value", json: `{"o": {"a": [1, 1e4000000]}}`, expected: "v.json:1,7-28: Invalid value; var.o" + over},
+		{name: "for a sensitive variable", json: `{"secret": 1e4000000}`, expected: "Invalid value; var.secret" + over},
+		{name: "at the bound", json: `{"s": 1e999, "n": 1e-1000, "o": {"a": [5]}}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			inputs, diags := eval.ParseValuesJSON("v.json", []byte(tt.json))
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			_, diags = eval.Variables(m, inputs)
+
+			if tt.expected == "" {
+				if diags.HasErrors() {
+					t.Error(diags)
+				}
+
+				return
+			}
+
+			if got := diags.Error(); len(diags) != 1 || !strings.Contains(got, tt.expected) {
+				t.Errorf("diagnostics = %q, want the one that contains %q", got, tt.expected)
+			}
+		})
+	}
+
+	t.Run("written as HCL", func(t *testing.T) {
+		t.Parallel()
+
+		_, diags := eval.ParseValues("v.vars.hcl", []byte("s = 1e4000000\n"))
+
+		const want = "v.vars.hcl:1,5-14: Text too complex; The text can't be read: it has a number of more than 1000 digits, the limit of the engine."
+		if got := diags.Error(); len(diags) != 1 || got != want {
+			t.Errorf("diagnostics = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestCoalesce(t *testing.T) {
 	t.Parallel()
 

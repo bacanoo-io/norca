@@ -194,6 +194,19 @@ func assign(v *lang.Variable, inputs map[string]Input) (cty.Value, hcl.Diagnosti
 	}
 
 	val := in.Value
+
+	// Before the value is converted and shown in a message: a number that is
+	// given for a string is written there. A value of an HCL text is bounded
+	// as it is read; this one may be of JSON, or computed by a stack.
+	if err := walkNumbers(val, digitsError); err != nil {
+		return cty.UnknownVal(v.Type), hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  summaryInvalidValue,
+			Detail:   fmt.Sprintf("var.%s: %s.", v.Name, err),
+			Subject:  rng.Ptr(),
+		}}
+	}
+
 	if v.Defaults != nil {
 		val = v.Defaults.Apply(val)
 	}
