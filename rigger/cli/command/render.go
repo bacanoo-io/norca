@@ -170,11 +170,13 @@ func writeRendered(w io.Writer, m *rigger.Module, release string, f *renderFlags
 	return enc.Encode(out)
 }
 
-// readValues reads the files of values in order, then the -var values; a
-// later value of a name wins. form is the install form of the module or
-// stack the values are for (FormSchema), which has the type of each
-// variable; nil when the variables are not known here (a published stack
-// that the servers fetch).
+// readValues reads the files of values in order, then the values of the
+// environment (RIGGER_VAR_<name>), then the -var values; a later value of a
+// name wins (design 6.1). form is the install form of the module or stack
+// the values are for (FormSchema), which has the type of each variable; nil
+// when the variables are not known here (a published stack that the
+// servers fetch). The diagnostics may be warnings only: of a variable of
+// the environment that is not used.
 func readValues(f *renderFlags, form map[string]any) (rigger.Values, hcl.Diagnostics) {
 	values := rigger.Values{}
 
@@ -199,6 +201,8 @@ func readValues(f *renderFlags, form map[string]any) (rigger.Values, hcl.Diagnos
 
 	types := variableTypes(form)
 
+	diags = append(diags, envValues(values, os.Environ(), form != nil, types)...)
+
 	for _, kv := range f.vars {
 		name, v, ok := strings.Cut(kv, "=")
 		if !ok || !hclsyntax.ValidIdentifier(name) {
@@ -214,6 +218,53 @@ func readValues(f *renderFlags, form map[string]any) (rigger.Values, hcl.Diagnos
 	}
 
 	return values, diags
+}
+
+// envPrefix starts the name of a variable of the environment that gives the
+// variable <name> its value: RIGGER_VAR_<name> (design 6.1). The name is as
+// the variable is written, in its case.
+const envPrefix = "RIGGER_VAR_"
+
+// envValues puts the values that the environment gives into values: of
+// each RIGGER_VAR_<name> whose name is a variable of types, read as a -var
+// is (varValue). The core reads no environment (design 12.4); the program
+// does, here.
+//
+// The environment is shared by every module and stack that is run in it,
+// so a name that is no variable here is not an error, as it is for a -var:
+// it is not used, and a warning says so. Without the variables (known is
+// false: a published stack that the servers fetch) no name can be told
+// from another, and none is used.
+func envValues(values rigger.Values, environ []string, known bool, types map[string]string) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	// In the order of the names: the warnings are the same on every run.
+	for _, kv := range slices.Sorted(slices.Values(environ)) {
+		key, v, _ := strings.Cut(kv, "=")
+
+		name, ok := strings.CutPrefix(key, envPrefix)
+		if !ok {
+			continue
+		}
+
+		if _, declared := types[name]; declared {
+			values[name] = rigger.Value{Value: varValue(v, types[name])}
+
+			continue
+		}
+
+		why := fmt.Sprintf("there is no variable %q here", name)
+		if !known {
+			why = "the variables of a published stack that the servers fetch are not known here; give the value with -var"
+		}
+
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning, Summary: "Variable of the environment not used",
+			Detail: fmt.Sprintf("%s is not used: %s.", key, why),
+		})
+	}
+
+	return diags
 }
 
 // variableTypes returns the type of each variable of an install form (a
@@ -233,7 +284,8 @@ func variableTypes(form map[string]any) map[string]string {
 }
 
 // varSyntax ends the help of a -var flag: how its value is written.
-const varSyntax = `. The value of a string, number or bool variable is the text as it is; of a list or object, HCL: 'tags=["a", "b"]'`
+const varSyntax = `. The value of a string, number or bool variable is the text as it is; of a list or object, HCL: 'tags=["a", "b"]'. ` +
+	`A variable of the environment RIGGER_VAR_<name> gives a value the same way; a -var wins over it`
 
 // primitiveTypes are the types of an install form whose value is one text.
 var primitiveTypes = []string{"string", "number", "integer", "boolean"}

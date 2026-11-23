@@ -90,9 +90,10 @@ func install(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 		return reportDiags(stderr, f.dir, diags)
 	}
 
+	// The warnings too: of a variable of the environment that is not used.
 	values, diags := readValues(&f.renderFlags, m.FormSchema())
-	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
+	if err := checkDiags(stderr, f.dir, diags); err != nil {
+		return err
 	}
 
 	region := f.region

@@ -7,11 +7,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"maps"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+
+	rigger "github.com/bacanoo-io/norca/rigger"
 )
 
 const (
@@ -345,5 +350,168 @@ func TestCheckDiags(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The names of the test variables of the environment.
+const (
+	envTag     = "RIGGER_VAR_tag"
+	envSize    = "RIGGER_VAR_size"
+	varTag     = "tag"
+	varSize    = "size"
+	typeString = "string"
+)
+
+// A variable of the environment RIGGER_VAR_<name> is the value of the
+// variable <name> (design 6.1), read by the type of the variable as a -var
+// is. One that names no variable here is not used, and a warning says so:
+// the environment is shared by every module and stack that is run in it.
+func TestEnvValues(t *testing.T) {
+	t.Parallel()
+
+	types := map[string]string{varTag: typeString, varSize: "number", "free": ""}
+
+	tests := []struct {
+		name     string
+		environ  []string
+		known    bool
+		values   rigger.Values
+		expected map[string]cty.Value
+		warnings []string
+	}{
+		{
+			name:     "the text as it is for a typed variable",
+			environ:  []string{envTag + "=1.50", envSize + "=007", "PATH=/bin", "RIGGER_VARIABLE=x"},
+			known:    true,
+			expected: map[string]cty.Value{varTag: cty.StringVal("1.50"), varSize: cty.StringVal("007")},
+		},
+		{
+			name:     "a guess for a variable of any type",
+			environ:  []string{"RIGGER_VAR_free=3", envTag + "="},
+			known:    true,
+			expected: map[string]cty.Value{"free": cty.NumberIntVal(3), varTag: cty.StringVal("")},
+		},
+		{
+			name:     "over the value of a file",
+			environ:  []string{envTag + "=of the environment"},
+			known:    true,
+			values:   rigger.Values{varTag: {Value: cty.StringVal("of the file")}, varSize: {Value: cty.NumberIntVal(1)}},
+			expected: map[string]cty.Value{varTag: cty.StringVal("of the environment"), varSize: cty.NumberIntVal(1)},
+		},
+		{
+			name:     "a name of no variable is not used",
+			environ:  []string{"RIGGER_VAR_region=eu", "RIGGER_VAR_not-a-name=x", "RIGGER_VAR_=y", envTag + "=a=b"},
+			known:    true,
+			expected: map[string]cty.Value{varTag: cty.StringVal("a=b")},
+			warnings: []string{
+				`RIGGER_VAR_ is not used: there is no variable "" here.`,
+				`RIGGER_VAR_not-a-name is not used: there is no variable "not-a-name" here.`,
+				`RIGGER_VAR_region is not used: there is no variable "region" here.`,
+			},
+		},
+		{
+			name:     "none is used when the variables are not known",
+			environ:  []string{envTag + "=x"},
+			expected: map[string]cty.Value{},
+			warnings: []string{envTag + " is not used: the variables of a published stack that the servers fetch are not known here; give the value with -var."},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			values := rigger.Values{}
+			maps.Copy(values, tt.values)
+
+			known := types
+			if !tt.known {
+				known = nil
+			}
+
+			diags := envValues(values, tt.environ, tt.known, known)
+
+			got := map[string]cty.Value{}
+			for name, v := range values {
+				got[name] = v.Value
+			}
+
+			if len(got) != len(tt.expected) {
+				t.Errorf("values = %#v, want %#v", got, tt.expected)
+			}
+
+			for name, want := range tt.expected {
+				if v, ok := got[name]; !ok || !v.RawEquals(want) {
+					t.Errorf("%s = %#v, want %#v", name, v, want)
+				}
+			}
+
+			var warnings []string
+
+			for _, d := range diags {
+				if d.Severity != hcl.DiagWarning {
+					t.Errorf("a diagnostic that is no warning: %s", d.Error())
+				}
+
+				warnings = append(warnings, d.Detail)
+			}
+
+			if !slices.Equal(warnings, tt.warnings) {
+				t.Errorf("warnings = %q, want %q", warnings, tt.warnings)
+			}
+		})
+	}
+}
+
+// Through the program: the environment is over a value file and under a
+// -var, and a variable of the environment that is not used is a warning,
+// not an error.
+func TestRun_ModuleRender_EnvVar(t *testing.T) {
+	dir := writeTree(t, map[string]string{
+		metadataFile:  "module {\n  name    = \"sized\"\n  version = \"1.0.0\"\n}\n",
+		variablesFile: "variable \"tag\" {\n  type = string\n}\n\nvariable \"size\" {\n  type    = number\n  default = 0\n}\n",
+		"outputs.hcl": "output \"tag\" {\n  value = var.tag\n}\n\noutput \"size\" {\n  value = var.size\n}\n",
+	})
+
+	// A value file is no file of the module: it lies beside it.
+	file := filepath.Join(writeTree(t, map[string]string{"dev.vars.hcl": "tag  = \"of the file\"\nsize = 1\n"}), "dev.vars.hcl")
+
+	t.Setenv(envTag, "1.50")
+	t.Setenv(envSize, "007")
+	t.Setenv("RIGGER_VAR_region", "eu")
+
+	var stdout, stderr bytes.Buffer
+
+	if code := Run(t.Context(), []string{cmdModule, cmdRender, dir, "-f", file, flagVar, "size=5"}, &stdout, &stderr); code != exitOK {
+		t.Fatalf("Run() = %d, want %d (stderr %q)", code, exitOK, stderr.String())
+	}
+
+	if tag, size := renderedOutput(t, stdout.Bytes(), varTag), renderedOutput(t, stdout.Bytes(), varSize); tag != `"1.50"` || size != "5" {
+		t.Errorf("tag = %s, size = %s; want \"1.50\" of the environment and 5 of the -var", tag, size)
+	}
+
+	if !strings.Contains(stderr.String(), "RIGGER_VAR_region is not used") {
+		t.Errorf("stderr = %q, want the warning of RIGGER_VAR_region", stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+
+	// Without the -var the value of the environment is the one, by the type
+	// of the variable: 007 is the number 7.
+	if code := Run(t.Context(), []string{cmdModule, cmdRender, dir}, &stdout, &stderr); code != exitOK {
+		t.Fatalf("Run() = %d, want %d (stderr %q)", code, exitOK, stderr.String())
+	}
+
+	if size := renderedOutput(t, stdout.Bytes(), varSize); size != "7" {
+		t.Errorf("size = %s, want 7", size)
+	}
+
+	t.Setenv(envSize, "many")
+	stderr.Reset()
+
+	if code := Run(t.Context(), []string{cmdModule, cmdRender, dir}, &stdout, &stderr); code != exitError ||
+		!strings.Contains(stderr.String(), "var.size must be a number") {
+		t.Errorf("Run() = %d, stderr %q; want an error of var.size", code, stderr.String())
 	}
 }

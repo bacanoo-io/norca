@@ -462,6 +462,16 @@ variable is an error; a variable without a value and default is an error. All
 values are checked (`validation`, `rule`) before evaluation, and a stack
 checks every module before it changes anything.
 
+Since 2026-11-24 (decided by the maintainer; bug report of 2026-11-23,
+C10) the `rigger` program reads `RIGGER_VAR_<name>` from its environment
+(the core reads no environment, 12.4): after the value files and before
+`-var`, its value read as that of a `-var`. The environment is shared by
+every module and stack run in it, so a `RIGGER_VAR_<name>` that names no
+variable is **not an error**: it is not used, and a warning says so. For a
+published stack that the servers fetch (`-server` with an address) the
+variables are not known to the program, and no variable of the environment
+is used.
+
 Since 2026-11-24 (bug report of 2026-11-23, C2) the value of `-var
 name=value` is read by the type of the variable: for a string, a number or
 a bool it is the text as written, which the engine converts (`tag=1.20`

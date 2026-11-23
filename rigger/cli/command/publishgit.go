@@ -225,7 +225,9 @@ func readCommittedStack(ctx context.Context, eng *rigger.Engine, root fs.FS, rel
 		return signed{}, nil, nil, errUnpublished
 	}
 
-	diags, err := validateValueFiles(ctx, eng, s)
+	// With the value files of the commit alone: what a registry validates
+	// has no environment of the one who publishes.
+	diags, err := validateValueFiles(ctx, eng, s, nil)
 	if err != nil || diags.HasErrors() {
 		return signed{}, nil, diags, err
 	}

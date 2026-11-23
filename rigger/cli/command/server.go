@@ -99,9 +99,10 @@ func serverStack(ctx context.Context, logger *slog.Logger, stderr io.Writer, f *
 		form = s.FormSchema()
 	}
 
+	// The warnings too: of a variable of the environment that is not used.
 	values, diags := readValues(&renderFlags{files: f.files, vars: f.vars}, form)
-	if diags.HasErrors() {
-		return nil, nil, reportDiags(stderr, f.dir, diags)
+	if err := checkDiags(stderr, f.dir, diags); err != nil {
+		return nil, nil, err
 	}
 
 	if len(values) > 0 {
@@ -404,9 +405,10 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 		return reportDiags(stderr, f.dir, diags)
 	}
 
+	// The warnings too: of a variable of the environment that is not used.
 	values, diags := readValues(&f.renderFlags, m.FormSchema())
-	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
+	if err := checkDiags(stderr, f.dir, diags); err != nil {
+		return err
 	}
 
 	files, err := m.Archive()

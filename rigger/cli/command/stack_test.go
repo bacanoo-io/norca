@@ -59,3 +59,17 @@ func TestWritePlan_DisabledInstalled(t *testing.T) {
 		t.Errorf("the line of worker = %q, want disabled and no more", lines[2])
 	}
 }
+
+// The variables of a stack take RIGGER_VAR_<name> as those of a module do.
+func TestRun_StackValidate_EnvVar(t *testing.T) {
+	dir := writeTree(t, map[string]string{
+		stackFile:     "rigger {\n  name = \"typed\"\n}\n",
+		variablesFile: "variable \"tag\" {\n  type = string\n\n  validation {\n    pattern = \"^1[.]20$\"\n  }\n}\n",
+	})
+
+	riggerRunErr(t, `The variable "tag" has no default`, "stack", "validate", dir)
+
+	t.Setenv(envTag, "1.20")
+	riggerRun(t, exitOK, []string{isValid}, "stack", "validate", dir)
+	riggerRunErr(t, "var.tag", "stack", "validate", dir, flagVar, "tag=1.2")
+}

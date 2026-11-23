@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -278,7 +279,9 @@ func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 	if len(f.files) > 0 || len(f.vars) > 0 {
 		diags = append(diags, eng.ValidateStack(ctx, s, values)...)
 	} else {
-		moreDiags, err := validateValueFiles(ctx, eng, s)
+		// Without -f and -var the values are those of the environment
+		// only: they go over each value file, as they do in a plan.
+		moreDiags, err := validateValueFiles(ctx, eng, s, values)
 		if err != nil {
 			return err
 		}
@@ -302,11 +305,12 @@ func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 }
 
 // validateValueFiles evaluates a stack with each value file under its
-// values/, or without values when it has none.
-func validateValueFiles(ctx context.Context, eng *rigger.Engine, s *rigger.Stack) (hcl.Diagnostics, error) {
+// values/, or without one when it has none. The values of over win over
+// those of a file; nil for none.
+func validateValueFiles(ctx context.Context, eng *rigger.Engine, s *rigger.Stack, over rigger.Values) (hcl.Diagnostics, error) {
 	files := s.ValueFiles()
 	if len(files) == 0 {
-		return eng.ValidateStack(ctx, s, nil), nil
+		return eng.ValidateStack(ctx, s, over), nil
 	}
 
 	var diags hcl.Diagnostics
@@ -321,6 +325,8 @@ func validateValueFiles(ctx context.Context, eng *rigger.Engine, s *rigger.Stack
 		diags = append(diags, moreDiags...)
 
 		if !moreDiags.HasErrors() {
+			maps.Copy(vals, over)
+
 			diags = append(diags, eng.ValidateStack(ctx, s, vals)...)
 		}
 	}
