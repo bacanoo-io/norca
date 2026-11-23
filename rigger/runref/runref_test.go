@@ -74,3 +74,84 @@ func TestReplace(t *testing.T) {
 		})
 	}
 }
+
+// An encoder leaves the quotes of a whole value to Resolve (Quote is
+// QuoteConf) and writes its own around a part of a string (QuoteConfEscape):
+// every kind in every place keeps that, or the value lands bare in the
+// configuration.
+func TestPart_Resolve_Quote(t *testing.T) {
+	t.Parallel()
+
+	const (
+		address = `{{ with nomadService "db" }}{{ with index . 0 }}{{ .Address }}:{{ .Port }}{{ end }}{{ end }}`
+		allocID = "NORCA_ALLOC_ID"
+	)
+
+	tests := []struct {
+		name     string
+		part     runref.Part
+		place    runref.Place
+		expected string
+	}{
+		{
+			name: "a service address as a whole value", place: runref.PlaceTemplate,
+			part:     runref.Part{Kind: runref.KindService, Name: "db", Quote: runref.QuoteConf},
+			expected: `"` + address + `"`,
+		},
+		{
+			name: "a service address inside a string", place: runref.PlaceTemplate,
+			part:     runref.Part{Kind: runref.KindService, Name: "db", Quote: runref.QuoteConfEscape},
+			expected: address,
+		},
+		{
+			name: "a service address in a template", place: runref.PlaceTemplate,
+			part:     runref.Part{Kind: runref.KindService, Name: "db"},
+			expected: address,
+		},
+		{
+			name: "a service address in SQL", place: runref.PlaceTemplate,
+			part:     runref.Part{Kind: runref.KindService, Name: "db", Quote: runref.QuoteSQL},
+			expected: `'` + address + `'`,
+		},
+		{
+			name: "an environment variable as a whole value outside a template", place: runref.PlaceJob,
+			part:     runref.Part{Kind: runref.KindEnv, Name: allocID, Quote: runref.QuoteConf},
+			expected: `"${NORCA_ALLOC_ID}"`,
+		},
+		{
+			name: "an environment variable inside a string outside a template", place: runref.PlaceJob,
+			part:     runref.Part{Kind: runref.KindEnv, Name: allocID, Quote: runref.QuoteConfEscape},
+			expected: `${NORCA_ALLOC_ID}`,
+		},
+		{
+			name: "an environment variable in SQL outside a template", place: runref.PlaceJob,
+			part:     runref.Part{Kind: runref.KindEnv, Name: allocID, Quote: runref.QuoteSQL},
+			expected: `'${NORCA_ALLOC_ID}'`,
+		},
+		{
+			name: "an environment variable without quotes outside a template", place: runref.PlaceJob,
+			part:     runref.Part{Kind: runref.KindEnv, Name: allocID, Quote: runref.QuoteNone},
+			expected: `${NORCA_ALLOC_ID}`,
+		},
+		{
+			name: "an environment variable as a whole value in a template", place: runref.PlaceTemplate,
+			part:     runref.Part{Kind: runref.KindEnv, Name: allocID, Quote: runref.QuoteConf},
+			expected: `"{{ env "NORCA_ALLOC_ID" | replaceAll "\\" "\\\\" | replaceAll "\"" "\\\"" }}"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.part.Resolve(tt.place)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got != tt.expected {
+				t.Errorf("Resolve() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

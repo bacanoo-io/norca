@@ -202,14 +202,22 @@ const (
 	PlaceTemplate
 )
 
-// Resolve returns the text of the part where it lands.
+// Resolve returns the text of the part where it lands, in the quotes of its
+// Quote: an encoder that found the part to be the whole value of a string
+// wrote no quotes of its own and set QuoteConf, for every kind and in both
+// places.
+//
+// Outside a task template the client writes the value in place of ${...}
+// and has nothing to escape it with. So there the value is quoted, never
+// escaped: one with a \ or a quote of its own is not what the configuration
+// it lands in reads.
 func (p Part) Resolve(place Place) (string, error) {
 	if place == PlaceJob {
 		if p.Kind != KindEnv {
 			return "", fmt.Errorf("%s: %w", p.function(), ErrTemplateOnly)
 		}
 
-		return "${" + p.Name + "}", nil
+		return p.quoted("${" + p.Name + "}"), nil
 	}
 
 	switch p.Kind {
@@ -224,8 +232,8 @@ func (p Part) Resolve(place Place) (string, error) {
 			strconv.Quote(p.Name), strconv.Quote(p.Item), p.filters(),
 			strconv.Quote(fmt.Sprintf("the Variable %s has no item %s", p.Name, p.Item)))), nil
 	case KindService:
-		return fmt.Sprintf(`{{ with nomadService %s }}{{ with index . 0 }}%s{{ end }}{{ end }}`,
-			strconv.Quote(p.Name), p.address()), nil
+		return p.quoted(fmt.Sprintf(`{{ with nomadService %s }}{{ with index . 0 }}%s{{ end }}{{ end }}`,
+			strconv.Quote(p.Name), p.address())), nil
 	case KindServices:
 		return p.services(), nil
 	default:
@@ -273,7 +281,8 @@ func (p Part) filters() string {
 	return f
 }
 
-// quoted puts the quotes of p.Quote around a template action.
+// quoted puts the quotes of p.Quote around a template action, or around
+// the ${...} of the client.
 func (p Part) quoted(action string) string {
 	switch p.Quote {
 	case QuoteConf:
