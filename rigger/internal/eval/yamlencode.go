@@ -147,13 +147,26 @@ func (w *yamlWriter) item(v cty.Value, depth int) error {
 }
 
 // inline writes a value on one line: a scalar, null, an empty collection,
-// or a list that ends with the addresses of a service.
+// or a list that ends with the addresses of a service, with all that is in
+// it: a list in brackets, an object as a mapping in braces.
 func (w *yamlWriter) inline(v cty.Value) (string, error) {
 	switch {
 	case v.IsNull():
 		return nullText, nil
 	case isObject(v):
-		return "{}", nil
+		keys, m := sortedKeys(v)
+		parts := make([]string, 0, len(keys))
+
+		for _, k := range keys {
+			s, err := w.inline(m[k])
+			if err != nil {
+				return "", fmt.Errorf("%s: %w", k, err)
+			}
+
+			parts = append(parts, yamlKeyText(k)+": "+s)
+		}
+
+		return "{" + strings.Join(parts, ", ") + "}", nil
 	case isList(v):
 		items, services, err := listItems(v, true)
 		if err != nil {
