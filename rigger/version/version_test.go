@@ -12,8 +12,12 @@ import (
 
 // Versions the tests use more than once.
 const (
-	v100 = "1.0.0"
-	v123 = "1.2.3"
+	v100   = "1.0.0"
+	v123   = "1.2.3"
+	v199   = "1.9.9"
+	v200   = "2.0.0"
+	rc1    = "1.0.0-rc.1"
+	alpha2 = "2.0.0-alpha"
 )
 
 func mustParse(t *testing.T, s string) version.Version {
@@ -165,7 +169,7 @@ func TestCompare_PreRelease(t *testing.T) {
 func TestCompare(t *testing.T) {
 	t.Parallel()
 
-	order := []string{"0.9.9", "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", v100, "1.0.1", "1.2.0", "10.0.0"}
+	order := []string{"0.9.9", "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta.2", "1.0.0-beta.11", rc1, v100, "1.0.1", "1.2.0", "10.0.0"}
 
 	for i := range len(order) - 1 {
 		a, b := mustParse(t, order[i]), mustParse(t, order[i+1])
@@ -188,13 +192,24 @@ func TestConstraint(t *testing.T) {
 		constraint string
 		yes, no    []string
 	}{
-		{"~> 1.2", []string{"1.2.0", "1.9.9"}, []string{"1.1.9", "2.0.0", "1.3.0-rc.1"}},
+		{"~> 1.2", []string{"1.2.0", v199}, []string{"1.1.9", v200, "1.3.0-rc.1"}},
 		{"~> 1.2.3", []string{v123, "1.2.9"}, []string{"1.3.0", "1.2.2"}},
-		{"~> 1", []string{v100, "1.9.0"}, []string{"2.0.0"}},
-		{">= 1.0, < 2", []string{v100, "1.99.0"}, []string{"0.9.0", "2.0.0"}},
+		{"~> 1", []string{v100, "1.9.0"}, []string{v200}},
+		{">= 1.0, < 2", []string{v100, "1.99.0"}, []string{"0.9.0", v200}},
 		{v123, []string{v123}, []string{"1.2.4"}},
 		{"!= 1.2.3, >= 1.2.0", []string{"1.2.4"}, []string{v123}},
 		{">= 1.0.0-rc.1", []string{"1.0.0-rc.2", v100}, []string{"1.0.0-beta.1"}},
+		// A bound that excludes a version excludes the pre-releases of it: they
+		// come before it in the order, and are of the version kept out.
+		{">= 1.0.0-rc.1, < 2.0.0", []string{rc1, v100, "1.5.0-beta.1", v199}, []string{alpha2, "2.0.0-rc.1", v200}},
+		{">= 1.0.0-rc.1, < 2", []string{v199}, []string{alpha2}},
+		// A bound that names a pre-release is a bound in the order as it is.
+		{">= 1.0.0-rc.1, < 2.0.0-rc.1", []string{alpha2, v199}, []string{"2.0.0-rc.1", "2.0.0-rc.2"}},
+		{">= 1.0.0-rc.1, <= 2.0.0", []string{alpha2, v200}, []string{"2.0.1-alpha"}},
+		// A pre-release that is excluded by name is not one the constraint
+		// asks for: it takes no pre-release.
+		{"!= 1.0.0-rc.1", []string{v100, "9.0.0"}, []string{"9.0.0-alpha", rc1, "1.0.0-rc.2"}},
+		{"!= 1.0.0-rc.1, >= 1.0.0-beta.1", []string{"1.0.0-rc.2", v100}, []string{rc1}},
 	}
 
 	for _, tt := range tests {

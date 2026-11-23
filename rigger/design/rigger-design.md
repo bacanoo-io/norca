@@ -1659,7 +1659,11 @@ Phase 3 as built (2026-11-18):
 - **Versions** (package `version`, Rigger's own): semver with pre-releases,
   constraints `=`, `!=`, `>`, `>=`, `<`, `<=`, `~>` joined with commas;
   `~> 1.2` is `< 2.0.0`, `~> 1.2.3` is `< 1.3.0`; a pre-release meets only a
-  constraint that names one.
+  constraint that names one. Since 2026-11-24 (decided by the maintainer;
+  bug report of 2026-11-23, L6): an upper bound that keeps a version out
+  keeps out its pre-releases too (`>= 1.0.0-rc.1, < 2.0.0` takes
+  `1.5.0-beta.1` and not `2.0.0-alpha`; `< 2.0.0-rc.1` is a bound as
+  written), and a `!=` that names a pre-release asks for none.
 - **The fetcher of the rigger program** keeps a bare mirror of each repository
   and the tree of each commit in the cache (`RIGGER_CACHE_DIR`, else the
   user's cache directory), through the `git` program; the tree of the whole

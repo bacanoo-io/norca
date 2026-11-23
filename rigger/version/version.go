@@ -199,10 +199,17 @@ func compareNumbers(a, b string) int {
 type Constraint struct {
 	text  string
 	conds []condition
-	// pre is set when a condition names a pre-release: only then may a
-	// pre-release meet the constraint.
+	// pre is set when a condition asks for a pre-release: only then may a
+	// pre-release meet the constraint. A "!=" names one to keep it out, and
+	// asks for none.
 	pre bool
 }
+
+// The operators whose rule for a pre-release is their own.
+const (
+	opNot  = "!="
+	opLess = "<"
+)
 
 type condition struct {
 	op string
@@ -214,6 +221,11 @@ type condition struct {
 // ParseConstraint parses a constraint: conditions separated by commas, each
 // an operator (=, !=, >, >=, <, <=, ~>) and a version; a version alone is
 // "=". "~> 1.2" is >= 1.2.0 and < 2.0.0, "~> 1.2.3" >= 1.2.3 and < 1.3.0.
+//
+// A pre-release meets a constraint only when a condition other than "!="
+// names a pre-release, and never when it is a pre-release of the version an
+// upper bound keeps out: ">= 1.0.0-rc.1, < 2.0.0" takes 1.5.0-beta.1 and
+// not 2.0.0-alpha.
 func ParseConstraint(s string) (Constraint, error) {
 	c := Constraint{text: strings.TrimSpace(s)}
 
@@ -224,7 +236,7 @@ func ParseConstraint(s string) (Constraint, error) {
 		}
 
 		c.conds = append(c.conds, cond)
-		c.pre = c.pre || len(cond.v.Pre) > 0
+		c.pre = c.pre || (len(cond.v.Pre) > 0 && cond.op != opNot)
 	}
 
 	return c, nil
@@ -233,7 +245,7 @@ func ParseConstraint(s string) (Constraint, error) {
 func parseCondition(s string) (condition, error) {
 	op := "="
 
-	for _, o := range []string{"~>", ">=", "<=", "!=", ">", "<", "="} {
+	for _, o := range []string{"~>", ">=", "<=", opNot, ">", opLess, "="} {
 		if rest, ok := strings.CutPrefix(s, o); ok {
 			op, s = o, strings.TrimSpace(rest)
 
@@ -248,7 +260,7 @@ func parseCondition(s string) (condition, error) {
 	}
 
 	parts := len(strings.Split(core, "."))
-	if parts < 1 || parts > 3 || (parts < 3 && op != "~>" && op != ">=" && op != "<" && op != "=") {
+	if parts < 1 || parts > 3 || (parts < 3 && op != "~>" && op != ">=" && op != opLess && op != "=") {
 		return condition{}, ErrInvalid
 	}
 
@@ -286,13 +298,20 @@ func (c condition) check(v Version) bool {
 	switch c.op {
 	case "=":
 		return cmp == 0
-	case "!=":
+	case opNot:
 		return cmp != 0
 	case ">":
 		return cmp > 0
 	case ">=":
 		return cmp >= 0
-	case "<":
+	case opLess:
+		// A bound that keeps a version out keeps out the pre-releases of it:
+		// in the order they are before the version, and they are of it. A
+		// bound that names a pre-release is one in the order as it is.
+		if len(c.v.Pre) == 0 {
+			return Compare(Version{Major: v.Major, Minor: v.Minor, Patch: v.Patch}, c.v) < 0
+		}
+
 		return cmp < 0
 	case "<=":
 		return cmp <= 0
