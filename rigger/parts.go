@@ -148,8 +148,9 @@ func (e *Engine) syncPart(ctx context.Context, s *lang.Stack, p *lang.StackPart,
 			return nil, nil, err
 		}
 
+		// As for a module (syncRelease): where this fetch found the version.
 		entry := *old
-		entry.Constraint = p.Version
+		entry.Constraint, entry.Repository, entry.Path = p.Version, fs.origin.Repository, fs.origin.Path
 
 		return &entry, fs, nil
 	}

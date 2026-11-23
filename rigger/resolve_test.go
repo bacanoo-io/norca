@@ -4,12 +4,17 @@
 package rigger_test
 
 import (
+	"bytes"
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/bundle"
+	"github.com/bacanoo-io/norca/rigger/fetch"
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // acmeRegistry is the head of a stack with the registry acme.
@@ -138,6 +143,172 @@ func TestSyncStack_ConstraintsDiffer(t *testing.T) {
 			s, _, diags := newSyncEngine(t, tt.tree).SyncStack(t.Context(), stackFiles(tt.stack), "s", false)
 			if s != nil || !strings.Contains(diags.Error(), tt.expected) {
 				t.Errorf("SyncStack() = %v, %q, want no stack and %q", s, diags.Error(), tt.expected)
+			}
+		})
+	}
+}
+
+// The repositories of the registry of TestSyncStack_RegistryMoved. Neither
+// can be reached, so a fetcher with a cache reads only what its cache has.
+const (
+	firstRegistry  = "https://127.0.0.1:1/acme/rigger"
+	mirrorRegistry = "https://127.0.0.1:1/mirror/rigger"
+)
+
+// importBundle bundles the modules and the parts of a stack from sources
+// and puts them into the cache of a fetcher where the import of a bundle
+// puts them: by the repository, the commit, the directory and the digest
+// that the lock file records.
+func importBundle(t *testing.T, f *fetch.Fetcher, s *rigger.Stack) {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	if err := bundle.Write(&buf, s.Name(), s.SourcedModules()); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, files, err := bundle.Read(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, m := range manifest.Modules {
+		if err := bundle.WriteTree(f.BundleDir(m.Repository, m.Commit, m.Path, m.Digest), bundle.ModuleFiles(m, files)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A sync that keeps the locked version records where it fetched the version
+// now: when the registry moved (to a mirror), the lock file names the new
+// repository. A bundle of the stack is kept by the repository of the lock
+// and looked for by that of the registry, so it is found without a network
+// only when the two are one.
+func TestSyncStack_RegistryMoved(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		tree fstest.MapFS
+	}{
+		{name: "a module", body: "\nmodule \"one\" {\n  source  = \"acme/web\"\n  version = \"~> 1.0\"\n}\n", tree: webTree()},
+		{name: "a part", body: "\nstack \"data\" {\n  source  = \"acme/data\"\n  version = \"~> 1.0\"\n}\n", tree: publishedData()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stackAt := func(repository string) *fstest.MapFile {
+				return &fstest.MapFile{Data: []byte(strings.Replace(acmeRegistry, "github.com/acme/rigger", repository, 1) + tt.body)}
+			}
+
+			e := newSyncEngine(t, tt.tree)
+			files := stackFiles("")
+			files["s/stack.hcl"] = stackAt(firstRegistry)
+
+			_, lock, diags := e.SyncStack(t.Context(), files, "s", false)
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			if !strings.Contains(string(lock), firstRegistry) {
+				t.Fatalf("the lock does not name the repository of the registry:\n%s", lock)
+			}
+
+			files[lockPath] = &fstest.MapFile{Data: lock}
+			files["s/stack.hcl"] = stackAt(mirrorRegistry)
+
+			moved, lock, diags := e.SyncStack(t.Context(), files, "s", false)
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			if strings.Contains(string(lock), firstRegistry) || !strings.Contains(string(lock), mirrorRegistry) {
+				t.Errorf("the lock after the registry moved to %s:\n%s", mirrorRegistry, lock)
+			}
+
+			files[lockPath] = &fstest.MapFile{Data: lock}
+			cache := fetch.New(t.TempDir())
+			importBundle(t, cache, moved)
+
+			offline, err := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(cache))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, diags := offline.LoadStack(t.Context(), files, "s"); diags.HasErrors() {
+				t.Errorf("a load from the bundle without a network: %v", diags)
+			}
+		})
+	}
+}
+
+// globalFetcher serves the module web as the global registry does: with its
+// index it says the repository of the version; without it (repository is
+// empty) the request names the repository, the one the lock file records.
+type globalFetcher struct{ repository string }
+
+func (globalFetcher) Versions(context.Context, source.Request) ([]source.Available, error) {
+	return []source.Available{{Version: publishedVersion, Ref: "v" + publishedVersion, Commit: partCommit}}, nil
+}
+
+func (f globalFetcher) Fetch(_ context.Context, req source.Request) (source.Fetched, error) {
+	return source.Fetched{
+		FS: webTree(), Dir: "modules/web",
+		Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: req.Ref, Commit: partCommit, Repository: f.repository},
+	}, nil
+}
+
+// A module of the global registry has no repository in its address: a sync
+// that keeps its version keeps the repository of the lock file when the
+// index can't be read, and records the one the index lists when it can.
+func TestSyncStack_GlobalRepository(t *testing.T) {
+	t.Parallel()
+
+	const listed = "github.com/author/modules"
+
+	tests := []struct {
+		name     string
+		second   string
+		expected string
+	}{
+		{name: "without the index", second: "", expected: listed},
+		{name: "the index lists the same", second: listed, expected: listed},
+		{name: "the index lists another", second: "github.com/author/moved", expected: "github.com/author/moved"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sync := func(files fstest.MapFS, repository string) []byte {
+				e, err := rigger.New(rigger.WithLogger(slog.New(slog.DiscardHandler)), rigger.WithFetcher(globalFetcher{repository: repository}))
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, lock, diags := e.SyncStack(t.Context(), files, "s", false)
+				if diags.HasErrors() {
+					t.Fatal(diags)
+				}
+
+				return lock
+			}
+
+			files := stackFiles("rigger {\n  name = \"site\"\n}\n\nmodule \"web\" {\n  source = \"author/web\"\n}\n")
+
+			first := sync(files, listed)
+			if !strings.Contains(string(first), `repository = "`+listed+`"`) {
+				t.Fatalf("the lock does not name the repository the index lists:\n%s", first)
+			}
+
+			files[lockPath] = &fstest.MapFile{Data: first}
+
+			if second := sync(files, tt.second); !strings.Contains(string(second), `repository = "`+tt.expected+`"`) {
+				t.Errorf("the lock of the second sync does not name %s:\n%s", tt.expected, second)
 			}
 		})
 	}

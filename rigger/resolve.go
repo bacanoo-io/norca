@@ -139,8 +139,9 @@ type fetchedModule struct {
 	module     *lang.Module
 	origin     source.Origin
 	signatures []sign.Signature
-	// dir is the directory of the module in what was fetched.
-	dir string
+	// dir is the directory of the module in what was fetched; repository
+	// the repository it was fetched from (fetchedFrom).
+	dir, repository string
 	// listed is set for a version the index of a registry lists: it is
 	// taken only signed by a key of keys, the keys of its namespace.
 	listed   bool
@@ -363,7 +364,9 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 	origin := fetched.Origin
 	origin.Digest = digest
 
-	fm := &fetchedModule{module: m, origin: origin, signatures: sigs, dir: path.Clean(fetched.Dir)}
+	fm := &fetchedModule{
+		module: m, origin: origin, signatures: sigs, dir: path.Clean(fetched.Dir), repository: fetchedFrom(req, fetched.Origin),
+	}
 
 	if fetched.Listing != nil {
 		if err := fm.checkListing(req, fetched.Listing); err != nil {
@@ -386,6 +389,18 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 	}
 
 	return fm, nil
+}
+
+// fetchedFrom is the repository a version was fetched from: the one the
+// source says (the global registry, by its index), else that of the
+// request. It is what the lock file records, and what a cache and a bundle
+// keep the version by.
+func fetchedFrom(req source.Request, o source.Origin) string {
+	if o.Repository != "" {
+		return o.Repository
+	}
+
+	return req.Repository
 }
 
 // checkListing checks a fetched version against what the index lists of it: the
@@ -528,8 +543,10 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 			return nil, nil, err
 		}
 
+		// The version stays; where it is, is what this fetch says: the
+		// repository of a registry may have moved since the lock was written.
 		entry := *old
-		entry.Constraint = r.Version
+		entry.Constraint, entry.Repository, entry.Path = r.Version, fm.repository, fm.dir
 
 		return &entry, fm, nil
 	}
@@ -561,13 +578,8 @@ func (e *Engine) syncRelease(ctx context.Context, s *lang.Stack, r *lang.StackRe
 		return nil, nil, err
 	}
 
-	repository := req.Repository
-	if origin.Repository != "" {
-		repository = origin.Repository
-	}
-
 	return &lang.LockedModule{
-		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: repository,
+		Source: r.Source, Version: origin.Version, Constraint: r.Version, Repository: fm.repository,
 		Path: fm.dir, Ref: origin.Ref, Commit: origin.Commit, Digest: origin.Digest,
 	}, fm, nil
 }

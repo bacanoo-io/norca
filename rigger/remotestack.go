@@ -177,15 +177,10 @@ func (e *Engine) fetchPublished(ctx context.Context, req source.Request) (*fetch
 		return nil, err
 	}
 
-	repository := req.Repository
-	if fetched.Origin.Repository != "" {
-		repository = fetched.Origin.Repository
-	}
-
 	fs := &fetchedStack{
 		stack: s, signatures: sigs, listing: fetched.Listing,
 		origin: &StackOrigin{
-			Source: req.Source, Version: req.Version, Repository: repository, Path: path.Clean(fetched.Dir),
+			Source: req.Source, Version: req.Version, Repository: fetchedFrom(req, fetched.Origin), Path: path.Clean(fetched.Dir),
 			Ref: fetched.Origin.Ref, Commit: fetched.Origin.Commit, Digest: digest,
 		},
 	}
