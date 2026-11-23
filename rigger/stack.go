@@ -585,7 +585,10 @@ func (e *Engine) ValidateStack(ctx context.Context, s *Stack, values Values) (re
 
 	vars, diags := eval.Variables(s.s.Vars, inputs(values))
 	if !diags.HasErrors() {
-		_, moreDiags := eval.EvaluateStack(ctx, s.s, vars, func(string) (string, bool) { return generate(), false }, e.evalConfig())
+		evalCtx, cancel := e.evaluationContext(ctx)
+		defer cancel()
+
+		_, moreDiags := eval.EvaluateStack(evalCtx, s.s, vars, func(string) (string, bool) { return generate(), false }, e.evalConfig())
 		diags = append(diags, moreDiags...)
 	}
 

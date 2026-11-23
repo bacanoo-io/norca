@@ -598,3 +598,27 @@ func TestPlanStack_SensitiveRefused(t *testing.T) {
 		})
 	}
 }
+
+// A validation is bounded in time as a plan is (Limits.Duration): the host
+// that validates the stack of someone else must not wait on it for ever.
+func TestValidateStack_Duration(t *testing.T) {
+	t.Parallel()
+
+	e := shortEngine(t, rigger.WithJobDecoder(slowJobs{}))
+
+	// The decoder of the jobs takes longer than the bound for each of the two.
+	files := stackFiles("rigger {\n  name      = \"shop\"\n  region    = \"eu\"\n  namespace = \"apps\"\n}\n\nmodule \"slow\" {\n  source = \"./modules/slow\"\n}\n")
+	files["s/modules/slow/metadata.hcl"] = &fstest.MapFile{Data: []byte("module {\n  name    = \"slow\"\n  version = \"0.1.0\"\n}\n")}
+	files["s/modules/slow/a.norca.hcl"] = &fstest.MapFile{Data: []byte("job \"a\" {\n}\n")}
+	files["s/modules/slow/b.norca.hcl"] = &fstest.MapFile{Data: []byte("job \"b\" {\n}\n")}
+
+	s, diags := e.LoadStack(t.Context(), files, "s")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	diags = e.ValidateStack(t.Context(), s, nil)
+	if !strings.Contains(diags.Error(), "Evaluation stopped") {
+		t.Errorf("diagnostics = %q, want the evaluation stopped", diags.Error())
+	}
+}
