@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
@@ -119,9 +120,29 @@ func templateFileFunc(fsys fs.FS, fileBytes int64, funcs map[string]function.Fun
 				return cty.NilVal, diags
 			}
 
-			return v, nil
+			return templateText(p, v)
 		},
 	})
+}
+
+// templateText returns what a template gave as the string templatefile
+// returns. A template that is one interpolation and nothing else, "${x}",
+// gives the value of x as it is, not its text (HCL unwraps it): a number or
+// a bool becomes its string, as inside a longer template, and null or a
+// collection is an error, as there.
+func templateText(path string, v cty.Value) (cty.Value, error) {
+	what := ""
+
+	switch s, err := convert.Convert(v, cty.String); {
+	case v.IsNull():
+		what = nullText
+	case err != nil:
+		what = article(v.Type().FriendlyName())
+	default:
+		return s, nil
+	}
+
+	return cty.NilVal, fmt.Errorf("the template %s gives %s, not a string", path, what)
 }
 
 // imageRef is image_ref(image, digest): the image pinned by its digest, or
