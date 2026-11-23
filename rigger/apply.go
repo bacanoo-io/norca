@@ -25,8 +25,10 @@ type ApplyOptions struct {
 	// Prune uninstalls the releases the stack owns and no longer has
 	// (design 9.3); without it they are only shown.
 	Prune bool
-	// Adopt takes over releases another package manager applied or
-	// another stack owns (host.ApplyRequest.Adopt).
+	// Adopt takes over the releases the plan shows as taken over
+	// (ReleasePlan.TakesOver): those another package manager applied or
+	// another stack owns (host.ApplyRequest.Adopt). A release the plan does
+	// not show so is applied without it.
 	Adopt bool
 }
 
@@ -143,8 +145,11 @@ func (e *Engine) applyRelease(ctx context.Context, rp ReleasePlan, opts ApplyOpt
 		ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "release.apply",
 			"release", rp.Release.Name, "namespace", rp.Release.Namespace, "action", string(rp.Action))
 
+		// Adopt is for the releases the plan showed as taken over. One that
+		// became another's since the plan is refused by the server, as
+		// without adopt: it is not taken over unseen.
 		req := rp.request
-		req.Adopt = opts.Adopt
+		req.Adopt = opts.Adopt && rp.TakesOver != ""
 
 		rev, err := e.releases.Apply(ctx, req)
 		span.End(ctx, err)
