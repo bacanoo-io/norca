@@ -350,22 +350,32 @@ func tagCommits(r *git.Repository, prefix string) ([]Tag, error) {
 	return out, err
 }
 
-// tagCommit returns the commit of the tag name.
+// errNoTag is the error of a tag a repository does not have. An error of
+// reading a tag that is there is another one, also when it is a file that
+// is missing.
+var errNoTag = errors.New("no such tag")
+
+// tagCommit returns the commit of the tag name. The error matches errNoTag
+// when the repository has no such tag, and only then.
 func tagCommit(r *git.Repository, name string) (string, error) {
 	// go-git joins the name to refs/tags as a path: "../heads/main" would
 	// be a branch, which moves.
 	if !fs.ValidPath(name) {
-		return "", fmt.Errorf("%q is no name of a tag: %w", name, fs.ErrNotExist)
+		return "", fmt.Errorf("%w: %q is no name of a tag", errNoTag, name)
 	}
 
 	ref, err := r.Tag(name)
+	if errors.Is(err, git.ErrTagNotFound) {
+		return "", fmt.Errorf("%w: %q", errNoTag, name)
+	}
+
 	if err != nil {
 		return "", err
 	}
 
 	commit, err := peel(r, ref.Hash())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("it names no commit: %w", err)
 	}
 
 	return commit.String(), nil

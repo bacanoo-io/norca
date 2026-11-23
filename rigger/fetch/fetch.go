@@ -318,20 +318,9 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 		ref = req.TagPrefix + req.Version
 	}
 
-	commit, err := tagCommit(r, ref)
+	r, commit, err := f.tagOf(ctx, r, req.Repository, ref)
 	if err != nil {
-		// A host that runs long (a server) fetched the mirror earlier: a
-		// version tagged since is fetched once more.
-		if _, local := localPath(req.Repository); !local {
-			if fresh, ferr := f.refresh(ctx, req.Repository); ferr == nil {
-				r = fresh
-				commit, err = tagCommit(r, ref)
-			}
-		}
-	}
-
-	if err != nil {
-		return source.Fetched{}, fmt.Errorf("%s has no tag %s: %w", req.Repository, ref, fs.ErrNotExist)
+		return source.Fetched{}, err
 	}
 
 	if req.Commit != "" && req.Commit != commit {
@@ -349,6 +338,35 @@ func (f *Fetcher) gitFetch(ctx context.Context, req source.Request) (source.Fetc
 		FS: os.DirFS(tree), Dir: req.Path,
 		Origin: source.Origin{Source: req.Source, Version: req.Version, Ref: ref, Commit: commit},
 	}, nil
+}
+
+// tagOf returns the commit of a tag of a repository, and the repository it
+// was found in: r, else its mirror fetched once more (a host that runs long,
+// a server, fetched the mirror earlier, and a version may be tagged since).
+// The error matches fs.ErrNotExist only when the repository has no such
+// tag (errNoTag): a tag that can't be read and a fetch that failed are
+// their own errors.
+func (f *Fetcher) tagOf(ctx context.Context, r *git.Repository, repository, tag string) (*git.Repository, string, error) {
+	commit, err := tagCommit(r, tag)
+
+	if _, local := localPath(repository); !local && errors.Is(err, errNoTag) {
+		fresh, ferr := f.refresh(ctx, repository)
+		if ferr != nil {
+			return nil, "", fmt.Errorf("%s: the tag %s is not in the mirror, and fetching it once more failed: %w", source.Redact(repository), tag, ferr)
+		}
+
+		r = fresh
+		commit, err = tagCommit(r, tag)
+	}
+
+	switch {
+	case errors.Is(err, errNoTag):
+		return nil, "", fmt.Errorf("%s has no tag %s: %w", source.Redact(repository), tag, fs.ErrNotExist)
+	case err != nil:
+		return nil, "", fmt.Errorf("%s: the tag %s: %w", source.Redact(repository), tag, err)
+	default:
+		return r, commit, nil
+	}
 }
 
 // ociVersions lists the tags of a repository that are versions.
