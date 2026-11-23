@@ -165,6 +165,7 @@ const tokenVariable = `variable "token" {
 const (
 	appNorca     = "app.norca.hcl"
 	localsHCL    = "locals.hcl"
+	outputsHCL   = "outputs.hcl"
 	variablesHCL = "variables.hcl"
 	xACL         = "x.acl.hcl"
 	xObject      = "x.object.hcl"
@@ -280,7 +281,7 @@ func evaluateCases() []evaluateCase {
 		},
 		{
 			name:     "a sensitive output not marked",
-			files:    map[string]string{variablesHCL: tokenVariable, "outputs.hcl": `output "t" { value = var.token }`},
+			files:    map[string]string{variablesHCL: tokenVariable, outputsHCL: `output "t" { value = var.token }`},
 			expected: "write sensitive = true on it",
 		},
 	}
@@ -474,6 +475,69 @@ func TestEvaluate_UnknownValues(t *testing.T) {
 			_, diags := eval.Evaluate(t.Context(), m, vars, facts, eval.Config{FileBytes: 1 << 20, Resources: 10, Jobs: eval.GenericJobs})
 			if !strings.Contains(diags.Error(), tt.expected) {
 				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
+			}
+		})
+	}
+}
+
+// An infinite number, what 1/0 gives, has no digits: where the module
+// writes one it is an error with the place, not the text +Inf, which no
+// reader of the resource takes for a number.
+func TestEvaluate_InfiniteNumbers(t *testing.T) {
+	t.Parallel()
+
+	const infinite = "the number is infinite and can't be written."
+
+	tests := []struct {
+		name     string
+		file     string
+		src      string
+		expected string
+	}{
+		{
+			name:     "an output",
+			file:     outputsHCL,
+			src:      "output \"o\" {\n  value = [1 / 0]\n}\n",
+			expected: "outputs.hcl:2,11-18: Value not encoded; The value of output o could not be encoded: " + infinite,
+		},
+		{
+			name:     "an attribute of a resource",
+			file:     xACL,
+			src:      "policy \"x\" {\n  level = -1 / 0\n}\n",
+			expected: "x.acl.hcl:1,1-11: Value not encoded; The value of acl-policy x could not be encoded: " + infinite,
+		},
+		{
+			name:     "an attribute of a block written for a decoder of the host",
+			file:     xObject,
+			src:      "object \"x\" {\n  spec {\n    a = 1 / 0\n  }\n}\n",
+			expected: "x.object.hcl:3,9-14: Value not encoded; The value of a could not be encoded: " + infinite,
+		},
+		{
+			name:     "an item of a Variable",
+			file:     xVar,
+			src:      "variable \"x\" {\n  path = \"p\"\n\n  items {\n    n = 1 / 0\n  }\n}\n",
+			expected: "x.var.hcl:1,1-13: Invalid item; The item n of the Variable has no text: " + infinite,
+		},
+		{
+			name:     "the value of an encoder",
+			file:     xACL,
+			src:      "policy \"x\" {\n  rules = jsonencode({ a = 1 / 0 })\n}\n",
+			expected: `x.acl.hcl:2,11-22: Error in function call; Call to function "jsonencode" failed: a: ` + infinite,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := load(t, module(map[string]string{tt.file: tt.src}))
+
+			_, diags := eval.Evaluate(t.Context(), m, cty.EmptyObjectVal, facts, eval.Config{
+				FileBytes: 1 << 20, Resources: 10, Decoder: sourceDecoder{},
+			})
+
+			if got := diags.Error(); len(diags) != 1 || !strings.Contains(got, tt.expected) {
+				t.Errorf("diagnostics = %q, want the one that contains %q", got, tt.expected)
 			}
 		})
 	}

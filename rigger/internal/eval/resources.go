@@ -493,6 +493,13 @@ func itemString(name string, item cty.Value, rng hcl.Range) (cty.Value, *hcl.Dia
 		return item, nil
 	}
 
+	if err := checkNumbers(item); err != nil {
+		return cty.NilVal, &hcl.Diagnostic{
+			Severity: hcl.DiagError, Summary: "Invalid item",
+			Detail: fmt.Sprintf("The item %s of the Variable has no text: %s.", name, err), Subject: rng.Ptr(),
+		}
+	}
+
 	what := ""
 
 	switch {

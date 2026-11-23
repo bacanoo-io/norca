@@ -46,7 +46,7 @@ variable "token" {
 `,
 	"w.norca.hcl": "job \"w\" {\n  count = var.n\n  id    = \"w${count.index}\"\n}\n",
 	xVar:          "variable \"x\" {\n  for_each = toset([\"a\", \"b\"])\n  path     = \"p/${each.key}\"\n\n  items {\n    token = var.token\n  }\n}\n",
-	"outputs.hcl": "output \"names\" {\n  value = distinct([\"a\", \"b\", \"a\"])\n}\n",
+	outputsHCL:    "output \"names\" {\n  value = distinct([\"a\", \"b\", \"a\"])\n}\n",
 }
 
 func TestRunTest(t *testing.T) {
@@ -164,7 +164,7 @@ variable "o" {
   default = [{ a = "1" }, { b = "2", c = "3" }]
 }
 `,
-		"outputs.hcl": "output \"x\" {\n  value = var.x\n}\n",
+		outputsHCL: "output \"x\" {\n  value = var.x\n}\n",
 	}))
 
 	parsed, diags := eval.ParseTests("test.riggertest.hcl", []byte(`test "t" {

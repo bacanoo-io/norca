@@ -472,6 +472,10 @@ func marshal(v cty.Value) (json.RawMessage, error) {
 		return nil, errors.New("the value is not known at install time")
 	}
 
+	if err := checkNumbers(v); err != nil {
+		return nil, err
+	}
+
 	v, err := resolveRuntime(v)
 	if err != nil {
 		return nil, err

@@ -293,3 +293,19 @@ func TestEncoders_Errors(t *testing.T) {
 		})
 	}
 }
+
+// No format has a way to write an infinite number, what 1/0 and log(0, 10)
+// give: it is an error, with the place of the number.
+func TestEncoders_InfiniteNumber(t *testing.T) {
+	t.Parallel()
+
+	value := cty.ObjectVal(map[string]cty.Value{"a": cty.TupleVal([]cty.Value{cty.NumberIntVal(1), cty.NegativeInfinity})})
+
+	const want = "a: [1]: the number is infinite and can't be written"
+
+	for _, fn := range []function.Function{natsconf, jsonEncode, yamlEncode, tomlEncode} {
+		if out, err := fn.Call([]cty.Value{value}); err == nil || err.Error() != want {
+			t.Errorf("got %#v, %v, want the error %q", out, err, want)
+		}
+	}
+}

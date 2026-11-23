@@ -71,6 +71,10 @@ func renderBody(out *hclwrite.Body, body hcl.Body, ctx *hcl.EvalContext, skip ma
 		// inside the engine: it is resolved as in the value of a block the
 		// engine encodes itself (marshal).
 		v, err := resolveRuntime(v)
+		if err == nil {
+			err = checkNumbers(v)
+		}
+
 		if err != nil {
 			diags = append(diags, valueDiag(a.Name, err, a.Expr.Range()))
 

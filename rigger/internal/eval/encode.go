@@ -6,6 +6,7 @@ package eval
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -193,21 +194,50 @@ func wholePart(s string) (runref.Part, bool) {
 // with an exponent: not every reader takes one. NATS reads 1e-07 as a
 // string and refuses 1.5e-05, and a reader of YAML 1.1 takes a number with
 // an exponent and no point for a string.
-func (f format) number(v cty.Value) string {
+func (f format) number(v cty.Value) (string, error) {
 	n := v.AsBigFloat()
+	if err := numberError(n); err != nil {
+		return "", err
+	}
+
 	if n.Sign() == 0 {
-		return "0"
+		return "0", nil
 	}
 
 	text := n.Text('f', -1)
 
 	if f.int64Only && n.IsInt() {
 		if i, _ := n.Int(nil); !i.IsInt64() {
-			return text + ".0"
+			return text + ".0", nil
 		}
 	}
 
-	return text
+	return text, nil
+}
+
+// errInfinite is the error of an infinite number, what 1/0 and log(0, 10)
+// give: it has no digits, and no format has another way to write it.
+var errInfinite = errors.New("the number is infinite and can't be written")
+
+// numberError is the error of a number that can't be written.
+func numberError(n *big.Float) error {
+	if n.IsInf() {
+		return errInfinite
+	}
+
+	return nil
+}
+
+// checkNumbers reports the first number in v that can't be written.
+func checkNumbers(v cty.Value) error {
+	return cty.Walk(v, func(_ cty.Path, v cty.Value) (bool, error) {
+		v, _ = v.Unmark()
+		if v.IsNull() || !v.IsKnown() || v.Type() != cty.Number {
+			return true, nil
+		}
+
+		return true, numberError(v.AsBigFloat())
+	})
 }
 
 // scalar writes a string, a number or a bool.
@@ -216,7 +246,7 @@ func (f format) scalar(v cty.Value) (string, error) {
 	case cty.String:
 		return f.quote(v.AsString())
 	case cty.Number:
-		return f.number(v), nil
+		return f.number(v)
 	case cty.Bool:
 		return strconv.FormatBool(v.True()), nil
 	default:
