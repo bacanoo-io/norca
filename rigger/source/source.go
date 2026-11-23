@@ -165,6 +165,8 @@ var ErrAddress = errors.New("invalid source")
 //   - <registry>/<name>: the module modules/<name> of a registry of the
 //     stack, registries giving the repository of each registry by name;
 //   - <namespace>/<name> of no registry of the stack: the global registry.
+//
+// An address that carries credentials is refused (ErrCredentials).
 func Parse(address string, registries map[string]string) (Request, error) {
 	if req, ok, err := parseScheme(address); ok {
 		return req, err
@@ -173,6 +175,10 @@ func Parse(address string, registries map[string]string) (Request, error) {
 	req := Request{Source: address}
 
 	if repo, ok := gitRepository(address); ok {
+		if err := CheckRepository(repo.repository); err != nil {
+			return Request{}, err
+		}
+
 		req.Kind, req.Repository, req.Path, req.TagPrefix = KindGit, repo.repository, repo.path, repo.tagPrefix
 
 		return req, nil
@@ -190,7 +196,7 @@ func parseScheme(address string) (Request, bool, error) {
 	case strings.HasPrefix(address, "builtin/"):
 		name := strings.TrimPrefix(address, "builtin/")
 		if !validName(name) {
-			return Request{}, true, fmt.Errorf("%w: %q", ErrAddress, address)
+			return Request{}, true, fmt.Errorf("%w: %q", ErrAddress, Redact(address))
 		}
 
 		req.Kind, req.Path = KindBuiltin, "modules/"+name
@@ -201,6 +207,10 @@ func parseScheme(address string) (Request, bool, error) {
 
 		return req, true, nil
 	case strings.HasPrefix(address, "oci://"):
+		if err := CheckRepository(address); err != nil {
+			return Request{}, true, err
+		}
+
 		repo := strings.TrimPrefix(address, "oci://")
 		if host, name, ok := strings.Cut(repo, "/"); !ok || host == "" || name == "" {
 			return Request{}, true, fmt.Errorf("%w: %q is not oci://<host>/<repository>", ErrAddress, address)
@@ -221,7 +231,7 @@ func parseRegistry(address string, registries map[string]string) (Request, error
 
 	reg, name, ok := strings.Cut(address, "/")
 	if !ok || !validName(reg) || !validName(name) {
-		return Request{}, fmt.Errorf("%w: %q", ErrAddress, address)
+		return Request{}, fmt.Errorf("%w: %q", ErrAddress, Redact(address))
 	}
 
 	repository, ok := registries[reg]
@@ -232,8 +242,12 @@ func parseRegistry(address string, registries map[string]string) (Request, error
 	}
 
 	inner, err := Parse(repository, nil)
+	if errors.Is(err, ErrCredentials) {
+		return Request{}, fmt.Errorf("registry %s: %w", reg, err)
+	}
+
 	if err != nil || inner.Kind != KindGit {
-		return Request{}, fmt.Errorf("%w: registry %s is not a git repository: %q", ErrAddress, reg, repository)
+		return Request{}, fmt.Errorf("%w: registry %s is not a git repository: %q", ErrAddress, reg, Redact(repository))
 	}
 
 	req.Kind, req.Repository, req.Path, req.TagPrefix = KindGit, inner.Repository, "modules/"+name, name+"/v"

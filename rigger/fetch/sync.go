@@ -102,7 +102,12 @@ func (f *Fetcher) refresh(ctx context.Context, repository string) (*git.Reposito
 		return f.openRepo(ctx, repository)
 	}
 
-	url, dir := repositoryURL(repository), f.mirrorDir(repository)
+	url, err := remoteURL(repository)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := f.mirrorDir(repository)
 
 	unlock, err := f.repos.lock(ctx, dir)
 	if err != nil {
@@ -138,8 +143,14 @@ func (f *Fetcher) repoWith(ctx context.Context, repository, commit string) (*git
 		}
 
 		r = local
-	} else if mirror, err := git.PlainOpen(f.mirrorDir(repository)); err == nil {
-		r = mirror
+	} else {
+		if _, err := remoteURL(repository); err != nil {
+			return nil, err
+		}
+
+		if mirror, err := git.PlainOpen(f.mirrorDir(repository)); err == nil {
+			r = mirror
+		}
 	}
 
 	if r == nil || !hasCommit(r, commit) {

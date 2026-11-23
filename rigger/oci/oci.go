@@ -31,6 +31,7 @@ import (
 	"github.com/bacanoo-io/norca/rigger/internal/readlimit"
 	"github.com/bacanoo-io/norca/rigger/internal/sameorigin"
 	"github.com/bacanoo-io/norca/rigger/internal/targz"
+	"github.com/bacanoo-io/norca/rigger/internal/userinfo"
 )
 
 // The media types of a module.
@@ -123,13 +124,14 @@ func ValidDigest(s string) bool {
 func ref(repository string) (host, name string, err error) {
 	host, name, ok := strings.Cut(repository, "/")
 	if !ok {
-		return "", "", fmt.Errorf("%w: %q is not <host>/<repository>", ErrRegistry, repository)
+		return "", "", fmt.Errorf("%w: %q is not <host>/<repository>", ErrRegistry, userinfo.Redact(repository))
 	}
 
 	// A host and nothing more: 127.0.0.1:1@example.com would read as
-	// localhost, so http, and be example.com.
+	// localhost, so http, and be example.com. What is before an at sign may
+	// be a password: the error does not repeat it.
 	if u, err := url.Parse("https://" + host); err != nil || host == "" || u.Host != host {
-		return "", "", fmt.Errorf("%w: %q does not start with a host", ErrRegistry, repository)
+		return "", "", fmt.Errorf("%w: %q does not start with a host", ErrRegistry, userinfo.Redact(repository))
 	}
 
 	return host, name, nil

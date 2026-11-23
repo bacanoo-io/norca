@@ -55,12 +55,12 @@ func (f *Fetcher) readIndex(ctx context.Context) (*globalIndex, error) {
 
 	fsys, err := f.indexFS(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("the global registry %s: %w", f.global, err)
+		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(f.global), err)
 	}
 
 	adv, err := index.ReadAdvisories(fsys)
 	if err != nil {
-		return nil, fmt.Errorf("the global registry %s: %w", f.global, err)
+		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(f.global), err)
 	}
 
 	f.index = &globalIndex{fsys: fsys, advisories: adv}

@@ -24,6 +24,8 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	gossh "golang.org/x/crypto/ssh"
+
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // The fetcher reads git repositories with go-git, in the process: a server
@@ -75,6 +77,20 @@ func localPath(repo string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// remoteURL returns the URL a repository that is not on the local file
+// system is read by. An address with credentials is refused
+// (source.ErrCredentials): go-git would make its own authentication of them,
+// bound to no origin, and keep them in the URL of every request, also after
+// a redirect to another host; the mirror and the errors would keep them too.
+func remoteURL(repo string) (string, error) {
+	url := repositoryURL(repo)
+	if err := source.CheckRepository(url); err != nil {
+		return "", err
+	}
+
+	return url, nil
 }
 
 // auth returns the authentication of a repository, nil for anonymous.
@@ -190,7 +206,12 @@ func (f *Fetcher) openRepo(ctx context.Context, repo string) (*git.Repository, e
 		return r, nil
 	}
 
-	url, dir := repositoryURL(repo), f.mirrorDir(repo)
+	url, err := remoteURL(repo)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := f.mirrorDir(repo)
 
 	unlock, err := f.repos.lock(ctx, dir)
 	if err != nil {
@@ -245,7 +266,7 @@ func (f *Fetcher) updateMirror(ctx context.Context, url, dir string, auth transp
 			Tags:       git.AllTags,
 		})
 		if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
-			return nil, fmt.Errorf("git fetch %s: %w", url, err)
+			return nil, fmt.Errorf("git fetch %s: %w", source.Redact(url), err)
 		}
 
 		return r, nil
@@ -259,7 +280,7 @@ func (f *Fetcher) updateMirror(ctx context.Context, url, dir string, auth transp
 	if err != nil {
 		_ = os.RemoveAll(dir)
 
-		return nil, fmt.Errorf("git clone %s: %w", url, err)
+		return nil, fmt.Errorf("git clone %s: %w", source.Redact(url), err)
 	}
 
 	return r, nil
