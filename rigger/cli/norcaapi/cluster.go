@@ -5,7 +5,9 @@ package norcaapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -42,11 +44,35 @@ func (c *Cluster) Info(ctx context.Context) (host.ClusterInfo, error) {
 		info.Region = region
 	}
 
-	if ok, err := c.client.Releases().Supported(query(ctx, "")); err == nil && ok {
+	releases, err := c.hasReleases(ctx)
+	if err != nil {
+		return host.ClusterInfo{}, err
+	}
+
+	if releases {
 		info.Features = append(info.Features, "releases")
 	}
 
 	return info, nil
+}
+
+// hasReleases reports whether the servers have the release API. An answer
+// that does not tell (the servers fail, the request is cut) is an error: a
+// cluster would look like one without releases, and a module that requires
+// them would be refused for the wrong reason.
+func (c *Cluster) hasReleases(ctx context.Context) (bool, error) {
+	ok, err := c.client.Releases().Supported(query(ctx, ""))
+	if err == nil {
+		return ok, nil
+	}
+
+	// The servers answer for the API and refuse the token in the namespace
+	// of the client: they have it.
+	if uerr := (api.UnexpectedResponseError{}); errors.As(err, &uerr) && uerr.StatusCode() == http.StatusForbidden {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("whether the cluster has the release API: %w", err)
 }
 
 // Namespaces returns the names of the namespaces of the region.

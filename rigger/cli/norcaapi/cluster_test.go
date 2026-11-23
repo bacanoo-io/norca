@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +17,12 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 )
 
-// selfPath ends the path of the agent's own endpoint.
-const selfPath = "/agent/self"
+// selfPath ends the path of the agent's own endpoint, releasesPath that of
+// the list of the releases.
+const (
+	selfPath     = "/agent/self"
+	releasesPath = "/releases"
+)
 
 // writeSelf answers /v1/agent/self as an agent of Norca 0.3.0.
 func writeSelf(t *testing.T, w http.ResponseWriter) {
@@ -63,6 +68,69 @@ func TestCluster_InfoVersion(t *testing.T) {
 	}
 }
 
+// The release API is a feature of a cluster whose servers have it. An
+// answer that does not tell is an error of Info: a cluster must not look
+// like one without releases because a request failed.
+func TestCluster_InfoFeatures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// status and body are the answer of /v1/releases.
+		status   int
+		body     string
+		expected []string
+		// wantErr is in the error of Info; empty for none.
+		wantErr string
+	}{
+		{name: "the servers list the releases", status: http.StatusOK, body: "[]", expected: []string{"releases"}},
+		{name: "the servers have no such path", status: http.StatusNotFound, body: "not found"},
+		{name: "the servers have no such method", status: http.StatusMethodNotAllowed, body: "not allowed"},
+		{
+			// The servers answer for the API and refuse the token in the
+			// namespace: they have it.
+			name: "the token may not list the releases", status: http.StatusForbidden, body: "Permission denied", expected: []string{"releases"},
+		},
+		{name: "the servers fail", status: http.StatusInternalServerError, body: "no cluster leader", wantErr: "no cluster leader"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, selfPath) {
+					writeSelf(t, w)
+
+					return
+				}
+
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(srv.Close)
+
+			client, err := api.NewClient(&api.Config{Address: srv.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			info, err := NewCluster(client).Info(t.Context())
+
+			switch {
+			case tt.wantErr != "":
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("Info() = %+v, %v, want an error with %q", info, err, tt.wantErr)
+				}
+			case err != nil:
+				t.Errorf("Info() = %v", err)
+			case !slices.Equal(info.Features, tt.expected):
+				t.Errorf("features = %v, want %v", info.Features, tt.expected)
+			}
+		})
+	}
+}
+
 // Info ends when its context is done, whichever of its two requests waits
 // for the cluster.
 func TestCluster_Info_Cancelled(t *testing.T) {
@@ -74,6 +142,7 @@ func TestCluster_Info_Cancelled(t *testing.T) {
 		hangs string
 	}{
 		{name: "the agent does not answer", hangs: selfPath},
+		{name: "the release API does not answer", hangs: releasesPath},
 	}
 
 	for _, tt := range tests {
