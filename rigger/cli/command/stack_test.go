@@ -4,7 +4,12 @@
 package command
 
 import (
+	"bytes"
+	"strings"
 	"testing"
+
+	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/host"
 )
 
 // A -var of a stack is the value of its variable by the type of the
@@ -20,4 +25,37 @@ func TestRun_StackValidate_VarByType(t *testing.T) {
 
 	riggerRun(t, exitOK, []string{isValid}, "stack", "validate", dir, flagVar, "tag=1.20", flagVar, "replicas=1e3")
 	riggerRunErr(t, "var.tag", "stack", "validate", dir, flagVar, "tag=1.2", flagVar, "replicas=1e3")
+}
+
+// The plan of a disabled release the stack installed before says that it
+// stays installed, and at which revision; one never installed is only
+// disabled.
+func TestWritePlan_DisabledInstalled(t *testing.T) {
+	t.Parallel()
+
+	plan := &rigger.StackPlan{Stack: "site", Region: "eu", Releases: []rigger.ReleasePlan{
+		{
+			Release: host.ReleaseRef{Namespace: "apps", Name: "app"}, Action: rigger.ActionDisabled, Revision: 3,
+			Module: host.ModuleRef{Name: "app", Version: "1.0.0"},
+		},
+		{Release: host.ReleaseRef{Namespace: "apps", Name: "worker"}, Action: rigger.ActionDisabled},
+	}}
+
+	var out bytes.Buffer
+	if err := writePlan(&out, plan, false, true); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(out.String(), "\n")
+	if len(lines) < 3 {
+		t.Fatalf("the plan: %s", out.String())
+	}
+
+	if !strings.Contains(lines[1], "app") || !strings.Contains(lines[1], "disabled (stays installed, revision 3)") || !strings.Contains(lines[1], "app 1.0.0") {
+		t.Errorf("the line of app = %q, want disabled (stays installed, revision 3) and its module", lines[1])
+	}
+
+	if !strings.Contains(lines[2], "worker") || strings.Contains(lines[2], "stays installed") {
+		t.Errorf("the line of worker = %q, want disabled and no more", lines[2])
+	}
 }

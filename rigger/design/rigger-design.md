@@ -574,7 +574,14 @@ module "worker" {
 - `enabled` on a module may depend on an output of another module.
 - `values` is checked against the module's variables at `plan`.
 - `enabled = false` keeps an entry without installing it; what happens to a
-  release whose entry is removed is `prune` (section 9.3).
+  release whose entry is removed is `prune` (section 9.3). A release that
+  was installed and is disabled since **stays installed** (decided by the
+  maintainer, 2026-11-24; bug report of 2026-11-23, K4): the plan shows it
+  once, as disabled with the revision that stays, an apply does not change
+  it and `--prune` does not remove it. The plan warns when the stack has
+  another version or content of its module than the one installed (the
+  values are not compared: a disabled release is not evaluated). It is
+  uninstalled by removing its block and an apply with `--prune`.
 
 ### 6.5 Dependencies
 

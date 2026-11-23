@@ -656,3 +656,127 @@ func TestValidateStack_Duration(t *testing.T) {
 		t.Errorf("diagnostics = %q, want the evaluation stopped", diags.Error())
 	}
 }
+
+// appRelease is the release app of twoReleases, and the name of its module.
+const appRelease = "app"
+
+// disableApp is twoReleases with the release app disabled.
+func disableApp(stack string) string {
+	return strings.Replace(stack, "source = \"./modules/app\"", "source = \"./modules/app\"\n  enabled = false", 1)
+}
+
+// planWarnings plans the stack and returns the plan and the texts of its
+// warnings.
+func planWarnings(t *testing.T, e *rigger.Engine, fsys fstest.MapFS) (*rigger.StackPlan, []string) {
+	t.Helper()
+
+	s, diags := e.LoadStack(t.Context(), fsys, "s")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	plan, diags := e.PlanStack(t.Context(), s, nil)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	var warnings []string
+
+	for _, d := range diags {
+		if d.Severity == hcl.DiagWarning {
+			warnings = append(warnings, d.Summary+": "+d.Detail)
+		}
+	}
+
+	return plan, warnings
+}
+
+// A release that is installed and then disabled stays installed (decided by
+// the maintainer, 2026-11-24): it is in the plan once, as disabled with the
+// revision that stays, an apply with prune does not remove it, and the plan
+// has no changes.
+func TestStack_DisabledStaysInstalled(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+	e := stackEngine(t, f)
+
+	if _, diags := e.ApplyStack(t.Context(), planOf(t, e, stackFiles(twoReleases), nil), rigger.ApplyOptions{}); diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	plan, warnings := planWarnings(t, e, stackFiles(disableApp(twoReleases)))
+
+	if got := actions(plan); got != "app:disabled db:unchanged" && got != "db:unchanged app:disabled" {
+		t.Fatalf("plan = %s, want app disabled once and db unchanged", got)
+	}
+
+	if plan.HasChanges() {
+		t.Errorf("the plan has changes: %s", actions(plan))
+	}
+
+	for _, r := range plan.Releases {
+		if r.Release.Name == appRelease && (r.Revision != 1 || r.Module.Name != appRelease) {
+			t.Errorf("the disabled release = revision %d of %q, want the installed revision 1 of app", r.Revision, r.Module.Name)
+		}
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %q, want none: the module is the one installed", warnings)
+	}
+
+	if _, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{Prune: true}); diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if len(f.removed) != 0 || len(f.releases) != 2 {
+		t.Errorf("removed = %v, releases = %d; want nothing removed", f.removed, len(f.releases))
+	}
+}
+
+// A disabled release that is installed is not updated: the plan warns when
+// the stack has another version of its module than the one installed.
+func TestStack_DisabledInstalledWarnsOfNewVersion(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+	e := stackEngine(t, f)
+
+	if _, diags := e.ApplyStack(t.Context(), planOf(t, e, stackFiles(twoReleases), nil), rigger.ApplyOptions{}); diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	files := stackFiles(disableApp(twoReleases))
+	files["s/modules/app/metadata.hcl"] = &fstest.MapFile{Data: []byte("module {\n  name    = \"app\"\n  version = \"1.1.0\"\n}\n")}
+
+	plan, warnings := planWarnings(t, e, files)
+
+	if got := strings.Join(warnings, "\n"); len(warnings) != 1 ||
+		!strings.Contains(got, appRelease) || !strings.Contains(got, "1.0.0") || !strings.Contains(got, "1.1.0") || !strings.Contains(got, "revision 1") {
+		t.Errorf("warnings = %q, want one that names app, the installed 1.0.0 at revision 1 and the 1.1.0 of the stack", warnings)
+	}
+
+	if plan.HasChanges() {
+		t.Errorf("the plan has changes: %s", actions(plan))
+	}
+}
+
+// A disabled release that was never installed is only disabled: no revision,
+// no warning.
+func TestStack_DisabledNotInstalled(t *testing.T) {
+	t.Parallel()
+
+	e := stackEngine(t, newFakeCluster())
+
+	plan, warnings := planWarnings(t, e, stackFiles(disableApp(twoReleases)))
+
+	for _, r := range plan.Releases {
+		if r.Release.Name == appRelease && (r.Action != rigger.ActionDisabled || r.Revision != 0) {
+			t.Errorf("app = %s at revision %d, want disabled and no revision", r.Action, r.Revision)
+		}
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %q, want none", warnings)
+	}
+}

@@ -399,6 +399,11 @@ func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 			action += " (takes it over from " + r.TakesOver + ", with -adopt)"
 		}
 
+		// A disabled release the stack installed before stays as it is.
+		if r.Action == rigger.ActionDisabled && r.Revision > 0 {
+			action += fmt.Sprintf(" (stays installed, revision %d)", r.Revision)
+		}
+
 		_, _ = fmt.Fprintf(tw, "  %s %s\t%s\t%s\t%s %s\n", planSigns[r.Action], r.Release.Name, r.Release.Namespace, action, r.Module.Name, r.Module.Version)
 
 		for _, c := range r.Changes {

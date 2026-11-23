@@ -151,8 +151,10 @@ const (
 	// ActionRemove is a release the stack owns and no longer has; it is
 	// uninstalled only with prune (design 9.3).
 	ActionRemove ReleaseAction = "remove"
-	// ActionDisabled is a release written with enabled = false and not
-	// installed.
+	// ActionDisabled is a release written with enabled = false: the stack
+	// does not install it. One that the stack installed before stays as it
+	// is (its plan has the revision that stays), until it is enabled again
+	// or its block is removed and the release pruned.
 	ActionDisabled ReleaseAction = "disabled"
 )
 
@@ -292,9 +294,12 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		plan.Outputs = append(plan.Outputs, Output(o))
 	}
 
-	if err := e.planReleases(ctx, plan, res); err != nil {
+	moreDiags, err = e.planReleases(ctx, plan, res)
+	if err != nil {
 		return nil, append(diags, errorDiags("Releases not compared", err)...)
 	}
+
+	diags = append(diags, moreDiags...)
 
 	if moreDiags := e.checkRequires(ctx, stackRequirers(res), plannedReleases(plan)); moreDiags.HasErrors() {
 		return nil, append(diags, moreDiags...)
@@ -326,28 +331,30 @@ func (e *Engine) readGenerated(ctx context.Context, plan *StackPlan) (map[string
 	return out, nil
 }
 
-// planReleases compares the releases of the stack with the cluster.
-func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.StackResult) error {
+// planReleases compares the releases of the stack with the cluster. The
+// diagnostics are warnings of the plan (keptDisabled).
+//
+// A release of the stack is in the stack whether it is enabled or not: what
+// a plan removes is a release the stack owns whose entry is gone (design
+// 9.3). A release that was installed and is disabled since stays installed,
+// and nothing of the stack changes it until it is enabled again.
+func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.StackResult) (hcl.Diagnostics, error) {
 	owner := host.StackOwner(plan.namespace, plan.Stack)
 	inStack := map[host.ReleaseRef]bool{}
 
 	for _, rr := range res.Releases {
 		ref := host.ReleaseRef{Namespace: rr.Namespace, Name: rr.Name}
+		inStack[ref] = true
 
-		var (
-			rp  ReleasePlan
-			err error
-		)
+		rp := ReleasePlan{Release: ref, Action: ActionDisabled}
 
 		if rr.Enabled {
-			inStack[ref] = true
-			rp, err = e.planRelease(ctx, ref, owner, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
-		} else {
-			rp = ReleasePlan{Release: ref, Action: ActionDisabled}
-		}
+			var err error
 
-		if err != nil {
-			return fmt.Errorf("release %s: %w", rr.Name, err)
+			rp, err = e.planRelease(ctx, ref, owner, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
+			if err != nil {
+				return nil, fmt.Errorf("release %s: %w", rr.Name, err)
+			}
 		}
 
 		rp.DependsOn = rr.DependsOn
@@ -356,10 +363,14 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 
 	owned, err := e.releases.Owned(ctx, owner)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	installed := map[host.ReleaseRef]host.Revision{}
+
 	for _, rev := range owned {
+		installed[rev.Release] = rev
+
 		if !inStack[rev.Release] {
 			plan.Releases = append(plan.Releases, ReleasePlan{
 				Release: rev.Release, Action: ActionRemove, Module: rev.Module, Revision: rev.Number,
@@ -367,7 +378,58 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 		}
 	}
 
-	return nil
+	return keptDisabled(plan, res, installed)
+}
+
+// keptDisabled puts into the plan what stays of the disabled releases the
+// stack has installed: the revision and its module. It warns of one whose
+// module in the stack is not the one installed (another version, or another
+// content of the same version): the stack does not update a release that is
+// disabled. Its values are not compared, since a disabled release is not
+// evaluated. The releases of res are the first of the plan, in their order.
+func keptDisabled(plan *StackPlan, res *eval.StackResult, installed map[host.ReleaseRef]host.Revision) (hcl.Diagnostics, error) {
+	var diags hcl.Diagnostics
+
+	for i, rr := range res.Releases {
+		rp := &plan.Releases[i]
+
+		rev, ok := installed[rp.Release]
+		if rr.Enabled || !ok {
+			continue
+		}
+
+		rp.Module, rp.Revision = rev.Module, rev.Number
+
+		if rr.Release == nil || rr.Release.Module == nil {
+			continue
+		}
+
+		digest, err := lang.Digest(rr.Release.Module)
+		if err != nil {
+			return nil, fmt.Errorf("release %s: %w", rr.Name, err)
+		}
+
+		md := rr.Release.Module.Metadata
+		if md.Version == rev.Module.Version && digest == rev.Module.Digest {
+			continue
+		}
+
+		has := fmt.Sprintf("the module %s %s", md.Name, md.Version)
+		if md.Version == rev.Module.Version {
+			has = fmt.Sprintf("another content of the module %s %s", md.Name, md.Version)
+		}
+
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning, Summary: "Disabled release not updated",
+			Detail: fmt.Sprintf("The release %s is disabled and stays installed at revision %d, of the module %s %s. "+
+				"The stack has %s for it, which is applied when the release is enabled again. "+
+				"To uninstall the release, remove its block and apply with prune.",
+				rr.Name, rev.Number, rev.Module.Name, rev.Module.Version, has),
+			Subject: rr.Release.Block.DefRange.Ptr(),
+		})
+	}
+
+	return diags, nil
 }
 
 // settings are the settings of a release of a stack: a stack waits until a
