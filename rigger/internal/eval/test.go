@@ -28,7 +28,7 @@ type Test struct {
 	Region    string
 	// Values is the object of the values; nil for none.
 	Values hcl.Expression
-	// ExpectError is a text the diagnostics of the evaluation must hold;
+	// ExpectError is a text one of the errors of the evaluation must hold;
 	// empty when the evaluation must succeed.
 	ExpectError string
 	Asserts     []Assert
@@ -164,7 +164,7 @@ func RunTest(ctx context.Context, m *lang.Module, t *Test, cfg Config) Outcome {
 		switch {
 		case !diags.HasErrors():
 			return Outcome{Failures: []string{fmt.Sprintf("expected an error containing %q; the module evaluated", t.ExpectError)}}
-		case !strings.Contains(diags.Error(), t.ExpectError):
+		case !holds(diags, t.ExpectError):
 			return Outcome{
 				Failures:    []string{fmt.Sprintf("expected an error containing %q; got other errors", t.ExpectError)},
 				Diagnostics: diags,
@@ -179,6 +179,16 @@ func RunTest(ctx context.Context, m *lang.Module, t *Test, cfg Config) Outcome {
 	}
 
 	return checkAsserts(m, t, vars, facts, res, cfg)
+}
+
+// holds reports whether one of the errors of diags holds text, in its place,
+// its summary or its detail as they are shown. Each error is looked at: the
+// text of several diagnostics together shows the first one only, and which
+// one is first is not always the same.
+func holds(diags hcl.Diagnostics, text string) bool {
+	return slices.ContainsFunc(diags, func(d *hcl.Diagnostic) bool {
+		return d.Severity == hcl.DiagError && strings.Contains(d.Error(), text)
+	})
 }
 
 // testEvaluate gives the variables their values and evaluates the module.

@@ -194,6 +194,54 @@ variable "o" {
 	}
 }
 
+// An evaluation may fail with several errors: expect_error is held by any
+// of them, whichever comes first.
+func TestRunTest_ExpectErrorOfSeveral(t *testing.T) {
+	t.Parallel()
+
+	m := load(t, module(map[string]string{
+		variablesHCL: "variable \"x\" {\n  type    = string\n  default = \"aaa\"\n\n  validation {\n    min_length = 3\n    pattern    = \"^a+$\"\n  }\n}\n",
+	}))
+
+	tests := []struct {
+		name     string
+		expected string
+		failures string
+	}{
+		{name: "the first error", expected: "var.x is \\\"b\\\", which does not match ^a+$"},
+		{name: "the second error", expected: "var.x has 1 characters, fewer than 3"},
+		{name: "its summary", expected: "Invalid value"},
+		{name: "none of them", expected: "more than", failures: `expected an error containing "more than"; got other errors`},
+		{
+			// Not a text that only the join of two errors holds.
+			name: "the end of one error and the start of the next", expected: "^a+$.; ",
+			failures: `expected an error containing "^a+$.; "; got other errors`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, diags := eval.ParseTests("test.riggertest.hcl", []byte(
+				"test \"t\" {\n  values       = { x = \"b\" }\n  expect_error = \""+tt.expected+"\"\n}\n"))
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			out := eval.RunTest(t.Context(), m, parsed[0], eval.Config{FileBytes: 1 << 20, Resources: 20, Jobs: eval.GenericJobs})
+
+			if got := strings.Join(out.Failures, "; "); got != tt.failures {
+				t.Errorf("failures = %q (%v), want %q", got, out.Diagnostics, tt.failures)
+			}
+
+			if tt.failures != "" && len(out.Diagnostics) != 2 {
+				t.Errorf("diagnostics = %v, want the two errors of the evaluation", out.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestParseTests_Errors(t *testing.T) {
 	t.Parallel()
 
