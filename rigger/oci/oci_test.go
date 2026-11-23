@@ -6,6 +6,7 @@ package oci
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -291,5 +292,159 @@ func TestClient_LocalRegistry(t *testing.T) {
 				t.Errorf("pushBlob() to a registry of this machine = %v, uploaded %v", err, uploaded)
 			}
 		})
+	}
+}
+
+// The path of the list of tags of the test repository.
+const tagsPath = "/v2/acme/web/tags/list"
+
+// A registry gives the tags of a repository in pages, each with a Link to
+// the next: Tags reads them all, so that the newest version is among them.
+func TestClient_Tags_Pages(t *testing.T) {
+	t.Parallel()
+
+	// pages are the tags and the Link header of each page, by the query
+	// of its request.
+	tests := []struct {
+		name     string
+		pages    map[string][2]string
+		expected string
+	}{
+		{
+			name:     "one page",
+			pages:    map[string][2]string{"": {`["1.0.0","1.0.1"]`, ""}},
+			expected: "1.0.0 1.0.1",
+		},
+		{
+			name: "a Link with a path",
+			pages: map[string][2]string{
+				"":               {`["1.0.0","1.0.1"]`, `<` + tagsPath + `?last=1.0.1&n=2>; rel="next"`},
+				"last=1.0.1&n=2": {`["1.1.0","1.2.0"]`, `<` + tagsPath + `?last=1.2.0&n=2>; rel="next"`},
+				"last=1.2.0&n=2": {`["2.0.0"]`, ""},
+				"last=2.0.0&n=2": {`["9.9.9"]`, ""},
+				"n=2&last=1.0.1": {`["9.9.9"]`, ""},
+			},
+			expected: "1.0.0 1.0.1 1.1.0 1.2.0 2.0.0",
+		},
+		{
+			name: "a Link with a URL of the registry",
+			pages: map[string][2]string{
+				"":           {`["1.0.0"]`, `<https://` + testRegistry + tagsPath + `?last=1.0.0>; rel="next"`},
+				"last=1.0.0": {`["2.0.0"]`, ""},
+			},
+			expected: "1.0.0 2.0.0",
+		},
+		{
+			name: "a Link among others, without quotes",
+			pages: map[string][2]string{
+				"":           {`["1.0.0"]`, `<` + tagsPath + `>; rel="first", <` + tagsPath + `?last=1.0.0>; rel=next; title="a, b"`},
+				"last=1.0.0": {`["2.0.0"]`, `<` + tagsPath + `>; rel="first"`},
+			},
+			expected: "1.0.0 2.0.0",
+		},
+		{
+			name: "a last page without tags",
+			pages: map[string][2]string{
+				"":           {`["1.0.0"]`, `<` + tagsPath + `?last=1.0.0>; rel="next"`},
+				"last=1.0.0": {`null`, ""},
+			},
+			expected: "1.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := testClient(func(r *http.Request) *http.Response {
+				page, ok := tt.pages[r.URL.RawQuery]
+				if !ok || r.URL.Host != testRegistry || r.URL.Path != tagsPath {
+					return answer(http.StatusNotFound, "")
+				}
+
+				return answer(http.StatusOK, `{"name":"acme/web","tags":`+page[0]+`}`, "Link", page[1])
+			})
+
+			tags, err := c.Tags(t.Context(), testRegistry+"/acme/web")
+			if err != nil {
+				t.Fatalf("Tags() = %v", err)
+			}
+
+			if got := strings.Join(tags, " "); got != tt.expected {
+				t.Errorf("Tags() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// The next page of tags is of the same list of the same registry, and the
+// pages end: a registry that says otherwise gets an error, not a list cut
+// short, and leads the client nowhere.
+func TestClient_Tags_PagesRefused(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// link is the Link header of a page, given the number of the page.
+		link func(page int) string
+	}{
+		{name: "another host", link: func(int) string { return `<https://elsewhere.example.net` + tagsPath + `?last=1.0.0>; rel="next"` }},
+		{name: "another port", link: func(int) string { return `<https://` + testRegistry + `:8443` + tagsPath + `?last=1.0.0>; rel="next"` }},
+		{name: "http", link: func(int) string { return `<http://` + testRegistry + tagsPath + `?last=1.0.0>; rel="next"` }},
+		{name: "another path", link: func(int) string { return `</v2/acme/private/tags/list?last=1.0.0>; rel="next"` }},
+		{name: "the same page again", link: func(int) string { return `<` + tagsPath + `>; rel="next"` }},
+		{name: "pages without an end", link: func(page int) string {
+			return `<` + tagsPath + `?last=1.0.` + strconv.Itoa(page) + `>; rel="next"`
+		}},
+		{name: "no URL", link: func(int) string { return `<://>; rel="next"` }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				pages     int
+				elsewhere []string
+			)
+
+			c := testClient(func(r *http.Request) *http.Response {
+				if r.URL.Scheme != "https" || r.URL.Host != testRegistry || r.URL.Path != tagsPath {
+					elsewhere = append(elsewhere, r.URL.String())
+
+					return answer(http.StatusOK, `{"tags":["6.6.6"]}`)
+				}
+
+				pages++
+
+				return answer(http.StatusOK, `{"tags":["1.0.`+strconv.Itoa(pages)+`"]}`, "Link", tt.link(pages))
+			})
+
+			tags, err := c.Tags(t.Context(), testRegistry+"/acme/web")
+			if !errors.Is(err, ErrRegistry) {
+				t.Errorf("Tags() = %d tags, %v; want ErrRegistry", len(tags), err)
+			}
+
+			if len(elsewhere) > 0 {
+				t.Errorf("the client was led to %v", elsewhere)
+			}
+
+			if pages > maxTagPages {
+				t.Errorf("%d pages were read, more than the bound %d", pages, maxTagPages)
+			}
+		})
+	}
+}
+
+// What is no list of tags is an error, not an empty list.
+func TestClient_Tags_Invalid(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{"<html>", `{"tags":"1.0.0"}`, ""} {
+		c := testClient(func(*http.Request) *http.Response { return answer(http.StatusOK, body) })
+
+		if tags, err := c.Tags(t.Context(), testRegistry+"/acme/web"); err == nil {
+			t.Errorf("Tags() of the answer %q = %v, want an error", body, tags)
+		}
 	}
 }

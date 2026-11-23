@@ -437,18 +437,117 @@ func (c *Client) get(ctx context.Context, repository, path, accept, action strin
 	return data, resp.Header, nil
 }
 
-// Tags lists the tags of a repository.
+// A registry gives a list of tags in pages. What bounds them: a registry
+// that links without an end gets an error, never a list cut short (a
+// version that is missing would resolve a constraint to an older one).
+const (
+	maxTagPages = 1000
+	maxTags     = 100_000
+	tagsList    = "/tags/list"
+)
+
+// Tags lists the tags of a repository: every page of the list, following
+// the Link header of each to the next (the distribution API).
 func (c *Client) Tags(ctx context.Context, repository string) ([]string, error) {
-	data, _, err := c.get(ctx, repository, "/tags/list", "", "pull")
+	var tags []string
+
+	query := ""
+
+	for range maxTagPages {
+		data, header, err := c.get(ctx, repository, tagsList+query, "", "pull")
+		if err != nil {
+			return nil, err
+		}
+
+		var list struct {
+			Tags []string `json:"tags"`
+		}
+
+		if err := json.Unmarshal(data, &list); err != nil {
+			return nil, fmt.Errorf("%w: %s: the list of tags: %w", ErrRegistry, repository, err)
+		}
+
+		if tags = append(tags, list.Tags...); len(tags) > maxTags {
+			return nil, fmt.Errorf("%w: %s has more than %d tags", ErrRegistry, repository, maxTags)
+		}
+
+		next, err := nextTags(repository, strings.Join(header.Values("Link"), ", "))
+		if err != nil {
+			return nil, err
+		}
+
+		switch next {
+		case "":
+			return tags, nil
+		case query:
+			return nil, fmt.Errorf("%w: %s: a page of tags links to itself", ErrRegistry, repository)
+		}
+
+		query = next
+	}
+
+	return nil, fmt.Errorf("%w: %s lists its tags in more than %d pages", ErrRegistry, repository, maxTagPages)
+}
+
+// nextTags returns the query of the next page of the tags of a repository
+// that a Link header names, with its question mark; "" for the last page.
+// The next page is the same list of the same registry: a link to anything
+// else is an error, and is not followed.
+func nextTags(repository, link string) (string, error) {
+	target := nextLink(link)
+	if target == "" {
+		return "", nil
+	}
+
+	host, name, err := ref(repository)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	var list struct {
-		Tags []string `json:"tags"`
+	list, err := url.Parse(baseURL(host) + "/v2/" + name + tagsList)
+	if err != nil {
+		return "", err
 	}
 
-	return list.Tags, json.Unmarshal(data, &list)
+	next, err := list.Parse(target)
+	if err != nil || sameorigin.Of(next) != sameorigin.Of(list) || next.Path != list.Path || next.RawQuery == "" {
+		return "", fmt.Errorf("%w: %s: the next page of tags is not of its list: %q", ErrRegistry, repository, target)
+	}
+
+	return "?" + next.RawQuery, nil
+}
+
+// nextLink returns the target of the link of the relation next in a Link
+// header (RFC 8288), "" for none.
+func nextLink(header string) string {
+	for header != "" {
+		_, rest, ok := strings.Cut(header, "<")
+		if !ok {
+			break
+		}
+
+		target, params, ok := strings.Cut(rest, ">")
+		if !ok {
+			break
+		}
+
+		// The parameters of a link end at the next one.
+		if i := strings.Index(params, "<"); i >= 0 {
+			params, header = params[:i], params[i:]
+		} else {
+			header = ""
+		}
+
+		for p := range strings.SplitSeq(params, ";") {
+			k, v, _ := strings.Cut(strings.TrimSpace(p), "=")
+			if strings.EqualFold(strings.TrimSpace(k), "rel") &&
+				slices.Contains(strings.Fields(strings.ToLower(strings.Trim(strings.TrimRight(strings.TrimSpace(v), ","), `"`))), "next") {
+				return target
+			}
+		}
+	}
+
+	return ""
 }
 
 // Resolve reads the manifest of a tag: the module it holds and the digest
