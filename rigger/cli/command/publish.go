@@ -19,15 +19,18 @@ import (
 var (
 	errPublishTo = errors.New("module publish needs -to oci://<host>/<repository>")
 	errNoVersion = errors.New("a module is published with the version of its metadata; it has none")
+	// errOnePublishDir is the error of a publish given more than one directory.
+	errOnePublishDir = errors.New("module publish takes one directory")
 )
 
 // runPublish runs rigger module publish [dir] -to oci://host/repository, or
 // rigger module publish [dir] [-key name.key], which signs and tags the
-// module in its git repository.
+// module in its git repository. The directory may be before or after the
+// flags.
 func runPublish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	dir := "."
+	dir, given := ".", false
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		dir, args = args[0], args[1:]
+		dir, given, args = args[0], true, args[1:]
 	}
 
 	flags := flag.NewFlagSet("rigger module publish", flag.ContinueOnError)
@@ -36,6 +39,17 @@ func runPublish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	key := flags.String("key", "", "git: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
 	if err := flags.Parse(args); err != nil {
+		return exitError
+	}
+
+	// The directory may follow the flags, as for module render. An argument
+	// that is not read would publish another directory than the one named.
+	switch {
+	case flags.NArg() == 1 && !given:
+		dir = flags.Arg(0)
+	case flags.NArg() > 0:
+		warn(stderr, "%v", errOnePublishDir)
+
 		return exitError
 	}
 
