@@ -228,7 +228,10 @@ func (f *Fetcher) gitVersions(ctx context.Context, req source.Request) ([]source
 // lock file recorded (design 7.2: a tag is never moved).
 var ErrTagMoved = errors.New("the tag points to another commit than the lock file records")
 
-var commitPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
+// commitPattern is the full hash of a commit as a lock file or a bundle
+// names one: SHA-1, or SHA-256 (which the cache may hold of a bundle; the
+// fetcher itself reads SHA-1, commitHash).
+var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // repositoryKey names a repository in the cache. What is kept is its
 // repository's: a commit or a digest is no secret, and one that served

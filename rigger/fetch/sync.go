@@ -12,6 +12,8 @@ import (
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // A host that keeps registries for a long time (a server,
@@ -23,6 +25,23 @@ import (
 // ErrNoCommit is the error of a commit that the repository does not have,
 // also after a fetch.
 var ErrNoCommit = errors.New("the repository has no such commit")
+
+// errCommit is the error of what should be the full hash of a commit and
+// is none.
+var errCommit = errors.New("not the full hash of a commit")
+
+// commitHash returns the hash go-git looks a commit up by. go-git reads
+// repositories of SHA-1, and its hash keeps the first twenty bytes of a
+// text: forty hex digits and more after them would name the commit of the
+// forty. So the text is the hash only when the hash reads back as the text.
+func commitHash(commit string) (plumbing.Hash, error) {
+	h := plumbing.NewHash(commit)
+	if h.String() != commit {
+		return plumbing.ZeroHash, fmt.Errorf("%w: %q (forty hex digits)", errCommit, commit)
+	}
+
+	return h, nil
+}
 
 // Sync fetches the mirror of a repository now, also when it was fetched
 // earlier in this run, and returns the commit of its default branch. A
@@ -45,10 +64,6 @@ func (f *Fetcher) Sync(ctx context.Context, repository string) (string, error) {
 // the cache, extracted from the mirror (fetched only when the mirror lacks
 // the commit). The directory is absolute and is not changed afterwards.
 func (f *Fetcher) Checkout(ctx context.Context, repository, commit string) (string, error) {
-	if !commitPattern.MatchString(commit) {
-		return "", fmt.Errorf("%s: invalid commit %q", repository, commit)
-	}
-
 	r, err := f.repoWith(ctx, repository, commit)
 	if err != nil {
 		return "", err
@@ -132,8 +147,13 @@ func (f *Fetcher) refresh(ctx context.Context, repository string) (*git.Reposito
 
 // repoWith opens a repository that has the commit: in place on the local
 // file system, else its mirror as it is, fetched once when it is missing or
-// lacks the commit.
+// lacks the commit. What is not the full hash of a commit is refused
+// (errCommit) before anything is opened or fetched.
 func (f *Fetcher) repoWith(ctx context.Context, repository, commit string) (*git.Repository, error) {
+	if _, err := commitHash(commit); err != nil {
+		return nil, fmt.Errorf("%s: %w", source.Redact(repository), err)
+	}
+
 	var r *git.Repository
 
 	if dir, ok := localPath(repository); ok {
@@ -174,14 +194,24 @@ func (f *Fetcher) repoWith(ctx context.Context, repository, commit string) (*git
 }
 
 func hasCommit(r *git.Repository, commit string) bool {
-	_, err := r.CommitObject(plumbing.NewHash(commit))
+	h, err := commitHash(commit)
+	if err != nil {
+		return false
+	}
 
-	return err == nil
+	c, err := r.CommitObject(h)
+
+	return err == nil && c.Hash.String() == commit
 }
 
 // ancestors returns the commit and every commit before it.
 func ancestors(r *git.Repository, commit string) (map[string]bool, error) {
-	iter, err := r.Log(&git.LogOptions{From: plumbing.NewHash(commit)})
+	from, err := commitHash(commit)
+	if err != nil {
+		return nil, err
+	}
+
+	iter, err := r.Log(&git.LogOptions{From: from})
 	if err != nil {
 		return nil, err
 	}

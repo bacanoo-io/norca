@@ -208,6 +208,12 @@ func TestRead_Commit(t *testing.T) {
 		{name: "manifest commit out of the cache", entries: map[string][]byte{
 			manifestFile: manifest("../../escape"),
 		}},
+		{name: "entry of a hash and a digit more", entries: map[string][]byte{
+			manifestFile: manifest(commit), "trees/" + commit + "0/metadata.hcl": []byte("x"),
+		}},
+		{name: "manifest commit of a hash and some digits more", entries: map[string][]byte{
+			manifestFile: manifest(commit + "abcdef"),
+		}},
 	}
 
 	for _, tt := range tests {

@@ -14,6 +14,8 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/bacanoo-io/norca/rigger/source"
 )
 
 // A repository on the local file system: Sync gives the commit of its
@@ -55,6 +57,68 @@ func TestSync_LocalRepository(t *testing.T) {
 
 	if _, err := f.Checkout(ctx, dir, "main"); err == nil {
 		t.Error("a ref that is not a commit was checked out")
+	}
+}
+
+// A commit is named by its full hash and nothing else. go-git keeps the
+// first forty digits of a longer text: the commit they name is not the
+// commit of the text, and its tree is not extracted once more under each
+// such name.
+func TestFetcher_CommitIsAFullHash(t *testing.T) {
+	t.Parallel()
+
+	dir, first, _ := testRepo(t)
+
+	tests := []struct {
+		name   string
+		commit string
+	}{
+		{name: "the length of SHA-256", commit: first + strings.Repeat("0", 24)},
+		{name: "a digit more", commit: first + "0"},
+		{name: "some digits more", commit: first + "abcdef"},
+		{name: "a digit less", commit: first[:39]},
+		{name: "capitals", commit: strings.ToUpper(first)},
+		{name: "no hex", commit: first[:38] + "zz"},
+		{name: "a branch", commit: "main"},
+		{name: "empty", commit: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := New(t.TempDir())
+
+			for name, repository := range map[string]string{"a directory": dir, "a URL": noNetwork} {
+				tree, err := f.Checkout(t.Context(), repository, tt.commit)
+				if !errors.Is(err, errCommit) {
+					t.Errorf("Checkout() of %s = %q, %v; want errCommit", name, tree, err)
+				}
+
+				tags, err := f.TagsAt(t.Context(), repository, tt.commit, "web/v")
+				if !errors.Is(err, errCommit) {
+					t.Errorf("TagsAt() of %s = %v, %v; want errCommit", name, tags, err)
+				}
+			}
+
+			if entries, _ := os.ReadDir(filepath.Join(f.cache, "trees")); len(entries) > 0 {
+				t.Errorf("%d trees were extracted", len(entries))
+			}
+		})
+	}
+
+	// The cache serves what a lock file pins by a full hash only, SHA-1 or
+	// SHA-256 (the commit of a bundle).
+	f := New(t.TempDir())
+
+	for commit, served := range map[string]bool{
+		strings.Repeat("a", 40): true, strings.Repeat("a", 64): true, strings.Repeat("a", 41): false, strings.Repeat("a", 63): false,
+	} {
+		write(t, filepath.Join(f.TreeDir(noNetwork, commit), testDir, "metadata.hcl"), "module {}\n")
+
+		if _, ok := f.cachedTree(source.Request{Repository: noNetwork, Commit: commit, Path: testDir}); ok != served {
+			t.Errorf("cachedTree() of a commit of %d digits = %v, want %v", len(commit), ok, served)
+		}
 	}
 }
 

@@ -269,9 +269,10 @@ func ModuleFiles(m rigger.SourcedModule, files map[string]map[string][]byte) map
 	return out
 }
 
-// commitPattern is a commit of git: SHA-1 or SHA-256 in hex. A commit names
-// the directory its tree is unpacked into, so nothing else may pass.
-var commitPattern = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
+// commitPattern is a commit of git: the full hash of SHA-1 or of SHA-256 in
+// hex, no length between them. A commit names the directory its tree is
+// unpacked into, so nothing else may pass.
+var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // maxFileBytes bounds one file of a bundle.
 const maxFileBytes = 64 << 20

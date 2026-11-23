@@ -374,7 +374,12 @@ func headCommit(r *git.Repository) (string, error) {
 // through an os.Root (as an archive of the commit would be extracted:
 // links and submodules are not part of a module).
 func writeTree(r *git.Repository, commit, dir string) error {
-	c, err := r.CommitObject(plumbing.NewHash(commit))
+	h, err := commitHash(commit)
+	if err != nil {
+		return err
+	}
+
+	c, err := r.CommitObject(h)
 	if err != nil {
 		return err
 	}
