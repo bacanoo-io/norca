@@ -96,8 +96,10 @@ func (e *Engine) fetchLockedStack(ctx context.Context, p *lang.StackPart, entry 
 // the locked version while it meets the constraint, unless upgrade, else
 // the newest that does. The modules of a part come from its own lock file.
 // A source is one entry of the lock file: the parts after the first that
-// names it take the published stack the first resolved.
-func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool) hcl.Diagnostics {
+// names it take the published stack the first resolved. total counts the
+// modules of the stack and its parts against Limits.Modules, as
+// resolveLockedParts does; it stops at the part that takes it over.
+func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool, total *int) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	// The part that resolved each source.
@@ -114,6 +116,12 @@ func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, 
 
 			p.Stack, p.Locked, p.Signatures, p.Signers = first.Stack, first.Locked, first.Signatures, first.Signers
 
+			// Its modules count for each part, as a load fetches them for each.
+			*total += stackModules(p.Stack)
+			if *total > e.limits.Modules {
+				return append(diags, e.tooManyModules(rng))
+			}
+
 			continue
 		}
 
@@ -128,7 +136,12 @@ func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, 
 			continue
 		}
 
-		diags = append(diags, e.resolveLocked(ctx, fs.stack)...)
+		// It says so itself when the modules of the part take total over.
+		diags = append(diags, e.resolveCounted(ctx, fs.stack, total)...)
+		if *total > e.limits.Modules {
+			return diags
+		}
+
 		diags = append(diags, fs.advisories(rng)...)
 
 		entry.Signers = p.Signers
@@ -138,6 +151,20 @@ func (e *Engine) syncParts(ctx context.Context, s *lang.Stack, lock *lang.Lock, 
 	}
 
 	return diags
+}
+
+// stackModules is the number of the modules of the releases of a loaded
+// stack, as resolveCounted counts them.
+func stackModules(s *lang.Stack) int {
+	n := 0
+
+	for _, r := range s.Releases {
+		if r.Module != nil {
+			n += moduleCount(r.Module)
+		}
+	}
+
+	return n
 }
 
 // syncPart resolves the version of one part.

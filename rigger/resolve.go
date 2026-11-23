@@ -475,8 +475,17 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 
 	lock := &lang.Lock{}
 
-	diags = append(diags, e.syncReleases(ctx, s, lock, rules, upgrade)...)
-	diags = append(diags, e.syncParts(ctx, s, lock, rules, upgrade)...)
+	// The modules of the stack, of its sources and of its parts count
+	// against Limits.Modules as a load counts them (resolveCounted): what a
+	// sync locks, a load on the same engine takes.
+	var total int
+
+	diags = append(diags, e.syncReleases(ctx, s, lock, rules, upgrade, &total)...)
+
+	// Nothing more is fetched for a stack that is over the bound.
+	if total <= e.limits.Modules {
+		diags = append(diags, e.syncParts(ctx, s, lock, rules, upgrade, &total)...)
+	}
 
 	if diags.HasErrors() {
 		return nil, nil, diags
@@ -490,9 +499,17 @@ func (e *Engine) syncStack(ctx context.Context, root fs.FS, dir string, upgrade 
 // syncReleases resolves the modules of the releases of a stack from
 // sources into the lock, and loads them into the releases. A source is one
 // entry of the lock file: the releases after the first that names it take
-// the module the first resolved.
-func (e *Engine) syncReleases(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool) hcl.Diagnostics {
+// the module the first resolved. total counts the modules, those of the
+// local sources first; it stops at the release that takes it over
+// Limits.Modules.
+func (e *Engine) syncReleases(ctx context.Context, s *lang.Stack, lock *lang.Lock, rules []eval.TrustRule, upgrade bool, total *int) hcl.Diagnostics {
 	var diags hcl.Diagnostics
+
+	for _, r := range s.Releases {
+		if r.Address == nil && r.Module != nil {
+			*total += moduleCount(r.Module)
+		}
+	}
 
 	// The release that resolved each source.
 	resolved := map[string]*lang.StackRelease{}
@@ -509,29 +526,44 @@ func (e *Engine) syncReleases(ctx context.Context, s *lang.Stack, lock *lang.Loc
 			}
 
 			r.Module, r.Locked, r.Signatures, r.Signers = first.Module, first.Locked, first.Signatures, first.Signers
+		} else {
+			diags = append(diags, e.lockRelease(ctx, s, r, lock, rules, upgrade)...)
 
-			continue
+			if r.Locked == nil {
+				continue
+			}
+
+			resolved[r.Source] = r
 		}
 
-		entry, fm, err := e.syncRelease(ctx, s, r, upgrade)
-		if err == nil {
-			err = e.trust(rules, r, fm, nil)
+		// A module counts for each release of it, as a load fetches it for each.
+		*total += moduleCount(r.Module)
+		if *total > e.limits.Modules {
+			return append(diags, e.tooManyModules(r.Block.DefRange))
 		}
-
-		if err != nil {
-			diags = append(diags, diagAt(r.Block.DefRange, "Module not resolved", err.Error()+"."))
-
-			continue
-		}
-
-		diags = append(diags, advisories(r.Block.DefRange, r.Source, fm)...)
-		entry.Signers = r.Signers
-		r.Module, r.Locked = fm.module, entry
-		lock.Modules = append(lock.Modules, entry)
-		resolved[r.Source] = r
 	}
 
 	return diags
+}
+
+// lockRelease resolves the module of a release from a source into the lock
+// and loads it into the release. A release it can't resolve stays without
+// its entry (Locked).
+func (e *Engine) lockRelease(ctx context.Context, s *lang.Stack, r *lang.StackRelease, lock *lang.Lock, rules []eval.TrustRule, upgrade bool) hcl.Diagnostics {
+	entry, fm, err := e.syncRelease(ctx, s, r, upgrade)
+	if err == nil {
+		err = e.trust(rules, r, fm, nil)
+	}
+
+	if err != nil {
+		return hcl.Diagnostics{diagAt(r.Block.DefRange, "Module not resolved", err.Error()+".")}
+	}
+
+	entry.Signers = r.Signers
+	r.Module, r.Locked = fm.module, entry
+	lock.Modules = append(lock.Modules, entry)
+
+	return advisories(r.Block.DefRange, r.Source, fm)
 }
 
 // syncRelease resolves the module of one release: the locked version when

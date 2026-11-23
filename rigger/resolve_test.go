@@ -6,6 +6,7 @@ package rigger_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -30,13 +31,15 @@ func webTree() fstest.MapFS {
 
 // newSyncEngine is an engine over a cluster in memory that fetches the one
 // version of tree.
-func newSyncEngine(t *testing.T, tree fstest.MapFS) *rigger.Engine {
+func newSyncEngine(t *testing.T, tree fstest.MapFS, opts ...rigger.Option) *rigger.Engine {
 	t.Helper()
 
 	f := newFakeCluster()
 
-	e, err := rigger.New(rigger.WithReleases(f), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)),
-		rigger.WithFetcher(repoFetcher{tree: tree, version: publishedVersion}))
+	e, err := rigger.New(append([]rigger.Option{
+		rigger.WithReleases(f), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)),
+		rigger.WithFetcher(repoFetcher{tree: tree, version: publishedVersion}),
+	}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,6 +312,93 @@ func TestSyncStack_GlobalRepository(t *testing.T) {
 
 			if second := sync(files, tt.second); !strings.Contains(string(second), `repository = "`+tt.expected+`"`) {
 				t.Errorf("the lock of the second sync does not name %s:\n%s", tt.expected, second)
+			}
+		})
+	}
+}
+
+// wideStack is a repository with the published stack wide 1.0.0: one
+// release, of the module top of moduleTree.
+func wideStack(width, levels int) fstest.MapFS {
+	tree := fstest.MapFS{
+		"stacks/wide/" + metadataFile: {Data: []byte("stack {\n  name    = \"wide\"\n  version = \"1.0.0\"\n}\n")},
+		"stacks/wide/stack.hcl":       {Data: []byte("rigger {\n  name = \"wide\"\n}\n\nmodule \"top\" {\n  source = \"./modules/top\"\n}\n")},
+	}
+
+	for name, f := range moduleTree(width, levels) {
+		tree["stacks/wide/"+name] = f
+	}
+
+	return tree
+}
+
+// stackOf is a stack with the registry acme and a block of the type for each
+// source, named b0, b1 and so on.
+func stackOf(blockType string, sources ...string) string {
+	var b strings.Builder
+
+	b.WriteString(acmeRegistry)
+
+	for i, src := range sources {
+		fmt.Fprintf(&b, "\n%s \"b%d\" {\n  source = %q\n}\n", blockType, i, src)
+	}
+
+	return b.String()
+}
+
+// A sync bounds the modules of a stack as a load does (Limits.Modules): the
+// modules of its sources and of its parts count with its own, each as often
+// as a release or a part uses it. So the lock file a sync writes loads on
+// the same engine.
+func TestSyncStack_ModulesBound(t *testing.T) {
+	t.Parallel()
+
+	// The module top of moduleTree(4, 4) is 341 modules; three of them are
+	// more than the 1000 of the engine.
+	const (
+		top     = "github.com/acme/rigger//modules/top"
+		release = "module"
+	)
+
+	tests := []struct {
+		name  string
+		stack string
+		tree  fstest.MapFS
+		// local puts the module top into the stack too.
+		local bool
+	}{
+		{name: "releases of one source", stack: stackOf(release, top, top, top), tree: moduleTree(4, 4)},
+		{
+			name:  "releases of three sources",
+			stack: stackOf(release, top, "github.com/acme/second//modules/top", "github.com/acme/third//modules/top"),
+			tree:  moduleTree(4, 4),
+		},
+		{name: "local modules and a source", stack: stackOf(release, "./modules/top", "./modules/top", top), tree: moduleTree(4, 4), local: true},
+		{name: "parts of one stack", stack: stackOf("stack", "acme/wide", "acme/wide", "acme/wide"), tree: wideStack(4, 4)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := stackFiles(tt.stack)
+
+			if tt.local {
+				for name, f := range moduleTree(4, 4) {
+					files["s/"+name] = f
+				}
+			}
+
+			if _, _, diags := newSyncEngine(t, tt.tree).SyncStack(t.Context(), files, "s", false); !strings.Contains(diags.Error(), tooManyModules) {
+				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tooManyModules)
+			}
+
+			// The stack is in order: an engine of a wider bound syncs it.
+			limits := rigger.DefaultLimits()
+			limits.Modules = 2000
+
+			if _, _, diags := newSyncEngine(t, tt.tree, rigger.WithLimits(limits)).SyncStack(t.Context(), files, "s", false); diags.HasErrors() {
+				t.Errorf("a sync with a bound of %d modules: %v", limits.Modules, diags)
 			}
 		})
 	}

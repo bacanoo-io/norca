@@ -91,7 +91,9 @@ func TestEngine_LoadStackWide(t *testing.T) {
 	}
 }
 
-// So do the modules a lock file pins, which are fetched one by one.
+// So do the modules a lock file pins, which are fetched one by one. The
+// lock file is of an engine with a wider bound: a sync has the bound of a
+// load (TestSyncStack_ModulesBound).
 func TestEngine_LoadStackLockedWide(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +102,9 @@ func TestEngine_LoadStackLockedWide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	wider := rigger.DefaultLimits()
+	wider.Modules = 2000
 
 	var stack strings.Builder
 
@@ -112,7 +117,7 @@ func TestEngine_LoadStackLockedWide(t *testing.T) {
 
 	files := stackFiles(stack.String())
 
-	_, lock, diags := e.SyncStack(t.Context(), files, "s", false)
+	_, lock, diags := newSyncEngine(t, moduleTree(4, 4), rigger.WithLimits(wider)).SyncStack(t.Context(), files, "s", false)
 	if diags.HasErrors() {
 		t.Fatal(diags)
 	}
