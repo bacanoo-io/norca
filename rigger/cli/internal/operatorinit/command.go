@@ -44,7 +44,8 @@ func run(_ context.Context, stdout, stderr io.Writer, args []string) error {
 	flags.StringVar(&opts.SDKPath, "sdk", "", "the norca directory of a Norca checkout: go.mod replaces the SDK and API modules with its controller and api directories")
 	flags.BoolVar(&opts.Force, "force", false, "overwrite existing files")
 
-	if err := flags.Parse(args[1:]); err != nil {
+	positional, err := parseMixed(flags, args[1:])
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return err
 		}
@@ -52,20 +53,20 @@ func run(_ context.Context, stdout, stderr io.Writer, args []string) error {
 		return command.ErrReported
 	}
 
-	if flags.NArg() < 1 || flags.NArg() > 2 {
+	if len(positional) < 1 || len(positional) > 2 {
 		return errors.New("operator init takes one or two arguments: <group>/<Kind> [dir]")
 	}
 
-	group, kind, ok := strings.Cut(flags.Arg(0), "/")
+	group, kind, ok := strings.Cut(positional[0], "/")
 	if !ok || group == "" || kind == "" || strings.Contains(kind, "/") {
-		return fmt.Errorf("invalid object kind %q: want <group>/<Kind>", flags.Arg(0))
+		return fmt.Errorf("invalid object kind %q: want <group>/<Kind>", positional[0])
 	}
 
 	opts.Group, opts.Kind = group, kind
 
 	opts.Dir = opts.OperatorName()
-	if flags.NArg() == 2 {
-		opts.Dir = flags.Arg(1)
+	if len(positional) == 2 {
+		opts.Dir = positional[1]
 	}
 
 	written, err := Generate(opts)
@@ -73,7 +74,27 @@ func run(_ context.Context, stdout, stderr io.Writer, args []string) error {
 		return fmt.Errorf("create the project: %w", err)
 	}
 
-	return report(stdout, stderr, flags.Arg(0), opts, written)
+	return report(stdout, stderr, positional[0], opts, written)
+}
+
+// parseMixed parses flags that may be before, between and after the other
+// arguments, and returns those. The flag package stops at the first
+// argument that is no flag: a flag after it would be taken for an argument,
+// "-force" for the directory of the project.
+func parseMixed(flags *flag.FlagSet, args []string) ([]string, error) {
+	var positional []string
+
+	for {
+		if err := flags.Parse(args); err != nil {
+			return nil, err
+		}
+
+		if flags.NArg() == 0 {
+			return positional, nil
+		}
+
+		positional, args = append(positional, flags.Arg(0)), flags.Args()[1:]
+	}
 }
 
 // report lists the files written and the next steps.

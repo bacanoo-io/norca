@@ -43,6 +43,28 @@ func TestCommand(t *testing.T) {
 			file:   "module/gadget/metadata.hcl",
 		},
 		{
+			name: "flags after the arguments",
+			args: func(dir string) []string {
+				return []string{cmdOperator, cmdInit, "infra.example.com/Gadget", dir, "-name", "sprocket", "-sdk", dir}
+			},
+			stdout: "module/sprocket/controller.acl.hcl",
+			file:   "module/sprocket/metadata.hcl",
+		},
+		{
+			name: "flags between the arguments",
+			args: func(dir string) []string {
+				return []string{cmdOperator, cmdInit, "-sdk", dir, "infra.example.com/Gadget", "-name", "cog", dir, "-force"}
+			},
+			stdout: "module/cog/controller.acl.hcl",
+			file:   "module/cog/metadata.hcl",
+		},
+		{
+			name:   "three arguments",
+			args:   func(dir string) []string { return []string{cmdOperator, cmdInit, "a.b/X", dir, "-force", dir} },
+			code:   1,
+			stderr: "operator init takes one or two arguments",
+		},
+		{
 			name:   "invalid kind",
 			args:   func(string) []string { return []string{cmdOperator, cmdInit, testWidget} },
 			code:   1,
@@ -96,6 +118,30 @@ func TestCommand(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A flag after the kind is a flag, not the directory of the project: the
+// project goes where it goes without the flag, and no directory is named
+// after the flag.
+func TestCommand_FlagIsNotTheDirectory(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+
+	var stdout, stderr bytes.Buffer
+
+	code := command.Run(t.Context(), []string{cmdOperator, cmdInit, "db.example.com/Widget", "-force"}, &stdout, &stderr, Command())
+	if code != 0 {
+		t.Fatalf("Run() = %d (stderr %q)", code, stderr.String())
+	}
+
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entries) != 1 || entries[0].Name() != "widget-operator" {
+		t.Errorf("the project was written into %v, want widget-operator alone", entries)
 	}
 }
 
