@@ -6,10 +6,14 @@ package fetch
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	git "github.com/go-git/go-git/v5"
 
@@ -291,5 +295,93 @@ func TestFetcher_IndexFS_MirrorOnlyWithoutNetwork(t *testing.T) {
 
 	if _, err := os.Stat(f.mirrorDir(noNetwork)); err != nil {
 		t.Errorf("the mirror of the earlier run: %v", err)
+	}
+}
+
+// A registry that does not answer holds the index of a fetcher for as long
+// as it likes; a second reader of the same fetcher waits for it no longer
+// than its own context.
+func TestFetcher_ReadIndex_HangingRegistry(t *testing.T) {
+	t.Parallel()
+
+	accepted, release := make(chan struct{}), make(chan struct{})
+
+	var once sync.Once
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		once.Do(func() { close(accepted) })
+		<-release
+	}))
+	t.Cleanup(srv.Close)
+
+	f := New(t.TempDir())
+	f.SetGlobalRegistry(srv.URL + "/registry")
+
+	req := source.Request{Source: webNamespace + "/" + webName, Kind: source.KindGlobal, Namespace: webNamespace, Name: webName}
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		if _, err := f.Versions(t.Context(), req); err == nil {
+			t.Error("Versions() of a registry that never answers = nil")
+		}
+	}()
+
+	<-accepted
+
+	t.Cleanup(func() {
+		close(release)
+		<-done
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+	defer cancel()
+
+	answered := make(chan error, 1)
+
+	go func() {
+		_, err := f.Versions(ctx, req)
+		answered <- err
+	}()
+
+	select {
+	case err := <-answered:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("Versions() of the second reader = %v, want context.DeadlineExceeded", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("the second reader waits for the registry that does not answer, past its own deadline")
+	}
+}
+
+// The index a fetcher keeps is of the registry it reads now: one that was
+// being read when the address changed is not kept for the new address.
+func TestFetcher_SetGlobalRegistry_WhileReading(t *testing.T) {
+	t.Parallel()
+
+	before, after := indexDir(t, testVersion), indexDir(t, "2.0.0")
+	req := source.Request{Source: "norca/nats", Kind: source.KindGlobal, Namespace: webNamespace, Name: "nats"}
+
+	f := New(t.TempDir())
+	f.SetGlobalRegistry(before)
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Go(func() {
+			if _, err := f.Versions(t.Context(), req); err != nil {
+				t.Errorf("Versions() while the address changes = %v", err)
+			}
+		})
+	}
+
+	f.SetGlobalRegistry(after)
+	wg.Wait()
+
+	got, err := f.Versions(t.Context(), req)
+	if err != nil || len(got) != 1 || got[0].Version != "2.0.0" {
+		t.Errorf("Versions() after the address changed = %v, %v; want 2.0.0 of the new registry", got, err)
 	}
 }

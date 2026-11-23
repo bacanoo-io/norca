@@ -40,10 +40,13 @@ type Fetcher struct {
 	*shared
 
 	// global is the address of the global registry; index is its files,
-	// read once per run.
-	global  string
-	indexMu sync.Mutex
-	index   *globalIndex
+	// read once per run. indexMu guards the two and is never held over the
+	// network; indexLoad lets one caller at a time read the index, and the
+	// others wait for it no longer than their contexts.
+	global    string
+	indexMu   sync.Mutex
+	index     *globalIndex
+	indexLoad keyedLock
 
 	// A run is the life of a fetcher; of a host that serves requests, a
 	// request (WithGlobalRegistry).

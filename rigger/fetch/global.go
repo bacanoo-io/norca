@@ -46,34 +46,63 @@ var ErrBlocked = errors.New("blocked by the global registry")
 // mirror of an earlier run serves: entries are never changed, only
 // advisories may be missing.
 func (f *Fetcher) readIndex(ctx context.Context) (*globalIndex, error) {
-	f.indexMu.Lock()
-	defer f.indexMu.Unlock()
-
-	if f.index != nil {
-		return f.index, nil
+	idx, global := f.currentIndex()
+	if idx != nil {
+		return idx, nil
 	}
 
-	fsys, err := f.indexFS(ctx)
+	// One reader fetches the registry; the others wait for it, each no
+	// longer than its context, and find the index read.
+	unlock, err := f.indexLoad.lock(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(f.global), err)
+		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(global), err)
+	}
+	defer unlock()
+
+	if idx, global = f.currentIndex(); idx != nil {
+		return idx, nil
+	}
+
+	fsys, err := f.indexFS(ctx, global)
+	if err != nil {
+		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(global), err)
 	}
 
 	adv, err := index.ReadAdvisories(fsys)
 	if err != nil {
-		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(f.global), err)
+		return nil, fmt.Errorf("the global registry %s: %w", source.Redact(global), err)
 	}
 
-	f.index = &globalIndex{fsys: fsys, advisories: adv}
+	idx = &globalIndex{fsys: fsys, advisories: adv}
 
-	return f.index, nil
+	f.indexMu.Lock()
+	defer f.indexMu.Unlock()
+
+	// The index of an address that was changed meanwhile serves this
+	// caller, who asked before the change, and is not kept.
+	if f.global == global {
+		f.index = idx
+	}
+
+	return idx, nil
 }
 
-func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
-	if info, err := os.Stat(f.global); err == nil && info.IsDir() && filepath.IsAbs(f.global) {
-		return os.DirFS(f.global), nil
+// currentIndex returns the index the fetcher keeps, nil when it has read
+// none, and the address of the registry.
+func (f *Fetcher) currentIndex() (*globalIndex, string) {
+	f.indexMu.Lock()
+	defer f.indexMu.Unlock()
+
+	return f.index, f.global
+}
+
+// indexFS returns the files of the global registry at an address.
+func (f *Fetcher) indexFS(ctx context.Context, global string) (fs.FS, error) {
+	if info, err := os.Stat(global); err == nil && info.IsDir() && filepath.IsAbs(global) {
+		return os.DirFS(global), nil
 	}
 
-	r, err := f.openRepo(ctx, f.global)
+	r, err := f.openRepo(ctx, global)
 	if err != nil {
 		// Without a network the mirror of an earlier run serves; a
 		// registry that refuses, or a request that ended, is not answered
@@ -82,7 +111,7 @@ func (f *Fetcher) indexFS(ctx context.Context) (fs.FS, error) {
 			return nil, err
 		}
 
-		cached, openErr := git.PlainOpen(f.mirrorDir(f.global))
+		cached, openErr := git.PlainOpen(f.mirrorDir(global))
 		if openErr != nil {
 			return nil, err
 		}
