@@ -360,14 +360,20 @@ func TestRiggerRegistry_Checks(t *testing.T) {
 		{name: "namespace in a repository", reg: "acme", spec: map[string]any{"type": "git", "source": repo.dir, "selected": []any{map[string]any{"kind": "module", "namespace": "x", "name": "web"}}}, err: "has no namespaces"},
 		{name: "unknown display", reg: "acme", spec: map[string]any{"type": "git", "source": repo.dir, "display": "all"}, err: "display"},
 		{name: "missing Variable", reg: "acme", spec: map[string]any{"type": "git", "source": "https://example.com/r", "authSecret": map[string]any{"path": "creds/none"}}, err: "does not exist"},
+		{name: "a password in the source", reg: "acme", spec: map[string]any{"type": "git", "source": "https://bob:s3cret@example.com/r"}, err: "credentials in an address"},
+		{name: "a token as the user of the source", reg: "acme", spec: map[string]any{"type": "git", "source": "s3cret@example.com/r"}, err: "credentials in an address"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := r.apply(tt.reg, tt.spec)
 			must.ErrorContains(t, err, tt.err)
+			must.StrNotContains(t, err.Error(), "s3cret")
 		})
 	}
+
+	// The user of an ssh address is no credential.
+	must.NoError(t, r.apply("overssh", map[string]any{"type": "git", "source": "git@example.com:acme/r"}))
 
 	must.NoError(t, r.apply("acme", map[string]any{"type": "git", "source": repo.dir}))
 

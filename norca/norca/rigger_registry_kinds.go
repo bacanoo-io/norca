@@ -14,6 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/rigger/catalog"
 	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/index"
+	riggersource "github.com/bacanoo-io/norca/rigger/source"
 )
 
 // The kind Registry of Rigger (design/rig-integration.md 4.5): a registry of
@@ -246,6 +247,14 @@ func (s *Server) checkRiggerRegistryApply(aclObj *acl.ACL, existing, obj *struct
 	if global != (reg.Spec.Type == riggerRegistryTypeGlobal) {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest,
 			"only the registry %q is of the type %q, and it is of no other type", structs.RiggerGlobalRegistry, riggerRegistryTypeGlobal)
+	}
+
+	// The source is stored in the object, where everyone who reads the
+	// registry sees it, and goes into lock files and release records: it
+	// carries no credentials. The fetcher refuses such an address too; here
+	// it is refused before it is stored. The error does not repeat them.
+	if err := riggersource.CheckRepository(reg.Spec.Source); err != nil {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "source: %v", err)
 	}
 
 	for _, ref := range reg.Spec.Selected {
