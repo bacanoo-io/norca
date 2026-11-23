@@ -342,6 +342,11 @@ func functionCases() []evaluateCase {
 			expected: `"post-installs" is not a phase`,
 		},
 		{
+			name:     "a hook of a null phase",
+			files:    map[string]string{appNorca: "job \"app\" {\n  hook {\n    on = [\"test\", null]\n  }\n}\n"},
+			expected: "app.norca.hcl:3,10-24: Invalid hook; on is a phase or a list of phases.",
+		},
+		{
 			name:     "a hook with an invalid timeout",
 			files:    map[string]string{appNorca: "job \"app\" {\n  hook {\n    on      = \"test\"\n    timeout = \"soon\"\n  }\n}\n"},
 			expected: `timeout "soon" is not a duration`,

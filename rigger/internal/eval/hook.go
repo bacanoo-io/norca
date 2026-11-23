@@ -108,6 +108,11 @@ func hookPhases(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, hcl.Diagno
 	var on []string
 
 	for _, p := range list.AsValueSlice() {
+		// A list that is not null may hold a null: on = [null].
+		if p.IsNull() {
+			return nil, hcl.Diagnostics{hookDiag(expr.Range(), "on is a phase or a list of phases.")}
+		}
+
 		phase := p.AsString()
 		if !slices.Contains(resource.HookPhases(), phase) {
 			return nil, hcl.Diagnostics{hookDiag(expr.Range(), fmt.Sprintf("%q is not a phase: %s.",
