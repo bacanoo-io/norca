@@ -324,37 +324,40 @@ func instancesValue(group []Resource) cty.Value {
 // asLiterals gives lists and sets as tuples and maps as objects, the types
 // of the literals an assertion compares with: ["a", "b"] is a tuple, and
 // a list of the same strings is not equal to it.
+//
+// The walk is its own, top down: cty.Transform puts the changed items back
+// into a collection of their old kind, and a list takes items of one type
+// only, which the tuples of lists of different lengths are not.
 func asLiterals(v cty.Value) cty.Value {
-	out, err := cty.Transform(v, func(_ cty.Path, v cty.Value) (cty.Value, error) {
-		inner, marks := v.Unmark()
-		if inner.IsNull() || !inner.IsKnown() {
-			return v, nil
-		}
-
-		ty := inner.Type()
-
-		switch {
-		case ty.IsListType() || ty.IsSetType():
-			if inner.LengthInt() == 0 {
-				return cty.EmptyTupleVal.WithMarks(marks), nil
-			}
-
-			return cty.TupleVal(inner.AsValueSlice()).WithMarks(marks), nil
-		case ty.IsMapType():
-			if inner.LengthInt() == 0 {
-				return cty.EmptyObjectVal.WithMarks(marks), nil
-			}
-
-			return cty.ObjectVal(inner.AsValueMap()).WithMarks(marks), nil
-		default:
-			return v, nil
-		}
-	})
-	if err != nil {
+	inner, marks := v.Unmark()
+	if inner.IsNull() || !inner.IsKnown() {
 		return v
 	}
 
-	return out
+	ty := inner.Type()
+
+	switch {
+	case ty.IsListType() || ty.IsSetType() || ty.IsTupleType():
+		items := make([]cty.Value, 0, inner.LengthInt())
+
+		for it := inner.ElementIterator(); it.Next(); {
+			_, item := it.Element()
+			items = append(items, asLiterals(item))
+		}
+
+		return cty.TupleVal(items).WithMarks(marks)
+	case ty.IsMapType() || ty.IsObjectType():
+		attrs := make(map[string]cty.Value, inner.LengthInt())
+
+		for it := inner.ElementIterator(); it.Next(); {
+			name, item := it.Element()
+			attrs[name.AsString()] = asLiterals(item)
+		}
+
+		return cty.ObjectVal(attrs).WithMarks(marks)
+	default:
+		return v
+	}
 }
 
 func or(s, def string) string {

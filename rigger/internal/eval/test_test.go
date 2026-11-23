@@ -142,6 +142,58 @@ func TestRunTest(t *testing.T) {
 	}
 }
 
+// The values a test reads are literals whatever their shape: the items of a
+// list of lists have tuples of different lengths, the values of a map of
+// objects different attributes.
+func TestRunTest_NestedCollections(t *testing.T) {
+	t.Parallel()
+
+	m := load(t, module(map[string]string{
+		variablesHCL: `variable "x" {
+  type    = list(list(string))
+  default = [["a"], ["b", "c"]]
+}
+
+variable "m" {
+  type    = map(set(number))
+  default = { one = [1], two = [1, 2] }
+}
+
+variable "o" {
+  type    = list(map(string))
+  default = [{ a = "1" }, { b = "2", c = "3" }]
+}
+`,
+		"outputs.hcl": "output \"x\" {\n  value = var.x\n}\n",
+	}))
+
+	parsed, diags := eval.ParseTests("test.riggertest.hcl", []byte(`test "t" {
+  assert {
+    condition     = var.x == [["a"], ["b", "c"]] && output.x == [["a"], ["b", "c"]]
+    error_message = "a list of lists"
+  }
+
+  assert {
+    condition     = var.m == { one = [1], two = [1, 2] }
+    error_message = "a map of sets"
+  }
+
+  assert {
+    condition     = var.o == [{ a = "1" }, { b = "2", c = "3" }]
+    error_message = "a list of maps"
+  }
+}
+`))
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	out := eval.RunTest(t.Context(), m, parsed[0], eval.Config{FileBytes: 1 << 20, Resources: 20, Jobs: eval.GenericJobs})
+	if !out.Passed() {
+		t.Errorf("failures = %q (%v)", strings.Join(out.Failures, "; "), out.Diagnostics)
+	}
+}
+
 func TestParseTests_Errors(t *testing.T) {
 	t.Parallel()
 
