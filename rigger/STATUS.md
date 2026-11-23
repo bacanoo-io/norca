@@ -16,11 +16,18 @@ values, loads and evaluations are bounded; what those bounds can't hold (a
 stack overflow, the memory of the process) waits for evaluation in a
 process of its own.
 
-2026-11-24: the findings of the bug report of 2026-11-23 are fixed (52 of
-55; three wait for a decision of the maintainer: how a constraint takes
-the pre-releases of the version its upper bound excludes, what a plan does
-with a deployed release that is disabled, and `RIGGER_VAR_<name>`). What
-changed holds over what is below.
+2026-11-24: the findings of the bug report of 2026-11-23 are fixed, all
+55. The last three were decided by the maintainer on 2026-11-24: an upper
+bound of a constraint keeps out the pre-releases of its version; a release
+that was installed and is disabled since stays installed, and the plan
+warns when the stack has another version of its module; the program reads
+`RIGGER_VAR_<name>`, and a name that is no variable is a warning. The
+servers of Norca set their own limits of a fetched commit (1 GiB a tree,
+128 MiB a file, 100,000 files; the `rigger` block of the server). The
+stacks of `examples/` are stacks of today with lock files a real sync
+wrote, and tests keep them so (`make examples` writes the lock files and
+the signatures again after a change of an example module). What changed
+holds over what is below.
 - Sources: an address carries no credentials; the cache serves a locked
   version only when the source can't be reached (not after a refusal); the
   global registry fails closed when its index is reached and can't be

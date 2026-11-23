@@ -1274,7 +1274,10 @@ leader's rights. So the core:
   `Fetcher.SetLimits`), the signatures of fetched content (64 files of
   64 KiB), a number of at most 1000 digits (literals, computed numbers and
   values), and the time limit holds for `ValidateStack` too; a sync counts
-  the modules against the limit as a load does;
+  the modules against the limit as a load does. The servers of Norca set
+  their own limits of a fetched commit, tighter than the defaults (1 GiB a
+  tree, 128 MiB a file, 100,000 files), and the `rigger` block of the
+  server configuration changes them;
 - touches the network only through `Source` / `Fetcher` and the cluster only
   through the host;
 - keeps a **stable, versioned API** (semver of the Go module); a host built
