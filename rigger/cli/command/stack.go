@@ -274,22 +274,15 @@ func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 		return reportDiags(stderr, f.dir, diags)
 	}
 
-	if len(f.files) > 0 || len(f.vars) > 0 || len(s.ValueFiles()) == 0 {
+	if len(f.files) > 0 || len(f.vars) > 0 {
 		diags = append(diags, eng.ValidateStack(ctx, s, values)...)
 	} else {
-		for _, p := range s.ValueFiles() {
-			src, err := s.ReadValueFile(p)
-			if err != nil {
-				return err
-			}
-
-			vals, moreDiags := rigger.ParseValues(p, src)
-			diags = append(diags, moreDiags...)
-
-			if !moreDiags.HasErrors() {
-				diags = append(diags, eng.ValidateStack(ctx, s, vals)...)
-			}
+		moreDiags, err := validateValueFiles(ctx, eng, s)
+		if err != nil {
+			return err
 		}
+
+		diags = append(diags, moreDiags...)
 	}
 
 	if len(diags) > 0 {
@@ -305,6 +298,33 @@ func validateStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 	_, err = fmt.Fprintf(stdout, "stack %s in %s is valid\n", s.Name(), f.dir)
 
 	return err
+}
+
+// validateValueFiles evaluates a stack with each value file under its
+// values/, or without values when it has none.
+func validateValueFiles(ctx context.Context, eng *rigger.Engine, s *rigger.Stack) (hcl.Diagnostics, error) {
+	files := s.ValueFiles()
+	if len(files) == 0 {
+		return eng.ValidateStack(ctx, s, nil), nil
+	}
+
+	var diags hcl.Diagnostics
+
+	for _, p := range files {
+		src, err := s.ReadValueFile(p)
+		if err != nil {
+			return nil, err
+		}
+
+		vals, moreDiags := rigger.ParseValues(p, src)
+		diags = append(diags, moreDiags...)
+
+		if !moreDiags.HasErrors() {
+			diags = append(diags, eng.ValidateStack(ctx, s, vals)...)
+		}
+	}
+
+	return diags, nil
 }
 
 // planApplyStack plans a stack and, with apply, applies the plan. A plan

@@ -168,6 +168,20 @@ func writeDiags(w io.Writer, dir string, diags hcl.Diagnostics) error {
 	return hcl.NewDiagnosticTextWriter(w, sources(dir, diags), 0, false).WriteDiagnostics(withoutSensitive(diags))
 }
 
+// writeDiagsOf writes diagnostics as writeDiags, of files that are not
+// where the user has them: named from the directory rel of root, under a
+// heading that says what they are.
+func writeDiagsOf(w io.Writer, heading, root, rel string, diags hcl.Diagnostics) error {
+	if _, err := fmt.Fprintf(w, "In %s:\n", heading); err != nil {
+		return err
+	}
+
+	files := map[string]*hcl.File{}
+	readSources(files, root, rel, diags)
+
+	return hcl.NewDiagnosticTextWriter(w, files, 0, false).WriteDiagnostics(withoutSensitive(diags))
+}
+
 // withoutSensitive returns diags without the context of those whose
 // expression reads a sensitive value: the writer of HCL prints the values an
 // expression reads, and panics on a marked one.

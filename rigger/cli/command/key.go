@@ -135,6 +135,12 @@ type signed struct {
 	what, name, version, digest string
 }
 
+// What a signature names.
+const (
+	whatModule = "module"
+	whatStack  = "stack"
+)
+
 // readSigned reads the module or the published stack (a directory with
 // stack.hcl) in dir and its tree digest.
 func readSigned(ctx context.Context, logger *slog.Logger, stderr io.Writer, dir string) (signed, error) {
@@ -161,7 +167,7 @@ func readSigned(ctx context.Context, logger *slog.Logger, stderr io.Writer, dir 
 
 		digest, err := s.Digest()
 
-		return signed{what: "stack", name: md.Name, version: md.Version, digest: digest}, err
+		return signed{what: whatStack, name: md.Name, version: md.Version, digest: digest}, err
 	}
 
 	m, diags, err := loadModule(ctx, eng, dir)
@@ -176,7 +182,7 @@ func readSigned(ctx context.Context, logger *slog.Logger, stderr io.Writer, dir 
 	digest, err := m.Digest()
 	md := m.Metadata()
 
-	return signed{what: "module", name: md.Name, version: md.Version, digest: digest}, err
+	return signed{what: whatModule, name: md.Name, version: md.Version, digest: digest}, err
 }
 
 // stackFile is the file that makes a directory a stack.
@@ -198,6 +204,12 @@ func signModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 		return err
 	}
 
+	return writeSignature(stdout, dir, key, t)
+}
+
+// writeSignature signs the tree digest of t with key and writes the
+// signature into the .rigger-signatures directory of dir.
+func writeSignature(stdout io.Writer, dir string, key *ecdsa.PrivateKey, t signed) error {
 	s, err := sign.Sign(key, t.digest, t.name, t.version)
 	if err != nil {
 		return err

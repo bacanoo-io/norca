@@ -78,43 +78,22 @@ func publishedRegistry(t *testing.T) (repo, reg, entry, keys string) {
 	t.Helper()
 
 	repo = greeterRepo(t, "1.0.0")
-	keys = t.TempDir()
-
-	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
-	t.Setenv(passwordEnv, "secret")
-
-	for _, v := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"} {
-		t.Setenv(v, "t")
-	}
-
-	for _, v := range []string{"GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
-		t.Setenv(v, "t@example.org")
-	}
-
-	riggerRun(t, exitOK, []string{wroteLock}, "key", "generate", "-out", filepath.Join(keys, "acme"))
+	keys = publishEnv(t)
 
 	module := filepath.Join(repo, "modules", "greeter")
 
 	// Publishing signs, commits the signature and tags; a tag is never
 	// made twice.
-	riggerRun(t, exitOK, []string{"signed greeter 1.0.0", "as greeter/v1.0.0"}, "module", "publish", module, "-key", filepath.Join(keys, "acme.key"))
+	riggerRun(t, exitOK, []string{"signed greeter 1.0.0", taggedGreeter}, "module", "publish", module, "-key", filepath.Join(keys, "acme.key"))
 	riggerRunErr(t, "is tagged already", "module", "publish", module, "-key", filepath.Join(keys, "acme.key"))
 
 	// 1.1.0 is tagged without a signature.
 	setVersion(t, repo, "1.1.0")
 	riggerRun(t, exitOK, []string{"as greeter/v1.1.0"}, "module", "publish", module)
 
-	pub, err := os.ReadFile(filepath.Join(keys, "acme.pub"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	reg = acmeRegistry(t, repo, keys)
 
-	reg = writeTree(t, map[string]string{
-		"namespaces/acme.json": `{"name": "acme", "owner": "acme", "repositories": [{"url": "` + repo + `", "layout": "registry"}]}` + "\n",
-		"keys/acme/acme.pub":   string(pub),
-	})
-
-	out := riggerRun(t, exitOK, []string{"listed module acme/greeter 1.0.0", "acme/greeter 1.1.0 (greeter/v1.1.0): not signed by a key of the namespace"},
+	out := riggerRun(t, exitOK, []string{listedGreeter, "acme/greeter 1.1.0 (greeter/v1.1.0): not signed by a key of the namespace"},
 		"index", "update", "-dir", reg, "-today", "2026-11-18")
 
 	entry = filepath.Join(reg, "modules", "a", "acme", "greeter.json")
