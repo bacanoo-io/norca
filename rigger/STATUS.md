@@ -128,8 +128,7 @@ then phase 7, which changes norca.
   services and Variables are the value of their block, mapped onto the API
   type by field names).
 - Phase 5: the lab case of a stack is not written yet (norca-lab runs on
-  the Hyper-V host). A variable only rules read is reported as unused, also
-  when it is a gate the installer must set.
+  the Hyper-V host).
 - Phase 6: icons in the user interface belong to norca (phase 7). The
   namespace `norca` of the global registry has no signing key yet: the
   maintainers make it (`rigger key generate`), and until then nothing of it is

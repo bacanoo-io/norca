@@ -1820,9 +1820,11 @@ Phase 5 as built (2026-11-18):
   Hyper-V host (`run-tests.ps1`, the elevated labrunner), and a case needs
   rigger built for Windows next to the deployer and the registry reached from
   there.
-- Open: a variable that only rules read is reported as unused (14.1), also
-  when it is a gate the installer must set (`consul_license_accepted`,
-  `allow_single_datacenter`).
+- Decided 2026-11-24: a variable that a rule reads is used (14.1). Its
+  value decides whether the module evaluates, as a gate the installer must
+  set does (`consul_license_accepted`, `allow_single_datacenter`); until
+  then such a gate was reported as unused. The price: a variable that a
+  rule validates and nothing else reads is no longer found.
 
 Phase 6 as built (2026-11-18), the global registry:
 

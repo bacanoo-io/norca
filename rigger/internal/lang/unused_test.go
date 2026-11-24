@@ -14,6 +14,9 @@ import (
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
 )
 
+// A variable that only a rule reads is used: its value decides whether the
+// module evaluates. Such a variable is a gate the installer sets, for
+// example the acceptance of a license.
 func TestUnusedVariables(t *testing.T) {
 	t.Parallel()
 
@@ -22,11 +25,11 @@ func TestUnusedVariables(t *testing.T) {
 		"variables.hcl": {Data: []byte(`variable "in_local" {}
 variable "in_dynamic" {}
 variable "in_output" {}
-variable "only_in_rule" {}
+variable "in_rule" {}
 variable "nowhere" {}
 
 rule "r" {
-  condition     = var.only_in_rule != ""
+  condition     = var.in_rule != ""
   error_message = "x"
 }
 `)},
@@ -54,8 +57,8 @@ rule "r" {
 		names = append(names, strings.Fields(d.Detail)[0])
 	}
 
-	if got := strings.Join(names, " "); got != "var.only_in_rule var.nowhere" {
-		t.Errorf("unused = %q, want var.only_in_rule var.nowhere", got)
+	if got := strings.Join(names, " "); got != "var.nowhere" {
+		t.Errorf("unused = %q, want var.nowhere", got)
 	}
 }
 
