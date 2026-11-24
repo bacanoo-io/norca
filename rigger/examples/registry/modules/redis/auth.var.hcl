@@ -1,14 +1,14 @@
-# The Variable of the pack, only with authentication on. Norca's format of a
-# Variable: a path and its items.
+# The Variable with the password, only with authentication on. Norca's
+# format of a Variable: a path and its items. The job reads it when it
+# starts (locals.hcl); an application that may read the path finds the user
+# and the password of AUTH there.
 variable "auth" {
   enabled = var.auth_enabled
 
-  # As the pack: the path does not follow job_name, so a job with another
-  # name does not read this Variable by its workload identity (README.md).
-  path = "nomad/jobs/redis"
+  path = local.auth_path
 
   items {
-    mode     = var.mode
+    user     = "default"          # the user of Redis the password belongs to
     password = var.redis_password # sensitive: a secret item of the release
   }
 }

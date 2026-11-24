@@ -46,11 +46,11 @@ func TestRun_ModuleRender(t *testing.T) {
 			name: "values from a file and flags",
 			args: []string{
 				cmdModule, cmdRender, redisDir, "-f", redisDir + "/examples/auth.vars.hcl",
-				flagVar, "count=2", "-release", "cache", "-namespace", "apps", "-region", "eu",
+				flagVar, "memory=512", "-release", "cache", "-namespace", "apps", "-region", "eu",
 			},
 			expectedCode: exitOK,
 			expectedStdout: []string{
-				`"kind": "variable"`, `"secret_items": [`, `"password"`, `"Count": 2`, `"Region": "eu"`,
+				`"kind": "variable"`, `"secret_items": [`, `"password"`, `"MemoryMB": 512`, `"Region": "eu"`,
 			},
 		},
 		{
@@ -61,15 +61,15 @@ func TestRun_ModuleRender(t *testing.T) {
 		},
 		{
 			name:           "an invalid value",
-			args:           []string{cmdModule, cmdRender, redisDir, flagVar, "mode=cluster"},
+			args:           []string{cmdModule, cmdRender, redisDir, flagVar, "network_mode=overlay"},
 			expectedCode:   exitError,
-			expectedStderr: `var.mode is "cluster", not one of`,
+			expectedStderr: `var.network_mode is "overlay", not one of`,
 		},
 		{
 			name:           "not name=value",
-			args:           []string{cmdModule, cmdRender, redisDir, flagVar, "count"},
+			args:           []string{cmdModule, cmdRender, redisDir, flagVar, "memory"},
 			expectedCode:   exitError,
-			expectedStderr: `"count" is not name=value`,
+			expectedStderr: `"memory" is not name=value`,
 		},
 		{
 			name:           "two directories",

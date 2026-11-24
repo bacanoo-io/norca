@@ -88,7 +88,7 @@ module "redis" {
 		t.Fatal(err)
 	}
 
-	for _, want := range []string{`module "local/greeter"`, `version    = "1.0.0"`, `ref        = "greeter/v1.0.0"`, `module "builtin/redis"`, `version = "0.3.0"`, `digest`} {
+	for _, want := range []string{`module "local/greeter"`, `version    = "1.0.0"`, `ref        = "greeter/v1.0.0"`, `module "builtin/redis"`, `version = "0.4.0"`, `digest`} {
 		if !strings.Contains(string(lock), want) {
 			t.Fatalf("lock file does not hold %q:\n%s\n%s", want, lock, out)
 		}

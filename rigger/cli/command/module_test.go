@@ -53,7 +53,7 @@ func TestRun_ModuleValidate(t *testing.T) {
 			name:           "a valid module",
 			args:           []string{cmdModule, cmdValidate, "../../examples/registry/modules/redis"},
 			expectedCode:   exitOK,
-			expectedStdout: "module redis 0.3.0 in ../../examples/registry/modules/redis is valid",
+			expectedStdout: "module redis 0.4.0 in ../../examples/registry/modules/redis is valid",
 		},
 		{
 			name:           "an invalid example",

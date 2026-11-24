@@ -1,12 +1,12 @@
-# The variables of the pack. namespace and region are gone: they are the
-# release's (rigger.namespace, rigger.region; design 6.4). The options of a choice
-# are a validation, so a value outside them is refused; the form takes them
-# from there and keeps only their labels.
+# The variables of the module. The namespace and the region are the
+# release's (rigger.namespace, rigger.region; design 6.4). The options of a
+# choice are a validation, so a value outside them is refused; the form takes
+# them from there and keeps only their labels.
 
 variable "job_name" {
   type        = string
   default     = "redis"
-  description = "Name of the Redis job and service."
+  description = "Name of the Redis job and of its service. The Variable with the password is nomad/jobs/<job_name>."
 
   validation {
     pattern = "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$"
@@ -52,7 +52,7 @@ variable "node_pool" {
 variable "image" {
   type        = string
   default     = "redis:7.2-alpine"
-  description = "Container image of Redis."
+  description = "Container image of Redis. The module expects the entrypoint of the official image: started as root, it makes the user redis the owner of /data and runs the server as that user."
 
   validation {
     min_length = 1
@@ -66,51 +66,29 @@ variable "image" {
   }
 }
 
-# Unused by the job: the pack writes it only into the Variable, so every
-# topology runs as standalone (README.md).
-variable "mode" {
-  type        = string
-  default     = "standalone"
-  description = "Deployment topology mode."
-
-  validation {
-    one_of = ["standalone", "replica", "sentinel"]
-  }
-
-  ui {
-    tab           = "general"
-    group         = "Identity"
-    order         = 3
-    label         = "Topology Mode"
-    widget        = "segmented"
-    option_labels = { standalone = "Standalone", replica = "Primary + Replicas", sentinel = "High Availability (Sentinel)" }
-  }
-}
-
-variable "count" {
+variable "uid" {
   type        = number
-  default     = 1
-  description = "Number of Redis instances."
+  default     = 999
+  description = "User id the server runs as in the image (999 is the user redis of the official images). The configuration file with the password belongs to it and nobody else reads it."
 
   validation {
-    min     = 1
-    max     = 16
+    min     = 0
+    max     = 65535
     integer = true
   }
 
   ui {
-    tab    = "resources"
-    group  = "Sizing"
-    order  = 1
-    label  = "Instance Count"
-    widget = "slider"
+    tab   = "advanced"
+    group = "Image"
+    order = 2
+    label = "User ID of Redis"
   }
 }
 
 variable "cpu" {
   type        = number
   default     = 500
-  description = "CPU of an instance in MHz."
+  description = "CPU of the server in MHz."
 
   validation {
     min     = 100
@@ -130,7 +108,7 @@ variable "cpu" {
 variable "memory" {
   type        = number
   default     = 256
-  description = "Memory of an instance in MB."
+  description = "Memory of the server in MB."
 
   validation {
     min     = 64
@@ -150,14 +128,32 @@ variable "memory" {
 variable "persistence_enabled" {
   type        = bool
   default     = false
-  description = "Enable Append-Only File (AOF) persistence."
+  description = "Keep the data: the append-only file (AOF) and the snapshots are written to the host volume. Without it Redis is a cache that starts empty and writes nothing to disk."
 
   ui {
     tab    = "resources"
     group  = "Storage"
     order  = 4
-    label  = "Enable AOF Persistence"
+    label  = "Keep the Data (AOF)"
     widget = "switch"
+  }
+}
+
+variable "host_volume" {
+  type        = string
+  default     = "redis"
+  description = "Client host volume with the data, mounted at /data; used with persistence_enabled. The server runs only on nodes that have it."
+
+  validation {
+    min_length = 1
+  }
+
+  ui {
+    tab     = "resources"
+    group   = "Storage"
+    order   = 5
+    label   = "Host Volume"
+    show_if = { field = "persistence_enabled", equals = true }
   }
 }
 
@@ -182,7 +178,7 @@ variable "network_mode" {
 variable "port" {
   type        = number
   default     = 6379
-  description = "Redis TCP listen port."
+  description = "Port Redis listens on in the network namespace of the group (bridge). The node maps a port of its own to it; with network_mode = \"host\" Redis listens on the port the node gives. Clients find the address and the port in the service catalog."
 
   validation {
     min     = 1
@@ -198,11 +194,10 @@ variable "port" {
   }
 }
 
-# Unused by the job: the pack registers no service (README.md).
 variable "service_tags" {
   type        = list(string)
   default     = ["cache", "redis"]
-  description = "Service catalog tags."
+  description = "Tags of the service in the catalog."
 
   ui {
     tab    = "networking"
@@ -215,7 +210,7 @@ variable "service_tags" {
 variable "auth_enabled" {
   type        = bool
   default     = false
-  description = "Create a Norca Variable for Redis authentication."
+  description = "Require a password: Redis refuses every command of a client that has not sent it (AUTH)."
 
   ui {
     tab    = "security"
@@ -226,10 +221,9 @@ variable "auth_enabled" {
   }
 }
 
-# The pack's secret { path, item } wrote this value into the item password of
-# the Variable. Here it is a sensitive value that the Variable resource
-# (auth.var.hcl) takes: Rigger sends it to the release API as a secret item,
-# never in the revision (design 6.3).
+# A sensitive value that the Variable resource (auth.var.hcl) takes: Rigger
+# sends it to the release API as a secret item, never in the revision
+# (design 6.3). The job reads it from the Variable when it starts.
 variable "redis_password" {
   type        = string
   default     = ""
@@ -244,7 +238,6 @@ variable "redis_password" {
   }
 }
 
-# Unused by the job: the pack passes no environment (README.md).
 variable "extra_env" {
   type        = map(string)
   default     = {}
@@ -262,4 +255,9 @@ variable "extra_env" {
 rule "password_needs_auth" {
   condition     = var.redis_password == "" || var.auth_enabled
   error_message = "redis_password is written only with auth_enabled = true."
+}
+
+rule "auth_needs_password" {
+  condition     = !var.auth_enabled || var.redis_password != ""
+  error_message = "auth_enabled = true needs redis_password: with an empty password Redis accepts every client."
 }

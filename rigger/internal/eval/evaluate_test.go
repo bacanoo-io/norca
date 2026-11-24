@@ -48,7 +48,8 @@ func TestEvaluate_Redis(t *testing.T) {
 
 	fsys := os.DirFS("../../examples/registry/modules/redis")
 
-	res, diags := evaluate(t, fsys, ``)
+	// In host mode the module gives the port no mapping: to is null.
+	res, diags := evaluate(t, fsys, `network_mode = "host"`)
 	if diags.HasErrors() {
 		t.Fatal(diags)
 	}
@@ -62,11 +63,12 @@ func TestEvaluate_Redis(t *testing.T) {
 		Region string `json:"region"`
 		Group  struct {
 			Redis struct {
-				Task struct {
-					Redis struct {
-						Config map[string]any `json:"config"`
-					} `json:"redis"`
-				} `json:"task"`
+				Network struct {
+					Mode string `json:"mode"`
+					Port struct {
+						DB map[string]any `json:"db"`
+					} `json:"port"`
+				} `json:"network"`
 			} `json:"redis"`
 		} `json:"group"`
 	}
@@ -79,8 +81,12 @@ func TestEvaluate_Redis(t *testing.T) {
 		t.Errorf("id, region = %q, %q, want redis, eu", job.ID, job.Region)
 	}
 
-	if _, ok := job.Group.Redis.Task.Redis.Config["args"]; ok {
-		t.Error("args is in the job; a null attribute is left out")
+	if mode := job.Group.Redis.Network.Mode; mode != "host" {
+		t.Errorf("network mode = %q, want host", mode)
+	}
+
+	if _, ok := job.Group.Redis.Network.Port.DB["to"]; ok {
+		t.Error("to is in the port; a null attribute is left out")
 	}
 
 	if len(res.Outputs) != 3 || res.Outputs[0].Name != "auth_variable" || string(res.Outputs[0].Value) != "null" {
@@ -116,7 +122,7 @@ func TestEvaluate_RedisSecretItem(t *testing.T) {
 		t.Errorf("the spec holds the password: %s", v.Spec)
 	}
 
-	if !strings.Contains(string(v.Spec), `"items":{"mode":"standalone"}`) {
+	if !strings.Contains(string(v.Spec), `"items":{"user":"default"}`) {
 		t.Errorf("spec = %s, want the plain items", v.Spec)
 	}
 }

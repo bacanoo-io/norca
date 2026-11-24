@@ -17,7 +17,7 @@ the language.
 rigger module validate examples/registry/modules/redis
 rigger module render examples/registry/modules/redis \
     -f examples/registry/modules/redis/examples/auth.vars.hcl \
-    -var count=2 -release cache -namespace apps -region eu
+    -var memory=512 -release cache -namespace apps -region eu
 ```
 
 `render` prints the evaluated resources and outputs as JSON; a job is

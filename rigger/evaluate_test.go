@@ -41,9 +41,9 @@ func TestEngine_Evaluate(t *testing.T) {
 		{
 			name: "invalid values",
 			install: rigger.Install{Release: "cache", Namespace: testNamespace, Region: "eu", Values: rigger.Values{
-				"count": {Value: cty.NumberIntVal(0)},
+				"memory": {Value: cty.NumberIntVal(0)},
 			}},
-			expected: "var.count is 0, less than 1",
+			expected: "var.memory is 0, less than 64",
 		},
 	}
 

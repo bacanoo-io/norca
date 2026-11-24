@@ -209,9 +209,9 @@ func TestLoad_Variables(t *testing.T) {
 		t.Errorf("redis_password = %+v, want a sensitive string with an empty default", v)
 	}
 
-	v, ok = m.Variable("mode")
-	if !ok || len(v.Validation.OneOf) != 3 {
-		t.Errorf("mode = %+v, want three options in one_of", v)
+	v, ok = m.Variable("network_mode")
+	if !ok || len(v.Validation.OneOf) != 2 {
+		t.Errorf("network_mode = %+v, want two options in one_of", v)
 	}
 
 	if _, ok := m.Variable("namespace"); ok {

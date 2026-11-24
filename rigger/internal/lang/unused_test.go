@@ -62,14 +62,13 @@ rule "r" {
 	}
 }
 
-// The examples: redis keeps the faults of its pack (design 14.1), the
-// other modules use every variable.
+// The examples use every variable.
 func TestUnusedVariables_Examples(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]string{
 		"module/web":                     "",
-		"registry/modules/redis":         "var.service_tags var.extra_env",
+		"registry/modules/redis":         "",
 		"registry/modules/nats":          "",
 		"registry/modules/postgres":      "",
 		"registry/modules/lib/placement": "",

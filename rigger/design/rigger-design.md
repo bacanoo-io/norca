@@ -1581,6 +1581,17 @@ but Redis does not read it, and the path of the Variable ignores `job_name`.
 Two of them are of a kind `rigger module validate` finds by itself: **a variable
 that no expression of the module reads is a warning.**
 
+Fixed in redis 0.4.0 (2026-11-25), in `examples/`, in the built-in module
+and in norca-registry. The module is one server: `mode` and `count` are gone
+(a count above one gave unrelated servers behind one name), the job
+registers a service with `service_tags` and passes `extra_env`, Redis
+requires the password (a configuration file of the task, read from the
+Variable when the task starts), the Variable is at `nomad/jobs/<job_name>`,
+and persistence writes to a host volume. Version 0.3.0, with the faults,
+was never published. The rows of the table above that name `mode` and
+`args` describe that version; the null attribute the tests look at is now
+`to` of the port in host mode.
+
 Result for phase 0: the language of section 4 holds for both packs. Added:
 `variable_ref()`, the `id` of a job, a sensitive variable as the input of a
 secret item, `one_of` as the source of a form's options, the warning on an
@@ -1909,6 +1920,10 @@ Phase 6 as built (2026-11-18), the global registry:
   every tag of the registry validates and is reported as not signed.
   Checked on a copy with a key of its own: nats 2.0.0 signed, listed, and
   installed by a stack from `norca/nats` through the registry.
+  Done 2026-11-24: the maintainers made the key, the modules of
+  norca-registry are signed and tagged, and the global registry lists 18
+  of them (all but redis, which waited for its version 0.4.0). A stack
+  with `norca/nats` and `norca/traefik` syncs from it.
 - Not in this phase: icons in the user interface (phase 7, in norca); the
   user configuration of registries (`rigger registry add`), `rigger login` and
   credentials of OCI registries; a registry stack used by name of a

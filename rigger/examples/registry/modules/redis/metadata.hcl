@@ -1,12 +1,11 @@
-# The built-in pack redis 0.2.1 of norca (norca/norca/norca/pack_builtin_catalog.go),
-# converted on paper in phase 0 of the design. It follows the pack, its faults
-# included, so that it renders the same job (design 14); the faults are named
-# in the comments and in README.md.
+# One Redis server. It began as the built-in pack redis 0.2.1 of norca,
+# converted on paper in phase 0 of the design (design 14); since 0.4.0 the
+# faults of that pack are fixed (README.md).
 
 module {
   name        = "redis"
-  version     = "0.3.0"
-  description = "An in-memory data store with optional AOF persistence and a password in a Norca Variable."
+  version     = "0.4.0"
+  description = "One Redis server: a service in the catalog, a password from a Norca Variable that the server requires, optional persistence on a host volume."
   url         = "https://redis.io"
   license     = "BSD-3-Clause" # Redis 7.2; the official image is referenced, not shipped
   category    = "database"

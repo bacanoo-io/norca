@@ -129,10 +129,7 @@ then phase 7, which changes norca.
   type by field names).
 - Phase 5: the lab case of a stack is not written yet (norca-lab runs on
   the Hyper-V host).
-- Phase 6: icons in the user interface belong to norca (phase 7). The
-  namespace `norca` of the global registry has no signing key yet: the
-  maintainers make it (`rigger key generate`), and until then nothing of it is
-  listed. `norca-global-registry` is committed, not pushed.
+- Phase 6: icons in the user interface belong to norca (phase 7).
 - Phase 7 on: the embedding into Norca, which changes norca. For later:
   the user configuration of registries (`rigger registry add`), OCI
   credentials from docker's configuration, `rigger login`, keyless signing.

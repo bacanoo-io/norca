@@ -52,11 +52,11 @@ func TestVariables_Redis(t *testing.T) {
 		expected string
 	}{
 		{name: "defaults", values: ``},
-		{name: "an option", values: `mode = "replica"`},
-		{name: "not an option", values: `mode = "cluster"`, expected: `var.mode is "cluster", not one of "standalone", "replica", "sentinel"`},
-		{name: "below the minimum", values: `count = 0`, expected: "var.count is 0, less than 1"},
-		{name: "not whole", values: `count = 1.5`, expected: "var.count is 1.5, not a whole number"},
-		{name: "wrong type", values: `count = "three"`, expected: "var.count must be a number"},
+		{name: "an option", values: `network_mode = "host"`},
+		{name: "not an option", values: `network_mode = "overlay"`, expected: `var.network_mode is "overlay", not one of "bridge", "host"`},
+		{name: "below the minimum", values: `memory = 0`, expected: "var.memory is 0, less than 64"},
+		{name: "not whole", values: `memory = 100.5`, expected: "var.memory is 100.5, not a whole number"},
+		{name: "wrong type", values: `memory = "much"`, expected: "var.memory must be a number"},
 		{name: "a rule", values: `redis_password = "x"`, expected: "Rule not met: password_needs_auth; redis_password is written only with auth_enabled = true"},
 		{name: "undeclared", values: `namspace = "x"`, expected: `The module "redis" has no variable "namspace"`},
 		{name: "undeclared with a hint", values: `job_nam = "x"`, expected: `Did you mean "job_name"?`},
