@@ -113,6 +113,13 @@ func TestIntegration_Stack(t *testing.T) {
 	riggerRun(t, exitOK, []string{"uninstalled default/solo"}, "release", "uninstall", "solo")
 }
 
+// ownedByStack says whether the owner of a revision is the stack of that
+// namespace and name. The owner is a field of the release API; the
+// description of a release is for people.
+func ownedByStack(owner *api.ReleaseOwner, namespace, name string) bool {
+	return owner != nil && owner.Kind == api.ReleaseOwnerKindStack && owner.Namespace == namespace && owner.Name == name
+}
+
 // checkCluster checks what the apply wrote: the generated token in the
 // Variable and the secret, never in the revision; runtime references in
 // the job as written.
@@ -145,8 +152,8 @@ func checkCluster(t *testing.T, client *api.Client) {
 		t.Fatal(err)
 	}
 
-	if data, _ := json.Marshal(rev); strings.Contains(string(data), token) || rev.Spec.Description != "rigger stack riggerit" {
-		t.Errorf("the revision holds the token or no owner: %s", data)
+	if data, _ := json.Marshal(rev); strings.Contains(string(data), token) || !ownedByStack(rev.Spec.Owner, "default", "riggerit") {
+		t.Errorf("the revision holds the token or its owner is not the stack default/riggerit: %s", data)
 	}
 
 	job, _, err := client.Jobs().Info("riggerit-worker", nil)
