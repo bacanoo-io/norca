@@ -146,6 +146,17 @@ jobs:
             ./scheduler/... \
             ./secretstore/... \
             ./version/...
+      - name: RPC types of the servers with the generated codec
+        # The release builds use the generated msgpack codec (the tag
+        # codegen_generated). An RPC type outside norca/structs that embeds
+        # structs.WriteRequest or its kin inherits that codec and loses its
+        # own fields on the wire, unless it has codec methods of its own:
+        # a request forwarded to the leader then arrives empty. These tests
+        # catch that; the tests above run without the tag and cannot.
+        working-directory: norca
+        run: |
+          go test -count=1 -tags codegen_generated ./norca/ \
+            -run 'RPC_MsgpackRoundTrip|TestRPCTypes_ShadowTheGeneratedCodec|TestRigger_StackRequestForwardedWithFiles'
       - name: uBixVault subtree adapted to the norca module
         # norca/secretstore/ubix must match what norca/tools/ubixsync makes
         # of it (no unused upstream code, rewritten imports, current facades).
