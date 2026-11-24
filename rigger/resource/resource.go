@@ -35,10 +35,12 @@ const (
 	KindJob             Kind = "job"
 )
 
-// builtin is the order in which the server applies the kinds of a release.
+// builtin is the order in which the server applies the kinds of a release
+// (releaseResourceOrder of norca). A quota comes before the namespaces: a
+// namespace is written with the quota it names, and is deleted before it.
 var builtin = []Kind{
-	KindNamespace,
 	KindQuota,
+	KindNamespace,
 	KindACLPolicy,
 	KindVariable,
 	KindObjectKind,

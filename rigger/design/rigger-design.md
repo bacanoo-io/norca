@@ -421,8 +421,10 @@ the decoder can take its values from outside is a spike of phase 0
 ## 5. Resources of a module
 
 One file per resource (section 4.5), of the kinds the releases know, applied
-in the server's fixed order: namespace, quota, ACL policy, Variable, object
-kind, admission policy, external service, object, job.
+in the server's fixed order: quota, namespace, ACL policy, Variable, object
+kind, admission policy, external service, object, job (a quota before the
+namespaces since 2026-11-24, as the servers apply them: a namespace is
+written with the quota it names).
 
 - The kind comes from the file extension, so the `variable` block of a
   `.var.hcl` file (a Norca Variable) and the `variable` block of
