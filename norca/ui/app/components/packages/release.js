@@ -30,8 +30,8 @@ import { listRiggerRegistries, riggerBackend } from 'nomad-ui/utils/rigger';
 
 /**
  * A release: its resources in apply order, the revision history with
- * comparison of two revisions, hooks and tests, conditions, drift, the
- * state in every region of a multi-region install and the event log.
+ * comparison of two revisions, hooks and tests, conditions, drift and the
+ * event log.
  * Roll back (with a dry run first), run the tests and uninstall for tokens
  * with write on the release. A release of Rigger is upgraded from the
  * registry it came from; one the pack manager made can only be rolled
@@ -47,7 +47,6 @@ export default class PackagesRelease extends Component {
   @tracked release = null;
   @tracked history = [];
   @tracked events = [];
-  @tracked regionStates = [];
   @tracked isLoading = true;
   @tracked loadError = null;
   @tracked drift = null;
@@ -372,36 +371,6 @@ export default class PackagesRelease extends Component {
     if (!this.compareA && history.length > 1) {
       this.compareA = String(history[1].Revision);
       this.compareB = String(history[0].Revision);
-    }
-    const regions = this.release.Spec?.Multiregion?.Regions || [];
-    if (regions.length > 1) {
-      this.regionStates = await Promise.all(
-        regions.map(async (region) => {
-          try {
-            const { body } = await getRelease(
-              this.token,
-              region,
-              ns,
-              this.args.name
-            );
-            return {
-              region,
-              phase: body.Status?.Phase,
-              revision: body.Status?.Revision,
-              tone: phaseTone(body.Status?.Phase),
-              drifted: isDrifted(body),
-            };
-          } catch (e) {
-            return {
-              region,
-              phase: e.status === 404 ? 'not installed' : 'unreachable',
-              tone: 'danger',
-            };
-          }
-        })
-      );
-    } else {
-      this.regionStates = [];
     }
     this.isLoading = false;
   }

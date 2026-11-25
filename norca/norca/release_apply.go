@@ -138,10 +138,6 @@ type applyInput struct {
 	// variablesSchemas are stored in the revision.
 	variablesSchemas []*structs.ReleaseVariablesSchema
 
-	// multiregion describes the multi-region install this region applies
-	// its part of, nil for a release of this region only.
-	multiregion *structs.ReleaseMultiregion
-
 	// owner is the owner of the release (a Rigger stack), inputDigest
 	// Rigger's digest of what it applies, both stored in the revision;
 	// adopt lets the operation take over a release of another manager or
@@ -149,12 +145,6 @@ type applyInput struct {
 	owner       *structs.ReleaseOwner
 	inputDigest string
 	adopt       bool
-
-	// adopted maps the keys of the multiregion jobs that another region
-	// registers to that region; global are the global resources that the
-	// global region applies. Both are set by runApply.
-	adopted map[string]string
-	global  []*structs.ReleaseResource
 
 	// serverRendered reports whether the server rendered the pack templates
 	// from its verified pack catalog, binding pack.Digest to resources (PK-6).
@@ -483,24 +473,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		return err
 	}
 
-	// A region of a multi-region install applies its part of the pack. An
-	// operation on a release of such an install from this region alone keeps
-	// the division of work.
-	if in.multiregion == nil && rel != nil && rel.Spec.Multiregion != nil &&
-		slices.Contains(rel.Spec.Multiregion.Regions, m.srv.Region()) {
-		in.multiregion = rel.Spec.Multiregion.Copy()
-	}
-	var remoteChanges []*structs.ReleaseResourceChange
-	if in.multiregion != nil {
-		resources, in.global, in.adopted, remoteChanges = multiregionSplit(in.multiregion, m.srv.Region(), resources)
-		op.changes = append(op.changes, remoteChanges...)
-	}
-	globalKeys := map[string]bool{}
-	for _, res := range in.global {
-		globalKeys[res.Ref().Key()] = true
-	}
-
-	// The caller must be one who may write every resource this region
+	// The caller must be one who may write every resource the release
 	// applies, hooks included, before the release, a revision or a
 	// resource is written and before anything about the resources is
 	// answered (SEC-5). The endpoints of the types check the caller again
@@ -531,9 +504,6 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		for _, res := range resources {
 			if aclObj == nil || res.Type != structs.ReleaseResourceJob {
 				continue
-			}
-			if _, adopted := in.adopted[res.Ref().Key()]; adopted {
-				continue // not written here, see authorizeAdoption
 			}
 			if err := m.srv.releaseJobBoundPolicies(snap, aclObj, op.args, res.Job); err != nil {
 				return err
@@ -626,9 +596,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	var removed []*structs.ReleaseResourceRef
 	for _, ref := range previous {
-		// Global resources the global region now applies are no longer
-		// owned here, but they are not deleted.
-		if ref == nil || ref.Hook != "" || globalKeys[ref.Key()] {
+		if ref == nil || ref.Hook != "" {
 			continue
 		}
 		if _, ok := desired[ref.Key()]; !ok {
@@ -638,11 +606,11 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	sortRefsForDeletion(removed)
 
 	if in.dryRun {
-		changes, err := op.plan(snap, resources, removed, taken, in.adopted, ownedKeys)
+		changes, err := op.plan(snap, resources, removed, taken, ownedKeys)
 		if err != nil {
 			return err
 		}
-		reply.Changes = append(remoteChanges, changes...)
+		reply.Changes = changes
 		reply.Release = rel
 		reply.Warnings = op.warnings
 		if rel != nil {
@@ -706,7 +674,6 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	rel.Spec.Owner = in.owner
 	rel.Spec.Revision = revNum
 	rel.Spec.Atomic = op.atomic
-	rel.Spec.Multiregion = in.multiregion
 	rel.Status.Phase = structs.ReleasePhaseApplying
 	rel.Status.LastOperation = &structs.ReleaseOperation{
 		ID: op.id, Action: in.action, Revision: revNum, User: op.user, StartTime: start,
@@ -749,7 +716,6 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 
 			ContentDigest:    digest,
 			VariablesSchemas: in.variablesSchemas,
-			Multiregion:      in.multiregion,
 		},
 		Status: &structs.ReleaseRevisionStatus{Phase: structs.ReleasePhasePending},
 	}
@@ -1086,11 +1052,10 @@ func (m *releaseManager) pruneRevisions(op *releaseOp, rel *structs.Release) {
 
 // authorizeAdoption checks the resources an operation takes without applying
 // them through the endpoints of their types, which would check the caller's
-// ACL (PK-2): with record_only every resource is adopted as it is, and a
-// region of a multi-region install adopts the multiregion jobs another region
-// registers. The caller needs the capabilities a real apply of each of them
-// needs. Taking resources over from other releases changes those releases,
-// so it needs the release write capability in their namespaces too.
+// ACL (PK-2): with record_only every resource is adopted as it is. The
+// caller needs the capabilities a real apply of each of them needs. Taking
+// resources over from other releases changes those releases, so it needs
+// the release write capability in their namespaces too.
 func (m *releaseManager) authorizeAdoption(op *releaseOp, in *applyInput, resources []*structs.ReleaseResource, taken map[string]string) error {
 	if !m.srv.config.ACLEnabled {
 		return nil
@@ -1103,17 +1068,14 @@ func (m *releaseManager) authorizeAdoption(op *releaseOp, in *applyInput, resour
 		return err
 	}
 	for _, res := range resources {
-		if res.IsHook() {
-			// Hooks are never owned or adopted; record_only skips them.
-			continue
-		}
-		ref := res.Ref()
-		if _, adopted := in.adopted[ref.Key()]; !in.recordOnly && !adopted {
+		if !in.recordOnly || res.IsHook() {
+			// Only record_only adopts; hooks are never owned or adopted,
+			// and record_only skips them.
 			continue
 		}
 		if !allowReleaseResourceWrite(aclObj, res) {
 			return structs.NewErrRPCCodedf(http.StatusForbidden,
-				"Permission denied: the token may not write %s, so the release can't adopt it", ref)
+				"Permission denied: the token may not write %s, so the release can't adopt it", res.Ref())
 		}
 	}
 	checked := map[string]bool{}
@@ -1362,7 +1324,7 @@ func sortRefsForDeletion(refs []*structs.ReleaseResourceRef) {
 
 // plan computes the changes an apply would make, without writing.
 func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.ReleaseResource,
-	removed []*structs.ReleaseResourceRef, taken, adopted map[string]string, owned map[string]bool) ([]*structs.ReleaseResourceChange, error) {
+	removed []*structs.ReleaseResourceRef, taken map[string]string, owned map[string]bool) ([]*structs.ReleaseResourceChange, error) {
 
 	var aclObj *acl.ACL
 	if op.m.srv.config.ACLEnabled {
@@ -1384,10 +1346,6 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 		changes = append(changes, change)
 		if res.IsHook() {
 			change.Action = structs.ReleaseChangeHook
-			continue
-		}
-		if submitter, ok := adopted[ref.Key()]; ok {
-			change.Action, change.Region = structs.ReleaseChangeAdopt, submitter
 			continue
 		}
 		// Never read or compare the live state of a resource the caller may
@@ -1522,9 +1480,6 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 	if in.action == structs.ReleaseActionInstall {
 		pre, post = structs.ReleaseHookPreInstall, structs.ReleaseHookPostInstall
 	}
-	if in.multiregion != nil {
-		op.waitReplicated(in.global, in.multiregion.GlobalRegion)
-	}
 	if err := op.runHooks(resources, pre); err != nil {
 		return err
 	}
@@ -1552,23 +1507,6 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]b
 		before, err := op.m.readLive(snap, ref)
 		if err != nil {
 			return err
-		}
-
-		// A multiregion job that another region registers in this region
-		// is adopted: the release owns and waits for it, but doesn't
-		// register it.
-		if submitter, ok := in.adopted[ref.Key()]; ok {
-			change := &structs.ReleaseResourceChange{
-				Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeAdopt, Region: submitter,
-			}
-			op.changes = append(op.changes, change)
-			if !before.exists() {
-				change.Error = "not registered in this region"
-				return fmt.Errorf("multiregion job %q is registered by the release in region %q, but it does not exist in region %q",
-					ref.Name, submitter, op.m.srv.Region())
-			}
-			jobs = append(jobs, &registeredJob{namespace: ref.Namespace, id: ref.Name})
-			continue
 		}
 
 		toApply := res

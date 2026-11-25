@@ -74,10 +74,6 @@ const (
 	// MaxReleaseVariablesSchemaSize bounds the total size of the variables
 	// schemas of a release, which every revision stores next to its content.
 	MaxReleaseVariablesSchemaSize = 64 * 1024
-
-	// MaxReleaseRegions is the maximum number of regions of a multi-region
-	// install.
-	MaxReleaseRegions = 32
 )
 
 // Phases of releases and revisions.
@@ -124,17 +120,6 @@ const (
 	ReleaseResourceObject          = "object"
 	ReleaseResourceJob             = "job"
 )
-
-// IsGlobalReleaseResource reports whether resources of the type are global:
-// the servers write them in the authoritative region and replicate them to
-// the other regions (namespaces, quotas and ACL policies).
-func IsGlobalReleaseResource(t string) bool {
-	switch t {
-	case ReleaseResourceNamespace, ReleaseResourceQuota, ReleaseResourceACLPolicy:
-		return true
-	}
-	return false
-}
 
 // releaseResourceOrder is the application order of the resource types;
 // deletion uses the reverse order. A quota comes before the namespaces, so
@@ -296,10 +281,6 @@ type ReleaseSpec struct {
 	// Atomic reports whether the last operation was atomic.
 	Atomic bool `json:"atomic"`
 
-	// Multiregion describes the multi-region install of the newest revision,
-	// nil for a release installed in its region only.
-	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
-
 	// Owner is the owner of the newest revision: the Rigger stack that
 	// installed the release, nil for a release no stack owns.
 	Owner *ReleaseOwner `json:"owner,omitempty"`
@@ -377,66 +358,6 @@ func (o *ReleaseOwner) String() string {
 		return ""
 	}
 	return o.Kind + "/" + o.Namespace + "/" + o.Name
-}
-
-// ReleaseMultiregion describes a multi-region install: the same pack
-// applied as a release of the same name in every listed region, on the
-// leader of each region. The releases are independent objects of their
-// regions; this records how they share the work.
-type ReleaseMultiregion struct {
-	// Regions are the regions of the install, in the order they are
-	// applied: GlobalRegion first, then the others as requested.
-	Regions []string `json:"regions"`
-
-	// GlobalRegion is the region whose release applies and owns the global
-	// resources of the pack (namespaces, quotas, ACL policies): the
-	// authoritative region if it is one of the regions, else the first
-	// region requested. The servers replicate them to the other regions.
-	GlobalRegion string `json:"globalRegion"`
-}
-
-// Validate checks the description of a multi-region install as received by
-// the given region.
-func (m *ReleaseMultiregion) Validate(region string) error {
-	if len(m.Regions) == 0 || len(m.Regions) > MaxReleaseRegions {
-		return fmt.Errorf("a multi-region install needs between 1 and %d regions", MaxReleaseRegions)
-	}
-	seen := map[string]bool{}
-	for _, r := range m.Regions {
-		if r == "" || seen[r] {
-			return fmt.Errorf("invalid or duplicate region %q", r)
-		}
-		seen[r] = true
-	}
-	if !seen[region] {
-		return fmt.Errorf("region %q is not one of the regions of the install (%s)", region, strings.Join(m.Regions, ", "))
-	}
-	if m.GlobalRegion != m.Regions[0] {
-		return fmt.Errorf("the global region %q must be the first region of the install", m.GlobalRegion)
-	}
-	return nil
-}
-
-// Copy returns a copy.
-func (m *ReleaseMultiregion) Copy() *ReleaseMultiregion {
-	if m == nil {
-		return nil
-	}
-	return &ReleaseMultiregion{Regions: slices.Clone(m.Regions), GlobalRegion: m.GlobalRegion}
-}
-
-// JobSubmitter returns the region whose release registers a job with a
-// multiregion block that lists jobRegions: the first region of the install
-// the job lists, or else the global region. That region submits the job to
-// all its regions (Norca's multiregion deployment); the releases of the
-// other regions the job lists adopt their copy.
-func (m *ReleaseMultiregion) JobSubmitter(jobRegions []string) string {
-	for _, r := range m.Regions {
-		if slices.Contains(jobRegions, r) {
-			return r
-		}
-	}
-	return m.GlobalRegion
 }
 
 // ReleaseVariablesSchema is the JSON Schema of the variables of a pack or of
@@ -720,10 +641,6 @@ type ReleaseRevisionSpec struct {
 	// VariablesSchemas are the variables schemas of the pack and its
 	// dependencies the values were validated against.
 	VariablesSchemas []*ReleaseVariablesSchema `json:"variablesSchemas,omitempty"`
-
-	// Multiregion describes the multi-region install the revision belongs
-	// to; a rollback applies the revision with the same division of work.
-	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
 
 	// Resources lists the resources of the revision.
 	Resources []*ReleaseResourceRef `json:"resources,omitempty"`
@@ -1257,7 +1174,8 @@ func (r *ReleaseRevision) WithoutContent() *ReleaseRevision {
 }
 
 // ReleaseApplyRequest installs or upgrades a release with the rendered
-// resources of a pack.
+// resources of a pack. The leader of the region of the request applies it,
+// in that region only.
 type ReleaseApplyRequest struct {
 	Name        string
 	Pack        *ReleasePack
@@ -1307,15 +1225,6 @@ type ReleaseApplyRequest struct {
 	// values.
 	VariableValues map[string]map[string]any
 
-	// Regions installs the release in several regions in one operation:
-	// the receiving region applies it on the leader of every region in turn
-	// (the global region first) and reports the result per region.
-	Regions []string
-
-	// Multiregion is set by the coordinating region on the request it sends
-	// to each region of a multi-region install.
-	Multiregion *ReleaseMultiregion
-
 	// Owner is the owner of the release (a Rigger stack), nil for none.
 	Owner *ReleaseOwner
 
@@ -1340,25 +1249,7 @@ type ReleaseApplyResponse struct {
 
 	Warnings []string
 
-	// Regions are the results per region of a multi-region install, in the
-	// order the regions were applied. Release, Revision and Changes are
-	// then those of the global region.
-	Regions []*ReleaseRegionResult
-
 	WriteMeta
-}
-
-// ReleaseRegionResult is the result of a multi-region install in one region.
-type ReleaseRegionResult struct {
-	Region   string
-	Release  *Release
-	Revision uint64
-	Changes  []*ReleaseResourceChange
-	Warnings []string
-
-	// Error is set when the operation failed in the region. The releases of
-	// the other regions are kept (partial success).
-	Error string
 }
 
 // Actions of resource changes.
@@ -1369,11 +1260,6 @@ const (
 	ReleaseChangeUnchanged = "unchanged"
 	ReleaseChangeHook      = "hook"
 	ReleaseChangeAdopt     = "adopt"
-
-	// ReleaseChangeRemote marks a resource of a multi-region install that
-	// the release of another region applies (Region): global resources and
-	// multiregion jobs.
-	ReleaseChangeRemote = "remote"
 )
 
 // ReleaseResourceChange is a planned or performed change of a resource.
@@ -1390,9 +1276,6 @@ type ReleaseResourceChange struct {
 
 	// JobDiff is the diff of a job, for dry runs.
 	JobDiff *JobDiff
-
-	// Region is the region whose release applies a remote resource.
-	Region string
 
 	// Error is set when the change failed.
 	Error string

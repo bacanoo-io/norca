@@ -287,3 +287,42 @@ func TestRelease_NamespaceWithUnknownQuota(t *testing.T) {
 	must.ErrorContains(t, err, fmt.Sprintf("non-existent quota %q", "uq-missing"))
 	must.Eq(t, "<none>", c.namespaceQuota("uq-ns"))
 }
+
+// A job with a multiregion block is an ordinary resource of a release: the
+// release registers it through the job endpoint in the region of the
+// release, which submits it to the regions of the job, keeps the block and
+// the region of the job, owns it and deletes it with the release.
+func TestRelease_MultiregionJobResource(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	job := multiregionTestJob([]string{"global"}, 1, "")
+	job.ID, job.Name, job.Namespace = "mr-job", "mr-job", ""
+	resp, err := c.apply("default", "mr", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "mr"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: job}},
+	})
+	must.NoError(t, err)
+	must.Len(t, 1, resp.Changes)
+	must.Eq(t, structs.ReleaseChangeCreate, resp.Changes[0].Action)
+	must.Eq(t, "", resp.Changes[0].Error)
+
+	stored, err := c.srv.State().JobByID(nil, "default", "mr-job")
+	must.NoError(t, err)
+	must.NotNil(t, stored)
+	must.True(t, stored.IsMultiregion())
+	must.Eq(t, "global", stored.Region)
+	must.Eq(t, "mr", stored.Meta[structs.ReleaseMetaRelease])
+
+	rel := c.get("default", "mr")
+	must.Eq(t, structs.ReleasePhaseDeployed, rel.Status.Phase)
+	must.Len(t, 1, rel.Status.Resources)
+	must.Eq(t, "job/default/mr-job", rel.Status.Resources[0].Key())
+
+	_, err = c.uninstall("default", "mr", "")
+	must.NoError(t, err)
+	stored, err = c.srv.State().JobByID(nil, "default", "mr-job")
+	must.NoError(t, err)
+	must.Nil(t, stored)
+}

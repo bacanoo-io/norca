@@ -71,47 +71,27 @@ func validateTimeout(d time.Duration) error {
 	return nil
 }
 
-// Apply installs or upgrades a release, or plans it with DryRun.
+// Apply installs or upgrades a release in the region of the request, or
+// plans it with DryRun. What the caller says about who rendered the pack
+// (Pack.ServerRendered) is dropped: the release counts as rendered by the
+// client.
 func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
 	return r.applyInternal(args, reply, false, "Release.Apply")
 }
 
-// ApplyRendered applies, in this region, a release of a multi-region install
-// whose pack a server of another region rendered from its catalog
-// (Packs.Deploy with regions). It is Apply for a caller that is a server of
-// the federation: the release is then recorded and admitted as rendered by
-// the server (release.pack.serverRendered), as in the region that rendered
-// it. For any other caller it is an ordinary Apply: what a client says about
-// who rendered its pack counts for nothing.
-func (r *Release) ApplyRendered(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
-	return r.applyInternal(args, reply, true, "Release.ApplyRendered")
-}
-
 // applyInternal applies a release. forwardMethod is the RPC the request is
 // forwarded with to the leader of its region ("" when the caller is the
-// leader already). serverRendered of a forwarded request holds only when a
-// server of the federation sent it.
+// leader already). serverRendered marks the pack as rendered by the server
+// (release.pack.serverRendered): only a server that rendered the pack
+// itself (Rigger's server-side install, riggerServerEngine) sets it, with a
+// call that is never forwarded.
 func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse,
 	serverRendered bool, forwardMethod string) error {
 
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if forwardMethod != "" {
-		// Who sent the request is decided here, on the server the caller
-		// reached: a request this server forwards arrives at the next one
-		// over a connection of this server, which says nothing about the
-		// caller any more. Sent over a connection by anything but a server
-		// of the federation, the request goes on as an ordinary Apply. (A
-		// request without a connection is one this server made itself, see
-		// applyRegion.)
-		if serverRendered && r.ctx != nil && !sentByFederationServer(r.srv, r.ctx) {
-			serverRendered = false
-			forwardMethod = "Release.Apply"
-		}
 		if done, err := r.srv.forward(forwardMethod, args, args, reply); done {
 			return err
-		}
-		if serverRendered && !sentByFederationServer(r.srv, r.ctx) {
-			serverRendered = false
 		}
 	}
 	r.srv.MeasureRPCRate("release", structs.RateMetricWrite, args)
@@ -119,12 +99,6 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 		return structs.ErrPermissionDenied
 	}
 	defer metrics.MeasureSince([]string{"nomad", "release", "apply"}, time.Now())
-
-	// A multi-region install is coordinated here and applied by every
-	// region, which authorizes it.
-	if len(args.Regions) > 0 {
-		return r.applyMultiregion(args, reply, serverRendered)
-	}
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
@@ -150,11 +124,6 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	}
 	if err := validateReleaseVariables(args.VariablesSchemas, args.VariableValues); err != nil {
 		return err
-	}
-	if args.Multiregion != nil {
-		if err := args.Multiregion.Validate(r.srv.Region()); err != nil {
-			return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
-		}
 	}
 	resolveSecretNamespaces(args.Secrets, args.Resources, namespace)
 	secrets, err := secretsByPath(args.Secrets, namespace)
@@ -187,7 +156,6 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 		serverRendered: serverRendered,
 
 		variablesSchemas: args.VariablesSchemas,
-		multiregion:      args.Multiregion,
 
 		owner:       args.Owner.Copy(),
 		inputDigest: args.InputDigest,
@@ -334,7 +302,6 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 		dryRun:      args.DryRun,
 
 		variablesSchemas: rev.Spec.VariablesSchemas,
-		multiregion:      rev.Spec.Multiregion.Copy(),
 
 		owner:       rev.Spec.Owner.Copy(),
 		inputDigest: rev.Spec.InputDigest,

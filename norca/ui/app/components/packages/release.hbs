@@ -69,23 +69,6 @@
         </Ui::Alert>
       {{/if}}
 
-      {{#if this.regionStates.length}}
-        <Ui::Card @title="Regions" @flush={{true}} class="mb-3" data-test-release-regions>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="State per region"
-            @columns={{array (hash key="region" label="Region") (hash key="phase" label="Status") (hash key="revision" label="Revision") (hash key="drift" label="Drift")}}
-            @rows={{this.regionStates}}
-            as |r|
-          >
-            <td><span class="norca-region">{{r.region}}</span></td>
-            <td><Ui::StatusIndicator @tone={{r.tone}} @label={{r.phase}} /></td>
-            <td>{{or r.revision "–"}}</td>
-            <td>{{if r.drifted "drifted" "in sync"}}</td>
-          </Ui::Table>
-        </Ui::Card>
-      {{/if}}
-
       <div class="row row-cards">
         <div class="col-lg-6">
           <Ui::Card @title="Release">

@@ -169,7 +169,6 @@ Norca replaced these stubs with its own implementation in the import commit
 | `norca/job_endpoint_multiregion.go` | Registration in every listed region: per-region interpolation, peer registrations, deployments that wait in the pending state, stop and drop |
 | `norca/structs/multiregion.go` | Validation of the `multiregion` block |
 | `norca/deploymentwatcher/multiregion.go` | The rollout across regions: pending, running, blocked and unblocked deployments, `max_parallel`, `on_failure`, retries after a partition, `Deployment.Run`, `Unblock` and `Fail` by hand |
-| `norca/release_multiregion.go` | Multiregion pack releases, a Norca feature with no Nomad counterpart |
 | `ui/app/components/jobs/multiregion-timeline.*` | The region timeline of the UI |
 
 The tests are next to each file (`*_multiregion_test.go`,

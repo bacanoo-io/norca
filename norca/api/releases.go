@@ -82,10 +82,6 @@ type ReleaseSpec struct {
 	MaxHistory  int          `json:"maxHistory"`
 	Atomic      bool         `json:"atomic"`
 
-	// Multiregion describes the multi-region install of the newest
-	// revision, nil for a release of its region only.
-	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
-
 	// Owner is the owner of the newest revision (a Rigger stack).
 	Owner *ReleaseOwner `json:"owner,omitempty"`
 }
@@ -111,14 +107,6 @@ const (
 	ReleaseManagerPack   = "pack"
 	ReleaseManagerRigger = "rigger"
 )
-
-// ReleaseMultiregion describes a multi-region install: the regions in the
-// order they were applied, and the region whose release applies the global
-// resources (namespaces, quotas, ACL policies).
-type ReleaseMultiregion struct {
-	Regions      []string `json:"regions"`
-	GlobalRegion string   `json:"globalRegion"`
-}
 
 // ReleaseVariablesSchema is the JSON Schema of the variables of a pack or of
 // one of its dependencies (Pack is its path, such as "app.redis").
@@ -268,7 +256,6 @@ type ReleaseRevisionSpec struct {
 	Resources   []*ReleaseResourceRef `json:"resources,omitempty"`
 
 	VariablesSchemas []*ReleaseVariablesSchema `json:"variablesSchemas,omitempty"`
-	Multiregion      *ReleaseMultiregion       `json:"multiregion,omitempty"`
 
 	ContentDigest string `json:"contentDigest"`
 	User          string `json:"user,omitempty"`
@@ -311,7 +298,8 @@ type ReleaseVariableSecret struct {
 	Items     map[string]string
 }
 
-// ReleaseApplyRequest installs, upgrades or plans a release.
+// ReleaseApplyRequest installs, upgrades or plans a release in the region
+// of the request.
 type ReleaseApplyRequest struct {
 	Pack        *ReleasePack
 	Description string
@@ -340,11 +328,6 @@ type ReleaseApplyRequest struct {
 	VariablesSchemas []*ReleaseVariablesSchema
 	VariableValues   map[string]map[string]any
 
-	// Regions installs the release in several regions: the receiving
-	// region applies it on the leader of every region in turn and returns
-	// the results per region (ReleaseApplyResponse.Regions).
-	Regions []string
-
 	// Owner is the owner of the release (a Rigger stack); InputDigest the
 	// digest of what Rigger applies, stored in the revision.
 	Owner       *ReleaseOwner `json:",omitempty"`
@@ -361,22 +344,7 @@ type ReleaseApplyResponse struct {
 	Revision uint64
 	Changes  []*ReleaseResourceChange
 	Warnings []string
-
-	// Regions are the results per region of a multi-region install.
-	Regions []*ReleaseRegionResult
 	WriteMeta
-}
-
-// ReleaseRegionResult is the result of a multi-region install in a region.
-// Error is set if the operation failed there; the other regions keep their
-// releases.
-type ReleaseRegionResult struct {
-	Region   string
-	Release  *Release
-	Revision uint64
-	Changes  []*ReleaseResourceChange
-	Warnings []string
-	Error    string
 }
 
 // ReleaseResourceChange is a planned or performed change.
@@ -388,11 +356,7 @@ type ReleaseResourceChange struct {
 	Hook      string
 	Owner     string
 	JobDiff   *JobDiff
-
-	// Region is the region whose release applies a "remote" resource or
-	// registers an adopted multiregion job.
-	Region string
-	Error  string
+	Error     string
 }
 
 // ReleaseRollbackRequest rolls back to a revision (0: the previous one).

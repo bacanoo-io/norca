@@ -101,7 +101,6 @@ export default class PackagesList extends Component {
       .flatMap((r) =>
         (r.releases || []).map((rel) => {
           const pack = rel.Spec?.Pack || {};
-          const multi = rel.Spec?.Multiregion?.Regions || [];
           const drifted = isDrifted(rel);
           const sig = signature(rel);
           return {
@@ -116,7 +115,7 @@ export default class PackagesList extends Component {
             driftLabel: drifted ? 'drifted' : 'in sync',
             signature: sig,
             signatureLabel: sig.label,
-            regionList: multi.length ? multi : [r.region || 'local'],
+            regionList: [r.region || 'local'],
           };
         })
       )

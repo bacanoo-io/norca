@@ -288,8 +288,8 @@ export function revision(ns, name, n, version, extra = {}) {
 }
 
 /**
- * Seeds the postgres-operator release (deployed, revision 3, signed,
- * multi-region) and observability (drifted, unsigned).
+ * Seeds the postgres-operator release (deployed, revision 3, signed) and
+ * observability (drifted, unsigned).
  */
 export function seedReleases(server, { region = 'global' } = {}) {
   const c = collection(server.db, 'norcaReleases');
@@ -311,7 +311,6 @@ export function seedReleases(server, { region = 'global' } = {}) {
       revision: 3,
       maxHistory: 10,
       atomic: true,
-      multiregion: { regions: [region], globalRegion: region },
     },
     Status: {
       phase: 'deployed',

@@ -33,7 +33,6 @@ type releaseApplyBody struct {
 
 	VariablesSchemas []*structs.ReleaseVariablesSchema
 	VariableValues   map[string]map[string]any
-	Regions          []string
 
 	Owner       *structs.ReleaseOwner
 	InputDigest string
@@ -215,7 +214,6 @@ func releaseRequestFromBody(name string, body *releaseApplyBody, namespace strin
 
 		VariablesSchemas: body.VariablesSchemas,
 		VariableValues:   body.VariableValues,
-		Regions:          body.Regions,
 
 		Owner:       body.Owner,
 		InputDigest: body.InputDigest,
