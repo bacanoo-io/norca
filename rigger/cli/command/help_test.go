@@ -139,7 +139,9 @@ func TestRun_CommandHelp(t *testing.T) {
 		"Examples:\n  rigger stack apply --values values/prod.vars.hcl",
 		"  -f, --values file ",
 		"      --var name=value ",
-		"      --prune[=true|false] ",
+		// A bool flag reads as it is written (pflag 1.0.10; 1.1.0 would add
+		// "[=true|false]" to every one).
+		"      --prune  ",
 		"Global Flags:\n      --log-format text",
 	}
 
@@ -153,6 +155,10 @@ func TestRun_CommandHelp(t *testing.T) {
 		{cmdStack, cmdApply, "x", "-f", "y", optHelp},
 	} {
 		stdout := commandHelp(t, args, want)
+
+		if strings.Contains(stdout, "[=true|false]") {
+			t.Errorf("%q: a bool flag is shown with [=true|false]:\n%s", args, stdout)
+		}
 
 		if first == "" {
 			first = stdout

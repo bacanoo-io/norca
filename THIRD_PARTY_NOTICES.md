@@ -289,7 +289,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/softlayer/softlayer-go](#go-github-com-softlayer-softlayer-go-v0-0-0-20180806151055-260589d94c7d) | v0.0.0-20180806151055-260589d94c7d | Apache-2.0 | norca |
 | [github.com/spf13/cast](#go-github-com-spf13-cast-v1-5-0) | v1.5.0 | MIT | norca |
 | [github.com/spf13/cobra](#go-github-com-spf13-cobra-v1-10-2) | v1.10.2 | Apache-2.0 | norca |
-| [github.com/spf13/pflag](#go-github-com-spf13-pflag-v1-1-0) | v1.1.0 | BSD-3-Clause | norca |
+| [github.com/spf13/pflag](#go-github-com-spf13-pflag-v1-0-10) | v1.0.10 | BSD-3-Clause | norca |
 | [github.com/spiffe/go-spiffe/v2](#go-github-com-spiffe-go-spiffe-v2-v2-8-1) | v2.8.1 | Apache-2.0 | norca |
 | [github.com/stretchr/testify](#go-github-com-stretchr-testify-v1-12-1) | v1.12.1 | BSD-3-Clause AND ISC AND MIT | norca |
 | [github.com/syndtr/gocapability](#go-github-com-syndtr-gocapability-v0-0-0-20200815063812-42c35b437635) | v0.0.0-20200815063812-42c35b437635 | BSD-2-Clause | norca |
@@ -3792,9 +3792,9 @@ limitations under the License.
 - Used in: norca
 - `LICENSE.txt`: [license text 147](#license-text-147)
 
-<a id="go-github-com-spf13-pflag-v1-1-0"></a>
+<a id="go-github-com-spf13-pflag-v1-0-10"></a>
 
-### github.com/spf13/pflag v1.1.0
+### github.com/spf13/pflag v1.0.10
 
 - License: BSD-3-Clause
 - Used in: norca
@@ -26821,7 +26821,7 @@ SOFTWARE.
 
 ### License text 154
 
-Used by: github.com/spf13/pflag v1.1.0
+Used by: github.com/spf13/pflag v1.0.10
 
 ```text
 Copyright (c) 2012 Alex Ogier. All rights reserved.
