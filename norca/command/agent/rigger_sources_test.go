@@ -254,7 +254,7 @@ func TestHTTP_RiggerSources(t *testing.T) {
 
 		// The modules of a registry need read on the registries.
 		releasesOnly := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1700, "sources-releases-only",
-			`namespace "default" { object "packs.norca.io/Release" { capabilities = ["read", "write"] } }`)
+			`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`)
 
 		limited := s.Client()
 		limited.SetSecretID(releasesOnly.SecretID)

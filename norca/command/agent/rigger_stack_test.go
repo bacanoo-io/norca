@@ -199,7 +199,7 @@ func TestHTTP_RiggerStackOperations(t *testing.T) {
 
 		// A token that can't write releases.
 		weak := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1700, "read-only",
-			`namespace "default" { object "packs.norca.io/Release" { capabilities = ["read"] } }`)
+			`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read"] } }`)
 		client.SetSecretID(weak.SecretID)
 
 		_, _, err = client.Rigger().StackPlan(req, nil)

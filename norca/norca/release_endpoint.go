@@ -20,7 +20,7 @@ import (
 // releases, and reads them. Applying a release grants no permissions: every
 // resource is written with the token of the caller through the endpoint of
 // its type. The release objects themselves are authorized with the object
-// rules of the packs.norca.io/Release kind.
+// rules of the rigger.norca.io/Release kind.
 type Release struct {
 	srv *Server
 	ctx *RPCContext

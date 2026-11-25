@@ -29,9 +29,11 @@ import (
 // ACL model, the event topic and the backups of custom objects.
 
 const (
-	// ReleaseObjectGroup is the object group of the built-in release kinds.
-	// Its kinds can't be written through the generic object API.
-	ReleaseObjectGroup = "packs.norca.io"
+	// ReleaseObjectGroup is the object group of the built-in release kinds:
+	// the group of Rigger (RiggerObjectGroup), which also has the kinds of
+	// its registries and operations. The release kinds can't be written
+	// through the generic object API.
+	ReleaseObjectGroup = RiggerObjectGroup
 
 	// ReleaseKind is the kind of release objects and ReleaseRevisionKind
 	// the kind of their revisions.
@@ -39,7 +41,7 @@ const (
 	ReleaseRevisionKind = "ReleaseRevision"
 
 	// ReleaseLabel is the label of revisions naming their release.
-	ReleaseLabel = "packs.norca.io/release"
+	ReleaseLabel = ReleaseObjectGroup + "/release"
 
 	// ReleaseManagedBy is the managed-by value of release objects.
 	ReleaseManagedBy = "norca-release"
@@ -214,6 +216,13 @@ var ReleaseKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseKind)
 // ReleaseRevisionKindRef is the "group/Kind" reference of revisions.
 var ReleaseRevisionKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseRevisionKind)
 
+// IsReleaseObjectKind reports whether the kind is one of the release kinds,
+// a release or a revision: the release API alone writes them and their
+// objects. The other kinds of their group are not of them.
+func IsReleaseObjectKind(group, kind string) bool {
+	return group == ReleaseObjectGroup && (kind == ReleaseKind || kind == ReleaseRevisionKind)
+}
+
 // IsReleaseHookPhase reports whether phase is a hook phase.
 func IsReleaseHookPhase(phase string) bool {
 	return slices.Contains(releaseHookPhases, phase)
@@ -254,7 +263,7 @@ func ReleaseRevisionObjectName(release string, revision uint64) string {
 }
 
 // Release is an installation of a pack. It is the typed view of a custom
-// object of the kind packs.norca.io/Release: Spec and Status are the spec
+// object of the kind rigger.norca.io/Release: Spec and Status are the spec
 // and the status of the object.
 type Release struct {
 	ID        string
@@ -665,7 +674,7 @@ func (s *ReleaseStatus) SetCondition(t, status, reason, message string, now time
 
 // ReleaseRevision is an immutable revision of a release: the rendered
 // resources of an install, upgrade or rollback. It is the typed view of a
-// custom object of the kind packs.norca.io/ReleaseRevision.
+// custom object of the kind rigger.norca.io/ReleaseRevision.
 type ReleaseRevision struct {
 	Namespace string
 	Release   string
@@ -932,11 +941,11 @@ func (r *ReleaseResource) Validate() error {
 	if missing {
 		return fmt.Errorf("resource of type %q has no payload or no name", r.Type)
 	}
-	if r.Type == ReleaseResourceObject && r.Object.Group == ReleaseObjectGroup {
-		return fmt.Errorf("objects of the group %q can't be part of a pack", ReleaseObjectGroup)
+	if r.Type == ReleaseResourceObject && IsReleaseObjectKind(r.Object.Group, r.Object.Kind) {
+		return fmt.Errorf("an object of the kind %s can't be part of a release", ObjectKindRef(r.Object.Group, r.Object.Kind))
 	}
-	if r.Type == ReleaseResourceObjectKind && r.ObjectKind.Group == ReleaseObjectGroup {
-		return fmt.Errorf("object kinds of the group %q are built in", ReleaseObjectGroup)
+	if r.Type == ReleaseResourceObjectKind && IsReleaseObjectKind(r.ObjectKind.Group, r.ObjectKind.Kind) {
+		return fmt.Errorf("the object kind %s is built in", ObjectKindRef(r.ObjectKind.Group, r.ObjectKind.Kind))
 	}
 	if len(r.SecretKeys) > 0 && r.Type != ReleaseResourceVariable {
 		return fmt.Errorf("only Variables can have secret items")

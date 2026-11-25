@@ -20,7 +20,7 @@ import (
 const releaseTenantA = `
 namespace "a" {
   policy = "write"
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
   variables {
     path "*" { capabilities = ["read", "write", "destroy", "list"] }
   }

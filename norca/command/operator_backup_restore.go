@@ -143,7 +143,8 @@ Restore Options:
 
   -custom-object <group>/<kind>/<name>
     Restore a custom object of the namespace: its spec, labels and owners.
-    Its type definition must exist. The objects of packs.norca.io can't be
+    Its type definition must exist. A release and a revision of one
+    (rigger.norca.io/Release, rigger.norca.io/ReleaseRevision) can't be
     restored one by one. Can be given several times.
 
   -page <n>

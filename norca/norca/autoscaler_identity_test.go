@@ -135,7 +135,7 @@ func TestCustomObjectEndpoint_AutoscalerEventsAreReserved(t *testing.T) {
 
 	reporter := mock.CreatePolicyAndToken(t, s.State(), 1001, "reporter", `
 namespace "default" { object "db.example.com/*" { capabilities = ["read", "write-events"] } }
-namespace "default" { object "packs.norca.io/*" { capabilities = ["read", "write-events"] } }`)
+namespace "default" { object "rigger.norca.io/*" { capabilities = ["read", "write-events"] } }`)
 	writer := mock.CreatePolicyAndToken(t, s.State(), 1003, "writer", `
 namespace "default" { object "db.example.com/*" { capabilities = ["read", "write"] } }`)
 

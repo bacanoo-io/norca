@@ -274,8 +274,8 @@ func (r *backupRestorer) restoreCustomObject(item *structs.BackupRestoreItem, re
 		return fmt.Errorf("invalid custom object %q, must be \"<group>/<kind>/<name>\"", item.ID)
 	}
 	group, kindName, name := parts[0], parts[1], parts[2]
-	if group == structs.ReleaseObjectGroup {
-		return fmt.Errorf("objects of %s can't be restored one by one: they own other resources", group)
+	if isReleaseObjectKind(group, kindName) {
+		return fmt.Errorf("objects of %s can't be restored one by one: they own other resources", structs.ObjectKindRef(group, kindName))
 	}
 
 	kind, err := r.b.srv.State().ObjectKindByName(nil, group, kindName)

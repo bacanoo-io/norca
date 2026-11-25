@@ -17,8 +17,8 @@ import (
 
 const (
 	// ReleaseObjectGroup and ReleaseKind identify release objects in the
-	// object API and in ACL rules (object "packs.norca.io/Release").
-	ReleaseObjectGroup  = "packs.norca.io"
+	// object API and in ACL rules (object "rigger.norca.io/Release").
+	ReleaseObjectGroup  = "rigger.norca.io"
 	ReleaseKind         = "Release"
 	ReleaseRevisionKind = "ReleaseRevision"
 

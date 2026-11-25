@@ -45,7 +45,7 @@ func checkJobMarks(aclObj *acl.ACL, existing, job *structs.Job) (kept bool, err 
 // checkJobReleaseMark refuses a registration that marks a job as a job of a
 // release (the meta structs.ReleaseMetaRelease with
 // structs.ReleaseMetaReleaseNamespace) unless the caller may write the
-// releases of the namespace the marks name: "write" on packs.norca.io/Release
+// releases of the namespace the marks name: "write" on rigger.norca.io/Release
 // there (review finding JOG-23). The release operations take a job with the
 // marks as their own: as one of their hooks (runHook, waitHookJob,
 // purgeHookJob), as a job a failed apply left (leftByOperation), as a hook

@@ -277,8 +277,8 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 	if kind == nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "missing object kind")
 	}
-	if isBuiltinObjectGroup(kind.Group) {
-		return errBuiltinObjectGroup(kind.Group)
+	if isReleaseObjectKind(kind.Group, kind.Kind) {
+		return errReleaseObjectKind(kind.Group, kind.Kind)
 	}
 	if isManagedObjectKind(kind.Group, kind.Kind) {
 		return errManagedObjectKind(kind.Group, kind.Kind)
@@ -379,8 +379,8 @@ func (k *ObjectKind) DeleteObjectKind(args *structs.ObjectKindDeleteRequest, rep
 		return fmt.Errorf("all servers must be running Norca %v or later to delete object kinds", minNorcaFeaturesVersion)
 	}
 
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 	if isManagedObjectKind(args.Group, args.Kind) {
 		return errManagedObjectKind(args.Group, args.Kind)
@@ -1011,8 +1011,8 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 	if err := structs.ValidateObjectKindName(in.Group, in.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
-	if isBuiltinObjectGroup(in.Group) {
-		return errBuiltinObjectGroup(in.Group)
+	if isReleaseObjectKind(in.Group, in.Kind) {
+		return errReleaseObjectKind(in.Group, in.Kind)
 	}
 	if err := in.ValidateMetadata(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid object: %v", err)
@@ -1188,8 +1188,8 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 	status, err := normalizeObjectPart("status", args.Status)
 	if err != nil {

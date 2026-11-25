@@ -205,7 +205,7 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 
 		// A token that writes releases but can't read registries.
 		releasesOnly := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1600, "releases-only",
-			`namespace "default" { object "packs.norca.io/Release" { capabilities = ["read", "write"] } }`)
+			`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`)
 		client.SetSecretID(releasesOnly.SecretID)
 
 		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "web-2", Registry: "acme", Module: "web"}, true, nil)

@@ -36,7 +36,7 @@ namespace "other" {
 // The releases of "default" written, and the jobs of both namespaces.
 const releaseMarkReleaser = `namespace "default" {
   capabilities = ["submit-job", "read-job", "list-jobs"]
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
 }
 namespace "other" {
   capabilities = ["submit-job", "read-job", "list-jobs"]
@@ -51,7 +51,7 @@ func TestJobReleaseMark_NeedsWriteOnReleases(t *testing.T) {
 	releaser := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1003, "releaser", releaseMarkReleaser))
 	finalizers := c.as(mock.CreatePolicyAndToken(t, c.s.State(), 1005, "finalizers", `namespace "default" {
   capabilities = ["submit-job"]
-  object "packs.norca.io/Release" { capabilities = ["manage-finalizers"] }
+  object "rigger.norca.io/Release" { capabilities = ["manage-finalizers"] }
 }`))
 
 	// Without "write" on the releases of the namespace the marks name, the
@@ -59,7 +59,7 @@ func TestJobReleaseMark_NeedsWriteOnReleases(t *testing.T) {
 	err := submitter.registerJob(markedJob("default", "hook", releaseMeta("default", "app")))
 	must.Eq(t, 403, errCode(t, err), must.Sprint("the release marks were accepted with submit-job only"))
 	must.ErrorContains(t, err, `release "app" in namespace "default"`)
-	must.ErrorContains(t, err, "require the write capability on packs.norca.io/Release")
+	must.ErrorContains(t, err, "require the write capability on rigger.norca.io/Release")
 
 	// The two marks go together; one alone is refused, whatever the rights.
 	for _, meta := range []map[string]string{

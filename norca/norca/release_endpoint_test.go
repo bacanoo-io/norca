@@ -638,7 +638,7 @@ func TestRelease_ACL(t *testing.T) {
 	// pack with a job: applying grants no permissions.
 	token := mock.CreatePolicyAndToken(t, c.srv.State(), 1000, "release-only", `
 namespace "default" {
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
 }`)
 	req := &structs.ReleaseApplyRequest{
 		Name: "app", Pack: &structs.ReleasePack{Name: "app"},
@@ -696,7 +696,7 @@ namespace "default" {
 	must.NoError(t, err)
 	revOnlyToken := mock.CreatePolicyAndToken(t, store, 1003, "rev-only", `
 namespace "default" {
-  object "packs.norca.io/ReleaseRevision" { capabilities = ["read"] }
+  object "rigger.norca.io/ReleaseRevision" { capabilities = ["read"] }
 }`)
 	var getObj structs.SingleCustomObjectResponse
 	err = msgpackrpc.CallWithCodec(c.codec, "CustomObject.GetCustomObject", &structs.CustomObjectSpecificRequest{
@@ -732,8 +732,8 @@ func TestRelease_RevisionVariablesACL(t *testing.T) {
 	reader := mock.CreatePolicyAndToken(t, c.srv.State(), 1010, "release-reader", `
 namespace "default" {
   policy = "read"
-  object "packs.norca.io/Release" { capabilities = ["read"] }
-  object "packs.norca.io/ReleaseRevision" { capabilities = ["read"] }
+  object "rigger.norca.io/Release" { capabilities = ["read"] }
+  object "rigger.norca.io/ReleaseRevision" { capabilities = ["read"] }
 }`)
 
 	// The root token sees every resource and the content.

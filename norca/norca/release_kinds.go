@@ -19,7 +19,7 @@ import (
 )
 
 // Releases and their revisions are custom objects of two built-in kinds of
-// the group packs.norca.io. The first release operation registers the kinds
+// the group rigger.norca.io. The first release operation registers the kinds
 // (and updates them after an upgrade changed them); they and their
 // objects can't be written through the generic object API, only through the
 // Release endpoint, which applies its own ACL checks. Reading them through
@@ -124,10 +124,12 @@ func builtinReleaseKinds() []*structs.ObjectKind {
 	}
 }
 
-// isBuiltinObjectGroup reports whether objects and kinds of the group are
-// built in and can't be written through the generic object API.
-func isBuiltinObjectGroup(group string) bool {
-	return group == structs.ReleaseObjectGroup
+// isReleaseObjectKind reports whether the kind is a release kind: it and
+// its objects are built in and can't be written through the generic object
+// API. The other kinds of the group (the registries and the operations of
+// Rigger) have rules of their own (isManagedObjectKind).
+func isReleaseObjectKind(group, kind string) bool {
+	return structs.IsReleaseObjectKind(group, kind)
 }
 
 // releaseManager holds the leader-side state of release operations.
@@ -506,11 +508,11 @@ func releaseRevision(snap *state.StateSnapshot, namespace, name string, revision
 	return rev, obj.ModifyIndex, nil
 }
 
-// errBuiltinObjectGroup is the error of generic object API writes to the
-// built-in group.
-func errBuiltinObjectGroup(group string) error {
+// errReleaseObjectKind is the error of a write of the generic object API
+// to a release kind or to an object of one.
+func errReleaseObjectKind(group, kind string) error {
 	return structs.NewErrRPCCodedf(http.StatusBadRequest,
-		"objects and kinds of the group %q are built in and managed by the release API", group)
+		"the kind %s and its objects are built in and managed by the release API", structs.ObjectKindRef(group, kind))
 }
 
 // jsonEqual reports whether two values have the same JSON encoding.

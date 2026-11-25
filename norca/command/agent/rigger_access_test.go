@@ -97,7 +97,7 @@ func TestHTTP_RiggerRegistryAuth(t *testing.T) {
 		}
 
 		const rights = `object "rigger.norca.io/Registry" { capabilities = ["read", "write"] }
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }`
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }`
 
 		at, err := store.LatestIndex()
 		must.NoError(t, err)

@@ -317,8 +317,8 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "delete"}, time.Now())
 
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 
 	if err := structs.ValidateObjectPropagation(args.Propagation); err != nil {
@@ -512,8 +512,8 @@ func (c *CustomObject) UpdateFinalizers(args *structs.CustomObjectFinalizersRequ
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "update_finalizers"}, time.Now())
 
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
@@ -586,8 +586,8 @@ func (c *CustomObject) RecordEvents(args *structs.CustomObjectEventsRequest, rep
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "record_events"}, time.Now())
 
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
@@ -812,8 +812,8 @@ func (c *CustomObject) Scale(args *structs.CustomObjectScaleRequest, reply *stru
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "scale"}, time.Now())
 
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
+	if isReleaseObjectKind(args.Group, args.Kind) {
+		return errReleaseObjectKind(args.Group, args.Kind)
 	}
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {

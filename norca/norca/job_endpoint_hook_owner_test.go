@@ -607,7 +607,7 @@ func TestJobOwnerMark_ReleaseApply(t *testing.T) {
 
 	token := mock.CreatePolicyAndToken(t, c.srv.State(), 1000, "release", `namespace "default" {
   capabilities = ["submit-job", "read-job", "list-jobs"]
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
   object "test.example.com/Widget" { capabilities = ["read", "write"] }
 }`)
 	root := c.token
@@ -662,5 +662,5 @@ func TestJobOwnerMark_ReleaseApply(t *testing.T) {
 		Job: squat, WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: token.SecretID},
 	}, &resp)
 	must.Eq(t, 403, errCode(t, err))
-	must.ErrorContains(t, err, `owner packs.norca.io/Release "theirs" in namespace "other"`)
+	must.ErrorContains(t, err, `owner rigger.norca.io/Release "theirs" in namespace "other"`)
 }

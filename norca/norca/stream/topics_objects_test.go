@@ -89,8 +89,8 @@ func TestTopicCustomObject_ACL(t *testing.T) {
 	must.Eq(t, []structs.Event{events[1]}, filter(req, events))
 
 	// ReleaseRevision requires read-job in addition to object read (PK-4).
-	revOnly := newACL(`namespace "default" { object "packs.norca.io/ReleaseRevision" { policy = "read" } }`)
-	revAndJob := newACL(`namespace "default" { policy = "read" object "packs.norca.io/ReleaseRevision" { policy = "read" } }`)
+	revOnly := newACL(`namespace "default" { object "rigger.norca.io/ReleaseRevision" { policy = "read" } }`)
+	revAndJob := newACL(`namespace "default" { policy = "read" object "rigger.norca.io/ReleaseRevision" { policy = "read" } }`)
 	must.False(t, aclAllowsSubscription(revOnly, sub("default", structs.ReleaseRevisionKindRef)))
 	must.True(t, aclAllowsSubscription(revAndJob, sub("default", structs.ReleaseRevisionKindRef)))
 	revEvent := objectEvent("default", structs.ReleaseRevisionKindRef, "app.1")

@@ -52,7 +52,7 @@ func TestRelease_RecordOnlyAdoptionACL(t *testing.T) {
 		job.Namespace = "prod"
 		return []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: job}}
 	}
-	devRelease := `namespace "dev" { object "packs.norca.io/Release" { capabilities = ["read", "write"] } }`
+	devRelease := `namespace "dev" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`
 
 	// Release write in dev only: no adoption of prod's job, with or without
 	// taking it over, and of the orphaned job.
@@ -92,7 +92,7 @@ namespace "prod" { policy = "write" }`)
 		devRelease+`
 namespace "prod" {
   policy = "write"
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
 }`)
 	_, err = c.applyAs(both.SecretID, "dev", "taker", &structs.ReleaseApplyRequest{
 		Pack: &structs.ReleasePack{Name: "taker"}, Resources: jobRes("payments"), RecordOnly: true, TakeOwnership: true,
@@ -137,7 +137,7 @@ func TestRelease_MultiregionAdoptionACL(t *testing.T) {
 	}
 
 	devOnly := mock.CreatePolicyAndToken(t, store, 1000, "dev-only",
-		`namespace "dev" { object "packs.norca.io/Release" { capabilities = ["read", "write"] } }`)
+		`namespace "dev" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`)
 	_, err := c.applyAs(devOnly.SecretID, "dev", "evil", req())
 	must.ErrorContains(t, err, "Permission denied")
 	if rel := c.get("dev", "evil"); rel != nil {

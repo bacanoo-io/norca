@@ -46,7 +46,7 @@ func TestRiggerOperations_LogAfterAuthorization(t *testing.T) {
 	must.NoError(t, js.DeleteStream(t.Context(), name))
 
 	releasesOnly := mock.CreatePolicyAndToken(t, s.State(), 1001, "log-releases-only",
-		`namespace "default" { object "packs.norca.io/Release" { capabilities = ["read", "write"] } }`)
+		`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`)
 
 	tests := []struct {
 		name    string

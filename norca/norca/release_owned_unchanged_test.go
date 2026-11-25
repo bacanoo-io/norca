@@ -175,7 +175,7 @@ func TestRelease_VariableNeedsWriteOnly(t *testing.T) {
 	writeOnly := mock.CreatePolicyAndToken(t, store, 1000, "team-a-write-only", `
 namespace "a" {
   policy = "write"
-  object "packs.norca.io/Release" { capabilities = ["read", "write"] }
+  object "rigger.norca.io/Release" { capabilities = ["read", "write"] }
   variables {
     path "*" { capabilities = ["write"] }
   }
