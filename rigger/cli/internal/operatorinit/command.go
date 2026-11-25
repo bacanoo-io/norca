@@ -102,7 +102,7 @@ func report(stdout, stderr io.Writer, ref string, opts Options, written []string
 	}
 
 	if opts.SDKPath == "" {
-		_, err := io.WriteString(stderr, "rigger: go.mod needs replace directives for the SDK and API modules of your Norca checkout (or use -sdk)\n")
+		_, err := io.WriteString(stderr, "rigger: go.mod needs replace directives for the SDK and API modules of your Norca checkout (or use --sdk)\n")
 
 		return err
 	}

@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	errPublishTo = errors.New("module publish needs -to oci://<host>/<repository>")
+	errPublishTo = errors.New("module publish needs --to oci://<host>/<repository>")
 	errNoVersion = errors.New("a module is published with the version of its metadata; it has none")
 	// errOnePublishDir is the error of a publish given more than one directory.
 	errOnePublishDir = errors.New("module publish takes one directory")

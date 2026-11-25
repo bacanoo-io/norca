@@ -503,11 +503,11 @@ func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 	for _, r := range plan.Releases {
 		action := string(r.Action)
 		if r.Action == rigger.ActionRemove && !prune {
-			action += " (with -prune)"
+			action += " (with --prune)"
 		}
 
 		if r.TakesOver != "" {
-			action += " (takes it over from " + r.TakesOver + ", with -adopt)"
+			action += " (takes it over from " + r.TakesOver + ", with --adopt)"
 		}
 
 		// A disabled release the stack installed before stays as it is.

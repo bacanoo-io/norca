@@ -44,10 +44,10 @@ type installFlags struct {
 }
 
 var (
-	errInstallName           = errors.New("install needs -name, the name of the release")
-	errInstallVersionDir     = errors.New("-version picks a version of a module by its address; a module in a directory is of the version it has")
-	errInstallRegistryServer = errors.New("-registry names a registry of the cluster, which its servers install from: it works with -server")
-	errInstallRegistryModule = errors.New("-registry needs the module, as the registry lists it: rigger install <name> -registry <registry> -server")
+	errInstallName           = errors.New("install needs --name, the name of the release")
+	errInstallVersionDir     = errors.New("--version picks a version of a module by its address; a module in a directory is of the version it has")
+	errInstallRegistryServer = errors.New("--registry names a registry of the cluster, which its servers install from: it works with --server")
+	errInstallRegistryModule = errors.New("--registry needs the module, as the registry lists it: rigger install <name> --registry <registry> --server")
 )
 
 // newInstallCommand is rigger install <dir|source> --name x: one release of
@@ -260,7 +260,7 @@ func installModule(ctx context.Context, eng *rigger.Engine, f *installFlags) (*r
 // errServerSource is the error of -server with an address the servers do
 // not fetch from: they read only the registries they synced.
 var errServerSource = errors.New("the servers fetch modules only from the registries of the cluster they have synced (rigger registry sync <name>) " +
-	"and their built-in modules: install a module of a registered repository with -registry <name>, or install without -server")
+	"and their built-in modules: install a module of a registered repository with --registry <name>, or install without --server")
 
 // moduleInstallRequest is the request of rigger install -server for a
 // module the servers fetch: a module of a registry of the cluster

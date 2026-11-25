@@ -194,7 +194,7 @@ module "redis" {
 		t.Fatal(err)
 	}
 
-	want := "builtin/redis is version " + shipped + " in this program, not 0.0.1: a lock file that records 0.0.1 is written again with rigger stack sync -upgrade"
+	want := "builtin/redis is version " + shipped + " in this program, not 0.0.1: a lock file that records 0.0.1 is written again with rigger stack sync --upgrade"
 	riggerRunErr(t, want, "stack", "validate", dir)
 	riggerRunErr(t, want, "stack", "sync", dir)
 

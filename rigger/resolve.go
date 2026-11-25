@@ -418,7 +418,7 @@ func (fm *fetchedModule) checkVersion(req source.Request) error {
 	case req.Kind == source.KindBuiltin:
 		// A built-in module has no tag: it is of the version the program
 		// ships, and only a lock file names another.
-		return fmt.Errorf("%s is version %s in this program, not %s: a lock file that records %s is written again with rigger stack sync -upgrade",
+		return fmt.Errorf("%s is version %s in this program, not %s: a lock file that records %s is written again with rigger stack sync --upgrade",
 			req.Source, said, fm.origin.Version, fm.origin.Version)
 	default:
 		return fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",

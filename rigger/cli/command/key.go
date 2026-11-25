@@ -26,7 +26,7 @@ const passwordEnv = "RIGGER_KEY_PASSWORD" //nolint:gosec // G101: the name of a 
 
 var (
 	errPassword = errors.New(passwordEnv + " holds the password of the private key; set it (an empty value is a key without a password)")
-	errKeyFlag  = errors.New("the command needs -key")
+	errKeyFlag  = errors.New("the command needs --key")
 )
 
 // newKeyCommand is rigger key generate|sign|verify (design 8.1, 10).

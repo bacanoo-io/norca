@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	errReplace  = errors.New("-replace takes url=path")
+	errReplace  = errors.New("--replace takes url=path")
 	errProblems = errors.New("the registry has problems")
 )
 

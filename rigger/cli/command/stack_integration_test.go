@@ -176,7 +176,7 @@ func prune(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 
-	riggerRun(t, exitChanges, []string{"- worker", "remove (with -prune)", "+ worker2"}, "stack", "plan", dir)
+	riggerRun(t, exitChanges, []string{"- worker", "remove (with --prune)", "+ worker2"}, "stack", "plan", dir)
 	riggerRun(t, exitOK, []string{"remove default/worker: done"}, "stack", "apply", dir, "-prune")
 	riggerRun(t, exitOK, []string{"uninstalled default/"}, "stack", "destroy", dir)
 }

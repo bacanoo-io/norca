@@ -197,7 +197,7 @@ func readValues(f *renderFlags, form map[string]any) (rigger.Values, hcl.Diagnos
 		name, v, ok := strings.Cut(kv, "=")
 		if !ok || !hclsyntax.ValidIdentifier(name) {
 			diags = append(diags, &hcl.Diagnostic{
-				Severity: hcl.DiagError, Summary: "Invalid -var",
+				Severity: hcl.DiagError, Summary: "Invalid --var",
 				Detail: fmt.Sprintf("%q is not name=value.", kv),
 			})
 
@@ -245,7 +245,7 @@ func envValues(values rigger.Values, environ []string, known bool, types map[str
 
 		why := fmt.Sprintf("there is no variable %q here", name)
 		if !known {
-			why = "the variables of a published stack that the servers fetch are not known here; give the value with -var"
+			why = "the variables of a published stack that the servers fetch are not known here; give the value with --var"
 		}
 
 		diags = append(diags, &hcl.Diagnostic{
@@ -301,7 +301,7 @@ func varValue(text, jsonType string) cty.Value {
 		return cty.StringVal(text)
 	}
 
-	expr, diags := hclsyntax.ParseExpression([]byte(text), "-var", hcl.InitialPos)
+	expr, diags := hclsyntax.ParseExpression([]byte(text), "--var", hcl.InitialPos)
 	if diags.HasErrors() {
 		return cty.StringVal(text)
 	}

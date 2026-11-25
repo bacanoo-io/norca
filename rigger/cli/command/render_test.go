@@ -413,7 +413,7 @@ func TestEnvValues(t *testing.T) {
 			name:     "none is used when the variables are not known",
 			environ:  []string{envTag + "=x"},
 			expected: map[string]cty.Value{},
-			warnings: []string{envTag + " is not used: the variables of a published stack that the servers fetch are not known here; give the value with -var."},
+			warnings: []string{envTag + " is not used: the variables of a published stack that the servers fetch are not known here; give the value with --var."},
 		},
 	}
 

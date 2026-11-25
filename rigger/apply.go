@@ -51,7 +51,7 @@ var ErrGeneratedMeanwhile = errors.New("the generated values of the stack were w
 
 // ErrAdoptNeeded is the error of an apply that would take over a release
 // and was not asked to.
-var ErrAdoptNeeded = errors.New("it is taken over only when asked to (adopt; the flag -adopt)")
+var ErrAdoptNeeded = errors.New("it is taken over only when asked to (adopt; the flag --adopt)")
 
 // CheckAdopt returns the error of an apply of the plan without Adopt
 // (ApplyOptions): ErrAdoptNeeded with the release when it takes one over.

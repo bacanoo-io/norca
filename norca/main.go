@@ -88,6 +88,10 @@ func main() {
 }
 
 func Run(args []string) int {
+	if rigger, ok := riggerArgs(args); ok {
+		return (&command.RiggerCommand{}).Run(rigger)
+	}
+
 	// Create the meta object
 	metaPtr := new(command.Meta)
 	metaPtr.SetupUi(args)
@@ -121,6 +125,20 @@ func Run(args []string) int {
 	}
 
 	return exitCode
+}
+
+// riggerArgs returns the arguments after "rigger" when the command line is
+// "norca rigger ...". Rigger parses its own command line (cobra): the
+// command line library of norca takes -h, -help and --help anywhere as its
+// own, so "norca rigger stack apply -h" printed the help of "norca rigger"
+// instead of the help of stack apply. A completion request (COMP_LINE set)
+// stays with the library, which completes the commands of norca.
+func riggerArgs(args []string) ([]string, bool) {
+	if len(args) == 0 || args[0] != "rigger" || os.Getenv("COMP_LINE") != "" {
+		return nil, false
+	}
+
+	return args[1:], true
 }
 
 func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {

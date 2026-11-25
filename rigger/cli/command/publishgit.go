@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	errNotGit    = errors.New("module publish without -to tags the module in its git repository; it is in none")
+	errNotGit    = errors.New("module publish without --to tags the module in its git repository; it is in none")
 	errDirty     = errors.New("the module has changes that are not committed")
 	errTagExists = errors.New("the version is tagged already; a tag is never moved, publish a new version")
 	errOutside   = errors.New("the module is not in the repository")
@@ -107,7 +107,7 @@ func tagVersion(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writ
 	commit := h.commit
 
 	if key == nil {
-		warn(stderr, "%s %s is not signed (-key): the global registry lists only signed versions", h.name, h.version)
+		warn(stderr, "%s %s is not signed (--key): the global registry lists only signed versions", h.name, h.version)
 	} else if commit, err = commitSignature(ctx, stdout, top, rel, dir, key, h); err != nil {
 		return err
 	}

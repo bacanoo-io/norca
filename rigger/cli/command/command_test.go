@@ -163,3 +163,27 @@ func TestRun_JSONLogHasTheIDs(t *testing.T) {
 		}
 	}
 }
+
+// TestRun_ErrorsNameFlagsWithTwoDashes: an error that names a flag names it
+// as the help does (--name), though one dash is accepted too.
+func TestRun_ErrorsNameFlagsWithTwoDashes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "install without a name", args: []string{cmdInstall, globalModule}, want: "install needs --name,"},
+		{name: "show of a negative width", args: []string{cmdShow, builtinRedis, optMaxWidth, "-1"}, want: "--max-width is 0 (no limit) or more"},
+		{name: "show of an unknown kind", args: []string{cmdShow, builtinRedis, "--kind", "job"}, want: "--kind is module or stack"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			riggerRunErr(t, tt.want, tt.args...)
+		})
+	}
+}

@@ -48,7 +48,8 @@ func (c *RiggerCommand) program() riggercmd.Program {
 
 // Help is the help of Rigger: its commands, and "norca rigger help
 // <command>" for the help of one. The command line library prints it for
-// -h and --help anywhere after "norca rigger", which Rigger never sees.
+// "norca -h rigger"; "norca rigger ..." goes to Run without the library
+// (main.go), so Rigger answers -h and --help of each of its commands.
 func (c *RiggerCommand) Help() string {
 	var out bytes.Buffer
 

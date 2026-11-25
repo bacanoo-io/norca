@@ -47,7 +47,7 @@ func serverDefault() bool {
 const serverUsage = "send the command to the servers of the cluster, which evaluate it (default: RIGGER_SERVER)"
 
 // errServerOnly is the error of -server on a command the servers don't run.
-var errServerOnly = errors.New("-server works with stack plan, apply, status and destroy, install and bundle import")
+var errServerOnly = errors.New("--server works with stack plan, apply, status and destroy, install and bundle import")
 
 // errDetached is the result of a command that stopped following an
 // operation that goes on.
@@ -276,7 +276,7 @@ func followOperation(ctx context.Context, logger *slog.Logger, stdout, stderr io
 		page, _, err := client.Rigger().OperationLog(name, after, 0, operationLogWait, (&api.QueryOptions{}).WithContext(follow))
 		if err != nil {
 			if follow.Err() != nil {
-				warn(stderr, "left the operation %s running: rigger operation follow %s -namespace %s", name, name, namespace)
+				warn(stderr, "left the operation %s running: rigger operation follow %s --namespace %s", name, name, namespace)
 
 				return errDetached
 			}

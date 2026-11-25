@@ -41,7 +41,7 @@ variables RIGGER_GIT_* and RIGGER_OCI_* apply (rigger help environment).`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			host := firstArg(args)
 			if host == "" {
-				return errors.New("login needs a host: rigger login <host> [-username name], the password on standard input")
+				return errors.New("login needs a host: rigger login <host> [--username name], the password on standard input")
 			}
 
 			password, err := readPassword(stdin)

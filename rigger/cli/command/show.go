@@ -29,7 +29,7 @@ import (
 
 var (
 	errShowSource = errors.New("show needs one module or stack: <namespace>/<name> of the global registry, builtin/<name>, a git or oci:// address")
-	errShowKind   = errors.New("-kind is module or stack")
+	errShowKind   = errors.New("--kind is module or stack")
 )
 
 // showFlags are the flags of rigger show.
@@ -460,7 +460,7 @@ const maxWidthFlag = "max-width"
 
 const maxWidthUsage = "the characters of a description (and of a default) a table shows; 0 shows them whole"
 
-var errMaxWidth = errors.New("-max-width is 0 (no limit) or more")
+var errMaxWidth = errors.New("--max-width is 0 (no limit) or more")
 
 // ellipsis marks a text fitText cut.
 const ellipsis = "..."
