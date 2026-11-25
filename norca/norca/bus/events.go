@@ -52,19 +52,6 @@ const (
 	GapTopic = "Bus"
 	GapType  = "EventGap"
 
-	// PushSubject is the subject (after the prefix) of pack push notices: a
-	// pipeline with the bus rule for it publishes a notice there (and below
-	// it), without an acknowledgement.
-	PushSubject = "packs.pushed"
-
-	// PushStoredSubject is the subject (after the prefix) the servers store
-	// the push notices on, in the stream the leader reads. Only the servers
-	// publish it: a stream acknowledges a message to the reply subject its
-	// publisher names, with the rights of JetStream, so no connection
-	// without every right publishes to a subject of a stream that
-	// acknowledges.
-	PushStoredSubject = "packs.notices"
-
 	// AdminSubjectToken is the token after the prefix of the admin events:
 	// <prefix>.admin.<region>.<namespace>.<topic>. A region named "admin"
 	// is refused (CheckSubjects).
@@ -482,17 +469,16 @@ func RiggerLogSubject(region, id string) string {
 
 // CheckSubjects checks that the subjects of the streams of a region do not
 // overlap: the events on <prefix>.<region>.>, the admin events on
-// <prefix>.admin.<region>.>, the pack push notices on <prefix>.packs.pushed,
-// the usage reports on norca.telemetry.<region>.* and the logs of the
-// operations of Rigger on norca.rigger.oplog.<region>.*. JetStream refuses a
-// stream whose subjects another stream has. With the default prefix a
-// region named "telemetry", "packs", "admin" or "rigger" collides.
+// <prefix>.admin.<region>.>, the usage reports on
+// norca.telemetry.<region>.* and the logs of the operations of Rigger on
+// norca.rigger.oplog.<region>.*. JetStream refuses a stream whose subjects
+// another stream has. With the default prefix a region named "telemetry",
+// "admin" or "rigger" collides.
 func CheckSubjects(prefix, region string) error {
 	events := prefix + "." + SubjectToken(region) + ".>"
 	admin := prefix + "." + AdminSubjectToken + "." + SubjectToken(region) + ".>"
 	telemetry := "norca.telemetry." + SubjectToken(region) + ".*"
 	riggerLogs := RiggerLogSubjects(region)
-	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>", prefix + "." + PushStoredSubject}
 	if natsserver.SubjectsCollide(events, admin) {
 		return fmt.Errorf("the events of region %q (%s) and its admin events (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, admin)
@@ -501,13 +487,7 @@ func CheckSubjects(prefix, region string) error {
 		return fmt.Errorf("the events of region %q (%s) and the logs of the Rigger operations (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, riggerLogs)
 	}
-	for _, push := range pushes {
-		if natsserver.SubjectsCollide(riggerLogs, push) {
-			return fmt.Errorf("the logs of the Rigger operations of region %q (%s) and the pack push notices (%s) would share subjects: "+
-				"use another bus.events.subject_prefix", region, riggerLogs, push)
-		}
-	}
-	for _, other := range append([]string{telemetry, riggerLogs}, pushes...) {
+	for _, other := range []string{telemetry, riggerLogs} {
 		if natsserver.SubjectsCollide(admin, other) {
 			return fmt.Errorf("the admin events of region %q (%s) and %s would share subjects: "+
 				"use another bus.events.subject_prefix", region, admin, other)
@@ -516,16 +496,6 @@ func CheckSubjects(prefix, region string) error {
 	if natsserver.SubjectsCollide(events, telemetry) {
 		return fmt.Errorf("the events of region %q (%s) and its usage reports (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, telemetry)
-	}
-	for _, push := range pushes {
-		if natsserver.SubjectsCollide(events, push) {
-			return fmt.Errorf("the events of region %q (%s) and the pack push notices (%s) would share subjects: "+
-				"use another region name or another bus.events.subject_prefix", region, events, push)
-		}
-		if natsserver.SubjectsCollide(telemetry, push) {
-			return fmt.Errorf("the usage reports of region %q (%s) and the pack push notices (%s) would share subjects: "+
-				"use another bus.events.subject_prefix", region, telemetry, push)
-		}
 	}
 	return nil
 }
@@ -631,27 +601,4 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 	}
 	_, err = js.UpdateStream(ctx, cfg)
 	return err
-}
-
-// PushNotice is the message of a pack push: the registry source (or the
-// name of a cluster registry) that got new packs.
-type PushNotice struct {
-	Source   string `json:"Source,omitempty"`
-	Registry string `json:"Registry,omitempty"`
-
-	// Pack, Version and Digest are informational.
-	Pack    string `json:"Pack,omitempty"`
-	Version string `json:"Version,omitempty"`
-	Digest  string `json:"Digest,omitempty"`
-}
-
-// NormalizeSource makes registry sources comparable: lower-case scheme, no
-// trailing slash or ".git".
-func NormalizeSource(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.Index(s, "://"); i > 0 {
-		s = strings.ToLower(s[:i]) + s[i:]
-	}
-	s = strings.TrimSuffix(s, "/")
-	return strings.TrimSuffix(s, ".git")
 }

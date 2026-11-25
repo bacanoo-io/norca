@@ -31,7 +31,7 @@ func TestConfig_RiggerBundlesBytes(t *testing.T) {
 	// The other streams take all of it: no object store of the bundles.
 	full := DefaultConfig()
 	full.MaxStorage = 128 << 20
-	full.Events.MaxBytes = 32 << 20
+	full.Events.MaxBytes = 96 << 20
 	full.ConsulKVMaxBytes = 16 << 20
 	must.Eq(t, 0, full.RiggerBundlesBytes())
 	must.LessEq(t, full.MaxStorage, full.PlannedStorage())

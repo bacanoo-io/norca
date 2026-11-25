@@ -192,48 +192,6 @@ func TestBusEvents_Resume(t *testing.T) {
 	}
 }
 
-// TestBusEvents_PushNotice checks that a push notice syncs the registries
-// of its source.
-func TestBusEvents_PushNotice(t *testing.T) {
-	ci.Parallel(t)
-
-	s1, cleanup := TestServer(t, enableBus(t))
-	defer cleanup()
-	testutil.WaitForLeader(t, s1.RPC)
-	codec := rpcClient(t, s1)
-
-	var reg PackRegistryResponse
-	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Packs.Upsert", &PackRegistryUpsertRequest{
-		Registry:     &PackRegistry{Name: "local", Spec: &PackRegistrySpec{Type: "dir", Source: "builtin"}},
-		WriteRequest: structs.WriteRequest{Region: "global"},
-	}, &reg))
-	must.NotNil(t, reg.Registry.Status)
-	generation := reg.Registry.Status.SyncGeneration
-
-	notify := func(req *PackPushNoticeRequest) error {
-		req.WriteRequest = structs.WriteRequest{Region: "global"}
-		var out PackPushNoticeResponse
-		return msgpackrpc.CallWithCodec(codec, "Packs.NotifyPush", req, &out)
-	}
-	must.ErrorContains(t, notify(&PackPushNoticeRequest{}), "needs a Source or a Registry")
-	must.NoError(t, notify(&PackPushNoticeRequest{Source: "builtin/", Pack: "redis"}))
-
-	waitBus(t, func() (bool, error) {
-		var out PackRegistryListResponse
-		if err := msgpackrpc.CallWithCodec(codec, "Packs.List", &PackRegistryListRequest{
-			QueryOptions: structs.QueryOptions{Region: "global"},
-		}, &out); err != nil {
-			return false, err
-		}
-		for _, r := range out.Registries {
-			if r.Name == "local" && r.Status != nil && r.Status.SyncGeneration > generation {
-				return true, nil
-			}
-		}
-		return false, fmt.Errorf("the registry was not synced on the push notice")
-	})
-}
-
 // TestBusEvents_ConsumerLimits checks the limits of the change data capture
 // streams: the limits policy, a bound on the consumers and the consumer
 // limits (inactive threshold at most max_age, pending acknowledgements).

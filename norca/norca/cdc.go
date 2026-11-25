@@ -97,9 +97,6 @@ func consumerNameToken(s string) string {
 //   - the inboxes of the servers' own connections (bus.InternalInboxPrefix);
 //   - $NORCA.>: the subjects the servers answer requests of the reader
 //     accounts on (bus.ReaderStreamInfoSubject).
-//
-// With them goes the subject the servers store the pack push notices on
-// (busGrantSubjects adds it, it lies under the event prefix).
 var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>",
 	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>", riggerLogsAllRegions, "$O.>"}
 
@@ -126,7 +123,6 @@ func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant) (publish, 
 	// Neither side of a bus rule reaches the change streams or the subjects
 	// of the servers and the nodes (busInternalSubjects).
 	reserved := append(slices.Clone(change), busInternalSubjects...)
-	reserved = append(reserved, s.busEventsPrefix()+"."+bus.PushStoredSubject)
 
 	for _, subject := range busRuleSubjects(g.Subscribe) {
 		if !collides(subject, reserved) {
@@ -139,9 +135,9 @@ func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant) (publish, 
 		}
 	}
 	// A cdc subject is granted as written when it reaches the change
-	// streams; the other subjects under the prefix (the telemetry of the
-	// nodes, the pack push notices) are denied (busNonChangeDeny), so that
-	// "norca.>" gives the changes only.
+	// streams; the other subjects of the servers under "norca" (the
+	// telemetry of the nodes, the logs of the Rigger operations) are denied
+	// (busNonChangeDeny), so that "norca.>" gives the changes only.
 	var receive []string
 	for _, subject := range busRuleSubjects(cdc.Receive) {
 		if collides(subject, change) {
@@ -212,19 +208,16 @@ func (s *Server) busReaderGrant(aclObj *acl.ACL, kind, name string) (*bus.Grant,
 	}, nil
 }
 
-// busNonChangeDeny are the subjects under the event prefix that are not
-// change streams: the telemetry of the nodes and the pack push notices. A
-// connection without every right never receives them, whatever a cdc or bus
-// rule says; NATS withholds them also from a wider subscription such as
-// "norca.>". Only the nodes publish telemetry and the servers read both.
+// busNonChangeDeny are the subjects of the servers that are not change
+// streams: the telemetry of the nodes and the logs of the Rigger operations.
+// A connection without every right never receives them, whatever a cdc or
+// bus rule says; NATS withholds them also from a wider subscription such as
+// "norca.>". Only the nodes publish telemetry, and only the servers write
+// the logs and read both.
 func (s *Server) busNonChangeDeny() []string {
-	prefix := s.busEventsPrefix()
 	return []string{
 		"norca.telemetry.>",
 		riggerLogsAllRegions,
-		prefix + "." + bus.PushSubject,
-		prefix + "." + bus.PushSubject + ".>",
-		prefix + "." + bus.PushStoredSubject,
 	}
 }
 

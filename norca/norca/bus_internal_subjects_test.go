@@ -35,10 +35,9 @@ func TestBusServer_BusRuleInternalSubjects(t *testing.T) {
 	internal := []string{
 		"$KV.consul-kv.>", "$KV.>", "$JS.API.>", "$JS.ACK.>", "$JSC.>", "$NRG.>", "_R_.>",
 		"norca.telemetry.>", "norca.telemetry.global.*",
-		// The services every account imports from the NATS system account,
-		// the inboxes of the servers' own connections and the subject the
-		// servers store the pack push notices on.
-		"$SYS.REQ.USER.INFO", "$SYS.>", bus.InternalInboxPrefix + ".>", "norca." + bus.PushStoredSubject,
+		// The services every account imports from the NATS system account
+		// and the inboxes of the servers' own connections.
+		"$SYS.REQ.USER.INFO", "$SYS.>", bus.InternalInboxPrefix + ".>",
 		// The subjects the servers answer the reader accounts on.
 		bus.ReaderStreamInfoSubject + ".>", "$NORCA.>",
 	}
@@ -46,11 +45,11 @@ func TestBusServer_BusRuleInternalSubjects(t *testing.T) {
 	// The subjects a connection gets from the rule.
 	grant := &acl.BusGrant{
 		Subscribe: append([]string{"app.>"}, internal...),
-		Publish:   append([]string{"app.>", "norca.packs.pushed"}, internal...),
+		Publish:   append([]string{"app.>", "norca.custom.notice"}, internal...),
 	}
 	publish, subscribe, dropped := s1.busGrantSubjects(grant, &acl.CDCGrant{})
 	must.Eq(t, []string{"app.>"}, subscribe, must.Sprint("subscribe subjects of the bus rule"))
-	must.Eq(t, []string{"app.>", "norca.packs.pushed"}, publish, must.Sprint("publish subjects of the bus rule"))
+	must.Eq(t, []string{"app.>", "norca.custom.notice"}, publish, must.Sprint("publish subjects of the bus rule"))
 	must.Eq(t, 2*len(internal), dropped)
 
 	// The same on a connection.

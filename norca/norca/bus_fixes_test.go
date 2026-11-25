@@ -11,7 +11,6 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
-	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/shoenig/test/must"
 )
@@ -84,70 +83,19 @@ func TestBusEvents_HalfBatch(t *testing.T) {
 	must.Eq(t, 11, last)
 }
 
-// TestBusEvents_PushNoticeCooldown checks a push notice that comes while its
-// registry is in the cooldown of a sync: it is not dropped, it waits for the
-// end of the cooldown and is synced then. A notice pushed before the last
-// sync started has been synced and waits for nothing.
-func TestBusEvents_PushNoticeCooldown(t *testing.T) {
-	ci.Parallel(t)
-
-	s1, cleanup := TestServer(t, enableBus(t))
-	defer cleanup()
-	testutil.WaitForLeader(t, s1.RPC)
-	var reg PackRegistryResponse
-	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s1), "Packs.Upsert", &PackRegistryUpsertRequest{
-		Registry:     &PackRegistry{Name: "local", Spec: &PackRegistrySpec{Type: "dir", Source: "builtin"}},
-		WriteRequest: structs.WriteRequest{Region: "global"},
-	}, &reg))
-
-	syncer := &pushSyncer{srv: s1, last: map[string]time.Time{}}
-	notice := &bus.PushNotice{Registry: "local"}
-	start := time.Now()
-
-	// The first notice syncs.
-	wait, err := syncer.handle(notice, start)
-	must.NoError(t, err)
-	must.Eq(t, 0, wait)
-	synced := syncer.last["local"]
-	must.False(t, synced.IsZero())
-
-	// A push after that sync, within the cooldown: to be handled again
-	// when the cooldown is over, and not synced now.
-	wait, err = syncer.handle(notice, time.Now().Add(time.Millisecond))
-	must.NoError(t, err)
-	must.Positive(t, wait)
-	must.LessEq(t, pushSyncCooldown, wait)
-	must.Eq(t, synced, syncer.last["local"])
-
-	// A notice pushed before the sync started is covered by it.
-	wait, err = syncer.handle(notice, synced.Add(-time.Second))
-	must.NoError(t, err)
-	must.Eq(t, 0, wait)
-	must.Eq(t, synced, syncer.last["local"])
-
-	// After the cooldown the later push is synced.
-	syncer.last["local"] = synced.Add(-pushSyncCooldown - time.Second)
-	wait, err = syncer.handle(notice, time.Now())
-	must.NoError(t, err)
-	must.Eq(t, 0, wait)
-	must.True(t, syncer.last["local"].After(synced.Add(-time.Second)))
-}
-
 // TestBus_CheckSubjects checks the region names and subject prefixes whose
 // streams would share subjects.
 func TestBus_CheckSubjects(t *testing.T) {
 	ci.Parallel(t)
 
 	for _, ok := range [][2]string{
-		{"norca", "global"}, {"norca", "eu-west"}, {"events", "telemetry"}, {"norca", "packs-eu"},
+		{"norca", "global"}, {"norca", "eu-west"}, {"events", "telemetry"}, {"norca", "telemetry-eu"},
 		{"events", "rigger"}, {"norca", "rigger-eu"},
 	} {
 		must.NoError(t, bus.CheckSubjects(ok[0], ok[1]), must.Sprint(ok))
 	}
 	for _, bad := range [][2]string{
 		{"norca", "telemetry"},        // norca.telemetry.> and norca.telemetry.telemetry.*
-		{"norca", "packs"},            // norca.packs.> and norca.packs.pushed
-		{"events", "packs"},           // events.packs.> and events.packs.pushed
 		{"norca.telemetry", "global"}, // norca.telemetry.global.> and norca.telemetry.global.*
 		{"norca", "rigger"},           // norca.rigger.> and norca.rigger.oplog.rigger.*
 		{"norca.rigger.oplog", "eu"},  // norca.rigger.oplog.eu.> and norca.rigger.oplog.eu.*
@@ -158,7 +106,7 @@ func TestBus_CheckSubjects(t *testing.T) {
 	// A server with such a region name does not start its bus.
 	_, stop, err := TestServerErr(t, func(c *Config) {
 		enableBus(t)(c)
-		c.Region = "packs"
+		c.Region = "telemetry"
 	})
 	if stop != nil {
 		defer stop()

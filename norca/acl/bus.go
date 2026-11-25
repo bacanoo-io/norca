@@ -14,7 +14,7 @@ import (
 //
 //	bus {
 //	  subscribe = ["app.>"]
-//	  publish   = ["norca.packs.pushed", "norca.packs.pushed.>"]
+//	  publish   = ["app.orders", "app.orders.>"]
 //	}
 //
 // The lists hold NATS subjects with the wildcards "*" (one token) and ">"

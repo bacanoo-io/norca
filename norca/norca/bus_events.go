@@ -6,15 +6,12 @@ package norca
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
-	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/stream"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-msgpack/codec"
@@ -38,32 +35,11 @@ const (
 
 	// busPublishTimeout bounds the acknowledgement of a batch of events.
 	busPublishTimeout = 30 * time.Second
-
-	// pushStreamName and its age limit; bus.PushStreamMaxBytes bounds its
-	// size.
-	pushStreamName   = "NORCA_PACK_PUSHES"
-	pushStreamMaxAge = 24 * time.Hour
-
-	// pushSyncCooldown is the minimum time between two syncs of a registry
-	// triggered by push notices.
-	pushSyncCooldown = time.Minute
-
-	// pushNoticeMaxSize is the largest push notice the stream takes.
-	pushNoticeMaxSize = 64 << 10
-
-	// pushRelayQueue is the queue group of the servers that store the push
-	// notices published on the bus: one of them takes each notice.
-	// pushRelayBuffer bounds the notices that wait to be stored.
-	pushRelayQueue  = "norca-push-relay"
-	pushRelayBuffer = 256
-
-	// pushRelayTimeout bounds the storing of one notice.
-	pushRelayTimeout = 10 * time.Second
 )
 
 // busEventsLeader runs the bus loops of the leader until stopCh closes: the
 // key-value bucket of the Consul KV, and with events enabled the event
-// stream of the region and the pack push notices.
+// stream of the region.
 func (s *Server) busEventsLeader(stopCh chan struct{}) {
 	if s.bus == nil {
 		return
@@ -91,7 +67,6 @@ func (s *Server) busEventsLeader(stopCh chan struct{}) {
 	run("keeping the object store of the Rigger bundles", s.keepRiggerBundleStore)
 	if s.config.Bus.Events.Enabled {
 		run("publishing the events", s.publishBusEvents)
-		run("consuming the pack push notices", s.consumePushNotices)
 	}
 	wg.Wait()
 }
@@ -447,283 +422,4 @@ func encodeEventJSON(ev *structs.Event) ([]byte, error) {
 		return nil, err
 	}
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
-}
-
-// ensurePushStream creates the stream of the pack push notices. Its subject
-// is the one only the servers publish (bus.PushStoredSubject), so that its
-// acknowledgements go to the servers only; what a pipeline publishes on
-// <prefix>.packs.pushed is stored by pushRelay.
-func (s *Server) ensurePushStream(ctx context.Context, js jetstream.JetStream) error {
-	prefix := s.config.Bus.Events.SubjectPrefix
-	return bus.EnsureStream(ctx, js, pushStreamName, "Norca pack push notices",
-		[]string{prefix + "." + bus.PushStoredSubject},
-		bus.StreamSettings{
-			Replicas:   s.busReplicas(),
-			MaxAge:     pushStreamMaxAge,
-			MaxBytes:   bus.PushStreamMaxBytes,
-			MaxMsgSize: pushNoticeMaxSize,
-			Duplicates: time.Minute,
-			Storage:    jetstream.FileStorage,
-		})
-}
-
-// pushRelay stores the pack push notices that connections with the bus
-// rule for them publish on <prefix>.packs.pushed (and below it): every
-// server subscribes in one queue group, and the one that gets a notice
-// publishes its body on the subject of the stream. The notice is taken as
-// it is, without its reply subject and its headers: the publisher gets no
-// acknowledgement (a stream would send it wherever the publisher said), and
-// sets no JetStream header of the stored message (the relay sets only the
-// message ID). A notice published while no server listens, or that is empty
-// or too large, is lost; the API (Packs.NotifyPush) confirms a notice. A
-// notice the relay took but could not store is kept, at most
-// pushRelayBuffer of them, and stored first by the next run of the relay
-// (its loop restarts after the error).
-type pushRelay struct {
-	srv *Server
-
-	// pending are the notices taken and not stored yet, oldest first.
-	// Only the loop of the relay uses them, one run at a time.
-	pending []pushRelayNotice
-}
-
-// pushRelayNotice is a notice of the relay with the message ID it is
-// stored with, so that a store retried after a timeout is not stored twice
-// (the stream drops duplicates within a minute).
-type pushRelayNotice struct {
-	id   string
-	data []byte
-}
-
-// run is a run of the relay loop (busRetryLoop).
-func (r *pushRelay) run(ctx context.Context, js jetstream.JetStream) error {
-	s := r.srv
-	if err := s.ensurePushStream(ctx, js); err != nil {
-		return fmt.Errorf("creating the stream %s: %w", pushStreamName, err)
-	}
-	if err := r.store(ctx, js); err != nil {
-		return err
-	}
-	prefix := s.config.Bus.Events.SubjectPrefix
-	nc := js.Conn()
-	notices := make(chan *nats.Msg, pushRelayBuffer)
-	var subs []*nats.Subscription
-	// On the way out the subscriptions end first, so that the other
-	// servers get the notices published from then on; the notices this
-	// one took meanwhile are kept for its next run.
-	defer func() {
-		for _, sub := range subs {
-			_ = sub.Unsubscribe()
-		}
-		for {
-			select {
-			case msg := <-notices:
-				r.keep(msg)
-			default:
-				return
-			}
-		}
-	}()
-	for _, subject := range []string{prefix + "." + bus.PushSubject, prefix + "." + bus.PushSubject + ".>"} {
-		sub, err := nc.ChanQueueSubscribe(subject, pushRelayQueue, notices)
-		if err != nil {
-			return fmt.Errorf("subscribing to %s: %w", subject, err)
-		}
-		subs = append(subs, sub)
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case msg := <-notices:
-			r.keep(msg)
-			if err := r.store(ctx, js); err != nil {
-				return err
-			}
-		}
-	}
-}
-
-// keep adds a notice to the pending ones. An empty or too large one is left
-// out; beyond pushRelayBuffer the oldest is dropped.
-func (r *pushRelay) keep(msg *nats.Msg) {
-	if len(msg.Data) == 0 || len(msg.Data) > pushNoticeMaxSize {
-		r.srv.logger.Debug("system bus: a pack push notice of the bus is left out", "subject", msg.Subject, "size", len(msg.Data))
-		return
-	}
-	if len(r.pending) >= pushRelayBuffer {
-		r.srv.logger.Warn("system bus: too many pack push notices could not be stored, the oldest is dropped", "kept", len(r.pending))
-		r.pending[0] = pushRelayNotice{}
-		r.pending = r.pending[1:]
-	}
-	r.pending = append(r.pending, pushRelayNotice{id: uuid.Generate(), data: msg.Data})
-}
-
-// store stores the pending notices in order. A failure keeps the notice
-// that failed and the ones after it.
-func (r *pushRelay) store(ctx context.Context, js jetstream.JetStream) error {
-	stored := r.srv.config.Bus.Events.SubjectPrefix + "." + bus.PushStoredSubject
-	for len(r.pending) > 0 {
-		n := r.pending[0]
-		storeCtx, cancel := context.WithTimeout(ctx, pushRelayTimeout)
-		_, err := js.Publish(storeCtx, stored, n.data, jetstream.WithMsgID(n.id))
-		cancel()
-		if err != nil {
-			return fmt.Errorf("storing a pack push notice of the bus (%d kept): %w", len(r.pending), err)
-		}
-		r.pending[0] = pushRelayNotice{}
-		r.pending = r.pending[1:]
-	}
-	return nil
-}
-
-// consumePushNotices syncs the registries named by pack push notices. The
-// leader reads them with the durable consumer norca-sync-<region>, so
-// notices published during a leader change are handled by the next leader.
-func (s *Server) consumePushNotices(ctx context.Context, js jetstream.JetStream) error {
-	if err := s.ensurePushStream(ctx, js); err != nil {
-		return fmt.Errorf("creating the stream %s: %w", pushStreamName, err)
-	}
-	consumer, err := js.CreateOrUpdateConsumer(ctx, pushStreamName, jetstream.ConsumerConfig{
-		Durable:           "norca-sync-" + bus.SubjectToken(s.config.Region),
-		AckPolicy:         jetstream.AckExplicitPolicy,
-		AckWait:           30 * time.Second,
-		MaxDeliver:        10,
-		MaxAckPending:     100,
-		InactiveThreshold: 7 * 24 * time.Hour,
-		Replicas:          s.busReplicas(),
-	})
-	if err != nil {
-		return fmt.Errorf("creating the push notice consumer: %w", err)
-	}
-	syncer := &pushSyncer{srv: s, last: map[string]time.Time{}}
-	cc, err := consumer.Consume(func(m jetstream.Msg) {
-		var n bus.PushNotice
-		if err := json.Unmarshal(m.Data(), &n); err != nil {
-			s.logger.Warn("system bus: invalid pack push notice", "subject", m.Subject(), "error", err)
-			_ = m.Term()
-			return
-		}
-		pushed := time.Now()
-		if meta, err := m.Metadata(); err == nil {
-			pushed = meta.Timestamp
-		}
-		wait, err := syncer.handle(&n, pushed)
-		if err != nil {
-			s.logger.Warn("system bus: pack push notice not handled", "error", err)
-			_ = m.NakWithDelay(30 * time.Second)
-			return
-		}
-		if wait > 0 {
-			// A registry is in its cooldown and was not synced since this
-			// push: the notice comes again when the cooldown is over.
-			_ = m.NakWithDelay(wait)
-			return
-		}
-		_ = m.Ack()
-	})
-	if err != nil {
-		return err
-	}
-	defer cc.Stop()
-
-	check := time.NewTicker(busStreamCheckInterval)
-	defer check.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-cc.Closed():
-			return errors.New("the push notice consumer stopped")
-		case <-check.C:
-			if err := s.ensurePushStream(ctx, js); err != nil {
-				s.logger.Warn("system bus: updating the push notice stream failed", "error", err)
-			}
-		}
-	}
-}
-
-// pushSyncer syncs the registries matching push notices, at most once per
-// cooldown each.
-type pushSyncer struct {
-	srv *Server
-	mu  sync.Mutex
-	// last is when the last sync of a registry started.
-	last map[string]time.Time
-}
-
-// handle syncs the registries whose name or source matches the notice,
-// pushed at the given time. A registry whose last sync started after the
-// push has it already. A registry in its cooldown is left for later: wait is
-// then the time until its cooldown is over, and the notice must be handled
-// again after it (it was acknowledged and dropped before, and the push was
-// not synced until the next one). It fails only when the registries can't be
-// read.
-func (p *pushSyncer) handle(n *bus.PushNotice, pushed time.Time) (wait time.Duration, err error) {
-	if n.Source == "" && n.Registry == "" {
-		return 0, nil
-	}
-	snap, err := p.srv.State().Snapshot()
-	if err != nil {
-		return 0, err
-	}
-	iter, err := snap.CustomObjects(nil, structs.ReleaseObjectGroup, structs.PackRegistryKind, "", state.SortDefault)
-	if err != nil {
-		return 0, err
-	}
-	source := bus.NormalizeSource(n.Source)
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		obj := raw.(*structs.CustomObject)
-		reg, err := packRegistryFromObject(obj)
-		if err != nil {
-			continue
-		}
-		if !(n.Registry != "" && reg.Name == n.Registry) &&
-			!(source != "" && reg.Spec != nil && bus.NormalizeSource(reg.Spec.Source) == source) {
-			continue
-		}
-		p.mu.Lock()
-		if t, ok := p.last[reg.Name]; ok {
-			if !t.Before(pushed) {
-				p.mu.Unlock()
-				continue // synced since this push
-			}
-			if left := pushSyncCooldown - time.Since(t); left > 0 {
-				p.mu.Unlock()
-				p.srv.logger.Debug("pack registry sync on push waits for the cooldown", "registry", reg.Name, "wait", left)
-				wait = max(wait, left)
-				continue
-			}
-		}
-		p.last[reg.Name] = time.Now()
-		p.mu.Unlock()
-		if _, _, err := p.srv.syncPackRegistryObject(obj); err != nil {
-			p.srv.logger.Warn("pack registry sync on push failed", "registry", reg.Name, "error", err)
-			continue
-		}
-		p.srv.logger.Info("pack registry synced on push", "registry", reg.Name)
-	}
-	return wait, nil
-}
-
-// publishPushNotice publishes a push notice on the bus; without the bus it
-// syncs the matching registries of this region directly.
-func (s *Server) publishPushNotice(n *bus.PushNotice) error {
-	if s.bus == nil || !s.config.Bus.Events.Enabled {
-		_, err := (&pushSyncer{srv: s, last: map[string]time.Time{}}).handle(n, time.Now())
-		return err
-	}
-	data, err := json.Marshal(n)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(s.shutdownCtx, 10*time.Second)
-	defer cancel()
-	return s.withBusJetStream(ctx, func(ctx context.Context, js jetstream.JetStream) error {
-		if err := s.ensurePushStream(ctx, js); err != nil {
-			return err
-		}
-		_, err := js.Publish(ctx, s.config.Bus.Events.SubjectPrefix+"."+bus.PushStoredSubject, data)
-		return err
-	})
 }

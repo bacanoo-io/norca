@@ -477,9 +477,6 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Run the built-in operators, each in its own loop.
 	s.operators.start(stopCh)
 
-	// Sync the pack registries that have a sync interval.
-	go s.packRegistrySyncLoop(stopCh)
-
 	// Announce expiring, expired and rotation-due secrets and dispatch
 	// their rotation jobs; it stops when stopCh is closed on revoke.
 	go s.runSecretsWatcher(stopCh)
@@ -492,7 +489,7 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// replicate there; it stops when stopCh is closed on revoke.
 	go s.replicateSecrets(stopCh)
 
-	// Publish the events to the system bus and handle the pack push notices.
+	// Publish the events to the system bus.
 	go s.busEventsLeader(stopCh)
 
 	// Start the garbage collector of custom objects.

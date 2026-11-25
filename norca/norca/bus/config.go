@@ -57,11 +57,6 @@ const (
 	// data capture stream may hold unacknowledged.
 	EventsConsumerMaxAckPending = 1000
 
-	// PushStreamMaxBytes bounds the stream of the pack push notices, which
-	// runs with the events: push notices are small and only needed until
-	// the leader handled them.
-	PushStreamMaxBytes = 64 << 20
-
 	// DefaultConsulKVMaxBytes bounds the bucket of the Consul KV.
 	DefaultConsulKVMaxBytes = 256 << 20
 
@@ -166,8 +161,7 @@ type LeafNodesConfig struct {
 
 // EventsConfig configures the event stream of the region: the leader
 // publishes the events of the event broker into the JetStream stream
-// NORCA_EVENTS_<region> on <SubjectPrefix>.<region>.<namespace>.<topic>, and consumes
-// the pack push notices on <SubjectPrefix>.packs.pushed.
+// NORCA_EVENTS_<region> on <SubjectPrefix>.<region>.<namespace>.<topic>.
 type EventsConfig struct {
 	Enabled       bool
 	SubjectPrefix string
@@ -280,10 +274,10 @@ func (c *Config) Validate() error {
 	// may grow past what is left makes the writes of the others fail.
 	if c.MaxStorage > 0 && c.ConsulKVMaxBytes > 0 {
 		if planned := c.PlannedStorage(); planned > c.MaxStorage {
-			errs = append(errs, fmt.Errorf("the streams of the bus need %dMiB (events %dMiB, pack push notices %dMiB, "+
+			errs = append(errs, fmt.Errorf("the streams of the bus need %dMiB (events %dMiB, "+
 				"usage reports %dMiB, Consul KV %dMiB, Rigger logs %dMiB, Rigger bundles %dMiB) and bus.max_storage is %dMiB: "+
 				"raise it, or lower bus.events.max_bytes, bus.consul_kv_max_bytes, bus.rigger_logs_max_bytes or bus.rigger_bundles_max_bytes",
-				planned>>20, c.eventsStorage()>>20, c.pushStorage()>>20, c.TelemetryMaxBytes()>>20,
+				planned>>20, c.eventsStorage()>>20, c.TelemetryMaxBytes()>>20,
 				c.ConsulKVMaxBytes>>20, c.RiggerLogsBytes()>>20, c.RiggerBundlesBytes()>>20, c.MaxStorage>>20))
 		}
 	}
@@ -319,13 +313,6 @@ func (c *Config) eventsStorage() int64 {
 	return c.Events.MaxBytes
 }
 
-func (c *Config) pushStorage() int64 {
-	if !c.Events.Enabled {
-		return 0
-	}
-	return PushStreamMaxBytes
-}
-
 // PlannedStorage is what the streams of the bus may take on disk together.
 func (c *Config) PlannedStorage() int64 {
 	return c.streamsStorage() + c.RiggerBundlesBytes()
@@ -334,7 +321,7 @@ func (c *Config) PlannedStorage() int64 {
 // streamsStorage is what the streams of the bus but the object store of
 // the bundles of Rigger may take on disk together.
 func (c *Config) streamsStorage() int64 {
-	return c.eventsStorage() + c.pushStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes + c.RiggerLogsBytes()
+	return c.eventsStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes + c.RiggerLogsBytes()
 }
 
 // minRiggerBundlesBytes is the least room a default gives the bundles;

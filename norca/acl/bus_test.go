@@ -16,12 +16,12 @@ func TestBusPolicy_Parse(t *testing.T) {
 	p, err := Parse(`
 bus {
   subscribe = ["norca.*.>", "norca.global.Job"]
-  publish   = ["norca.packs.pushed"]
+  publish   = ["app.orders"]
 }`)
 	must.NoError(t, err)
 	must.NotNil(t, p.Bus)
 	must.Eq(t, []string{"norca.*.>", "norca.global.Job"}, p.Bus.Subscribe)
-	must.Eq(t, []string{"norca.packs.pushed"}, p.Bus.Publish)
+	must.Eq(t, []string{"app.orders"}, p.Bus.Publish)
 	must.False(t, p.IsEmpty())
 
 	// The leafnode key is replaced by the cdc rule; unknown keys are refused
@@ -67,7 +67,7 @@ func TestACL_BusGrant(t *testing.T) {
 	p2, err := Parse(`
 bus {
   subscribe = ["norca.*.>", "app.>"]
-  publish   = ["norca.packs.pushed"]
+  publish   = ["app.orders"]
 }`)
 	must.NoError(t, err)
 	p3, err := Parse(`namespace "default" { policy = "read" }`)
@@ -78,7 +78,7 @@ bus {
 	g := a.BusGrant()
 	must.False(t, g.All)
 	must.Eq(t, []string{"app.>", "norca.*.>"}, g.Subscribe)
-	must.Eq(t, []string{"norca.packs.pushed"}, g.Publish)
+	must.Eq(t, []string{"app.orders"}, g.Publish)
 	must.False(t, g.Empty())
 
 	// A token without a bus rule gets nothing.

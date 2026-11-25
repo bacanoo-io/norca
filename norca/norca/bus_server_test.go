@@ -121,8 +121,6 @@ func TestBusServer_Authentication(t *testing.T) {
 	e, err := kv.Get(t.Context(), "app.config")
 	must.NoError(t, err)
 	must.Eq(t, "v", string(e.Value()))
-	_, err = nodeJS.Stream(t.Context(), pushStreamName)
-	must.Error(t, err)
 
 	// A token needs a bus or cdc rule.
 	policy := mock.ACLPolicy()

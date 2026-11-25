@@ -188,7 +188,6 @@ func TestLeader_Reassert_LoopsRunOnce(t *testing.T) {
 
 	loops := []string{
 		"(*Server).releaseLeaderLoop(",
-		"(*Server).packRegistrySyncLoop(",
 		"(*Server).objectMigrationLoop(",
 		"(*Server).csiCapacityLoop(",
 		"(*Server).csiVolumeStateLoop(",

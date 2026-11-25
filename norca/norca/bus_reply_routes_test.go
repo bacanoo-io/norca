@@ -4,8 +4,6 @@
 package norca
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -131,9 +129,8 @@ func TestBus_ResponderRoute(t *testing.T) {
 
 // A stream acknowledges a stored message to the reply subject its publisher
 // named, with the rights of JetStream (review finding SEC-2): a node, with
-// the reply of a usage report, and a token that may publish the pack push
-// notice purged a stream (the acknowledgement is a valid purge request) and
-// wrote a key of the Consul KV bucket.
+// the reply of a usage report, purged a stream (the acknowledgement is a
+// valid purge request) and wrote a key of the Consul KV bucket.
 func TestBus_PubAckRoute(t *testing.T) {
 	ci.Parallel(t)
 
@@ -143,10 +140,8 @@ func TestBus_PubAckRoute(t *testing.T) {
 	js, kv := cdcTestBus(t, s1)
 	eventsName := bus.EventStreamName("global")
 	waitBus(t, func() (bool, error) {
-		for _, name := range []string{bus.TelemetryStreamName("global"), pushStreamName} {
-			if _, err := js.Stream(t.Context(), name); err != nil {
-				return false, err
-			}
+		if _, err := js.Stream(t.Context(), bus.TelemetryStreamName("global")); err != nil {
+			return false, err
 		}
 		return true, nil
 	})
@@ -180,20 +175,9 @@ func TestBus_PubAckRoute(t *testing.T) {
 	must.NoError(t, nodeConn.PublishRequest(subject, "$KV."+bus.ConsulKVBucket+"."+nodeKey, []byte("{}")))
 	must.NoError(t, nodeConn.Flush())
 
-	// A token that may publish the pack push notice.
-	pusher := cdcTestTokens(t, s1, map[string]string{
-		"pusher": `bus { publish = ["norca.packs.pushed", "norca.packs.pushed.>"] }`,
-	})["pusher"]
-	pushConn, _ := busTestConn(t, s1, pusher)
-	pushKey := "other-ns.consul=2Fkv.from.push"
-	for _, subject := range []string{"norca.packs.pushed", "norca.packs.pushed.ci"} {
-		must.NoError(t, pushConn.PublishRequest(subject, "$KV."+bus.ConsulKVBucket+"."+pushKey, []byte(`{"Registry":"none"}`)))
-	}
-	must.NoError(t, pushConn.Flush())
 	time.Sleep(2 * time.Second)
 
 	busKVAbsent(t, kv, nodeKey, "the acknowledgement of a node's usage report")
-	busKVAbsent(t, kv, pushKey, "the acknowledgement of a pack push notice")
 	after, err := events.Info(t.Context())
 	must.NoError(t, err)
 	if after.State.FirstSeq != before.State.FirstSeq || after.State.Msgs < before.State.Msgs {
@@ -230,7 +214,7 @@ func TestBus_NoMessageToChosenReply(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 	js, _ := cdcTestBus(t, s1)
 	waitBus(t, func() (bool, error) {
-		for _, name := range []string{bus.TelemetryStreamName("global"), pushStreamName, bus.AdminEventStreamName("global"),
+		for _, name := range []string{bus.TelemetryStreamName("global"), bus.AdminEventStreamName("global"),
 			bus.ConsulKVChangesStreamName("global")} {
 			if _, err := js.Stream(t.Context(), name); err != nil {
 				return false, err
@@ -411,87 +395,4 @@ func TestBus_RequestReply(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a bus rule let a connection subscribe to every inbox")
 	}
-}
-
-// A pack push notice a pipeline publishes on the bus is stored by a server,
-// without an acknowledgement to the publisher, and synced like one sent
-// through the API.
-func TestBusEvents_PushNoticeRelay(t *testing.T) {
-	ci.Parallel(t)
-
-	s1, _, cleanup := TestACLServer(t, enableBus(t))
-	defer cleanup()
-	testutil.WaitForLeader(t, s1.RPC)
-	js, _ := cdcTestBus(t, s1)
-	waitBus(t, func() (bool, error) {
-		_, err := js.Stream(t.Context(), pushStreamName)
-		return err == nil, err
-	})
-
-	pusher := cdcTestTokens(t, s1, map[string]string{
-		"pusher": `bus { publish = ["norca.packs.pushed", "norca.packs.pushed.>"] }`,
-	})["pusher"]
-	nc, errs := busTestConn(t, s1, pusher)
-
-	stored := func() uint64 {
-		stream, err := js.Stream(t.Context(), pushStreamName)
-		must.NoError(t, err)
-		info, err := stream.Info(t.Context())
-		must.NoError(t, err)
-		return info.State.LastSeq
-	}
-	before := stored()
-	// The relay of this server subscribes when its loop starts.
-	waitBus(t, func() (bool, error) {
-		if err := nc.Publish("norca.packs.pushed", []byte(`{"Registry":"relay-test"}`)); err != nil {
-			return false, err
-		}
-		if err := nc.Flush(); err != nil {
-			return false, err
-		}
-		return stored() > before, errors.New("the notice was not stored")
-	})
-	stream, err := js.Stream(t.Context(), pushStreamName)
-	must.NoError(t, err)
-	msg, err := stream.GetMsg(t.Context(), stored())
-	must.NoError(t, err)
-	must.StrContains(t, string(msg.Data), "relay-test")
-
-	// The publisher gets no acknowledgement, and can't write the stored
-	// subject itself.
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	_, err = nc.RequestWithContext(ctx, "norca.packs.pushed", []byte(`{"Registry":"relay-test"}`))
-	must.Error(t, err)
-	must.NoError(t, nc.Publish("norca."+bus.PushStoredSubject, []byte(`{"Registry":"forged"}`)))
-	must.NoError(t, nc.Flush())
-	select {
-	case err := <-errs:
-		must.ErrorContains(t, err, "Permissions Violation")
-	case <-time.After(5 * time.Second):
-		t.Fatal("a token published the stored subject of the push notices")
-	}
-
-	// A notice the relay takes but can't store (here the stream is gone)
-	// is kept and stored by the next run of the relay, which creates the
-	// stream again (review finding MUK-18).
-	must.NoError(t, js.DeleteStream(t.Context(), pushStreamName))
-	must.NoError(t, nc.Publish("norca.packs.pushed", []byte(`{"Registry":"kept-test"}`)))
-	must.NoError(t, nc.Flush())
-	waitBus(t, func() (bool, error) {
-		stream, err := js.Stream(t.Context(), pushStreamName)
-		if err != nil {
-			return false, err
-		}
-		info, err := stream.Info(t.Context())
-		if err != nil {
-			return false, err
-		}
-		for seq := info.State.FirstSeq; seq != 0 && seq <= info.State.LastSeq; seq++ {
-			if msg, err := stream.GetMsg(t.Context(), seq); err == nil && bytes.Contains(msg.Data, []byte("kept-test")) {
-				return true, nil
-			}
-		}
-		return false, errors.New("the notice that could not be stored was lost")
-	})
 }

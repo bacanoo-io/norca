@@ -53,7 +53,7 @@ func TestCDCConsumerName(t *testing.T) {
 func TestBusServer_CDCRule(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, root, cleanup := TestACLServer(t, enableBus(t))
+	s1, _, cleanup := TestACLServer(t, enableBus(t))
 	defer cleanup()
 	testutil.WaitForLeader(t, s1.RPC)
 	st := s1.fsm.State()
@@ -100,23 +100,18 @@ func TestBusServer_CDCRule(t *testing.T) {
 		t.Fatal("the bus rule still reaches the change streams")
 	}
 
-	// A change, the telemetry of a node and a pack push notice.
+	// A change and the telemetry of a node.
 	must.NoError(t, st.UpsertJob(structs.JobRegisterRequestType, 110, nil, mock.Job()))
 	nodeConn, err := nats.Connect(busURL(s1), nats.UserInfo(node.ID, node.SecretID))
 	must.NoError(t, err)
 	defer nodeConn.Close()
 	must.NoError(t, nodeConn.Publish(structs.BusTelemetrySubject("global", node.ID), []byte("{}")))
-	mgmt, err := nats.Connect(busURL(s1), nats.Token(root.SecretID))
-	must.NoError(t, err)
-	defer mgmt.Close()
-	must.NoError(t, mgmt.Publish("norca.packs.pushed", []byte("{}")))
 
 	waitBus(t, func() (bool, error) { return got.has("Job"), nil })
 	time.Sleep(500 * time.Millisecond)
 	got.mu.Lock()
 	for _, subject := range got.seen {
-		must.False(t, strings.HasPrefix(subject, "norca.telemetry.") || strings.HasPrefix(subject, "norca.packs."),
-			must.Sprintf("the reader received %s", subject))
+		must.False(t, strings.HasPrefix(subject, "norca.telemetry."), must.Sprintf("the reader received %s", subject))
 	}
 	got.mu.Unlock()
 

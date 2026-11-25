@@ -94,7 +94,7 @@ func TestBus_ReaderAccountRefused(t *testing.T) {
 		{"reader with a dot", &ReaderSpec{Reader: "a.b", Subjects: []string{"norca.global.*.Job"}}},
 		{"nothing imported", &ReaderSpec{Reader: "r1"}},
 		{"telemetry", &ReaderSpec{Reader: "r1", Subjects: []string{"norca.telemetry.global.n1"}}},
-		{"pack push notices", &ReaderSpec{Reader: "r1", Subjects: []string{"norca.packs.pushed"}}},
+		{"outside the change streams", &ReaderSpec{Reader: "r1", Subjects: []string{"norca.custom.notice"}}},
 		{"consul kv values", &ReaderSpec{Reader: "r1", Subjects: []string{"$KV.consul-kv.>"}}},
 		{"jetstream api", &ReaderSpec{Reader: "r1", Subjects: []string{"$JS.API.>"}}},
 		{"wider than the stream", &ReaderSpec{Reader: "r1", Subjects: []string{"norca.global.>"}}},
