@@ -109,14 +109,6 @@ func (s *HTTPServer) ReleaseSpecificRequest(resp http.ResponseWriter, req *http.
 		if req.Method == http.MethodPut || req.Method == http.MethodPost {
 			return s.releaseApply(resp, req, name, true)
 		}
-	case len(parts) == 2 && parts[1] == "plan-pack":
-		if req.Method == http.MethodPut || req.Method == http.MethodPost {
-			return s.releasePackApply(resp, req, name, true)
-		}
-	case len(parts) == 2 && parts[1] == "deploy-pack":
-		if req.Method == http.MethodPut || req.Method == http.MethodPost {
-			return s.releasePackApply(resp, req, name, false)
-		}
 	case len(parts) == 2 && parts[1] == "history":
 		if req.Method == http.MethodGet {
 			return s.releaseHistory(resp, req, name)
