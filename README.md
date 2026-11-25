@@ -34,7 +34,7 @@ The reference pages adapt the Nomad v1.6.5 documentation text (MPL 2.0, with att
 | Component | Based on | Commit | License |
 | --- | --- | --- | --- |
 | `norca/` | HashiCorp Nomad v1.6.5 | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 |
-| `norca/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
+| `norca/pack/` (removed; in the git history) | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
 | `norca/norca/autoscaler/` | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
 | `norca/drivers/exec2/` | HashiCorp nomad-driver-exec2 v0.1.1 | `806e1aa12b9549addd9babbf17400e953acd3c3e` | MPL 2.0 |
 | `norca/secretstore/ubix/` | uBixVault v1.5.0 | `817554750c2ccd2dd9a8ac072615630ade05b025` | BSD-3-Clause |
@@ -46,7 +46,7 @@ The Raft library is [bacanoo-io/raft](https://github.com/bacanoo-io/raft), a for
 
 **The 45 left-out files.** 45 files of the v1.6.5 tag carried a `BUSL-1.1` header although the tag's `LICENSE` is MPL 2.0. They were left out of the import and reimplemented independently. The procedure and the similarity audit that checks the result are described in [CLEAN_ROOM.md](CLEAN_ROOM.md); the latest result is in [clean-room-result/](clean-room-result/).
 
-Nomad Pack was imported with its full git history and later moved into `norca/pack/`; its original commits remain in the history. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
+Nomad Pack was imported with its full git history, later moved into `norca/pack/` and then removed; its original commits remain in the history. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
 
 ## Usage
 
@@ -69,18 +69,31 @@ The version line shows the Norca version and the Nomad version whose HTTP API No
 
 Step-by-step deployment examples (development agent, single node, three nodes, multi region): [example/](example/README.md).
 
-### Packs
+### Packages
 
-`norca pack` is Norca Pack, the built-in package manager, based on HashiCorp Nomad Pack v0.4.2. It installs packs from git and OCI registries. The operations packs (NATS, the cross-region mTLS gateway, RustFS as the backup store, Consul, the LoadBalancer operator) live in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry):
+`norca rigger` is Rigger, the package manager of Norca; the standalone `rigger` program has the same commands. It installs modules (packages written in typed HCL) and stacks (several modules with their values) as releases, with versions, registries, a lock file and signatures. The operations modules (NATS, the cross-region mTLS gateway, RustFS as the backup store, Consul, the LoadBalancer operator) live in the [Norca registry](https://github.com/bacanoo-io/norca-registry), and the [global registry](https://github.com/bacanoo-io/norca-global-registry) lists them as `norca/<name>`. A stack names a module by that source:
 
-```shell
-norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.3.0
-norca pack run nats --registry=norca
+```hcl
+# stack.hcl
+rigger {
+  name = "platform"
+}
+
+module "bus" {
+  source  = "norca/nats"
+  version = "~> 2.0"
+}
 ```
 
-See [norca/pack/README.md](norca/pack/README.md) and the [pack docs](norca/pack/docs/).
+```shell
+norca rigger stack sync .                      # resolve the versions, fetch and verify the modules, write rigger.lock.hcl
+norca rigger stack apply .                     # install the releases of the stack
+norca rigger install ./my-module -name web     # one release of a module in a directory
+```
 
-The `consul` pack installs the official Consul release, which this project does not distribute. Consul is licensed under BSL 1.1, which you accept at install. If you offer Norca with Consul to third parties as a service, check the BSL Additional Use Grant yourself.
+See [rigger/README.md](rigger/README.md), the language by example in [rigger/examples/](rigger/examples/README.md), and the [deployment examples](example/README.md#the-module-registry).
+
+The `consul` module installs the official Consul release, which this project does not distribute. Consul is licensed under BSL 1.1, which you accept at install. If you offer Norca with Consul to third parties as a service, check the BSL Additional Use Grant yourself.
 
 ### Running scripts written for the Nomad CLI
 
@@ -102,10 +115,10 @@ The CLI and the API client read their settings from `NORCA_*` environment variab
 | `NORCA_TLS_SERVER_NAME` | SNI server name |
 | `NORCA_SKIP_VERIFY` | Skip TLS verification |
 | `NORCA_CLI_NO_COLOR`, `NORCA_CLI_FORCE_COLOR` | Disable or force colored output |
-| `NORCA_PACK_ALLOW_UNSET_VARS`, `NORCA_PACK_PLAN_EXIT_CODE_*` | `norca pack` settings |
-| `NORCA_PACK_CONFIG`, `NORCA_PACK_CACHE_DIR`, `NORCA_PACK_REGISTRY_USERNAME`, `NORCA_PACK_REGISTRY_PASSWORD`, `NORCA_PACK_KEY_PASSWORD`, `NORCA_PACK_LOCK` | `norca pack` OCI registries, signing and lock files ([details](norca/pack/docs/supply-chain.md)) |
 
-Command-line flags take precedence. The variables injected into workloads (`NORCA_ALLOC_ID`, `NORCA_TASK_DIR`, ...), the jobspec variable prefix `NORCA_VAR_` and the pack variable prefix `NORCA_PACK_VAR_` use the same prefix.
+Command-line flags take precedence. The variables injected into workloads (`NORCA_ALLOC_ID`, `NORCA_TASK_DIR`, ...) and the jobspec variable prefix `NORCA_VAR_` use the same prefix.
+
+`norca rigger` talks to the cluster of `NORCA_ADDR` and `NORCA_TOKEN` and reads its own settings from `RIGGER_*` variables: `RIGGER_VAR_<name>` (the value of a variable), `RIGGER_SERVER` (the servers evaluate), and `RIGGER_GIT_*` and `RIGGER_OCI_*` (the credentials of git and OCI sources). See `norca rigger help` and [rigger/README.md](rigger/README.md).
 
 ## Feature status
 
@@ -141,10 +154,10 @@ State of 2026-11-17. A review of the Norca-specific code in November 2026 found 
 | Server roles: observers and hot standby servers | Implemented (alpha), phases 1–4 | [server roles plan][roles] |
 | Backup and restore (scheduled, encrypted, selective and full restore, web UI) | Implemented (alpha), phases 1–4 | [backup plan][backup] |
 | Service discovery without Consul (catalog, built-in DNS, Consul-compatible read layer, external services) | Implemented (alpha), phases 1–4 | [Consul independence plan][consul] |
-| Full Consul as an option, through the `consul` pack | Implemented (alpha), phase 6 | [Consul independence plan][consul] |
+| Full Consul as an option, through the `consul` module | Implemented (alpha), phase 6 | [Consul independence plan][consul] |
 | Native mTLS (per-region CA, SPIFFE workload certificates, intentions, Envoy sidecar and gateway) | Implemented (alpha), phase 5 | [Consul independence plan][consul] |
-| Package management (`norca pack`, OCI registries, signing, server-side releases, multi-region installs) | Implemented (alpha) | [package management plan][packs] |
-| Norca pack registry (`nats`, `mtls-gateway`, `rustfs`, `consul`, `traefik`, `forgejo`, `postgres`, `openobserve`, `otel-collector`, `seaweedfs`, `seaweedfs-csi`, and the operator packs `loadbalancer-operator`, `nodescaler-operator`, `norca-provider`, `norca-acme`, `norca-dns`) | Implemented (alpha) | [registry](https://github.com/bacanoo-io/norca-registry#readme) |
+| Package management with Rigger (`norca rigger`: modules and stacks, git and OCI sources, registries, lock files, signing, server-side releases) | Implemented (alpha) | [Rigger](rigger/README.md), [status](rigger/STATUS.md) |
+| Norca module registry (`nats`, `mtls-gateway`, `rustfs`, `consul`, `traefik`, `forgejo`, `postgres`, `openobserve`, `otel-collector`, `seaweedfs`, `seaweedfs-csi`, and the operator modules `loadbalancer-operator`, `nodescaler-operator`, `norca-provider`, `norca-acme`, `norca-dns`), listed in the global registry of Rigger | Implemented (alpha) | [registry](https://github.com/bacanoo-io/norca-registry#readme) |
 | Embedded secret storage | In progress, phases 0–4 | [secrets plan][secrets] |
 | New web UI (Ember 6.12 LTS, Tabler, ECharts) | Implemented (alpha), phases 1–4 | [UI plan][ui] |
 
@@ -157,7 +170,6 @@ State of 2026-11-17. A review of the Norca-specific code in November 2026 found 
 [bus]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/system-bus.md
 [backup]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/backup-restore-plan.md
 [consul]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/consul-independence-plan.md
-[packs]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md
 [secrets]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/secrets-plan.md
 [ui]: https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/ui-plan.md
 

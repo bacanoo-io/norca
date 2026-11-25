@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
-# Variables of the test-app pack as a multiregion job: registered in both
-# regions with the same version and rolled out eu-1 first, then eu-2.
-#   norca pack run ../packs/test-app --name=test-app --namespace=apps \
-#     --regions=eu-1,eu-2 -f test-app-multiregion.hcl
+# Values of the test-app module as a multiregion job: registered in both
+# regions with the same version and rolled out eu-1 first, then eu-2. The
+# release is installed in eu-1; the multiregion block of the job registers
+# it in eu-2.
+#   norca rigger install ../modules/test-app -name test-app -namespace apps \
+#     -region eu-1 -f test-app-multiregion.hcl
 multiregion = [
   { name = "eu-1", count = 3 },
   { name = "eu-2", count = 2 },

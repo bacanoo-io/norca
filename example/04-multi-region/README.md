@@ -15,8 +15,8 @@ one region does not stop the other.
 
 This shows: federation with ACL and secret replication, a multiregion deployment of
 the test application (one version, rolled out region by region), native
-mTLS across regions through a gateway, a pack release
-installed in both regions at once, and per-region backups.
+mTLS across regions through a gateway installed as a release in each
+region, and per-region backups.
 
 A third region is added the same way as `eu-2`.
 
@@ -27,8 +27,8 @@ A third region is added the same way as `eu-2`.
   between the servers (the system bus stays inside a region), 8443 (mTLS gateway)
   between the clients.
 - One CA for both regions (the servers verify `server.<region>.norca`).
-- The [Norca pack registry](../README.md#the-pack-registry) added as `norca`
-  (the `mtls-gateway` pack).
+- The [global registry](../README.md#the-module-registry) of Rigger, which
+  the servers of each region sync in step 6 (the `mtls-gateway` module).
 
 ## Files
 
@@ -37,8 +37,8 @@ A third region is added the same way as `eu-2`.
 | [region-eu-1.hcl](region-eu-1.hcl) | Region, certificate and authoritative region of the eu-1 nodes (`/etc/norca.d/region.hcl`) |
 | [region-eu-2.hcl](region-eu-2.hcl) | Same for eu-2, with the replication token, the join address in eu-1 and the catalog token of the clients |
 | [quota-apps.hcl](quota-apps.hcl) | The quota of `apps` with a limit per region |
-| [test-app-multiregion.hcl](test-app-multiregion.hcl) | test-app pack as a multiregion job |
-| [mtls-gateway.norca.hcl](mtls-gateway.norca.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md) renders with its defaults) |
+| [test-app-multiregion.hcl](test-app-multiregion.hcl) | Values of the [test-app module](../modules/test-app/README.md) as a multiregion job |
+| [mtls-gateway.norca.hcl](mtls-gateway.norca.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway module](https://github.com/bacanoo-io/norca-registry/blob/main/modules/mtls-gateway/README.md) renders with its defaults) |
 | [probe-eu-2.norca.hcl](probe-eu-2.norca.hcl) | The probe in eu-2, reading test-api of eu-1 |
 
 ## Steps
@@ -136,12 +136,13 @@ norca secret info -region eu-2 -namespace apps test-app/db    # Replicated From
 ### 5. Multiregion deployment of test-app
 
 ```shell
-norca pack run ../packs/test-app --name=test-app --namespace=apps \
-  --regions=eu-1,eu-2 -f test-app-multiregion.hcl
-norca pack status test-app --name=test-app --namespace=apps    # one row per region
+norca rigger install ../modules/test-app -name test-app -namespace apps \
+  -region eu-1 -f test-app-multiregion.hcl
+norca rigger release status test-app -namespace apps -region eu-1
 ```
 
-The job is registered in both regions with the same version; eu-1 deploys
+Rigger installs a release in one region, here eu-1. The `multiregion` block
+of the job registers it in both regions with the same version; eu-1 deploys
 first (`max_parallel = 1`), eu-2 starts when eu-1 is healthy, and with
 `on_failure = "fail_all"` a failure in one region fails the deployment in
 both.
@@ -175,19 +176,22 @@ dig @127.0.0.1 -p 8600 test-app.service.apps.norca SRV   # on an eu-2 node: eu-2
 The answer carries the addresses of the other region; reaching them needs
 routing between the regions or the mTLS gateway of step 6.
 
-The same job without the pack: `norca pack render ../packs/test-app -f test-app-multiregion.hcl`
-and `norca job run -namespace apps <rendered file>` from any region.
-
 ### 6. mTLS across regions
 
 ```shell
-# A gateway in every region that offers services to the others: one release
-# of the mtls-gateway pack in both regions (a system job on every node).
-norca pack run mtls-gateway --registry=norca --name=mtls-gateway --regions=eu-1,eu-2
+# A gateway in every region that offers services to the others (a system
+# job on every node): the mtls-gateway module of the global registry. There
+# is no install into several regions at once, so each region syncs the
+# registry and gets its own release.
+gateway='{"Release": "mtls-gateway", "Registry": "global", "Module": "norca/mtls-gateway", "Version": "~> 0.2"}'
+norca rigger registry sync global -region eu-1
+echo "$gateway" | norca operator api -region eu-1 -X PUT /v1/rigger/install
+norca rigger registry sync global -region eu-2
+echo "$gateway" | norca operator api -region eu-2 -X PUT /v1/rigger/install
 # without the registry: norca job run -var region=eu-1 mtls-gateway.norca.hcl (and eu-2)
 
-# test-api in eu-1 (behind its sidecar, variables of 03), the probe in eu-2:
-norca pack run ../packs/test-app --region=eu-1 --name=test-api --namespace=apps -f ../03-three-node/test-api.hcl
+# test-api in eu-1 (behind its sidecar, values of 03), the probe in eu-2:
+norca rigger install ../modules/test-app -name test-api -namespace apps -region eu-1 -f ../03-three-node/test-api.hcl
 norca job run probe-eu-2.norca.hcl
 
 # The intentions of the destination region decide.
@@ -221,19 +225,21 @@ norca operator backup save -region eu-2 -label note=after-federation
 
 Secrets, catalogs and workload certificates are regional: run step 11 of
 [03](../03-three-node/README.md#11-observability) in every region (`-region`
-with the CLI, `--region` with the packs), so each region has its own
+with every command), so each region has its own
 OpenObserve and the collectors of a region export to it. The agent
 configuration of 03 already has the `telemetry` block (`prometheus_metrics`)
 the collectors scrape; the mTLS gateways have metrics with
-`envoy_task_enabled` and `metrics_enabled` of the mtls-gateway pack.
+`envoy_task_enabled` and `metrics_enabled` of the mtls-gateway module.
 
 ### 9. Teardown
 
 ```shell
 norca job stop -region eu-2 -namespace apps -purge probe
-norca pack uninstall test-api --region=eu-1 --namespace=apps
-norca pack uninstall test-app --namespace=apps --all-regions
-norca pack uninstall mtls-gateway --all-regions
+norca rigger release uninstall test-api -namespace apps -region eu-1
+norca rigger release uninstall test-app -namespace apps -region eu-1
+norca job stop -region eu-2 -namespace apps -purge -yes test-app   # the copy of the job in eu-2, which the release of eu-1 does not own
+norca rigger release uninstall mtls-gateway -region eu-1
+norca rigger release uninstall mtls-gateway -region eu-2
 ```
 
 Then stop the agents of eu-2 and eu-1 as in 03.
@@ -246,9 +252,10 @@ Either region's UI shows the whole federation:
   region switcher.
 - **Deployments**: the multiregion deployment of test-app with the state of
   each region (pending, blocked, running, successful).
-- **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region;
-  [cluster registries](../README.md#cluster-registries-and-the-catalog) are per region
-  (add the registry in each).
+- **Packages**: the releases of each region (`test-app` and `test-api` in
+  eu-1, `mtls-gateway` in both); the
+  [registries](../README.md#the-catalog-in-the-web-ui) are per region (sync
+  `global` in each).
 - **Intentions and rules**: the intention `probe → test-api` in eu-1.
 - **Services** (per region): `mtls-gateway`, `test-api` in eu-1, `probe` in eu-2.
 - **Backups** (per region).

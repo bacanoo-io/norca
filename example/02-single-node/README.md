@@ -21,9 +21,10 @@ available version.
   in `/opt/cni/bin` (bridge networking), `curl` 7.75 or newer and
   [age](https://github.com/FiloSottile/age) (`age-keygen`).
 - The `norca` binary in `/usr/local/bin` (see [../README.md](../README.md#getting-the-norca-binary)).
-- The [Norca pack registry](https://github.com/bacanoo-io/norca-registry) for the RustFS store (step 7):
-  git and access to GitHub, or a checkout of the registry (see
-  [../README.md](../README.md#the-pack-registry)).
+- The `rustfs` module of the global registry for the RustFS store (step 7):
+  access to GitHub from the server, or a checkout of the
+  [Norca registry](https://github.com/bacanoo-io/norca-registry) (see
+  [../README.md](../README.md#the-module-registry)).
 - This directory and [../policies](../policies) on the machine.
 - Below, `10.0.0.10` is the address of the machine: replace it everywhere.
 
@@ -34,8 +35,8 @@ available version.
 | [norca.hcl](norca.hcl) | Agent configuration (server and client) |
 | [norca.service](norca.service) | systemd unit |
 | [backup-credentials.example](backup-credentials.example) | S3 credentials of the backup destination |
-| [rustfs.hcl](rustfs.hcl) | Variables of the [rustfs pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/rustfs/README.md): RustFS as the backup store, the backup bucket |
-| [test-app.hcl](test-app.hcl) | Variables of the [test-app pack](../packs/test-app/README.md) |
+| [rustfs.hcl](rustfs.hcl) | Values of the [rustfs module](https://github.com/bacanoo-io/norca-registry/blob/main/modules/rustfs/README.md): RustFS as the backup store, the backup bucket |
+| [test-app.hcl](test-app.hcl) | Values of the [test-app module](../modules/test-app/README.md) |
 
 ## Steps
 
@@ -136,26 +137,35 @@ norca secret info -namespace apps test-app/db  # metadata and versions, never va
 
 ### 7. Backup store
 
-RustFS (Apache-2.0), an S3-compatible store, from the `rustfs` pack of the
-Norca pack registry. Its root credentials live in the secret store: the
-access key and the secret key are the values of
-`/etc/norca.d/backup-credentials`.
+RustFS (Apache-2.0), an S3-compatible store, from the module `norca/rustfs`
+of the [global registry](../README.md#the-module-registry). Its root
+credentials live in the secret store: the access key and the secret key are
+the values of `/etc/norca.d/backup-credentials`.
 
 ```shell
 norca secret put rustfs/root access_key=norca-backup secret_key=-   # type the secret key, then Ctrl-D
 
-norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.3.0
-norca pack run rustfs --registry=norca --name=rustfs -f rustfs.hcl
+# The server reads the global registry when asked, then installs the module
+# with the values of rustfs.hcl. The request waits until RustFS is ready and
+# answers with "Action": "install".
+norca rigger registry sync global
+norca operator api -X PUT /v1/rigger/install <<'EOF'
+{"Release": "rustfs", "Registry": "global", "Module": "norca/rustfs", "Version": "~> 0.2",
+ "ValuesJSON": {"buckets": ["norca-backup"], "console_enabled": true}}
+EOF
+norca rigger release status rustfs
 norca service info -verbose rustfs
 norca alloc logs -task create-buckets <alloc ID>     # "bucket norca-backup created"
 ```
 
-The same pack can be installed from the web UI once the registry is a
-[cluster registry](../README.md#cluster-registries-and-the-catalog):
-**Packages → Catalog → rustfs → Install**, with the values of `rustfs.hcl`
-in the form.
+The same module can be installed from the
+[catalog of the web UI](../README.md#the-catalog-in-the-web-ui):
+**Packages → Catalog → norca/rustfs → Install**, with the values of
+`rustfs.hcl` in the form. From a checkout of the Norca registry it installs
+without the global registry:
+`norca rigger install <checkout>/modules/rustfs -name rustfs -f rustfs.hcl`.
 
-`buckets` in `rustfs.hcl` makes the pack create the backup bucket once the
+`buckets` in `rustfs.hcl` makes the module create the backup bucket once the
 store is ready (Norca never creates it). Without it, create the bucket with
 an S3 CreateBucket signed by curl:
 
@@ -165,7 +175,7 @@ curl --aws-sigv4 "aws:amz:us-east-1:s3" --user "norca-backup:<secret key>" \
 ```
 
 The `backup` block of `norca.hcl` points to this store (`endpoint`,
-`bucket`, `region` = the pack's `s3_region`, `force_path_style`). The first
+`bucket`, `region` = the module's `s3_region`, `force_path_style`). The first
 scheduled backup is due as soon as the agent is the leader; while the bucket
 does not exist the attempts fail and are retried every `retry_interval` (10
 minutes by default), so the first scheduled backup is taken at most about 10
@@ -190,9 +200,9 @@ destination "local" {
 ### 8. Deploy the test application
 
 ```shell
-norca pack run ../packs/test-app --name=test-app --namespace=apps -f test-app.hcl
-norca pack status test-app --name=test-app --namespace=apps
-norca pack history test-app --namespace=apps
+norca rigger install ../modules/test-app -name test-app -namespace apps -f test-app.hcl
+norca rigger release status test-app -namespace apps
+norca rigger release history test-app -namespace apps
 ```
 
 The release is applied by the servers: the admission policy, the quota
@@ -246,8 +256,8 @@ administrator with another management token (`norca operator backup approve`);
 
 OpenObserve (single mode: SQLite and the data on the host volume
 `openobserve` of `norca.hcl`) and an OpenTelemetry Collector on the node,
-both from the registry ([openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md),
-[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)). The
+both from the global registry ([openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/modules/openobserve/README.md),
+[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/modules/otel-collector/README.md)). The
 agent serves its Prometheus metrics already (`telemetry` in `norca.hcl`).
 To keep this scenario short both run without TLS (03 uses workload certificates):
 
@@ -255,30 +265,34 @@ To keep this scenario short both run without TLS (03 uses workload certificates)
 sudo install -d -m 700 /srv/openobserve
 norca namespace apply -description "Observability" observability
 norca secret put -namespace observability openobserve/root password=-   # 8+ chars: upper, lower, digit, special
-norca pack run openobserve --registry=norca --namespace=observability \
-  --var namespace=observability --var tls_mode=none
+norca operator api -namespace observability -X PUT /v1/rigger/install <<'EOF'
+{"Release": "openobserve", "Registry": "global", "Module": "norca/openobserve", "Version": "~> 0.2",
+ "ValuesJSON": {"tls_mode": "none"}}
+EOF
 norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
 
 norca secret put -namespace observability norca/agent-ca ca=@/etc/norca.d/tls/norca-agent-ca.pem
-norca pack run otel-collector --registry=norca --namespace=observability \
-  --var namespace=observability --var openobserve_tls=none \
-  --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
-  --var 'discovery_namespaces=["default","apps"]'
+norca operator api -namespace observability -X PUT /v1/rigger/install <<'EOF'
+{"Release": "otel-collector", "Registry": "global", "Module": "norca/otel-collector", "Version": "~> 0.1",
+ "ValuesJSON": {"openobserve_tls": "none", "nomad_address": "https://127.0.0.1:4646",
+                "nomad_ca_secret_path": "norca/agent-ca", "discovery_namespaces": ["default", "apps"]}}
+EOF
 ```
 
 Open `http://10.0.0.10:5080/` and log in as `root@openobserve.internal`: the
 host and agent metrics arrive in the organization `default` within a minute.
-RustFS pushes its metrics to the collector with
-`norca pack upgrade rustfs --registry=norca --name=rustfs -f rustfs.hcl --var metrics_enabled=true`; the
-applications of the node send OTLP to `http://10.0.0.10:4318`.
+RustFS pushes its metrics to the collector once the request of step 7 is
+sent again with `"metrics_enabled": true` among its values, which upgrades
+the release; the applications of the node send OTLP to
+`http://10.0.0.10:4318`.
 
 ### 12. Teardown
 
 ```shell
-norca pack uninstall otel-collector --namespace=observability
-norca pack uninstall openobserve --namespace=observability
-norca pack uninstall test-app --namespace=apps
-norca pack uninstall rustfs
+norca rigger release uninstall otel-collector -namespace observability
+norca rigger release uninstall openobserve -namespace observability
+norca rigger release uninstall test-app -namespace apps
+norca rigger release uninstall rustfs
 sudo systemctl disable --now norca
 sudo rm -rf /opt/norca/data /srv/rustfs /srv/openobserve /etc/norca.d /var/log/norca
 ```

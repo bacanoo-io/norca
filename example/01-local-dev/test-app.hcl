@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
-# Variables of the test-app pack on a development agent:
-#   norca pack run ../packs/test-app -f test-app.hcl
+# Values of the test-app module on a development agent:
+#   norca rigger install ../modules/test-app -name test-app -f test-app.hcl
 count = 1
 
 # Docker port mapping, so the agent needs neither root nor the CNI plugins.

@@ -8,7 +8,7 @@ description = "Example applications"
 quota       = "apps"
 
 meta {
-  # Pack releases in production namespaces are atomic: a failed install or
+  # Releases in production namespaces are atomic: a failed install or
   # upgrade restores the previous revision.
   environment = "production"
   team        = "demo"

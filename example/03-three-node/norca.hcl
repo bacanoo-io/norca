@@ -117,9 +117,9 @@ client {
   }
 }
 
-# No raw_exec: the LoadBalancer operator (the loadbalancer-operator pack) and
+# No raw_exec: the LoadBalancer operator (the loadbalancer-operator module) and
 # its proxies run with exec from a binary installed under /usr/local/bin, and
-# the operator packs keep off nodes where raw_exec is enabled (a raw_exec task
+# the operator modules keep off nodes where raw_exec is enabled (a raw_exec task
 # could read the secrets of every allocation of the node).
 
 consul {

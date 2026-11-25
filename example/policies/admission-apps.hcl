@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 # CEL admission policy of the "apps" namespace, checked on job registration
-# and plan (norca job run, job plan, pack run):
+# and plan (norca job run, job plan, rigger install):
 #   norca admission-policy apply admission-apps.hcl
 #   norca admission-policy list
 name        = "apps-baseline"

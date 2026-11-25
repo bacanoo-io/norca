@@ -26,7 +26,7 @@ namespace "apps" {
     policy = "write"
   }
 
-  # Pack releases (rigger.norca.io/Release objects) in the namespace.
+  # Releases of Rigger (rigger.norca.io/Release objects) in the namespace.
   object "rigger.norca.io/Release" {
     capabilities = ["read", "write"]
   }

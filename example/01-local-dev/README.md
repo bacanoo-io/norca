@@ -24,7 +24,7 @@ features; everything is gone when the agent stops.
 | File | |
 | --- | --- |
 | [dev.hcl](dev.hcl) | Additions to the dev agent: autoscaler, DNS, Consul-compatible API, healthy-only service lookups of the workloads (`default_healthy_only`) |
-| [test-app.hcl](test-app.hcl) | Variables of the [test-app pack](../packs/test-app/README.md) for a dev agent |
+| [test-app.hcl](test-app.hcl) | Values of the [test-app module](../modules/test-app/README.md) for a dev agent |
 
 ## Steps
 
@@ -51,11 +51,13 @@ norca secret info test-app/db        # metadata and versions, never the value
 ### 3. Run the test application
 
 ```shell
-norca pack run ../packs/test-app -f test-app.hcl
-norca pack status test-app
+norca rigger install ../modules/test-app -name test-app -f test-app.hcl
+norca rigger release status test-app
 norca job status test-app
 ```
 
+`norca rigger` is Rigger, the package manager: `install` installs the module
+of a directory as a release and waits until it is ready.
 `network_mode = "host"` in `test-app.hcl` uses Docker port mapping, so no
 CNI plugins and no root agent are needed. For bridge networking run the
 agent as root with the CNI plugins in `/opt/cni/bin` and drop that line.
@@ -137,35 +139,39 @@ The `secret` block of the job delivers the new version into
 gets `SIGHUP`); the Vault-style template (`{{ with secret "kv/data/test-app/db" }}`)
 is served by the built-in store because the agent has no Vault integration.
 
-### 7. Install from the catalog
+### 7. The catalog of the web UI
 
-Cluster pack registries feed the **Packages → Catalog** of the web UI, and
-the install form is built from the `ui`, `validation` and `rule` blocks of
-the pack. Add the packs of the examples as a registry of the type `dir` (the
-dev agent is its own server, so it reads this checkout):
+The registries of the cluster feed the **Packages → Catalog** of the web UI,
+and the install form is built from the `ui` and `validation` blocks of the
+variables of a module. The servers create the registry `global`, the
+[global registry](../README.md#the-module-registry) of Rigger, and read it
+only when someone asks for it. This step needs access to GitHub from the
+agent:
 
 ```shell
-curl -X POST http://127.0.0.1:4646/v1/pack-registry \
-  -d "{\"Name\": \"examples\", \"Spec\": {\"type\": \"dir\", \"source\": \"$(cd ../packs && pwd)\"}}"
-curl -s http://127.0.0.1:4646/v1/packs     # test-app 0.3.0, registry examples
+norca rigger registry sync global
+norca rigger registry status global
+norca rigger registry search global -kind module    # norca/nats, norca/rustfs, ...
 ```
 
-Or add it on **Packages → Registries** (type *Server directory*, source the
-absolute path of `example/packs`). Then, in the web UI:
+Or use **Sync** on **Packages → Registries**. Then, in the web UI:
 
-1. **Packages → Catalog → test-app → Install**, release name `test-ui`.
-2. **General**: job name `test-ui`; switch off *Deliver the secret* (or put
-   `test-ui/db` first).
-3. **Networking**: network mode *Host* (no CNI plugins on the dev agent).
-   The mTLS switch disappears: it needs bridge networking.
-4. **Resources & Scaling**: move *Instances* to 6. **Plan** reports the rule
-   `count_within_scaling` (6 is above `scaling_max` 4); set it back to 2.
-5. **Plan**, then **Install**. The release has the revision and an
-   **Upgrade** with the same form, which sends only the changed values.
+1. **Packages → Catalog**, registry `global`. Switch on *The whole index*:
+   the registry shows only what was selected for it.
+2. **Install** on the card of a module, for example `norca/nats`, release
+   name `bus`.
+3. Set `count` to 1: the ports of the NATS servers are static, so a node
+   runs one of them.
+4. **Plan** shows what the install would change; a value that the
+   `validation` or `rule` blocks of the module refuse is reported instead.
+   The **CLI command** tab shows the same install as a request to the HTTP
+   API.
+5. **Install** applies the release and waits until it is ready. The release
+   has its revision and an **Upgrade** with the same form.
 
 ```shell
-norca pack status test-app --name=test-ui
-norca pack uninstall test-ui          # or Uninstall in the UI
+norca rigger release status bus
+norca rigger release uninstall bus          # or Uninstall in the UI
 ```
 
 ### 8. External service and DNS alias (optional)
@@ -179,7 +185,7 @@ norca service deregister legacy-db
 ### 9. Teardown
 
 ```shell
-norca pack uninstall test-app
+norca rigger release uninstall test-app
 ```
 
 Then stop the agent with Ctrl-C: the dev agent keeps nothing.
@@ -195,7 +201,7 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
 - **Scaling**: the policies of the built-in autoscaler, their events and the
   usage history of the task groups.
 - **Packages**: the `test-app` release and its revisions; the **Registries**
-  tab with `examples`, the **Catalog** with its packs and the install form
+  tab with `global`, the **Catalog** with its modules and the install form
   (step 7).
 - **Topology** and **Clients**: the node in its datacenter `dc1`.
 - **Configuration → Secrets**: the secrets of the built-in secret store with

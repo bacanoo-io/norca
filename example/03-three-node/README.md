@@ -45,8 +45,8 @@ with the LoadBalancer operator.
 | --- | --- |
 | [norca.hcl](norca.hcl) | Shared agent configuration (server and client) of the three nodes |
 | [node-1.hcl](node-1.hcl), [node-2.hcl](node-2.hcl), [node-3.hcl](node-3.hcl) | Name, addresses and datacenter of each node, installed as `/etc/norca.d/node.hcl` |
-| [test-app.hcl](test-app.hcl) | test-app pack: 3 instances spread over the datacenters, autoscaled up to 6 |
-| [test-api.hcl](test-api.hcl) | test-app pack as `test-api`, behind an mTLS sidecar |
+| [test-app.hcl](test-app.hcl) | Values of the [test-app module](../modules/test-app/README.md): 3 instances spread over the datacenters, autoscaled up to 6 |
+| [test-api.hcl](test-api.hcl) | Values of the test-app module as `test-api`, behind an mTLS sidecar |
 | [probe.norca.hcl](probe.norca.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
 | [lb-test-app.hcl](lb-test-app.hcl) | A `norca.io/LoadBalancer` object for test-app |
 | [../02-single-node/norca.service](../02-single-node/norca.service) | systemd unit |
@@ -135,7 +135,7 @@ norca network-policy apply ../policies/netpol-test-app.hcl
 
 ```shell
 norca secret put -namespace apps test-app/db username=app password=-
-norca pack run ../packs/test-app --name=test-app --namespace=apps -f test-app.hcl
+norca rigger install ../modules/test-app -name test-app -namespace apps -f test-app.hcl
 
 norca job status -namespace apps test-app             # one instance per datacenter, disruption budget
 norca service info -namespace apps -verbose test-app  # datacenters and health of the instances
@@ -164,7 +164,7 @@ norca job scale -namespace apps test-app 3
 ### 6. Native mTLS: test-api, probe and intentions
 
 ```shell
-norca pack run ../packs/test-app --name=test-api --namespace=apps -f test-api.hcl
+norca rigger install ../modules/test-app -name test-api -namespace apps -f test-api.hcl
 norca job run probe.norca.hcl
 
 # Without an intention the connection is denied:
@@ -185,8 +185,8 @@ through the catalog or DNS needs a workload certificate and an intention.
 See [native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md) for the sidecar, the
 upstreams and the limits (TCP only).
 
-Full Consul is available as a pack as well, the
-[consul pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/consul/README.md)
+Full Consul is available as a module as well, the
+[consul module](https://github.com/bacanoo-io/norca-registry/blob/main/modules/consul/README.md)
 (Consul is BSL 1.1 and is installed from HashiCorp's releases after you accept
 its license); service discovery, DNS and mTLS above don't need it.
 
@@ -219,20 +219,25 @@ metrics-store`, the **Scaling** page of the web UI).
 ```shell
 # Build the operator binary (it is also the TCP proxy of the "nomad" class)
 # from the norca-platform repository, checked out next to this one, and
-# install it on every node. The pack is loadbalancer-operator of the Norca
-# pack registry (see ../README.md#the-pack-registry).
+# install it on every node. The module is norca/loadbalancer-operator of the
+# global registry (see ../README.md#the-module-registry).
 (cd ../../../norca-platform && go build -o norca-loadbalancer ./cmd/norca-loadbalancer)
 sudo install ../../../norca-platform/norca-loadbalancer /usr/local/bin/   # on every node
 
-# The operators run in a namespace of their own, which no pack owns: the
-# teams of apps can't exec into them or change their jobs.
+# The operators run in a namespace of their own, which no module creates:
+# the teams of apps can't exec into them or change their jobs.
 norca namespace apply -description "Norca operators" norca-system
 
 # One release: object kind, ACL policy bound to the controller job,
 # admission policy and the controller job (two instances, leader election,
-# exec driver), watching the LoadBalancer objects of apps.
-norca pack run loadbalancer-operator --registry=norca --name=lb --namespace=norca-system --var watch_namespace=apps
-norca pack history lb --namespace=norca-system
+# exec driver), watching the LoadBalancer objects of apps. The servers read
+# the global registry when asked, then install the module from it.
+norca rigger registry sync global
+norca operator api -namespace norca-system -X PUT /v1/rigger/install <<'EOF'
+{"Release": "lb", "Registry": "global", "Module": "norca/loadbalancer-operator", "Version": "~> 0.5",
+ "ValuesJSON": {"watch_namespace": "apps"}}
+EOF
+norca rigger release history lb -namespace norca-system
 
 norca object-kind list
 norca object apply lb-test-app.hcl
@@ -257,23 +262,26 @@ leader change the new leader continues the schedule.
 OpenObserve (single mode on node-1, which has the host volume `openobserve`)
 with TLS from Norca's workload certificates, and an OpenTelemetry Collector
 on every node (host and agent metrics, OTLP of the
-applications), from the registry's
-[openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md)
-and [otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)
-packs:
+applications), from the
+[openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/modules/openobserve/README.md)
+and [otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/modules/otel-collector/README.md)
+modules of the global registry:
 
 ```shell
 sudo install -d -m 700 /srv/openobserve                                 # on node-1
 norca namespace apply -description "Observability" observability
 norca secret put -namespace observability openobserve/root password=-   # 8+ chars: upper, lower, digit, special
-norca pack run openobserve --registry=norca --namespace=observability --var namespace=observability
+norca operator api -namespace observability -X PUT /v1/rigger/install <<'EOF'
+{"Release": "openobserve", "Registry": "global", "Module": "norca/openobserve", "Version": "~> 0.2"}
+EOF
 norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
 
 norca secret put -namespace observability norca/agent-ca ca=@norca-agent-ca.pem
-norca pack run otel-collector --registry=norca --namespace=observability \
-  --var namespace=observability \
-  --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
-  --var 'discovery_namespaces=["default","apps"]'
+norca operator api -namespace observability -X PUT /v1/rigger/install <<'EOF'
+{"Release": "otel-collector", "Registry": "global", "Module": "norca/otel-collector", "Version": "~> 0.1",
+ "ValuesJSON": {"nomad_address": "https://127.0.0.1:4646", "nomad_ca_secret_path": "norca/agent-ca",
+                "discovery_namespaces": ["default", "apps"]}}
+EOF
 ```
 
 The UI is `https://openobserve.service.observability.norca:5080/` (the
@@ -281,19 +289,19 @@ certificate's name; resolve it to node-1, e.g. in `/etc/hosts`, or through the
 built-in DNS) once the CA of the region is trusted by the browser:
 `norca operator api /v1/mtls/roots | jq -r '.Roots[].RootCert' > norca-mtls-ca.pem`.
 For OpenObserve in cluster mode (routers, ingesters, queriers, compactor,
-alertmanager) add the `postgres` pack (database `openobserve`), RustFS and
-NATS with JetStream: see the openobserve pack's README.
+alertmanager) add the `postgres` module (database `openobserve`), RustFS and
+NATS with JetStream: see the README of the openobserve module.
 
 ### 12. Teardown
 
 ```shell
-norca pack uninstall otel-collector --namespace=observability
-norca pack uninstall openobserve --namespace=observability
+norca rigger release uninstall otel-collector -namespace observability
+norca rigger release uninstall openobserve -namespace observability
 norca object delete norca.io/LoadBalancer test-app -namespace apps
-norca pack uninstall lb --namespace=norca-system
+norca rigger release uninstall lb -namespace norca-system
 norca job stop -namespace apps -purge probe
-norca pack uninstall test-api --namespace=apps
-norca pack uninstall test-app --namespace=apps
+norca rigger release uninstall test-api -namespace apps
+norca rigger release uninstall test-app -namespace apps
 # on every node:
 sudo systemctl disable --now norca && sudo rm -rf /opt/norca/data /etc/norca.d
 ```
@@ -313,7 +321,7 @@ sudo systemctl disable --now norca && sudo rm -rf /opt/norca/data /etc/norca.d
   its selected allocations, the admin policy.
 - **Objects** and **Type definitions**: the `norca.io/LoadBalancer` kind and
   the `test-app` object with its status and events.
-- **Packages**: the releases `test-app`, `test-api`, `lb`; with a
-  [cluster registry](../README.md#cluster-registries-and-the-catalog) the
-  **Catalog** of its packs, installed and upgraded through their forms.
+- **Packages**: the releases `test-app`, `test-api`, `lb`; the
+  [**Catalog**](../README.md#the-catalog-in-the-web-ui) with the modules of
+  the global registry, installed and upgraded through their forms.
 - **Scaling**, **Quotas**, **Admission policies**, **Backups** as in 02.

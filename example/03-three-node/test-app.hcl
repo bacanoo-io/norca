@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
-# Variables of the test-app pack on the three-node cluster:
-#   norca pack run ../packs/test-app --name=test-app --namespace=apps -f test-app.hcl
+# Values of the test-app module on the three-node cluster:
+#   norca rigger install ../modules/test-app -name test-app -namespace apps -f test-app.hcl
 count = 3
 
 # Spread the instances over the datacenters (one per availability zone). A

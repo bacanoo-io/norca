@@ -74,7 +74,7 @@ server {
 
   # Scheduled backups of the Raft state and the keyring, encrypted with age
   # before they leave the server, into the RustFS store of this example (the
-  # rustfs pack of the Norca pack registry, rustfs.hcl). Keep the age identity
+  # rustfs module of the global registry, rustfs.hcl). Keep the age identity
   # (private key) offline: it is only needed to browse and restore backups.
   backup {
     enabled  = true
@@ -83,9 +83,9 @@ server {
     destination "rustfs" {
       type             = "s3"
       endpoint         = "http://10.0.0.10:9000" # CHANGE_ME: the RustFS job on this machine
-      bucket           = "norca-backup"          # created by the pack (buckets in rustfs.hcl)
+      bucket           = "norca-backup"          # created by the module (buckets in rustfs.hcl)
       prefix           = "norca/${region}"
-      region           = "us-east-1" # s3_region of the rustfs pack
+      region           = "us-east-1" # s3_region of the rustfs module
       force_path_style = true
 
       # AWS shared credentials file ([default] aws_access_key_id,

@@ -15,7 +15,7 @@ name        = "test-app"
 namespace   = "apps"
 description = "test-app: egress only to the cluster network and DNS"
 
-# Matches the job meta of the test-app pack (app = "<job_name>").
+# Matches the job meta of the test-app module (app = "<job_name>").
 selector {
   app = "test-app"
 }
