@@ -202,6 +202,28 @@ func nowRFC3339() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }
 
+// evaluatePackCompatibility says whether these servers meet the requirements
+// of a pack or of a Rigger module, and names what they miss: the features
+// they do not have, or the version constraint they do not satisfy.
+func (s *Server) evaluatePackCompatibility(req *structs.ReleasePackRequires) (bool, []string) {
+	if req == nil {
+		return true, nil
+	}
+	missing := make([]string, 0)
+	for _, f := range req.Features {
+		if f != "" && !slices.Contains(releaseFeatures, f) {
+			missing = append(missing, f)
+		}
+	}
+	if err := checkReleaseRequirements(req); err != nil {
+		if len(missing) == 0 {
+			missing = append(missing, err.Error())
+		}
+		return false, missing
+	}
+	return len(missing) == 0, missing
+}
+
 // checkReleaseRequirements checks the requirements of a pack against this
 // server.
 func checkReleaseRequirements(req *structs.ReleasePackRequires) error {

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -531,25 +530,6 @@ func (s *Server) ListCatalogPacks(args *structs.GenericRequest, registryFilter s
 		return out[i].Version < out[j].Version
 	})
 	return out, index, nil
-}
-
-func (s *Server) evaluatePackCompatibility(req *structs.ReleasePackRequires) (bool, []string) {
-	if req == nil {
-		return true, nil
-	}
-	missing := make([]string, 0)
-	for _, f := range req.Features {
-		if f != "" && !slices.Contains(releaseFeatures, f) {
-			missing = append(missing, f)
-		}
-	}
-	if err := checkReleaseRequirements(req); err != nil {
-		if len(missing) == 0 {
-			missing = append(missing, err.Error())
-		}
-		return false, missing
-	}
-	return len(missing) == 0, missing
 }
 
 // GetCatalogPack loads a specific pack from the registry cache, extracts its README,
