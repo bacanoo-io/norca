@@ -1,0 +1,4 @@
+# Local data of rigger for this stack: generated values (encrypted), saved
+# plans, the journal of the last apply. Not the record of what is
+# installed (the cluster has it), and not for version control.
+.rigger/

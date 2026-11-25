@@ -121,6 +121,26 @@ rigger module publish modules/redis --key acme.key
 git push origin redis/v1.0.0
 ```
 
+## Generators
+
+The `rigger` program writes projects to start from; `norca rigger` does not
+carry these commands. They write files only and need no cluster:
+
+```shell
+rigger generate examples                        # rigger-examples/: a registry of your own, modules, stacks
+rigger generate examples ~/start --owner acme   # the registry named acme in the stacks (acme/webapp)
+rigger operator init db.example.com/Widget      # an operator for the Norca controller SDK
+```
+
+`generate examples` writes a registry repository with two modules (one
+with every kind of file a module may have), a library module and a
+published stack; a stack of one's own that installs from that registry by
+its path on disk, with values per environment, trust and a module of its
+own; an index of the shape of the global registry; and the Registry object
+of a cluster. Every file is commented, and its README has the commands
+from `git init` to `stack apply` in their order. Existing files are
+overwritten only with `--force`.
+
 ## Layout
 
 Two Go modules in one repository (design 12.1):

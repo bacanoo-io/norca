@@ -1,0 +1,7 @@
+# A private signing key never goes into the repository; keep it outside
+# (../keys/) or in a secret store of the CI.
+*.key
+
+# Local data of rigger for a stack: values it generated, saved plans, the
+# journal of the last apply.
+.rigger/

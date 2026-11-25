@@ -1,0 +1,5 @@
+# The digest of a module is computed over its file contents: keep the line
+# ends the same on every machine, or a checkout on another one has another
+# digest and the signatures do not verify.
+* text=auto eol=lf
+*.png binary

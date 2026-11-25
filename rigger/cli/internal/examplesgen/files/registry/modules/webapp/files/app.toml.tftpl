@@ -1,0 +1,15 @@
+# The configuration of ${release} in the namespace ${namespace}, written by
+# the module webapp at install time.
+
+[server]
+port = ${port}
+
+[features]
+%{ for name, on in features ~}
+${name} = ${on}
+%{ endfor ~}
+%{ if cache != "" ~}
+
+[cache]
+service = "${cache}"
+%{ endif ~}

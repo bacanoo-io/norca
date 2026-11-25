@@ -1162,6 +1162,27 @@ replaces the `module show` and `stack show` of the sketch above.
   of a git address is a stack, and a name of the global registry that lists
   no module of it is taken as a stack when it lists one.
 
+**Generators** (as built 2026-11-25). Commands that write projects to start
+from are commands of the `rigger` program only (`Program.Commands` in
+`cli/cmd/rigger/main.go`), never of `norca rigger`: `rigger operator init`
+(an operator for the controller SDK, `cli/internal/operatorinit`) and
+`rigger generate examples [dir] [--owner o] [--force]`
+(`cli/internal/examplesgen`; the user asked for local examples with the
+whole configuration at hand, so that nobody has to search for how a
+registry, a module or a stack is set up). The files are embedded, rendered
+with the owner and the absolute path of the generated registry, and
+written through an `os.Root` of the directory; existing files are
+overwritten only with `--force`. The project is a registry repository
+(`webapp` with every kind of module file, `cache`, the library
+`lib/sizing`, the published stack `web-platform`), a stack of one's own
+(`stack/shop`) that names the registry by that path and trusts its key, an
+index of the shape of the global registry over it (`index/`), and the
+`rigger.norca.io/Registry` object of a cluster (`cluster/registry.hcl`).
+The generator runs no git, makes no key and syncs nothing; the README of
+the project has those commands in their order. Unlike `examples/`, no test
+keeps the generated project valid: a change of the language checks it by
+hand, following that README.
+
 ## 11. Extension points
 
 Everything is behind an interface with a registry in the library; the first

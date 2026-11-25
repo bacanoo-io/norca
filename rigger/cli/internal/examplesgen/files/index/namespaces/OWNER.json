@@ -1,0 +1,10 @@
+{
+  "name": <% json .Owner %>,
+  "owner": <% json .Owner %>,
+  "repositories": [
+    {
+      "url": <% json .RegistryPath %>,
+      "layout": "registry"
+    }
+  ]
+}
