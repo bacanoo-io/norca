@@ -90,3 +90,8 @@ paper in phase 0 of the design, with the faults of that pack kept. Version
 Version 0.4.1 reads the port of the group from `NORCA_PORT_db`, the name
 the task has it under. 0.4.0 read `NOMAD_PORT_db`, which no task has: the
 `port` line of the configuration was empty and the server did not start.
+
+Version 0.4.2 writes the conditions of the form as conditions
+(`show_if = "persistence_enabled"`). 0.4.1 wrote them in the form of the
+packs, which the install form did not read: the host volume and the
+password were always shown. The resources are the same.

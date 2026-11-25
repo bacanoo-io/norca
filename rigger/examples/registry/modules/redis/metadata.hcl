@@ -4,7 +4,7 @@
 
 module {
   name        = "redis"
-  version     = "0.4.1"
+  version     = "0.4.2"
   description = "One Redis server: a service in the catalog, a password from a Norca Variable that the server requires, optional persistence on a host volume."
   url         = "https://redis.io"
   license     = "BSD-3-Clause" # Redis 7.2; the official image is referenced, not shipped

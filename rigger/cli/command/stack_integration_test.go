@@ -96,7 +96,7 @@ func TestIntegration_Stack(t *testing.T) {
 
 	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
 	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
-	riggerRun(t, exitChanges, []string{"+ config", "+ worker", "+ cache", "redis 0.4.1", "install", "secret riggerit/app", "create", "generate cache, config-token"}, "stack", "plan", dir)
+	riggerRun(t, exitChanges, []string{"+ config", "+ worker", "+ cache", "redis 0.4.2", "install", "secret riggerit/app", "create", "generate cache, config-token"}, "stack", "plan", dir)
 	riggerRun(t, exitOK, []string{"install default/config: done", "install default/worker: done", "install default/cache: done"}, "stack", "apply", dir)
 	riggerRun(t, exitOK, []string{"= config", "= worker", "= cache", "nothing to do"}, "stack", "plan", dir)
 	checkCluster(t, client)

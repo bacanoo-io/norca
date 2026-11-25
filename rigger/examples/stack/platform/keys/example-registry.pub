@@ -3,6 +3,6 @@ signed with. The tests write it, with the signatures and the lock files
 (examples/README.md); its private key was thrown away.
 
 -----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZUHdFveIvsqzDNXlnnXkxm7YOsw/
-SXuLNp1qjgAjW+0k709ThVgJpwO0zAP+EjH+8lmqRRfdzDxwgSmyulj8gw==
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcnqnOC1ewwVagaoi+k77IpzOi4J2
+TI7moOivzcKQ8b0cbPV7gx1yaf91vQ+6SOjDu5PSfd8ld17/A0H9AGjUfA==
 -----END PUBLIC KEY-----

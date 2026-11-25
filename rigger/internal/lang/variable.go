@@ -6,11 +6,14 @@ package lang
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+
+	"github.com/bacanoo-io/norca/rigger/internal/syntax"
 )
 
 // Variable is a variable block of variables.hcl.
@@ -273,6 +276,10 @@ func (v *Variable) decodeBlock(b *hcl.Block) hcl.Diagnostics {
 		ui, diags := decodeConstAttributes(b.Body, uiSchema)
 		v.UI = ui
 
+		if showIf, ok := ui["show_if"]; ok {
+			diags = append(diags, checkShowIf(b.Body, showIf)...)
+		}
+
 		return diags
 	default:
 		attrs, diags := decodeConstAttributes(b.Body, secretSchema)
@@ -295,6 +302,47 @@ func (v *Variable) decodeBlock(b *hcl.Block) hcl.Diagnostics {
 
 		return diags
 	}
+}
+
+// checkShowIf checks the condition of a ui block: a string the install form
+// evaluates (design 6.2), which is an expression. The form of the packs, an
+// object { field, equals }, is no condition. It is a warning, not an error:
+// the form then shows the field always, which is a hint lost, not a release
+// installed otherwise, and versions with such a hint are published already
+// (traefik 0.3.1, redis 0.4.1 of the global registry).
+func checkShowIf(body hcl.Body, val cty.Value) hcl.Diagnostics {
+	rng := body.MissingItemRange()
+	if attrs, _ := body.JustAttributes(); attrs["show_if"] != nil {
+		rng = attrs["show_if"].Expr.Range()
+	}
+
+	warn := func(detail string) hcl.Diagnostics {
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagWarning, Summary: "Invalid show_if",
+			Detail: detail + " The form shows the field always.", Subject: rng.Ptr(),
+		}}
+	}
+
+	text, ok := stringOf(val)
+	if !ok {
+		return warn(`show_if is a condition written as a string, such as "on" or "mode == \"cluster\"", not ` +
+			article(val.Type().FriendlyName()) + ".")
+	}
+
+	if _, diags := syntax.ParseExpression([]byte(text), "show_if"); diags.HasErrors() {
+		return warn("The condition is not an expression: " + diags[0].Detail)
+	}
+
+	return nil
+}
+
+// article is a type name with its indefinite article.
+func article(name string) string {
+	if strings.ContainsRune("aeiou", rune(name[0])) {
+		return "an " + name
+	}
+
+	return "a " + name
 }
 
 // decodeConstAttributes decodes a block of constant attributes.

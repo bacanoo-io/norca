@@ -248,3 +248,28 @@ func TestModule_FormSchemaOfExamples(t *testing.T) {
 		}
 	}
 }
+
+// The built-in redis module shows the host volume with persistence and the
+// password with authentication: its conditions are conditions the form
+// evaluates. Written in the form of the packs (0.4.1) they were dropped and
+// both fields were always shown.
+func TestModule_FormSchemaOfBuiltinRedis(t *testing.T) {
+	t.Parallel()
+
+	m, diags := engine(t).LoadModuleAt(t.Context(), os.DirFS("builtin/modules"), "redis")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	props, _ := m.FormSchema()["properties"].(map[string]any)
+
+	for field, want := range map[string][]any{
+		"host_volume":    {"truthy", "persistence_enabled"},
+		"redis_password": {"truthy", "auth_enabled"},
+	} {
+		p, _ := props[field].(map[string]any)
+		if got := p["x-ui-show-if"]; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: x-ui-show-if = %v, want %v", field, got, want)
+		}
+	}
+}

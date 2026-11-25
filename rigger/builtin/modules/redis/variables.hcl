@@ -153,7 +153,7 @@ variable "host_volume" {
     group   = "Storage"
     order   = 5
     label   = "Host Volume"
-    show_if = { field = "persistence_enabled", equals = true }
+    show_if = "persistence_enabled"
   }
 }
 
@@ -234,7 +234,7 @@ variable "redis_password" {
     tab     = "security"
     group   = "Authentication"
     order   = 2
-    show_if = { field = "auth_enabled", equals = true }
+    show_if = "auth_enabled"
   }
 }
 

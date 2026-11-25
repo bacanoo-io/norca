@@ -110,7 +110,10 @@ func TestEngine_SyntaxLimits(t *testing.T) {
 	}
 }
 
-// The condition of a ui block is a string that FormSchema parses.
+// The condition of a ui block is a string the module parses when it loads
+// (checkShowIf, a warning) and FormSchema parses again: one nested deeper
+// than the engine reads is kept as written, never a stack the parser
+// exhausts.
 func TestModule_FormSchemaDeepShowIf(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +126,10 @@ func TestModule_FormSchemaDeepShowIf(t *testing.T) {
 	})
 	if diags.HasErrors() {
 		t.Fatal(diags)
+	}
+
+	if !strings.Contains(diags.Error(), "Invalid show_if") || !strings.Contains(diags.Error(), tooDeep) {
+		t.Errorf("diagnostics = %.220q, want a warning of a show_if nested too deep (%q)", diags.Error(), tooDeep)
 	}
 
 	props, ok := m.FormSchema()["properties"].(map[string]any)

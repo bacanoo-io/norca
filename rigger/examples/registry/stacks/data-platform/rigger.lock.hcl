@@ -7,7 +7,7 @@ module "example/nats" {
   repository = "github.com/example/rigger-registry"
   path       = "modules/nats"
   ref        = "nats/v1.0.0"
-  commit     = "41a733721c61e2a72d9b7afed5fb0afe1082f738"
+  commit     = "c13cfad358d478f1f9496bfa08311c758d827909"
   digest     = "sha256:b22d601c6fb3d774ada451e33a90c224971af32150dabf3ba05d7aed8bc269d0"
 }
 
@@ -17,6 +17,6 @@ module "example/postgres" {
   repository = "github.com/example/rigger-registry"
   path       = "modules/postgres"
   ref        = "postgres/v0.3.0"
-  commit     = "41a733721c61e2a72d9b7afed5fb0afe1082f738"
+  commit     = "c13cfad358d478f1f9496bfa08311c758d827909"
   digest     = "sha256:b0db7afcf86482a8a9e5e1854987b5e961faafcfc275b7a02ad8cb8b91fbe958"
 }

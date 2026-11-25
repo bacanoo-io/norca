@@ -1,4 +1,4 @@
 {
   "payload": "{\"critical\":{\"identity\":{\"docker-reference\":\"rigger/nats\"},\"image\":{\"docker-manifest-digest\":\"sha256:b22d601c6fb3d774ada451e33a90c224971af32150dabf3ba05d7aed8bc269d0\"},\"type\":\"cosign container image signature\"},\"optional\":{\"rigger.module\":\"nats\",\"rigger.version\":\"1.0.0\"}}",
-  "signature": "MEUCIQDdVvDoG2/0S6tL5jI+rt/GAN+vgUC+t08+4ytPmagOJQIgAzPOwc+I0KVOvsidi/e3RAoozrPsTtHSy64955Wbt+k="
+  "signature": "MEUCIQClS4Wlu6BAeFYjCTv3MnDehAtam3OB7OXll+3vmUiC0AIgWE7qajw9em5k9bsS8Txg87R+N8Nr1NbSCd0VRNTC+7o="
 }

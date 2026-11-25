@@ -38,7 +38,7 @@ func TestEngine_LoadModule(t *testing.T) {
 		t.Fatal(diags)
 	}
 
-	if md := m.Metadata(); md.Name != "redis" || md.Version != "0.4.1" || md.License != "BSD-3-Clause" {
+	if md := m.Metadata(); md.Name != "redis" || md.Version != "0.4.2" || md.License != "BSD-3-Clause" {
 		t.Errorf("metadata = %+v", md)
 	}
 

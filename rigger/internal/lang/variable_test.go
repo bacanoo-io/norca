@@ -103,3 +103,63 @@ func TestLoad_DuplicateVariableBlocks_FirstKept(t *testing.T) {
 		t.Errorf("secret = %+v, want the first block: path app", v.Secret)
 	}
 }
+
+// show_if is a condition written as a string (design 6.2), which the install
+// form evaluates. Another value was read in silence and dropped, so the
+// field was always shown: the built-in redis module wrote the form of the
+// packs, { field = ..., equals = ... }. A condition that is no string, or
+// that is not an expression, is a warning when the module loads: the module
+// still loads, as versions with such a hint are published.
+func TestLoad_ShowIf(t *testing.T) {
+	t.Parallel()
+
+	variable := func(showIf string) string {
+		return "variable \"on\" {\n  type    = bool\n  default = false\n}\n\nvariable \"size\" {\n  type    = number\n  default = 1\n\n  ui {\n    show_if = " + showIf + "\n  }\n}\n"
+	}
+
+	tests := []struct {
+		name     string
+		showIf   string
+		expected string
+	}{
+		{name: "a variable", showIf: `"on"`},
+		{name: "a comparison", showIf: `"var.size == 2"`},
+		{name: "any expression", showIf: `"length(var.size) > 0"`},
+		{
+			name: "the form of the packs", showIf: `{ field = "on", equals = true }`,
+			expected: `Invalid show_if; show_if is a condition written as a string, such as "on" or "mode == \"cluster\"", not an object`,
+		},
+		{
+			name: "a bool", showIf: `true`,
+			expected: `Invalid show_if; show_if is a condition written as a string, such as "on" or "mode == \"cluster\"", not a bool`,
+		},
+		{name: "not an expression", showIf: `"on ==="`, expected: "Invalid show_if; The condition is not an expression:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, diags := loadVariables(t, variable(tt.showIf))
+
+			if tt.expected == "" {
+				if diags != "" {
+					t.Errorf("show_if = %s: %s", tt.showIf, diags)
+				}
+
+				return
+			}
+
+			if _, all := lang.Load(t.Context(), fstest.MapFS{
+				metadataHCL:  {Data: []byte(metadata)},
+				variablesHCL: {Data: []byte(variable(tt.showIf))},
+			}, limits); all.HasErrors() {
+				t.Errorf("show_if = %s: an error (%s); an invalid hint is a warning", tt.showIf, all.Error())
+			}
+
+			if !strings.Contains(diags, tt.expected) {
+				t.Errorf("show_if = %s: diagnostics %q, want %q", tt.showIf, diags, tt.expected)
+			}
+		})
+	}
+}
