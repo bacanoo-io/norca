@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -34,10 +35,11 @@ var (
 
 // showFlags are the flags of rigger show.
 type showFlags struct {
-	kind    string
-	version string
-	readme  bool
-	json    bool
+	kind     string
+	version  string
+	readme   bool
+	json     bool
+	maxWidth int
 }
 
 // runShow runs rigger show <source> [flags].
@@ -55,6 +57,7 @@ func runShow(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 	flags.StringVar(&f.version, "version", "", "the version constraint (\"~> 1.2\"); none shows the newest")
 	flags.BoolVar(&f.readme, "readme", false, "print the README.md too")
 	flags.BoolVar(&f.json, "json", false, "write the details as JSON")
+	flags.IntVar(&f.maxWidth, "max-width", defaultMaxWidth, maxWidthUsage)
 
 	if err := flags.Parse(args); err != nil {
 		return exitError
@@ -63,6 +66,10 @@ func runShow(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 	positional = append(positional, flags.Args()...)
 
 	return run(ctx, logger, stderr, cmdShow, func(ctx context.Context) error {
+		if f.maxWidth < 0 {
+			return errMaxWidth
+		}
+
 		if len(positional) != 1 {
 			return errShowSource
 		}
@@ -310,8 +317,8 @@ func writeDetails(w io.Writer, s *shownSource, f showFlags) error {
 		return err
 	}
 
-	writeVariables(&b, s.Variables)
-	writeOutputs(&b, s.Outputs)
+	writeVariables(&b, s.Variables, f.maxWidth)
+	writeOutputs(&b, s.Outputs, f.maxWidth)
 
 	if s.Kind == index.KindStack {
 		writeStackModules(&b, s.Modules)
@@ -378,8 +385,9 @@ func requiresText(r module.Requires) string {
 	return strings.Join(parts, "; ")
 }
 
-// writeVariables writes the variables as a table.
-func writeVariables(b *strings.Builder, vars []module.Variable) {
+// writeVariables writes the variables as a table; a default and a
+// description longer than maxWidth are cut (fitText).
+func writeVariables(b *strings.Builder, vars []module.Variable, maxWidth int) {
 	if len(vars) == 0 {
 		b.WriteString("\nvariables: none\n")
 
@@ -392,14 +400,16 @@ func writeVariables(b *strings.Builder, vars []module.Variable) {
 	_, _ = fmt.Fprintln(tw, "  NAME\tTYPE\tDEFAULT\tREQUIRED\tSENSITIVE\tDESCRIPTION")
 
 	for _, v := range vars {
-		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", v.Name, orDash(v.Type), orDash(v.Default), yesNo(v.Required), yesNo(v.Sensitive), orDash(oneLine(v.Description)))
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", v.Name, orDash(v.Type), orDash(fitText(v.Default, maxWidth)), yesNo(v.Required), yesNo(v.Sensitive),
+			orDash(fitText(v.Description, maxWidth)))
 	}
 
 	_ = tw.Flush() // a strings.Builder does not fail
 }
 
-// writeOutputs writes the outputs as a table.
-func writeOutputs(b *strings.Builder, outputs []module.Output) {
+// writeOutputs writes the outputs as a table; a description longer than
+// maxWidth is cut (fitText).
+func writeOutputs(b *strings.Builder, outputs []module.Output, maxWidth int) {
 	if len(outputs) == 0 {
 		b.WriteString("\noutputs: none\n")
 
@@ -412,7 +422,7 @@ func writeOutputs(b *strings.Builder, outputs []module.Output) {
 	_, _ = fmt.Fprintln(tw, "  NAME\tSENSITIVE\tDESCRIPTION")
 
 	for _, o := range outputs {
-		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", o.Name, yesNo(o.Sensitive), orDash(oneLine(o.Description)))
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", o.Name, yesNo(o.Sensitive), orDash(fitText(o.Description, maxWidth)))
 	}
 
 	_ = tw.Flush() // a strings.Builder does not fail
@@ -435,6 +445,53 @@ func writeStackModules(b *strings.Builder, mods []rigger.StackModule) {
 // oneLine is a description on one line of a table.
 func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// defaultMaxWidth is how many characters of a description a table shows, so
+// that a row of rigger search or rigger show fits a line of a terminal.
+const defaultMaxWidth = 60
+
+const maxWidthUsage = "the characters of a description (and of a default) a table shows; 0 shows them whole"
+
+var errMaxWidth = errors.New("-max-width is 0 (no limit) or more")
+
+// ellipsis marks a text fitText cut.
+const ellipsis = "..."
+
+// fitText is a text on one line of at most maxWidth characters (0: no
+// limit). A longer one is cut at the last space of its second half, or in
+// the word when there is none, and ends with "...".
+func fitText(s string, maxWidth int) string {
+	s = oneLine(s)
+
+	r := []rune(s)
+	if maxWidth <= 0 || len(r) <= maxWidth {
+		return s
+	}
+
+	if maxWidth <= len(ellipsis) {
+		return string(r[:maxWidth])
+	}
+
+	cut := maxWidth - len(ellipsis)
+	if r[cut] != ' ' {
+		if i := lastSpace(r[:cut]); i > cut/2 {
+			cut = i
+		}
+	}
+
+	return strings.TrimRight(string(r[:cut]), " ,;:") + ellipsis
+}
+
+// lastSpace is the index of the last space of r; -1 when it has none.
+func lastSpace(r []rune) int {
+	for i, c := range slices.Backward(r) {
+		if c == ' ' {
+			return i
+		}
+	}
+
+	return -1
 }
 
 func yesNo(b bool) string {

@@ -43,6 +43,7 @@ rigger search                                   # the global registry
 rigger search nats -kind module -limit 10
 rigger search -registry builtin                 # the modules built into the program
 rigger search -registry github.com/acme/rigger-modules
+rigger search -max-width 0                      # the descriptions whole (default: 60 characters)
 rigger show norca/redis                         # versions, signers, variables, outputs
 rigger show norca/nats -version "~> 1.2" -readme
 rigger show github.com/acme/rigger-modules//modules/web

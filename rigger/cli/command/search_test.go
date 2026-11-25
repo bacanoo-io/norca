@@ -187,10 +187,19 @@ func TestRun_Search_BuiltinAndRepository(t *testing.T) {
 	v := builtinVersion(t)
 	out := riggerRun(t, exitOK, nil, cmdSearch, "-registry", "builtin")
 
-	if !tableRow("module", "builtin/redis", v, "One Redis server: a service in the catalog, a password from a Norca Variable that the server requires, "+
-		"optional persistence on a host volume.").MatchString(out) {
+	// The description is cut to -max-width (60) at a word, so a row stays
+	// on one line of a terminal; -max-width 0 keeps it whole.
+	if !tableRow("module", "builtin/redis", v, "One Redis server: a service in the catalog, a password...").MatchString(out) {
 		t.Errorf("rigger search -registry builtin:\n%s", out)
 	}
+
+	whole := riggerRun(t, exitOK, nil, cmdSearch, "-registry", "builtin", "-max-width", "0")
+	if !tableRow("module", "builtin/redis", v, "One Redis server: a service in the catalog, a password from a Norca Variable that the server requires, "+
+		"optional persistence on a host volume.").MatchString(whole) {
+		t.Errorf("rigger search -registry builtin -max-width 0:\n%s", whole)
+	}
+
+	riggerRunErr(t, "-max-width", cmdSearch, "-registry", "builtin", "-max-width", "-1")
 
 	if got := searchJSON(t, "-registry", "builtin", "-category", "database"); got.Total != 1 || got.Items[0].Source != "builtin/redis" {
 		t.Errorf("rigger search -registry builtin -category database = %+v", got)

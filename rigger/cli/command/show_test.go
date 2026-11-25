@@ -182,8 +182,15 @@ func TestRun_Show_Builtin(t *testing.T) {
 		tableRow("versions", v),
 		tableRow("signed by", "not signed: built into the program"),
 		tableRow("requires", "norca >= 0.1.0; features releases, secret-store"),
-		tableRow("port", "no", "Port Redis listens on in the network namespace of the group (bridge mode)."),
+		tableRow("port", "no", "Port Redis listens on in the network namespace of the..."),
 	)
+
+	// The descriptions of the variables and outputs are cut as rigger search
+	// cuts them; -max-width 0 keeps them whole.
+	if whole := riggerRun(t, exitOK, nil, cmdShow, "builtin/redis", "-max-width", "0"); !tableRow("port", "no",
+		"Port Redis listens on in the network namespace of the group (bridge mode).").MatchString(whole) {
+		t.Errorf("rigger show builtin/redis -max-width 0:\n%s", whole)
+	}
 
 	if strings.Contains(out, "# redis") {
 		t.Errorf("rigger show without -readme prints the README:\n%s", out)

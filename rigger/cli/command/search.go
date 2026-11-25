@@ -42,6 +42,7 @@ type searchFlags struct {
 	keyword       string
 	offset, limit int
 	json          bool
+	maxWidth      int
 }
 
 // runSearch runs rigger search [text...] [flags].
@@ -63,6 +64,7 @@ func runSearch(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	flags.IntVar(&f.offset, "offset", 0, "the first match to show")
 	flags.IntVar(&f.limit, "limit", 0, fmt.Sprintf("how many matches to show (default %d, at most %d)", catalog.DefaultLimit, catalog.MaxLimit))
 	flags.BoolVar(&f.json, "json", false, "write the matches as JSON")
+	flags.IntVar(&f.maxWidth, "max-width", defaultMaxWidth, maxWidthUsage)
 
 	if err := flags.Parse(args); err != nil {
 		return exitError
@@ -106,6 +108,10 @@ type searchMatch struct {
 }
 
 func search(ctx context.Context, logger *slog.Logger, w io.Writer, text string, f searchFlags) error {
+	if f.maxWidth < 0 {
+		return errMaxWidth
+	}
+
 	reg, err := readRegistry(ctx, f.registry)
 	if err != nil {
 		return err
@@ -133,7 +139,7 @@ func search(ctx context.Context, logger *slog.Logger, w io.Writer, text string, 
 		return enc.Encode(result)
 	}
 
-	return writeFound(w, reg, result)
+	return writeFound(w, reg, result, f.maxWidth)
 }
 
 // readRegistry reads the items of the registry rigger search names: the
@@ -251,8 +257,9 @@ func (s *searched) address(item catalog.Item) string {
 }
 
 // writeFound writes a page of a search as a table, and which page it is
-// when the matches do not fit on one.
-func writeFound(w io.Writer, reg *searched, result searchResult) error {
+// when the matches do not fit on one. A description longer than maxWidth
+// is cut (fitText), so that a row fits a line of a terminal.
+func writeFound(w io.Writer, reg *searched, result searchResult, maxWidth int) error {
 	if result.Total == 0 {
 		_, err := fmt.Fprintln(w, "nothing matches")
 
@@ -274,7 +281,7 @@ func writeFound(w io.Writer, reg *searched, result searchResult) error {
 			latest = m.Versions[0]
 		}
 
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", m.Kind, name, latest, orDash(m.Description))
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", m.Kind, name, latest, orDash(fitText(m.Description, maxWidth)))
 	}
 
 	if err := tw.Flush(); err != nil {

@@ -1072,7 +1072,8 @@ search|show`) need neither a cluster nor `NORCA_ADDR`. One `rigger show`
 replaces the `module show` and `stack show` of the sketch above.
 
 - `rigger search [text] [-registry global|builtin|<repository>] [-kind
-  module|stack] [-category c] [-keyword k] [-offset n] [-limit n] [-json]`
+  module|stack] [-category c] [-keyword k] [-offset n] [-limit n]
+  [-max-width n] [-json]`
   reads the registry as the servers sync one (design/rig-integration.md
   4.5 of norca), into the cache of the program: the global registry
   (`RIGGER_GLOBAL_REGISTRY` or the default; a directory is read as it is,
@@ -1083,13 +1084,15 @@ replaces the `module show` and `stack show` of the sketch above.
   `Checkout`, `TagsAt`, `catalog.Repository`). The query is
   `catalog.Search`, as the servers run it. The table shows kind, name
   (`<namespace>/<name>`, `builtin/<name>`, the name in a repository),
-  the newest version and the description, and `first-last of total` when
+  the newest version and the description (cut to `-max-width`
+  characters at a word, default 60, 0 whole, so a row fits a line of a
+  terminal), and `first-last of total` when
   the matches fill more than one page; `-json` adds the address of each
   item, by which `rigger show` and `rigger install` take it
   (`<repository>//modules/<name>` in a repository). The commit read is
   logged.
 - `rigger show <source> [-version c] [-kind module|stack] [-readme]
-  [-json]` fetches the newest version that meets the constraint and
+  [-max-width n] [-json]` fetches the newest version that meets the constraint and
   verifies it as an install does (`Engine.FetchNewestModule`,
   `Engine.FetchStack`), and lists the versions an install chooses among
   (`Engine.ModuleVersions`, `Engine.StackVersions`: the index of the global

@@ -103,14 +103,15 @@ Commands:
   release list|status|history|rollback|uninstall [name] [-namespace ns] [-adopt]
                           one release, without a stack
   search [text] [-registry global|builtin|<repository>] [-kind module|stack]
-         [-category c] [-keyword k] [-offset n] [-limit n] [-json]
+         [-category c] [-keyword k] [-offset n] [-limit n] [-max-width n] [-json]
                           the modules and stacks of a registry, without a
                           cluster: the global registry (default), the
                           modules built into the program, or a registry
                           repository (a git address or a directory) at the
                           newest commit of its default branch, fetched
                           into the cache
-  show <source> [-version constraint] [-kind module|stack] [-readme] [-json]
+  show <source> [-version constraint] [-kind module|stack] [-readme]
+       [-max-width n] [-json]
                           one module or stack, without a cluster: the
                           newest version that meets -version, fetched and
                           verified as an install does; its metadata,
