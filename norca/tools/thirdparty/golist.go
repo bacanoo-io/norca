@@ -209,7 +209,7 @@ func goRoot(dir string) (string, error) {
 func collectGoModules(root string) (map[string]*goModule, error) {
 	mods := map[string]*goModule{}
 	for _, b := range binaries {
-		for _, p := range platforms {
+		for _, p := range goPlatforms() {
 			tags := append(append([]string{}, b.Tags...), p.Tags...)
 			if err := listDeps(root, b, p.GOOS, p.GOARCH, b.CGO && p.CGO, tags, b.Package, mods); err != nil {
 				return nil, err

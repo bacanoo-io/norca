@@ -189,7 +189,7 @@ func renderNotices(inv *inventory) []byte {
 		names = append(names, "`"+bn.Name+"`")
 	}
 	var plats []string
-	for _, p := range platforms {
+	for _, p := range goPlatforms() {
 		plats = append(plats, p.GOOS+"/"+p.GOARCH)
 	}
 

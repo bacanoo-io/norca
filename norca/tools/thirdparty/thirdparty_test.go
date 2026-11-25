@@ -164,3 +164,40 @@ func writeUI(t *testing.T, name, license string) string {
 	}
 	return dir
 }
+
+// The musl builds (for Alpine Linux) link the same Go packages as the glibc
+// builds of their architecture: the modules are listed once per Go
+// platform, and the notices name each Go platform once.
+func TestGoPlatforms(t *testing.T) {
+	var musl int
+	for _, p := range platforms {
+		if p.Libc == "" {
+			continue
+		}
+		if p.Libc != "musl" || p.GOOS != "linux" {
+			t.Errorf("%s/%s: libc %q is not a Linux musl build", p.GOOS, p.GOARCH, p.Libc)
+		}
+		musl++
+		twin := false
+		for _, q := range platforms {
+			if q.Libc == "" && q.GOOS == p.GOOS && q.GOARCH == p.GOARCH && q.CGO == p.CGO && reflect.DeepEqual(q.Tags, p.Tags) {
+				twin = true
+			}
+		}
+		if !twin {
+			t.Errorf("%s/%s musl has no glibc build with the same cgo setting and tags", p.GOOS, p.GOARCH)
+		}
+	}
+	if musl == 0 {
+		t.Fatal("no musl platform: keep the list in sync with the musl builds of .github/workflows/release.yml")
+	}
+	got := goPlatforms()
+	if len(got) != len(platforms)-musl {
+		t.Fatalf("goPlatforms() = %v, want the %d platforms without the musl builds", got, len(platforms)-musl)
+	}
+	for _, p := range got {
+		if p.Libc != "" {
+			t.Errorf("goPlatforms() keeps the musl build %s/%s", p.GOOS, p.GOARCH)
+		}
+	}
+}

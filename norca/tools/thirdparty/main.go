@@ -62,6 +62,11 @@ type binary struct {
 // settings in sync with .github/workflows/release.yml.
 type platform struct {
 	GOOS, GOARCH string
+	// Libc is the C library of a Linux build: empty for glibc, "musl" for
+	// the builds for Alpine Linux (the _musl archives). A musl build links
+	// the same Go packages as the glibc build of its architecture, so the
+	// modules are listed once per Go platform (goPlatforms).
+	Libc string
 	// CGO reports whether cgo is enabled for binaries that use it. The
 	// Linux builds need cgo for the exec driver (libcontainer's nsenter).
 	CGO bool
@@ -83,8 +88,23 @@ var binaries = []binary{
 var platforms = []platform{
 	{GOOS: "linux", GOARCH: "amd64", CGO: true},
 	{GOOS: "linux", GOARCH: "arm64", CGO: true},
+	{GOOS: "linux", GOARCH: "amd64", Libc: "musl", CGO: true},
+	{GOOS: "linux", GOARCH: "arm64", Libc: "musl", CGO: true},
 	{GOOS: "darwin", GOARCH: "arm64", CGO: true, Tags: []string{"netcgo"}},
 	{GOOS: "windows", GOARCH: "amd64", Tags: []string{"timetzdata"}},
+}
+
+// goPlatforms returns the platforms whose Go packages differ: the musl
+// builds are left out, they link what the glibc build of their
+// architecture links.
+func goPlatforms() []platform {
+	res := make([]platform, 0, len(platforms))
+	for _, p := range platforms {
+		if p.Libc == "" {
+			res = append(res, p)
+		}
+	}
+	return res
 }
 
 // Allowed licenses (norca-doc content/docs/introduction/license.md, "Dependencies"; the UI list matches

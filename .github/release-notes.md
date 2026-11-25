@@ -31,10 +31,12 @@ Norca is an independent fork of HashiCorp Nomad v1.6.5 (MPL 2.0); it is not a pr
 | --- | --- |
 | Linux x86-64 | `norca_{{VERSION}}_linux_amd64.tar.gz` |
 | Linux ARM64 | `norca_{{VERSION}}_linux_arm64.tar.gz` |
+| Linux x86-64, musl (Alpine Linux) | `norca_{{VERSION}}_linux_amd64_musl.tar.gz` |
+| Linux ARM64, musl (Alpine Linux) | `norca_{{VERSION}}_linux_arm64_musl.tar.gz` |
 | macOS Apple silicon | `norca_{{VERSION}}_darwin_arm64.tar.gz` |
 | Windows x86-64 | `norca_{{VERSION}}_windows_amd64.zip` |
 
-Each archive contains `norca`. Checksums: `norca_{{VERSION}}_SHA256SUMS`. Software bill of materials (CycloneDX 1.5 JSON): `norca_{{VERSION}}_<os>_<arch>.cdx.json`.
+Each archive contains `norca`. The Linux archives without a suffix need glibc 2.31 or newer (Debian 11, Ubuntu 20.04, RHEL 9 and newer); the `_musl` archives are for Alpine Linux (built against musl 1.2.5 in Alpine 3.22; Alpine 3.22 and newer). Checksums: `norca_{{VERSION}}_SHA256SUMS`. Software bill of materials (CycloneDX 1.5 JSON): `norca_{{VERSION}}_<os>_<arch>.cdx.json` (`_musl.cdx.json` for the musl builds).
 
 ### CNI compatibility
 

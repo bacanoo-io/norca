@@ -18,6 +18,11 @@
 #   docker/build-push-action v7.4.0.
 # The Linux binaries are built in ubuntu:focal-20250404 (glibc 2.31, like the
 # upstream Nomad releases), so that they run on older distributions too.
+# The musl binaries (archives norca_<version>_linux_<arch>_musl, for Alpine
+# Linux) are built with cgo in alpine:3.22 (musl 1.2.5, the oldest Alpine
+# branch supported upstream), with the Go toolchain of setup-go mounted (its
+# binaries are static). Alpine has no musl cross compiler, so the arm64 musl
+# binary is built on an arm64 runner.
 name: Release
 
 on:
@@ -75,7 +80,7 @@ jobs:
         run: go -C norca/tools run ./thirdparty notices -root "$GITHUB_WORKSPACE" -strict -check "$GITHUB_WORKSPACE/THIRD_PARTY_NOTICES.md"
 
   build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.libc == 'musl' && ' (musl)' || '' }}
     needs: prepare
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
@@ -97,6 +102,25 @@ jobs:
             cgo: "1"
             cc: aarch64-linux-gnu-gcc
             tags: ""
+          # The musl builds (libc: musl) run in the alpine image of
+          # MUSL_IMAGE through docker, not as the job container: the
+          # JavaScript actions do not run in an Alpine container on arm64.
+          - goos: linux
+            goarch: amd64
+            libc: musl
+            runner: ubuntu-24.04
+            container: ""
+            cgo: "1"
+            cc: gcc
+            tags: ""
+          - goos: linux
+            goarch: arm64
+            libc: musl
+            runner: ubuntu-24.04-arm
+            container: ""
+            cgo: "1"
+            cc: gcc
+            tags: ""
           - goos: darwin
             goarch: arm64
             runner: macos-15
@@ -114,7 +138,9 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD_DATE: ${{ needs.prepare.outputs.build-date }}
-      TARGET: ${{ matrix.goos }}_${{ matrix.goarch }}
+      TARGET: ${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.libc == 'musl' && '_musl' || '' }}
+      # Alpine 3.22, the multi-arch index (amd64 and arm64).
+      MUSL_IMAGE: alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
     steps:
       - name: Install the build tools
         if: matrix.container != ''
@@ -133,6 +159,7 @@ jobs:
           go-version-file: norca/go.mod
           cache: false
       - name: Build norca
+        if: matrix.libc != 'musl'
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -147,11 +174,42 @@ jobs:
           ldflags="-X github.com/bacanoo-io/norca/norca/version.GitCommit=$GITHUB_SHA -X github.com/bacanoo-io/norca/norca/version.BuildDate=$BUILD_DATE"
           CGO_ENABLED="$CGO" go -C norca build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
           go version -m "$out/norca$ext" | sed -n '1,20p'
+      - name: Build norca against musl
+        if: matrix.libc == 'musl'
+        env:
+          TAGS: ${{ env.NORCA_TAGS }}${{ matrix.tags }}
+        run: |
+          out="$GITHUB_WORKSPACE/dist/bin/$TARGET"
+          mkdir -p "$out"
+          ldflags="-X github.com/bacanoo-io/norca/norca/version.GitCommit=$GITHUB_SHA -X github.com/bacanoo-io/norca/norca/version.BuildDate=$BUILD_DATE"
+          # The toolchain of setup-go, mounted into the alpine image (the
+          # modules are downloaded there: root must not own directories of
+          # the module cache of the runner user); git there trusts the
+          # checkout of the runner user (go build stamps the VCS
+          # information), and dist/ is handed back to that user.
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/w" \
+            -v "$(go env GOROOT):/usr/local/go:ro" \
+            -e GOPATH=/go -e GOTOOLCHAIN=local -e CGO_ENABLED=1 -e CC=${{ matrix.cc }} \
+            -e TAGS="$TAGS" -e LDFLAGS="$ldflags" -e TARGET="$TARGET" \
+            -w /w "$MUSL_IMAGE" sh -euc '
+              apk add --no-cache gcc musl-dev linux-headers git >/dev/null
+              git config --global --add safe.directory /w
+              export PATH="/usr/local/go/bin:$PATH"
+              go -C norca build -trimpath -tags "$TAGS" -ldflags "$LDFLAGS" -o "/w/dist/bin/$TARGET/norca" .
+              chown -R "$(stat -c %u:%g /w)" /w/dist'
+          go version -m "$out/norca" | sed -n '1,20p'
       - name: Required glibc version
-        if: matrix.goos == 'linux'
+        if: matrix.goos == 'linux' && matrix.libc != 'musl'
         run: |
           # The highest GLIBC_x.y symbol version the binary needs.
           go tool nm "dist/bin/$TARGET/norca" | grep -o 'GLIBC_[0-9.]*' | sort -u -V | tail -n 1
+      - name: Linked against musl
+        if: matrix.libc == 'musl'
+        run: |
+          # The interpreter of the binary is the dynamic loader of musl.
+          readelf -l "dist/bin/$TARGET/norca" | grep -o '/lib/ld-musl-[a-z0-9_]*\.so\.1'
+          docker run --rm -v "$GITHUB_WORKSPACE/dist:/d:ro" "$MUSL_IMAGE" "/d/bin/$TARGET/norca" version
       - name: SBOMs
         env:
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}
@@ -166,7 +224,7 @@ jobs:
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: build-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.libc == 'musl' && '-musl' || '' }}
           path: dist/
           if-no-files-found: error
           retention-days: 7
