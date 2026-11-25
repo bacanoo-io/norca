@@ -776,6 +776,34 @@ from the index of the server and what is fetched only for a chosen module.
 This also touches what a sync of the global registry brings into the cache
 (4.5).
 
+**4.8 decided (maintainer, 2026-11-22):**
+
+1. The entries of the index carry the description, the category, the
+   keywords and the license of each version, from its `metadata.hcl`; a
+   search filters on them.
+2. The category is one of a fixed list, checked by `rigger module
+   validate`, a load and `rigger index check`: application, database,
+   messaging, observability, platform, networking, security, storage,
+   developer-tools, ai, other. Each has an icon of its own in the UI.
+3. The catalog shows the icon of the category; the icon of a module is
+   fetched only for the module opened.
+4. The install and stack API take the values as JSON too (beside HCL), the
+   form of the UI sends JSON; the same values give the same digest.
+5. A sync stays manual: the UI has the button and shows the time and
+   commit of the last good sync, and warns of an old index.
+
+Slices: 4.8a the API and the index, 4.8b the catalog and the install form,
+4.8c the release page, 4.8d stacks and their operations (published stacks
+only: the UI sends no files).
+
+**4.8d decided (maintainer, 2026-11-23):** a stack has a detail endpoint
+like a module (/v1/rigger/registry/:name/stack: metadata, README,
+versions, requirements, a form from its variables.hcl), and the UI fills
+it with the same form; a Stacks tab and a stack page
+(packages/stack/:namespace/:name: its releases, status and drift, its
+operations with their log, apply again, destroy); the catalog has a
+Modules/Stacks choice, and a stack card starts its first apply.
+
 ### 4.9 Deployer and registries
 
 Both stay repositories of their own: neither imports Rigger or Norca in Go;
@@ -825,9 +853,12 @@ The tests of norca-lab are rewritten for Rigger (stacks instead of packs,
   `command/agent/pack_endpoint.go` and the `/v1/pack*` routes, the pack
   commands of `command/commands.go`, the pack pages and registry tab of the
   UI, `packs/` of norca-registry, the pack sections of the deployer;
-- kept: the release engine and its stored releases (group `packs.norca.io`;
-  renaming it would be a migration of stored data for no gain); a revision
-  of a pack still reads, rolls back and uninstalls;
+- kept: the release engine and its stored releases; a revision of a pack
+  still reads, rolls back and uninstalls. Decided otherwise on 2026-11-25
+  by the maintainer: the group is renamed to `rigger.norca.io`
+  (`rigger.norca.io/Release`, `ReleaseRevision`), without a migration, as
+  no version was released; the install of one release into several
+  regions in one request (only the pack manager sent it) is removed too;
 - the design documents 07, 07b get a note that Rigger replaced them; 07c (deb
   host packages, parked) continues, if at all, as a resource kind of Rigger.
 

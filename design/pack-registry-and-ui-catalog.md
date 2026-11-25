@@ -5,6 +5,15 @@ SPDX-License-Identifier: MPL-2.0
 
 # Server-Side Pack Registry, Application Catalog, and Schema-Driven Web UI Architecture
 
+> **Status (2026-11-25): replaced by Rigger.** The cluster pack registries
+> (`packs.norca.io/Registry`, `/v1/pack-registry`, the uploads and the push
+> notices of the system bus) were removed with the pack manager in step 4.10
+> of [rig-integration.md](rig-integration.md). Rigger has registries of its own
+> (`rigger.norca.io/Registry`, synced on request) and the catalog and install
+> form of the web UI serve its modules and stacks; the form engine of this
+> design (`ui/app/utils/pack-form.js`) stays and builds the Rigger forms. The
+> rest of this document is the record of the design as it was built.
+
 ## 1. Summary
 
 Norca's package manager (`norca pack`) and server-side release engine (`packs.norca.io/Release`, see [package-manager-and-releases.md](package-manager-and-releases.md)) keep releases as Raft-backed revisions with ordered resources, atomic rollback and drift detection. Registries and template rendering were client-side only: `norca pack registry add` caches packs on a workstation, and the Web UI could only edit the values of a release as JSON and print a CLI command.

@@ -5,6 +5,17 @@ SPDX-License-Identifier: MPL-2.0
 
 # Integrated Package Manager and Server-Side Release Architecture
 
+> **Status (2026-11-25): replaced by Rigger.** The pack manager this document
+> describes (`norca pack`, `norca/pack/`, the pack registries) was removed in
+> step 4.10 of [rig-integration.md](rig-integration.md); Rigger (modules and
+> stacks, `norca rigger`) took its place. The server-side release engine
+> stays: Rigger applies its releases through it, and a revision a pack made
+> still reads, rolls back and uninstalls. Its object group is
+> `rigger.norca.io` (`rigger.norca.io/Release`, `ReleaseRevision`); it was
+> `packs.norca.io`. The install of one release into several regions in one
+> request goes with the pack manager. The rest of this document is the record
+> of the design as it was built.
+
 ## 1. Executive Summary & Paradigm Shift
 
 In standard HashiCorp Nomad, packaging was historically an afterthought relegated to `nomad-pack`—a separate, external CLI binary that operated strictly client-side. Upstream `nomad-pack` merely rendered text templates into Job HCL specifications and issued raw `job run` API calls. It maintained no cluster-side state, lacked revision tracking, could not roll back failed deployments atomically, had no drift detection, and could not manage auxiliary resources such as namespaces, quotas, ACL policies, encrypted variables, admission controls, or custom objects (CRDs).

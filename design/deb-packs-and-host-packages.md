@@ -8,6 +8,11 @@ SPDX-License-Identifier: MPL-2.0
 **Status:** Parked (draft; to be continued) · 2026-10-29 · Norca checkout at `248279425`. All Go paths are under
 `norca/` unless stated otherwise.
 
+> **2026-11-25:** the pack manager is gone (Rigger replaced it, step 4.10 of
+> [rig-integration.md](rig-integration.md)). This design continues, if at all,
+> as a resource kind of Rigger; what it says of packs, their `metadata.hcl` and
+> `norca pack` no longer applies as written.
+
 ## 1. Goal
 
 The pack manager installs one kind of pack today: HCL templates that render Nomad jobs and companion
