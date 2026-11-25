@@ -20,6 +20,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/builtin"
 	"github.com/bacanoo-io/norca/rigger/catalog"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 	"github.com/bacanoo-io/norca/rigger/fetch"
@@ -31,11 +32,12 @@ import (
 )
 
 // One module installed by the server (design/rig-integration.md 4.6a): a
-// module of a synced registry, fetched and verified by the server, or a
-// local module sent as files. The server evaluates it with the engine of
-// its hosts (rigger_host.go) and applies the release with the caller's
-// token; a module of a registry is applied as rendered by the server, a
-// local one as a client's.
+// module of a synced registry, fetched and verified by the server, a
+// module built into the server (builtin/<name>), or a local module sent as
+// files. The server evaluates it with the engine of its hosts
+// (rigger_host.go) and applies the release with the caller's token; a
+// module of a registry or a built-in one is applied as rendered by the
+// server, a local one as a client's.
 
 // riggerInstallTimeout bounds an install: the fetch of the module, its
 // evaluation and the apply of its release.
@@ -45,11 +47,14 @@ const riggerInstallTimeout = 10 * time.Minute
 const riggerLocalSource = "local"
 
 // RiggerModuleRequest names the module of an install or of a detail: a
-// module of a synced registry, or (an install only) a local module.
+// module of a synced registry, or (an install only) a module built into
+// the servers or a local module.
 type RiggerModuleRequest struct {
 	// Registry and Module name a module of a synced registry:
 	// <namespace>/<name> in the global registry, <name> in a registry
-	// repository. Version is a version constraint; empty takes the newest.
+	// repository. Module builtin/<name> without a Registry is a module
+	// built into the servers (an install only). Version is a version
+	// constraint; empty takes the newest.
 	Registry, Module, Version string
 	// Files is a local module sent as files (rigger Module.Archive); no
 	// registry then.
@@ -243,8 +248,9 @@ func (r *Rigger) Icon(args *RiggerDetailRequest, reply *RiggerIconResponse) (ret
 func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallResponse, rpcCtx *RPCContext) error {
 	namespace := args.RequestNamespace()
 	local := len(args.Files) > 0
+	ofServers := !local && args.Registry == "" && strings.HasPrefix(args.Module, riggerBuiltinPrefix)
 
-	if err := s.authorizeRiggerInstall(args, namespace, local); err != nil {
+	if err := s.authorizeRiggerInstall(args, namespace, !local && !ofServers); err != nil {
 		return err
 	}
 
@@ -254,6 +260,13 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 
 	if args.Timeout < 0 {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "the timeout %s is negative", args.Timeout)
+	}
+
+	if !local && !ofServers && args.Registry == "" {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"the module %q names no registry: a module of a registry of the cluster is Registry and Module, "+
+				"a module built into the servers is Module %s<name> alone, a local module is sent as Files",
+			args.Module, riggerBuiltinPrefix)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
@@ -292,6 +305,10 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 		}
 
 		in.Source = riggerLocalSource
+	} else if ofServers {
+		if m, err = riggerBuiltinModule(ctx, eng, src, args.RiggerModuleRequest); err != nil {
+			return err
+		}
 	} else {
 		if m, _, err = s.riggerRegistryModule(ctx, eng, src, args.RiggerModuleRequest); err != nil {
 			return err
@@ -338,9 +355,10 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 
 // authorizeRiggerInstall checks what an install needs before anything is
 // fetched: write on releases in the namespace, and read on the kind of
-// registries for a module of a registry. The release API checks the write
-// again, with everything else of an apply.
-func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace string, local bool) error {
+// registries for a module of a registry (ofRegistry); a local module and
+// one built into the servers need no more. The release API checks the
+// write again, with everything else of an apply.
+func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace string, ofRegistry bool) error {
 	aclObj, err := s.ResolveACL(args)
 	if err != nil {
 		return err
@@ -354,7 +372,7 @@ func (s *Server) authorizeRiggerInstall(args *RiggerInstallRequest, namespace st
 		return structs.ErrPermissionDenied
 	}
 
-	if !local && !aclObj.AllowObjectOperation(acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead) {
+	if ofRegistry && !aclObj.AllowObjectOperation(acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead) {
 		return structs.ErrPermissionDenied
 	}
 
@@ -480,6 +498,36 @@ func (s *Server) riggerRegistryModule(ctx context.Context, eng *rigger.Engine, s
 	}
 
 	return m, versions, nil
+}
+
+// riggerBuiltinPrefix starts the address of a module built into the servers
+// (and into the rigger program): builtin/<name>.
+const riggerBuiltinPrefix = "builtin/"
+
+// riggerBuiltinModule fetches a module built into the servers: the one
+// version they have, which must meet the constraint of the request. The
+// program is its source, so it needs no signature and no registry, and
+// what it renders counts as rendered by the server (riggerSources.indexed).
+func riggerBuiltinModule(ctx context.Context, eng *rigger.Engine, src *riggerSources, req RiggerModuleRequest) (*rigger.Module, error) {
+	sreq, err := source.Parse(req.Module, nil)
+	if err != nil || sreq.Kind != source.KindBuiltin {
+		return nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "%q is not the address of a built-in module, %s<name>", req.Module, riggerBuiltinPrefix)
+	}
+
+	if _, err := fs.Stat(builtin.FS(), path.Join(sreq.Path, "metadata.hcl")); err != nil {
+		return nil, structs.NewErrRPCCodedf(http.StatusNotFound, "the servers have no built-in module %s", req.Module)
+	}
+
+	m, diags := eng.FetchNewestModule(ctx, req.Module, req.Version)
+	if diags.HasErrors() {
+		if err := src.refusal(); err != nil {
+			return nil, err
+		}
+
+		return nil, riggerDiagsError(diags)
+	}
+
+	return m, nil
 }
 
 // syncedRegistry returns a registry with a good sync.

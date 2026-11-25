@@ -43,8 +43,8 @@ func (s *HTTPServer) RiggerRegistryRequest(resp http.ResponseWriter, req *http.R
 }
 
 // RiggerInstallRequest handles /v1/rigger/install (PUT or POST): one release
-// of a module of a synced registry, or of a local module sent as files,
-// planned (query plan=true) or applied.
+// of a module of a synced registry, of a module built into the servers, or
+// of a local module sent as files, planned (query plan=true) or applied.
 func (s *HTTPServer) RiggerInstallRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
 	if req.Method != http.MethodPut && req.Method != http.MethodPost {
 		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)

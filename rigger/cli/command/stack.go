@@ -142,7 +142,7 @@ func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, 
 	flags.Var(&f.vars, "var", "a value of the stack, name=value; may be given more than once"+varSyntax)
 	flags.BoolVar(&f.json, "json", false, "write the plan or the status as JSON")
 	flags.BoolVar(&f.prune, "prune", false, "apply: uninstall the releases the stack owns and no longer has")
-	flags.BoolVar(&f.adopt, "adopt", false, "apply: take over releases the pack manager applied or another stack owns")
+	flags.BoolVar(&f.adopt, "adopt", false, "apply: take over releases another package manager applied or another stack owns")
 	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
 	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
 	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")

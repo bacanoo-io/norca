@@ -268,13 +268,14 @@ func (r *Rigger) SearchRegistry(name string, query *RiggerRegistryQuery, q *Quer
 }
 
 // RiggerInstallRequest installs or upgrades one release of a module: one of
-// a synced registry (Registry, Module, Version constraint), or a local one
-// sent as files (Files, the archive of rigger Module.Archive).
+// a synced registry (Registry, Module, Version constraint), one built into
+// the servers (Module builtin/<name>, no Registry, Version constraint), or
+// a local one sent as files (Files, the archive of rigger Module.Archive).
 type RiggerInstallRequest struct {
 	Release  string
 	Registry string
 	// Module is <namespace>/<name> in the global registry, <name> in a
-	// registry repository.
+	// registry repository, builtin/<name> without a Registry.
 	Module  string
 	Version string
 	Files   []byte

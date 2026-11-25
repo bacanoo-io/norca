@@ -384,32 +384,28 @@ func writeOperation(w io.Writer, op *api.RiggerOperation) error {
 	}
 }
 
-// serverInstall installs one release of the module in a directory through
-// the servers.
+// serverInstall installs one release of a module through the servers: the
+// module in a directory, sent as files, or one the servers fetch from a
+// registry they synced or have built in.
 func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *installFlags) error {
-	eng, err := offlineEngine(logger)
+	var (
+		req    *api.RiggerInstallRequest
+		values rigger.Values
+		err    error
+	)
+
+	if f.address == "" {
+		req, values, err = serverInstallFiles(ctx, logger, stderr, f)
+	} else {
+		req, values, err = serverInstallFetched(stderr, f)
+	}
+
 	if err != nil {
 		return err
 	}
 
-	m, diags, err := loadModule(ctx, eng, f.dir)
-	if err != nil {
-		return err
-	}
-
-	if diags.HasErrors() {
-		return reportDiags(stderr, f.dir, diags)
-	}
-
-	// The warnings too: of a variable of the environment that is not used.
-	values, diags := readValues(&f.renderFlags, m.FormSchema())
-	if err := checkDiags(stderr, f.dir, diags); err != nil {
-		return err
-	}
-
-	files, err := m.Archive()
-	if err != nil {
-		return err
+	if len(values) > 0 {
+		req.Values = valuesHCL(values)
 	}
 
 	client, err := newClient(f.region)
@@ -418,11 +414,6 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 	}
 
 	client.SetNamespace(f.namespace)
-
-	req := &api.RiggerInstallRequest{Release: f.name, Files: files, Adopt: f.adopt, Timeout: f.timeout}
-	if len(values) > 0 {
-		req.Values = valuesHCL(values)
-	}
 
 	out, _, err := client.Rigger().Install(req, false, (&api.WriteOptions{}).WithContext(ctx))
 	if err != nil {
@@ -440,6 +431,55 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 	_, err = fmt.Fprintf(stdout, "%s %s/%s: revision %d\n", out.Action, f.namespace, f.name, out.Revision)
 
 	return err
+}
+
+// serverInstallFiles is the request of an install of the module in a
+// directory, sent as files, and the values of the flags.
+func serverInstallFiles(ctx context.Context, logger *slog.Logger, stderr io.Writer, f *installFlags) (*api.RiggerInstallRequest, rigger.Values, error) {
+	eng, err := offlineEngine(logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	m, diags, err := loadModule(ctx, eng, f.dir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if diags.HasErrors() {
+		return nil, nil, reportDiags(stderr, f.dir, diags)
+	}
+
+	// The warnings too: of a variable of the environment that is not used.
+	values, diags := readValues(&f.renderFlags, m.FormSchema())
+	if err := checkDiags(stderr, f.dir, diags); err != nil {
+		return nil, nil, err
+	}
+
+	files, err := m.Archive()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &api.RiggerInstallRequest{Release: f.name, Files: files, Adopt: f.adopt, Timeout: f.timeout}, values, nil
+}
+
+// serverInstallFetched is the request of an install of a module the
+// servers fetch (moduleInstallRequest), and the values of the flags: read
+// without the variables of the module, which only the servers load, so a
+// -var is typed as it is written and the environment gives none.
+func serverInstallFetched(stderr io.Writer, f *installFlags) (*api.RiggerInstallRequest, rigger.Values, error) {
+	req, err := moduleInstallRequest(f)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	values, diags := readValues(&f.renderFlags, nil)
+	if err := checkDiags(stderr, f.address, diags); err != nil {
+		return nil, nil, err
+	}
+
+	return req, values, nil
 }
 
 // serverImportBundle sends a bundle to the servers, which check it and keep

@@ -34,6 +34,27 @@ rigger stack apply my-stack -f values/dev.vars.hcl
 rigger stack plan acme/data-platform -version "~> 1.2" -f my.vars.hcl
 ```
 
+One release of a module, without a stack, comes from a directory or by its
+source: the newest version that meets `-version`, verified as a stack's
+modules are (a version of the global registry only listed and signed, its
+advisories shown as warnings), a built-in module of the version the
+program ships:
+
+```shell
+rigger install ./modules/web -name shop -f values.vars.hcl
+rigger install norca/nats -version "~> 1.2" -name nats -namespace apps
+rigger install builtin/redis -name cache -var memory=512
+rigger install norca/nats -name nats -server              # the servers fetch from the global registry
+rigger install web -registry acme -name shop -server      # a registry of the cluster, by the module's name
+rigger install builtin/redis -name cache -server          # built into the servers
+```
+
+With `-server` the servers fetch only from what they have: a registry of
+the cluster they synced (`rigger registry sync <name>`; the global one is
+`global`) and their built-in modules. A git or `oci://` address is
+refused there; register its repository as a registry, or install without
+`-server`. A directory is sent as files.
+
 Git repositories are read with go-git, not with the git program, so the
 credential helpers and `~/.ssh/config` of git do not apply. An `ssh://`
 or `user@host:path` repository authenticates with the keys of the ssh

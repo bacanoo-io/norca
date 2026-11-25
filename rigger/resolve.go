@@ -150,16 +150,22 @@ type fetchedModule struct {
 }
 
 // advisories are the warnings the index of a registry records on the
-// version of a module (design 7.3), shown by sync and plan.
+// version of a module (design 7.3), shown by sync and plan; at rng, unless
+// it names no file (a module fetched by its address).
 func advisories(rng hcl.Range, src string, fm *fetchedModule) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, w := range fm.warnings {
-		diags = append(diags, &hcl.Diagnostic{
+		d := &hcl.Diagnostic{
 			Severity: hcl.DiagWarning, Summary: "Advisory",
-			Detail:  fmt.Sprintf("%s %s: %s", src, fm.origin.Version, w),
-			Subject: rng.Ptr(),
-		})
+			Detail: fmt.Sprintf("%s %s: %s", src, fm.origin.Version, w),
+		}
+
+		if rng.Filename != "" {
+			d.Subject = rng.Ptr()
+		}
+
+		diags = append(diags, d)
 	}
 
 	return diags

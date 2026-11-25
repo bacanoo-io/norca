@@ -87,8 +87,17 @@ Commands:
   before its next release; a second Ctrl-C leaves it running.
   operation follow|cancel|status <name> [-namespace ns]
                           an apply or a destroy the servers run
-  install <dir> -name release [-namespace ns] [-f values] [-var name=value]
-                          install or upgrade one release of a module
+  install <dir|source> -name release [-version constraint] [-namespace ns]
+         [-f values] [-var name=value] [-registry name] [-adopt]
+                          install or upgrade one release of a module: in a
+                          directory, or by its source (<namespace>/<name> of
+                          the global registry, builtin/<name>, a git or
+                          oci:// address), the newest version that meets
+                          -version. With -server the servers fetch it from
+                          a registry they have synced (rigger registry
+                          sync): <namespace>/<name> from the global one,
+                          <name> -registry <registry> from another, or
+                          builtin/<name> from their own; no git or oci://
   release list|status|history|rollback|uninstall [name] [-namespace ns] [-adopt]
                           one release, without a stack
   registry list|status|sync [name]

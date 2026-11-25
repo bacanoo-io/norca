@@ -4,7 +4,9 @@
 package agent
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -24,6 +26,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	rigger "github.com/bacanoo-io/norca/rigger"
+	riggercmd "github.com/bacanoo-io/norca/rigger/cli/command"
+	"github.com/bacanoo-io/norca/rigger/fetch"
 	"github.com/bacanoo-io/norca/rigger/sign"
 )
 
@@ -210,5 +214,153 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 
 		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "web-2", Registry: "acme", Module: "web"}, true, nil)
 		must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	})
+}
+
+// A module built into the servers (builtin/<name>, no registry) is
+// installed by its name: of the one version the servers have, which must
+// meet the constraint, with no signature and no registry, so a token that
+// writes releases but can't read registries installs it; its release is
+// applied as rendered by the server. A module that names no registry and is
+// no built-in one, and a built-in module the servers don't have, are
+// refused.
+func TestHTTP_RiggerInstallBuiltin(t *testing.T) {
+	ci.Parallel(t)
+
+	local, err := rigger.New(rigger.WithFetcher(fetch.New(t.TempDir())))
+	must.NoError(t, err)
+
+	redis, diags := local.FetchNewestModule(t.Context(), "builtin/redis", "")
+	must.False(t, diags.HasErrors(), must.Sprint(diags))
+
+	version := redis.Metadata().Version
+
+	httpACLTest(t, nil, func(s *TestAgent) {
+		testutil.WaitForLeader(t, s.RPC)
+
+		client := s.Client()
+		client.SetSecretID(s.RootToken.SecretID)
+
+		req := &api.RiggerInstallRequest{Release: "cache", Module: "builtin/redis", Version: ">= " + version}
+
+		var plan *api.RiggerInstallResponse
+
+		// The kinds of Rigger are registered when the leader starts.
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			plan, _, err = client.Rigger().Install(req, true, nil)
+
+			return err
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+
+		must.Eq(t, "install", plan.Action)
+		must.Eq(t, "builtin/redis", plan.Module.Source)
+		must.Eq(t, version, plan.Module.Version)
+		must.NotNil(t, plan.Origin)
+		must.Eq(t, "builtin/redis", plan.Origin.Source)
+		must.SliceEmpty(t, plan.Origin.Signers)
+		must.StrNotContains(t, strings.Join(plan.Warnings, "; "), "not signed")
+
+		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "cache", Module: "builtin/redis", Version: ">= 99.0.0"}, true, nil)
+		must.ErrorContains(t, err, `no version meets the constraint ">= 99.0.0"`)
+
+		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "cache", Module: "builtin/nope"}, true, nil)
+		must.ErrorContains(t, err, "the servers have no built-in module builtin/nope")
+
+		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "cache", Module: "web"}, true, nil)
+		must.ErrorContains(t, err, `the module "web" names no registry`)
+
+		// The release, applied as rendered by the server. The job of Redis
+		// needs docker, which the client of the test has not: the wait for
+		// it ends with the timeout, the release is written before.
+		applied := *req
+		applied.Timeout = 2 * time.Second
+		_, _, _ = client.Rigger().Install(&applied, false, nil)
+
+		var srel structs.SingleReleaseResponse
+		must.NoError(t, s.RPC("Release.GetRelease", &structs.ReleaseSpecificRequest{
+			Name: "cache", QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: s.RootToken.SecretID},
+		}, &srel))
+		must.NotNil(t, srel.Release)
+		must.True(t, srel.Release.Spec.Pack.ServerRendered, must.Sprint("a built-in module is applied as rendered by the server"))
+		must.Eq(t, "builtin/redis", srel.Release.Spec.Pack.Source)
+		must.Eq(t, "", srel.Release.Spec.Pack.Registry, must.Sprint("a built-in module is of no registry"))
+
+		// A token that writes releases but can't read registries.
+		releasesOnly := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1600, "releases-only",
+			`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read", "write"] } }`)
+		client.SetSecretID(releasesOnly.SecretID)
+
+		other, _, err := client.Rigger().Install(&api.RiggerInstallRequest{Release: "cache-2", Module: "builtin/redis"}, true, nil)
+		must.NoError(t, err)
+		must.Eq(t, "install", other.Action)
+
+		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "cache-2", Registry: api.RiggerGlobalRegistry, Module: "acme/web"}, true, nil)
+		must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	})
+}
+
+// rigger install -server, the command of the program against an agent:
+// a module of a registry of the cluster by its name (-registry), and a
+// module of the global registry, which the servers have not synced, with
+// the answer of the servers as they wrote it.
+func TestHTTP_RiggerInstallCommand(t *testing.T) {
+	// The command reads the cluster from the environment: no parallel test
+	// runs beside this one.
+	repo := moduleRegistryRepo(t)
+
+	httpACLTest(t, nil, func(s *TestAgent) {
+		testutil.WaitForLeader(t, s.RPC)
+
+		client := s.Client()
+		client.SetSecretID(s.RootToken.SecretID)
+
+		obj := &api.CustomObject{Group: api.RiggerObjectGroup, Kind: api.RiggerRegistryKind, Name: "acme", Spec: map[string]any{"type": "git", "source": repo}}
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			_, _, err := client.Objects().Apply(obj, nil, nil)
+
+			return err
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+
+		_, _, err := client.Rigger().SyncRegistry("acme", nil)
+		must.NoError(t, err)
+
+		// The global registry is there, and not synced.
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			_, _, err := client.Rigger().Install(&api.RiggerInstallRequest{Release: "x", Registry: api.RiggerGlobalRegistry, Module: "acme/web"}, true, nil)
+			if err == nil || !strings.Contains(err.Error(), "has not been synced") {
+				return fmt.Errorf("the install of a module of the global registry: %v", err)
+			}
+
+			return nil
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+
+		t.Setenv("NORCA_ADDR", s.HTTPAddr())
+		t.Setenv("NORCA_TOKEN", s.RootToken.SecretID)
+		t.Setenv("NORCA_NAMESPACE", "")
+		t.Setenv("NORCA_REGION", "")
+		t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+		t.Setenv("RIGGER_SERVER", "")
+
+		var stdout, stderr bytes.Buffer
+
+		code := riggercmd.Run(t.Context(), []string{"install", "web", "-registry", "acme", "-name", "web-cli", "-server", "-var", "count=2"}, &stdout, &stderr)
+		must.Eq(t, 0, code, must.Sprintf("stderr %s", stderr.String()))
+		must.Eq(t, "install default/web-cli: revision 1\n", stdout.String())
+		must.StrContains(t, stderr.String(), "is not signed")
+
+		var srel structs.SingleReleaseResponse
+		must.NoError(t, s.RPC("Release.GetRelease", &structs.ReleaseSpecificRequest{
+			Name: "web-cli", QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: s.RootToken.SecretID},
+		}, &srel))
+		must.Eq(t, "acme/web", srel.Release.Spec.Pack.Source)
+		must.Eq(t, "acme", srel.Release.Spec.Pack.Registry)
+		must.True(t, srel.Release.Spec.Pack.ServerRendered)
+
+		stdout.Reset()
+		stderr.Reset()
+
+		code = riggercmd.Run(t.Context(), []string{"install", "acme/web", "-name", "web-global", "-server"}, &stdout, &stderr)
+		must.Eq(t, 1, code)
+		must.StrContains(t, stderr.String(), `the registry "global" has not been synced: sync it first (rigger registry sync global)`)
 	})
 }
