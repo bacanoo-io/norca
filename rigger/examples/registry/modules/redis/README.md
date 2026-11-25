@@ -86,3 +86,7 @@ paper in phase 0 of the design, with the faults of that pack kept. Version
   name could not read it.
 - Persistence has a host volume. Before, the append-only file was written
   into the container and lost with it.
+
+Version 0.4.1 reads the port of the group from `NORCA_PORT_db`, the name
+the task has it under. 0.4.0 read `NOMAD_PORT_db`, which no task has: the
+`port` line of the configuration was empty and the server did not start.

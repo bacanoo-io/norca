@@ -18,7 +18,7 @@ locals {
     [
       # The port of the group: var.port in bridge mode, the port the node
       # gives in host mode.
-      "port {{ env \"NOMAD_PORT_db\" }}",
+      "port {{ env \"NORCA_PORT_db\" }}",
       "dir /data",
     ],
     # Without persistence nothing is written: no append-only file and no

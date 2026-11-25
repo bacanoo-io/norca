@@ -23,6 +23,13 @@ test "defaults" {
     error_message = "the server reads the configuration file of the module"
   }
 
+  # The environment of a task is NORCA_*: with another name the line has no
+  # port, and Redis refuses its configuration.
+  assert {
+    condition     = length(split("port {{ env \"NORCA_PORT_db\" }}\n", resource.job.redis.group.redis.task.redis.template.data)) > 1
+    error_message = "the server listens on the port of the group, which the task has as NORCA_PORT_db"
+  }
+
   assert {
     condition     = length(split("appendonly no\nsave \"\"\n", resource.job.redis.group.redis.task.redis.template.data)) > 1
     error_message = "without persistence nothing is written to disk"

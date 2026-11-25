@@ -7,8 +7,11 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -35,7 +38,7 @@ func TestEngine_LoadModule(t *testing.T) {
 		t.Fatal(diags)
 	}
 
-	if md := m.Metadata(); md.Name != "redis" || md.Version != "0.4.0" || md.License != "BSD-3-Clause" {
+	if md := m.Metadata(); md.Name != "redis" || md.Version != "0.4.1" || md.License != "BSD-3-Clause" {
 		t.Errorf("metadata = %+v", md)
 	}
 
@@ -73,6 +76,41 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 				t.Error(diags)
 			}
 		})
+	}
+}
+
+// A task of Norca has its environment as NORCA_*: a module that reads a
+// NOMAD_* variable gets an empty value. The redis module 0.4.0 wrote the
+// port of its server from NOMAD_PORT_db, and Redis refused the configuration.
+func TestModules_ReadNoNomadEnvironment(t *testing.T) {
+	t.Parallel()
+
+	nomadEnv := regexp.MustCompile(`\bNOMAD_[A-Z]`)
+
+	for _, root := range []string{"builtin/modules", "examples"} {
+		fsys := os.DirFS(root)
+
+		err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || path.Ext(p) != ".hcl" {
+				return err
+			}
+
+			data, err := fs.ReadFile(fsys, p)
+			if err != nil {
+				return err
+			}
+
+			for i, line := range strings.Split(string(data), "\n") {
+				if nomadEnv.MatchString(line) {
+					t.Errorf("%s/%s:%d names a NOMAD_ variable, which no task has (NORCA_ is the prefix): %s", root, p, i+1, strings.TrimSpace(line))
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

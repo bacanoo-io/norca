@@ -1,0 +1,4 @@
+{
+  "payload": "{\"critical\":{\"identity\":{\"docker-reference\":\"rigger/redis\"},\"image\":{\"docker-manifest-digest\":\"sha256:a3349212de8fa90b6e70472dceaa6bb2b5852c620ebfb9ed01948f7d12bef6de\"},\"type\":\"cosign container image signature\"},\"optional\":{\"rigger.module\":\"redis\",\"rigger.version\":\"0.4.1\"}}",
+  "signature": "MEUCICik/PQfv27BsIt8zRgO0gz+hZV7305w2t6EIjJV/cOiAiEAkNRxxO6L5KhTGkxVU38/TxoCnqoJ7AFyFx4h2EUozTw="
+}
