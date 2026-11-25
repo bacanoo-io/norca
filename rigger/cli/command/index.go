@@ -4,15 +4,14 @@
 package command
 
 import (
-	"context"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/indexer"
@@ -26,76 +25,94 @@ const (
 )
 
 var (
-	errIndexCommand = errors.New("index needs a command: update or check")
-	errReplace      = errors.New("-replace takes url=path")
-	errProblems     = errors.New("the registry has problems")
+	errReplace  = errors.New("-replace takes url=path")
+	errProblems = errors.New("the registry has problems")
 )
 
-// runIndex runs rigger index update|check, the work of the workflows of the
-// global registry (design 7.3) on a checkout of it.
-func runIndex(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 || (args[0] != cmdUpdate && args[0] != cmdCheck) {
-		warn(stderr, "%v", errIndexCommand)
+// newIndexCommand is rigger index update|check, the work of the workflows of
+// the global registry (design 7.3) on a checkout of it.
+func (a *app) newIndexCommand() *cobra.Command {
+	return newGroup(&cobra.Command{
+		Use:   "index",
+		Short: "Keep a registry of the shape of the global registry: update, check",
+		Long: `The work of the workflows of the global registry, on a checkout of a
+registry of its shape: list the versions its repositories tagged, and check
+its files.`,
+	},
+		a.newIndexSubcommand(cmdUpdate, "List the new versions of the repositories of a registry",
+			`List in the entries of the registry in --dir the versions the repositories of
+its namespaces have tagged, signed and checked.`,
+			`  rigger index update --dir norca-global-registry
+  rigger index update --namespace acme --replace https://git.example.com/acme/web.git=../web`),
+		a.newIndexSubcommand(cmdCheck, "Check the files of a registry",
+			`Check the files of the registry in --dir; with --base, that the change since
+that git revision only adds, and the added versions against their sources.`,
+			`  rigger index check --dir norca-global-registry --base origin/main`),
+	)
+}
 
-		return exitError
-	}
+// newIndexSubcommand is rigger index update or rigger index check. Both
+// parse the flags they took before and show their own.
+func (a *app) newIndexSubcommand(name, short, long, example string) *cobra.Command {
+	var (
+		dir, base, today    string
+		namespaces, replace []string
+	)
 
-	flags := flag.NewFlagSet("rigger index "+args[0], flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	cmd := &cobra.Command{
+		Use: name, Short: short, Long: long, Example: example,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ix, err := newIndexer(a.logger, dir, today, replace)
+			if err != nil {
+				return err
+			}
 
-	dir := flags.String("dir", ".", "the checkout of the registry")
-	base := flags.String("base", "", "check: the git revision the change is compared with (append-only); none checks every version")
-	today := flags.String("today", time.Now().UTC().Format(time.DateOnly), "update: the day versions are listed on")
+			if name == cmdUpdate {
+				outcomes, err := ix.Update(cmd.Context(), namespaces)
+				for _, o := range outcomes {
+					if _, werr := fmt.Fprintln(a.stdout, o); werr != nil {
+						return werr
+					}
+				}
 
-	var namespaces, replace listFlag
+				return err
+			}
 
-	flags.Var(&namespaces, "namespace", "update: a namespace to update (repeated; none: all)")
-	flags.Var(&replace, "replace", "read the repository url from path, a clone (url=path, repeated)")
-
-	if err := flags.Parse(args[1:]); err != nil {
-		return exitError
-	}
-
-	ix, err := newIndexer(logger, *dir, *today, replace)
-	if err != nil {
-		warn(stderr, "%v", err)
-
-		return exitError
-	}
-
-	if args[0] == cmdUpdate {
-		return run(ctx, logger, stderr, "index.update", func(ctx context.Context) error {
-			outcomes, err := ix.Update(ctx, namespaces)
-			for _, o := range outcomes {
-				if _, werr := fmt.Fprintln(stdout, o); werr != nil {
+			problems, err := ix.Check(cmd.Context(), base)
+			for _, p := range problems {
+				if _, werr := fmt.Fprintln(a.stdout, p); werr != nil {
 					return werr
 				}
 			}
 
+			if err != nil {
+				return err
+			}
+
+			if len(problems) > 0 {
+				return fmt.Errorf("%w: %d", errProblems, len(problems))
+			}
+
+			_, err = fmt.Fprintf(a.stdout, "the registry in %s is valid\n", dir)
+
 			return err
-		})
+		},
 	}
 
-	return run(ctx, logger, stderr, "index.check", func(ctx context.Context) error {
-		problems, err := ix.Check(ctx, *base)
-		for _, p := range problems {
-			if _, werr := fmt.Fprintln(stdout, p); werr != nil {
-				return werr
-			}
-		}
+	flags := cmd.Flags()
+	flags.StringVar(&dir, "dir", ".", "the checkout of the registry")
+	flags.StringVar(&base, "base", "", "the git `revision` the change is compared with (append-only); none checks every version")
+	flags.StringVar(&today, "today", time.Now().UTC().Format(time.DateOnly), "the `day` versions are listed on")
+	flags.StringArrayVar(&namespaces, namespaceFlag, nil, "a namespace to update (repeated; none: all)")
+	flags.StringArrayVar(&replace, "replace", nil, "read the repository url from path, a clone (`url=path`, repeated)")
 
-		if err != nil {
-			return err
-		}
+	if name == cmdUpdate {
+		showOnly(cmd, "dir", "today", namespaceFlag, "replace")
+	} else {
+		showOnly(cmd, "dir", "base", "replace")
+	}
 
-		if len(problems) > 0 {
-			return fmt.Errorf("%w: %d", errProblems, len(problems))
-		}
-
-		_, err = fmt.Fprintf(stdout, "the registry in %s is valid\n", *dir)
-
-		return err
-	})
+	return cmd
 }
 
 // newIndexer is an indexer with the fetcher of the cache and an engine that

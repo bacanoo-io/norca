@@ -6,13 +6,13 @@ package command
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"slices"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -46,53 +46,128 @@ type registryFlags struct {
 	offset, limit int
 }
 
-// runRegistry runs rigger registry list|status|sync|search|select|unselect.
-func runRegistry(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "registry needs a command: list, status, sync, search, select or unselect")
+// registryDoc is the help of a command of rigger registry.
+type registryDoc struct {
+	use, short, long, example string
+}
 
-		return exitError
+// registryDocs are the commands of rigger registry, in the order of the
+// help.
+var registryDocs = []registryDoc{
+	{
+		use:   cmdList,
+		short: "List the registries of the cluster",
+		long: `List the registries of the cluster: their type, what they show in the UI,
+the phase and commit of their last sync, how many modules and stacks they
+hold, and their source.`,
+		example: `  rigger registry list`,
+	},
+	{
+		use:   "status <name>",
+		short: "Show a registry of the cluster and its last sync",
+		long: `Show a registry of the cluster: its source, what it shows in the UI, its
+last sync and last good sync, and the modules and stacks it shows.`,
+		example: `  rigger registry status global`,
+	},
+	{
+		use:   "sync <name>",
+		short: "Fetch the index of a registry of the cluster now",
+		long: `Have the servers fetch the index of a registry now. A registry is never
+synced on its own; the UI shows what the last sync read.`,
+		example: `  rigger registry sync global`,
+	},
+	{
+		use:   "search <name> [text...]",
+		short: "Search a registry of the cluster at its last sync",
+		long: `List the modules and stacks of a registry of the cluster that match the
+text, as its last sync read them. Without a cluster: rigger search.`,
+		example: `  rigger registry search global redis
+  rigger registry search acme --kind stack --category database`,
+	},
+	{
+		use:   "select <name> module|stack <ref>",
+		short: "Show a module or stack of a registry in the UI",
+		long: `Select a module or stack of a registry for the UI: a registry with the
+display "selected" shows only what is selected. The ref is <namespace>/<name>
+in the global registry, <name> in a registry repository. The UI changes with
+the next sync (rigger registry sync).`,
+		example: `  rigger registry select global module norca/redis`,
+	},
+	{
+		use:   "unselect <name> module|stack <ref>",
+		short: "Stop showing a module or stack of a registry in the UI",
+		long: `Take a module or stack out of what a registry selects for the UI. The ref
+is <namespace>/<name> in the global registry, <name> in a registry
+repository. The UI changes with the next sync (rigger registry sync).`,
+		example: `  rigger registry unselect global module norca/redis`,
+	},
+}
+
+// newRegistryCommand is rigger registry and its commands.
+func (a *app) newRegistryCommand() *cobra.Command {
+	sub := make([]*cobra.Command, 0, len(registryDocs))
+	for _, doc := range registryDocs {
+		sub = append(sub, a.newRegistrySubcommand(doc))
 	}
 
-	cmd, args := args[0], args[1:]
+	return newGroup(&cobra.Command{
+		Use:   "registry",
+		Short: "The registries of the cluster: list, status, sync, search, select, unselect",
+		Long: `The registries of the cluster (objects of the kind rigger.norca.io/Registry),
+which the servers install modules from and the UI shows. A registry is
+synced when someone asks for it (rigger registry sync).`,
+	}, sub...)
+}
 
-	var positional []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		positional, args = append(positional, args[0]), args[1:]
-	}
-
+// newRegistrySubcommand is one command of rigger registry. Each parses the
+// flags of search, as before; the others show --region only.
+func (a *app) newRegistrySubcommand(doc registryDoc) *cobra.Command {
 	var f registryFlags
 
-	flags := flag.NewFlagSet("rigger registry "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.StringVar(&f.region, "region", "", "the region to talk to")
-	flags.StringVar(&f.kind, "kind", "", "search: module or stack")
-	flags.StringVar(&f.category, "category", "", "search: one category ("+strings.Join(module.Categories, ", ")+")")
-	flags.StringVar(&f.keyword, "keyword", "", "search: the modules and stacks with the keyword")
-	flags.IntVar(&f.offset, "offset", 0, "search: the first match to show")
-	flags.IntVar(&f.limit, "limit", 0, "search: how many matches to show (default 50, at most 500)")
+	name, _, _ := strings.Cut(doc.use, " ")
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
+	cmd := &cobra.Command{
+		Use: doc.use, Short: doc.short, Long: doc.long, Example: doc.example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := newClient(f.region)
+			if err != nil {
+				return err
+			}
+
+			return registryCommand(cmd.Context(), a.stdout, client.Rigger(), name, args, f)
+		},
 	}
 
-	positional = append(positional, flags.Args()...)
+	if name == cmdRegistrySelect || name == cmdRegistryUnselect {
+		cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) == 1 {
+				return kindValues, cobra.ShellCompDirectiveNoFileComp
+			}
 
-	return run(ctx, logger, stderr, "registry."+cmd, func(ctx context.Context) error {
-		client, err := newClient(f.region)
-		if err != nil {
-			return err
+			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
+	}
 
-		return registryCommand(ctx, stdout, client.Rigger(), cmd, positional, f)
-	})
+	flags := cmd.Flags()
+	flags.StringVar(&f.region, regionFlag, "", "the region to talk to")
+	flags.StringVar(&f.kind, "kind", "", "module or stack")
+	flags.StringVar(&f.category, "category", "", "one category ("+strings.Join(module.Categories, ", ")+")")
+	flags.StringVar(&f.keyword, "keyword", "", "the modules and stacks with the keyword")
+	flags.IntVar(&f.offset, "offset", 0, "the first match to show")
+	flags.IntVar(&f.limit, "limit", 0, "how many matches to show (default 50, at most 500)")
+
+	if name != cmdRegistrySearch {
+		showOnly(cmd, regionFlag)
+	}
+
+	return cmd
 }
 
 // registryCommand runs a registry command. Every request ends with ctx: the
 // client of the API has no time limit of its own, and a server that does
 // not answer would hold the command until it is killed.
 func registryCommand(ctx context.Context, w io.Writer, rigger *api.Rigger, cmd string, args []string, f registryFlags) error {
-	if cmd == "list" {
+	if cmd == cmdList {
 		regs, _, err := rigger.Registries(queryOptions(ctx))
 		if err != nil {
 			return err

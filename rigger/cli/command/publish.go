@@ -6,11 +6,12 @@ package command
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/cli/internal/credstore"
 	"github.com/bacanoo-io/norca/rigger/oci"
@@ -23,43 +24,49 @@ var (
 	errOnePublishDir = errors.New("module publish takes one directory")
 )
 
-// runPublish runs rigger module publish [dir] -to oci://host/repository, or
-// rigger module publish [dir] [-key name.key], which signs and tags the
+// newPublishCommand is rigger module publish [dir] --to oci://host/repository,
+// or rigger module publish [dir] [--key name.key], which signs and tags the
 // module in its git repository. The directory may be before or after the
 // flags.
-func runPublish(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	dir, given := ".", false
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		dir, given, args = args[0], true, args[1:]
+func (a *app) newPublishCommand() *cobra.Command {
+	var to, key string
+
+	cmd := &cobra.Command{
+		Use:   "publish [dir]",
+		Short: "Publish a module: tag it in git, or push it to an OCI registry",
+		Long: `Publish the module in dir (default: the current one) with the version of its
+metadata.
+
+Without --to: sign the module with the private key of --key (its password in
+RIGGER_KEY_PASSWORD), commit the signature and tag the version in its git
+repository. Nothing is pushed. The global registry lists only signed
+versions.
+
+With --to oci://<host>/<repository>: push the module, with its child modules
+and signatures, tagged with its version.`,
+		Example: `  rigger module publish --key release.key
+  rigger module publish modules/web --to oci://registry.example.com/acme/web`,
+		// An argument that is not read would publish another directory than
+		// the one named.
+		Args: oneDirectory(errOnePublishDir),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			if to == "" {
+				return publishGit(cmd.Context(), a.logger, a.stdout, a.stderr, dir, key)
+			}
+
+			return publish(cmd.Context(), a.logger, a.stdout, a.stderr, dir, to)
+		},
 	}
 
-	flags := flag.NewFlagSet("rigger module publish", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	to := flags.String("to", "", "the OCI repository: oci://<host>/<repository>; none: tag in git")
-	key := flags.String("key", "", "git: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
+	cmd.Flags().StringVar(&to, "to", "", "the OCI repository: `oci://<host>/<repository>`; none: tag in git")
+	cmd.Flags().StringVar(&key, keyFlag, "", "git: the private `key` the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
-	}
-
-	// The directory may follow the flags, as for module render. An argument
-	// that is not read would publish another directory than the one named.
-	switch {
-	case flags.NArg() == 1 && !given:
-		dir = flags.Arg(0)
-	case flags.NArg() > 0:
-		warn(stderr, "%v", errOnePublishDir)
-
-		return exitError
-	}
-
-	return run(ctx, logger, stderr, "module.publish", func(ctx context.Context) error {
-		if *to == "" {
-			return publishGit(ctx, logger, stdout, stderr, dir, *key)
-		}
-
-		return publish(ctx, logger, stdout, stderr, dir, *to)
-	})
+	return cmd
 }
 
 // publish pushes the module in dir to an OCI repository, tagged with its

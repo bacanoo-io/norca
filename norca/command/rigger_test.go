@@ -24,7 +24,7 @@ func TestRiggerCommand_Run(t *testing.T) {
 		{
 			name:   "version",
 			args:   []string{"version"},
-			stdout: "rigger (built into " + version.GetVersion().FullVersionNumber(true) + ")\n",
+			stdout: "rigger (built into Norca v" + version.NorcaVersion + ")\n",
 		},
 		{
 			// A module of the examples of Rigger renders without a cluster.
@@ -56,7 +56,13 @@ func TestRiggerCommand_Help(t *testing.T) {
 	ci.Parallel(t)
 
 	help := (&RiggerCommand{}).Help()
-	for _, want := range []string{"Usage: norca rigger [flags] <command>", "stack apply", "module render"} {
+	for _, want := range []string{
+		"Norca Rigger (built into Norca v" + version.NorcaVersion + ")\nThe package manager of Norca",
+		"Usage:\n  norca rigger [flags]\n  norca rigger [command]",
+		"  stack       Work with a stack: sync, validate, plan, apply,",
+		"  module      Work with a module: render,",
+		`Use "norca rigger help <command>" for more information about a command.`,
+	} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help does not contain %q:\n%s", want, help)
 		}

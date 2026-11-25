@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/bundle"
 	"github.com/bacanoo-io/norca/rigger/fetch"
@@ -23,59 +24,87 @@ import (
 
 var errBundleOut = errors.New("bundle create needs -o, the file to write")
 
-// runBundle runs rigger bundle create|inspect|import (design 7.1, 10).
-func runBundle(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "bundle needs a command: create, inspect or import")
+// cmdCreate is rigger bundle create.
+const cmdCreate = "create"
 
-		return exitError
-	}
+// newBundleCommand is rigger bundle create|inspect|import (design 7.1, 10).
+func (a *app) newBundleCommand() *cobra.Command {
+	return newGroup(&cobra.Command{
+		Use:   "bundle",
+		Short: "Bundles for a cluster without a network: create, inspect, import",
+		Long: `A bundle holds the modules of a stack in one file, for an install without a
+network: created where the sources are reachable, imported where they are
+not.`,
+	},
+		a.newBundleSubcommand("create [stack]", "Write the modules of a stack into a bundle",
+			`Write the modules of the stack in the directory stack (default: the current
+one), from their git sources as its lock file pins them, into the bundle of
+--output.`,
+			`  rigger bundle create stacks/platform -o platform.riggerbundle`),
+		a.newBundleSubcommand("inspect <file>", "Show what a bundle holds",
+			`Show the stack a bundle was made of and the modules it holds, with their
+versions and digests.`,
+			`  rigger bundle inspect platform.riggerbundle`),
+		a.newBundleSubcommand("import <file>", "Put the modules of a bundle into the cache, or the cluster",
+			`Check each module of a bundle against the digest its manifest names and put
+them into the cache, all or none, for an install without a network. With
+--server (or RIGGER_SERVER=1) the bundle goes into the cluster, for its
+servers.`,
+			`  rigger bundle import platform.riggerbundle
+  rigger bundle import platform.riggerbundle --server`),
+	)
+}
 
-	cmd, args := args[0], args[1:]
+// newBundleSubcommand is one command of rigger bundle. Each parses the
+// flags they all took before and shows its own.
+func (a *app) newBundleSubcommand(use, short, long, example string) *cobra.Command {
+	var (
+		out    string
+		server bool
+	)
 
-	var positional []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		positional, args = append(positional, args[0]), args[1:]
-	}
+	name, _, _ := strings.Cut(use, " ")
 
-	flags := flag.NewFlagSet("rigger bundle "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	out := flags.String("o", "", "create: the bundle to write (platform.riggerbundle)")
-	server := flags.Bool("server", serverDefault() && cmd == "import", "import: "+serverUsage)
-
-	if err := flags.Parse(args); err != nil {
-		return exitError
-	}
-
-	if *server && cmd != "import" {
-		warn(stderr, "%v", errServerOnly)
-
-		return exitError
-	}
-
-	positional = append(positional, flags.Args()...)
-	arg := "."
-
-	if len(positional) > 0 {
-		arg = positional[0]
-	}
-
-	return run(ctx, logger, stderr, "bundle."+cmd, func(ctx context.Context) error {
-		switch cmd {
-		case "create":
-			return createBundle(ctx, logger, stdout, stderr, arg, *out)
-		case "inspect":
-			return inspectBundle(stdout, arg)
-		case "import":
-			if *server {
-				return serverImportBundle(ctx, stdout, arg)
+	cmd := &cobra.Command{
+		Use: use, Short: short, Long: long, Example: example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if server && name != "import" {
+				return errServerOnly
 			}
 
-			return importBundle(ctx, logger, stdout, arg)
-		default:
-			return fmt.Errorf("unknown bundle command %q", cmd)
-		}
-	})
+			arg := "."
+			if len(args) > 0 {
+				arg = args[0]
+			}
+
+			switch name {
+			case cmdCreate:
+				return createBundle(cmd.Context(), a.logger, a.stdout, a.stderr, arg, out)
+			case "inspect":
+				return inspectBundle(a.stdout, arg)
+			default:
+				if server {
+					return serverImportBundle(cmd.Context(), a.stdout, arg)
+				}
+
+				return importBundle(cmd.Context(), a.logger, a.stdout, arg)
+			}
+		},
+	}
+
+	cmd.Flags().StringVarP(&out, "output", "o", "", "the bundle to write (`platform.riggerbundle`)")
+	cmd.Flags().BoolVar(&server, serverFlag, serverDefault() && name == "import", serverUsage)
+
+	switch name {
+	case cmdCreate:
+		showOnly(cmd, "output")
+	case "import":
+		showOnly(cmd, serverFlag)
+	default:
+		showOnly(cmd)
+	}
+
+	return cmd
 }
 
 // createBundle writes a bundle of the modules of the stack in dir, as its

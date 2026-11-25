@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	riggercmd "github.com/bacanoo-io/norca/rigger/cli/command"
 
@@ -27,17 +28,27 @@ type RiggerCommand struct {
 	Stdout, Stderr io.Writer
 }
 
-// program is Rigger as norca runs it: its version is norca's, the commit
-// Rigger was built from.
+// program is Rigger as norca runs it: its version and build are norca's,
+// the commit Rigger was built from. norca completes its own command line,
+// so Rigger's completion command is left out.
 func (c *RiggerCommand) program() riggercmd.Program {
+	v := version.GetVersion()
+
+	build := riggercmd.Build{Commit: v.Revision}
+	if !v.BuildDate.IsZero() {
+		build.Date = v.BuildDate.Format(time.RFC3339)
+	}
+
 	return riggercmd.Program{
 		Name:    "norca rigger",
-		Version: "(built into " + version.GetVersion().FullVersionNumber(true) + ")",
+		Version: "(built into Norca v" + version.NorcaVersion + ")",
+		Build:   build,
 	}
 }
 
-// Help is the usage of Rigger. The command line library prints it for -h
-// anywhere after "norca rigger", so it lists every command with its flags.
+// Help is the help of Rigger: its commands, and "norca rigger help
+// <command>" for the help of one. The command line library prints it for
+// -h and --help anywhere after "norca rigger", which Rigger never sees.
 func (c *RiggerCommand) Help() string {
 	var out bytes.Buffer
 

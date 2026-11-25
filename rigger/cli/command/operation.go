@@ -6,73 +6,76 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/norca/api"
 )
 
 const cmdOperation = "operation"
 
-// operationName is the one name of an operation given before or after the
-// flags; empty when there is none or more than one.
-func operationName(before string, after []string) string {
-	switch {
-	case before == "" && len(after) == 1:
-		return after[0]
-	case len(after) > 0:
-		return ""
-	default:
-		return before
-	}
+// newOperationCommand is rigger operation follow|cancel|status <name>: an
+// apply or a destroy of a stack the servers run (design/rig-integration.md
+// 4.6c).
+func (a *app) newOperationCommand() *cobra.Command {
+	return newGroup(&cobra.Command{
+		Use:   "operation",
+		Short: "An apply or a destroy the servers run: follow, cancel, status",
+		Long: `An apply or a destroy of a stack the servers run, as rigger stack apply
+--server and rigger stack destroy --server start it.`,
+	},
+		a.newOperationSubcommand("follow", "Follow the log of an operation until it ends",
+			`Follow the log of an operation until it ends: Ctrl-C cancels it before its
+next release; a second Ctrl-C leaves it running.`,
+			`  rigger operation follow platform-apply-3 --namespace data`),
+		a.newOperationSubcommand("cancel", "Cancel an operation before its next release",
+			`Cancel an operation: it stops before its next release.`,
+			`  rigger operation cancel platform-apply-3 --namespace data`),
+		a.newOperationSubcommand(cmdStatus, "Show the phase of an operation",
+			`Show an operation: its action, its stack, its phase and its error.`,
+			`  rigger operation status platform-apply-3 --namespace data --json`),
+	)
 }
 
-// runOperation runs rigger operation follow|cancel|status <name>: an apply
-// or a destroy of a stack the servers run (design/rig-integration.md 4.6c).
-func runOperation(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "operation needs a command: follow, cancel or status")
+// newOperationSubcommand is one command of rigger operation. Each parses
+// the flags they all took before and shows its own.
+func (a *app) newOperationSubcommand(name, short, long, example string) *cobra.Command {
+	var (
+		namespace, region string
+		asJSON            bool
+	)
 
-		return exitError
+	cmd := &cobra.Command{
+		Use: name + " <name>", Short: short, Long: long, Example: example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("operation %s needs the name of one operation", name)
+			}
+
+			client, err := newClient(region)
+			if err != nil {
+				return err
+			}
+
+			client.SetNamespace(namespace)
+
+			return operationCommand(cmd.Context(), a.logger, a.stdout, a.stderr, client, name, namespace, args[0], asJSON)
+		},
 	}
 
-	cmd, args := args[0], args[1:]
+	flags := cmd.Flags()
+	flags.StringVar(&namespace, namespaceFlag, "default", "the namespace of the stack of the operation")
+	flags.StringVar(&region, regionFlag, "", "the region of the operation (default: the region of the cluster)")
+	flags.BoolVar(&asJSON, jsonFlag, false, "write the operation as JSON")
 
-	var name string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		name, args = args[0], args[1:]
+	if name != cmdStatus {
+		showOnly(cmd, namespaceFlag, regionFlag)
 	}
 
-	flags := flag.NewFlagSet("rigger operation "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	namespace := flags.String("namespace", "default", "the namespace of the stack of the operation")
-	region := flags.String("region", "", "the region of the operation (default: the region of the cluster)")
-	asJSON := flags.Bool("json", false, "status: write the operation as JSON")
-
-	if err := flags.Parse(args); err != nil {
-		return exitError
-	}
-
-	name = operationName(name, flags.Args())
-	if name == "" {
-		warn(stderr, "operation %s needs the name of one operation", cmd)
-
-		return exitError
-	}
-
-	return run(ctx, logger, stderr, "operation."+cmd, func(ctx context.Context) error {
-		client, err := newClient(*region)
-		if err != nil {
-			return err
-		}
-
-		client.SetNamespace(*namespace)
-
-		return operationCommand(ctx, logger, stdout, stderr, client, cmd, *namespace, name, *asJSON)
-	})
+	return cmd
 }
 
 // operationCommand runs rigger operation <cmd> on the operation name.

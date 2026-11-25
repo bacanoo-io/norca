@@ -6,7 +6,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/builtin"
 	"github.com/bacanoo-io/norca/rigger/catalog"
@@ -45,17 +46,32 @@ type searchFlags struct {
 	maxWidth      int
 }
 
-// runSearch runs rigger search [text...] [flags].
-func runSearch(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	var text []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		text, args = append(text, args[0]), args[1:]
-	}
-
+// newSearchCommand is rigger search [text...] [flags].
+func (a *app) newSearchCommand() *cobra.Command {
 	var f searchFlags
 
-	flags := flag.NewFlagSet("rigger search", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	cmd := &cobra.Command{
+		Use:   "search [text...]",
+		Short: "Search the modules and stacks of a registry, without a cluster",
+		Long: `List the modules and stacks of a registry that match the text, without a
+cluster: of the global registry (the default; RIGGER_GLOBAL_REGISTRY names
+another), of the modules built into the program (--registry builtin), or of
+a registry repository (--registry with a git address or a directory of one)
+at the newest commit of its default branch, fetched into the cache.
+
+The table shows the kind, the name, the newest version and the description,
+cut to --max-width characters; --json adds the source of each match, by
+which rigger show and rigger install take it.`,
+		Example: `  rigger search redis
+  rigger search --registry builtin
+  rigger search --kind stack --category database
+  rigger search --registry https://git.example.com/acme/registry.git --json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return search(cmd.Context(), a.logger, a.stdout, strings.Join(args, " "), f)
+		},
+	}
+
+	flags := cmd.Flags()
 	flags.StringVar(&f.registry, "registry", searchGlobal,
 		"what is searched: global (the global registry), builtin (the modules built into the program), or the address of a registry repository (git, or a directory of one)")
 	flags.StringVar(&f.kind, "kind", "", "module or stack")
@@ -63,18 +79,10 @@ func runSearch(ctx context.Context, logger *slog.Logger, stdout, stderr io.Write
 	flags.StringVar(&f.keyword, "keyword", "", "the modules and stacks with the keyword")
 	flags.IntVar(&f.offset, "offset", 0, "the first match to show")
 	flags.IntVar(&f.limit, "limit", 0, fmt.Sprintf("how many matches to show (default %d, at most %d)", catalog.DefaultLimit, catalog.MaxLimit))
-	flags.BoolVar(&f.json, "json", false, "write the matches as JSON")
-	flags.IntVar(&f.maxWidth, "max-width", defaultMaxWidth, maxWidthUsage)
+	flags.BoolVar(&f.json, jsonFlag, false, "write the matches as JSON")
+	flags.IntVar(&f.maxWidth, maxWidthFlag, defaultMaxWidth, maxWidthUsage)
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
-	}
-
-	text = append(text, flags.Args()...)
-
-	return run(ctx, logger, stderr, cmdSearch, func(ctx context.Context) error {
-		return search(ctx, logger, stdout, strings.Join(text, " "), f)
-	})
+	return cmd
 }
 
 // searched is a registry as rigger search read it: its items, the address

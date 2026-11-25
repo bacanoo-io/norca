@@ -7,16 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/spf13/cobra"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/index"
@@ -42,54 +41,59 @@ type showFlags struct {
 	maxWidth int
 }
 
-// runShow runs rigger show <source> [flags].
-func runShow(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	var positional []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		positional, args = append(positional, args[0]), args[1:]
-	}
-
+// newShowCommand is rigger show <source> [flags].
+func (a *app) newShowCommand() *cobra.Command {
 	var f showFlags
 
-	flags := flag.NewFlagSet("rigger show", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.StringVar(&f.kind, "kind", "", "module or stack (default: a stack when the address names one, as stacks/<name> of a repository or a stack of the global registry)")
-	flags.StringVar(&f.version, "version", "", "the version constraint (\"~> 1.2\"); none shows the newest")
-	flags.BoolVar(&f.readme, "readme", false, "print the README.md too")
-	flags.BoolVar(&f.json, "json", false, "write the details as JSON")
-	flags.IntVar(&f.maxWidth, "max-width", defaultMaxWidth, maxWidthUsage)
+	cmd := &cobra.Command{
+		Use:   "show <source>",
+		Short: "Show one module or stack, without a cluster",
+		Long: `Show one module or stack without a cluster: the newest version that meets
+--version, fetched and verified as an install does. It shows the metadata,
+the versions, the digest, the signers, the variables, the outputs and, of a
+stack, its modules; --readme adds the README.
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
+The source is <namespace>/<name> of the global registry, builtin/<name>, a
+git address (a module of a registry repository:
+<repository>//modules/<name>) or oci://<host>/<repository>.`,
+		Example: `  rigger show norca/redis
+  rigger show norca/nats --version "~> 1.2" --readme
+  rigger show builtin/redis --json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if f.maxWidth < 0 {
+				return errMaxWidth
+			}
+
+			if len(args) != 1 {
+				return errShowSource
+			}
+
+			if f.kind != "" && f.kind != string(index.KindModule) && f.kind != string(index.KindStack) {
+				return fmt.Errorf("%w, not %q", errShowKind, f.kind)
+			}
+
+			eng, err := offlineEngine(a.logger)
+			if err != nil {
+				return err
+			}
+
+			shown, err := showSource(cmd.Context(), eng, a.stderr, args[0], f)
+			if err != nil {
+				return err
+			}
+
+			return writeDetails(a.stdout, shown, f)
+		},
 	}
 
-	positional = append(positional, flags.Args()...)
+	flags := cmd.Flags()
+	flags.StringVar(&f.kind, "kind", "", "module or stack (default: a stack when the address names one, as stacks/<name> of a repository or a stack of the global registry)")
+	flags.StringVar(&f.version, versionFlag, "", `the version `+"`constraint`"+` ("~> 1.2"); none shows the newest`)
+	flags.BoolVar(&f.readme, "readme", false, "print the README.md too")
+	flags.BoolVar(&f.json, jsonFlag, false, "write the details as JSON")
+	flags.IntVar(&f.maxWidth, maxWidthFlag, defaultMaxWidth, maxWidthUsage)
 
-	return run(ctx, logger, stderr, cmdShow, func(ctx context.Context) error {
-		if f.maxWidth < 0 {
-			return errMaxWidth
-		}
-
-		if len(positional) != 1 {
-			return errShowSource
-		}
-
-		if f.kind != "" && f.kind != string(index.KindModule) && f.kind != string(index.KindStack) {
-			return fmt.Errorf("%w, not %q", errShowKind, f.kind)
-		}
-
-		eng, err := offlineEngine(logger)
-		if err != nil {
-			return err
-		}
-
-		shown, err := showSource(ctx, eng, stderr, positional[0], f)
-		if err != nil {
-			return err
-		}
-
-		return writeDetails(stdout, shown, f)
-	})
+	return cmd
 }
 
 // shownSource is what rigger show writes of a module or a stack.
@@ -450,6 +454,9 @@ func oneLine(s string) string {
 // defaultMaxWidth is how many characters of a description a table shows, so
 // that a row of rigger search or rigger show fits a line of a terminal.
 const defaultMaxWidth = 60
+
+// maxWidthFlag is the flag of the width of a description in a table.
+const maxWidthFlag = "max-width"
 
 const maxWidthUsage = "the characters of a description (and of a default) a table shows; 0 shows them whole"
 

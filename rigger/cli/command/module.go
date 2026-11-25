@@ -6,7 +6,6 @@ package command
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,64 +14,73 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/spf13/cobra"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 )
 
 // errReported is the error of a command that has written its diagnostics
-// already: run exits with an error and writes nothing more.
+// already: the program exits with an error and writes nothing more.
 var errReported = errors.New("reported")
 
-// runModule runs a module command: rigger module <command> [args].
-func runModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "module needs a command: render, test, validate or publish")
+// newModuleCommand is rigger module and its commands.
+func (a *app) newModuleCommand() *cobra.Command {
+	return newGroup(&cobra.Command{
+		Use:   "module",
+		Short: "Work with a module: render, test, validate, publish",
+		Long: `The commands of a module, in the directory dir (default: the current one).
+None of them needs a cluster.`,
+	}, a.newRenderCommand(), a.newModuleDirCommand(cmdTest), a.newModuleDirCommand(cmdValidate), a.newPublishCommand())
+}
 
-		return exitError
-	}
-
-	switch args[0] {
-	case cmdPublish:
-		return runPublish(ctx, logger, stdout, stderr, args[1:])
-	case cmdRender:
-		f, err := parseRenderFlags(stderr, args[1:])
-		if err != nil {
-			if !errors.Is(err, flag.ErrHelp) {
-				warn(stderr, "%v", err)
+// newModuleDirCommand is rigger module test or module validate: a command
+// of one directory, without flags.
+func (a *app) newModuleDirCommand(name string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  name + " [dir]",
+		Args: oneDirectory(fmt.Errorf("module %s takes one directory", name)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
 			}
 
-			return exitError
-		}
+			if name == cmdTest {
+				return testModule(cmd.Context(), a.logger, a.stdout, a.stderr, dir)
+			}
 
-		return run(ctx, logger, stderr, "module.render", func(ctx context.Context) error {
-			return renderModule(ctx, logger, stdout, stderr, f)
-		})
-	case cmdValidate, cmdTest:
-		dir := "."
+			return validateModule(cmd.Context(), a.logger, a.stdout, a.stderr, dir)
+		},
+	}
+
+	if name == cmdTest {
+		cmd.Short = "Run the tests of a module"
+		cmd.Long = `Run the tests of the module in dir (tests/*.riggertest.hcl): each puts its
+values in and asserts over the resources the module renders. A line per
+test, the failures under it, and a summary; a failed test fails the command.`
+		cmd.Example = `  rigger module test
+  rigger module test modules/web`
+	} else {
+		cmd.Short = "Check a module without a cluster"
+		cmd.Long = `Check the module in dir without a cluster: its files, its icon, its tests,
+and its example values rendered, the jobs decoded as Norca decodes them.`
+		cmd.Example = `  rigger module validate
+  rigger module validate modules/web`
+	}
+
+	return cmd
+}
+
+// oneDirectory accepts at most one argument, the directory of the command;
+// more is err.
+func oneDirectory(err error) cobra.PositionalArgs {
+	return func(_ *cobra.Command, args []string) error {
 		if len(args) > 1 {
-			dir = args[1]
+			return err
 		}
 
-		if len(args) > 2 {
-			warn(stderr, "module %s takes one directory", args[0])
-
-			return exitError
-		}
-
-		if args[0] == cmdTest {
-			return run(ctx, logger, stderr, "module.test", func(ctx context.Context) error {
-				return testModule(ctx, logger, stdout, stderr, dir)
-			})
-		}
-
-		return run(ctx, logger, stderr, "module.validate", func(ctx context.Context) error {
-			return validateModule(ctx, logger, stdout, stderr, dir)
-		})
-	default:
-		warn(stderr, "unknown module command %q", args[0])
-
-		return exitError
+		return nil
 	}
 }
 

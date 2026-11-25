@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/spf13/cobra"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -32,57 +32,47 @@ var errOneDirectory = errors.New("module render takes one directory")
 // renderFlags are the flags of rigger module render.
 type renderFlags struct {
 	dir       string
-	files     listFlag
-	vars      listFlag
+	files     []string
+	vars      []string
 	release   string
 	namespace string
 	region    string
 }
 
-// listFlag is a flag that may be given more than once.
-type listFlag []string
+// newRenderCommand is rigger module render [dir]: the directory may be
+// before or after the flags.
+func (a *app) newRenderCommand() *cobra.Command {
+	f := &renderFlags{}
 
-func (l *listFlag) String() string { return strings.Join(*l, ",") }
+	cmd := &cobra.Command{
+		Use:   "render [dir]",
+		Short: "Evaluate a module and print its resources and outputs as JSON",
+		Long: `Evaluate the module in dir (default: the current one) with the values of
+--values and --var, and print its resources and outputs as JSON, for review.
+The jobs are decoded as Norca decodes them; the items of a secret are named,
+their values not shown. No cluster is needed.`,
+		Example: `  rigger module render
+  rigger module render modules/web --values examples/small.vars.hcl --var replicas=2
+  rigger module render --release web-dev --namespace dev --region eu`,
+		Args: oneDirectory(errOneDirectory),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			f.dir = "."
+			if len(args) > 0 {
+				f.dir = args[0]
+			}
 
-func (l *listFlag) Set(v string) error {
-	*l = append(*l, v)
-
-	return nil
-}
-
-// parseRenderFlags parses [dir] [flags], or [flags] [dir].
-func parseRenderFlags(stderr io.Writer, args []string) (*renderFlags, error) {
-	f := &renderFlags{dir: "."}
-
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		f.dir, args = args[0], args[1:]
+			return renderModule(cmd.Context(), a.logger, a.stdout, a.stderr, f)
+		},
 	}
 
-	flags := flag.NewFlagSet("rigger module render", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.Var(&f.files, "f", "a file of values (*.vars.hcl); may be given more than once, a later one wins")
-	flags.Var(&f.vars, "var", "a value, name=value; wins over the files; may be given more than once"+varSyntax)
+	flags := cmd.Flags()
+	flags.StringArrayVarP(&f.files, valuesFlag, "f", nil, "a `file` of values (*.vars.hcl); may be given more than once, a later one wins")
+	flags.StringArrayVar(&f.vars, varFlag, nil, "a value, `name=value`; wins over the files; may be given more than once"+varSyntax)
 	flags.StringVar(&f.release, "release", "", "name of the release (default: the name of the module)")
-	flags.StringVar(&f.namespace, "namespace", "default", "namespace of the release")
-	flags.StringVar(&f.region, "region", "global", "region of the release")
+	flags.StringVar(&f.namespace, namespaceFlag, "default", "namespace of the release")
+	flags.StringVar(&f.region, regionFlag, "global", "region of the release")
 
-	if err := flags.Parse(args); err != nil {
-		return nil, err
-	}
-
-	switch flags.NArg() {
-	case 0:
-	case 1:
-		if f.dir != "." {
-			return nil, errOneDirectory
-		}
-
-		f.dir = flags.Arg(0)
-	default:
-		return nil, errOneDirectory
-	}
-
-	return f, nil
+	return cmd
 }
 
 // renderModule evaluates the module of f.dir with the values of f, and
@@ -285,7 +275,7 @@ func variableTypes(form map[string]any) map[string]string {
 
 // varSyntax ends the help of a -var flag: how its value is written.
 const varSyntax = `. The value of a string, number or bool variable is the text as it is; of a list or object, HCL: 'tags=["a", "b"]'. ` +
-	`A variable of the environment RIGGER_VAR_<name> gives a value the same way; a -var wins over it`
+	`A variable of the environment RIGGER_VAR_<name> gives a value the same way; a --var wins over it`
 
 // primitiveTypes are the types of an install form whose value is one text.
 var primitiveTypes = []string{"string", "number", "integer", "boolean"}

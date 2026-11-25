@@ -13,6 +13,9 @@ import (
 	"github.com/bacanoo-io/norca/rigger/cli/command"
 )
 
+// cmdHelp is the help command of the program.
+const cmdHelp = "help"
+
 // "rigger operator init" through the dispatch of the rigger program: the
 // project is written, the errors are named; "norca rigger" (a program
 // without the command) does not know it.
@@ -86,9 +89,9 @@ func TestCommand(t *testing.T) {
 			name:   "unknown flag",
 			args:   func(string) []string { return []string{cmdOperator, cmdInit, "-nope", "a.b/X"} },
 			code:   1,
-			stderr: "flag provided but not defined: -nope",
+			stderr: "unknown shorthand flag: 'n' in -nope (see rigger help operator init)",
 		},
-		{name: "help", args: func(string) []string { return []string{cmdOperator, cmdInit, "-h"} }, stderr: "-cluster-scoped"},
+		{name: "help", args: func(string) []string { return []string{cmdOperator, cmdInit, "-h"} }, stdout: "--cluster-scoped"},
 	}
 
 	for _, tt := range tests {
@@ -152,14 +155,24 @@ func TestCommand_OnlyInTheRiggerProgram(t *testing.T) {
 
 	var withIt, without, stderr bytes.Buffer
 
-	command.Run(t.Context(), []string{"help"}, &withIt, &stderr, Command())
+	command.Run(t.Context(), []string{cmdHelp}, &withIt, &stderr, Command())
 
-	if !strings.Contains(withIt.String(), "operator init [-name n]") {
-		t.Errorf("the usage of the rigger program does not list operator init:\n%s", withIt.String())
+	if !strings.Contains(withIt.String(), "\n  operator    Generate the project of an operator: init\n") {
+		t.Errorf("the help of the rigger program does not list operator:\n%s", withIt.String())
 	}
 
-	if !strings.Contains(withIt.String(), "outputs as JSON; secret items are named, not shown\n  operator init") {
-		t.Error("operator init is not after the other commands")
+	_, group, _ := strings.Cut(withIt.String(), "Write and check modules and stacks:")
+	if group, _, _ = strings.Cut(group, "\n\n"); !strings.Contains(group, "  operator ") {
+		t.Error("operator is not among the commands that write modules")
+	}
+
+	var initHelp bytes.Buffer
+
+	command.Run(t.Context(), []string{cmdHelp, cmdOperator, cmdInit}, &initHelp, &stderr, Command())
+
+	if !strings.Contains(initHelp.String(), "Usage:\n  rigger operator init <group>/<Kind> [dir] [flags]") ||
+		!strings.Contains(initHelp.String(), "--cluster-scoped") {
+		t.Errorf("the help of operator init:\n%s", initHelp.String())
 	}
 
 	prog := command.Program{Name: "norca rigger", Version: "test"}

@@ -7,11 +7,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
 )
@@ -27,26 +26,34 @@ import (
 // formatted.
 var errUnformatted = errors.New("files are not formatted")
 
-// runFmt runs rigger fmt [-check] [path ...]: every .hcl file under the paths
-// (design 10: all files are HCL, nothing is skipped), hidden directories
-// left out.
-func runFmt(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	flags := flag.NewFlagSet("rigger fmt", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	check := flags.Bool("check", false, "write nothing; list the files that are not formatted and fail if there are any")
+// newFmtCommand is rigger fmt [--check] [path ...]: every .hcl file under the
+// paths (design 10: all files are HCL, nothing is skipped), hidden
+// directories left out.
+func (a *app) newFmtCommand() *cobra.Command {
+	var check bool
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
+	cmd := &cobra.Command{
+		Use:   "fmt [path...]",
+		Short: "Format the .hcl files under paths",
+		Long: `Format every .hcl file under the paths (default: the current directory),
+hidden directories left out. A file that does not parse is reported and left
+as it is. --check writes nothing: it lists the files that are not formatted
+and fails if there are any.`,
+		Example: `  rigger fmt
+  rigger fmt modules stacks --check`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths := args
+			if len(paths) == 0 {
+				paths = []string{"."}
+			}
+
+			return formatPaths(cmd.Context(), a.stdout, a.stderr, paths, check)
+		},
 	}
 
-	paths := flags.Args()
-	if len(paths) == 0 {
-		paths = []string{"."}
-	}
+	cmd.Flags().BoolVar(&check, "check", false, "write nothing; list the files that are not formatted and fail if there are any")
 
-	return run(ctx, logger, stderr, "fmt", func(ctx context.Context) error {
-		return formatPaths(ctx, stdout, stderr, paths, *check)
-	})
+	return cmd
 }
 
 // formatter formats the .hcl files under paths, or with check lists those

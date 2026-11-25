@@ -6,7 +6,6 @@ package command
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/norca/api"
 
@@ -50,69 +50,88 @@ var (
 	errInstallRegistryModule = errors.New("-registry needs the module, as the registry lists it: rigger install <name> -registry <registry> -server")
 )
 
-// runInstall runs rigger install <dir|address> -name x: one release of a
-// module, a stack of one owned by no stack (design 10).
-func runInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	f, err := parseInstallFlags(stderr, args)
-	if err != nil {
-		if !errors.Is(err, errReported) {
-			warn(stderr, "%v", err)
-		}
+// newInstallCommand is rigger install <dir|source> --name x: one release of
+// a module, a stack of one owned by no stack (design 10).
+func (a *app) newInstallCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install [dir|source] --name release",
+		Short: "Install or upgrade one release of a module",
+		Long: `Install or upgrade one release of a module, owned by no stack: the module in
+the directory dir (default: the current one), or the module of a source:
+<namespace>/<name> of the global registry, builtin/<name> (a module built
+into the program), a git address or oci://<host>/<repository>, at the newest
+version that meets --version.
 
-		return exitError
+With --server (or RIGGER_SERVER=1) the servers of the cluster fetch the
+module from a registry they have synced (rigger registry sync):
+<namespace>/<name> from the global one, <name> --registry <registry> from
+another, or builtin/<name> from their own; they take no git or oci://
+address.`,
+		Example: `  rigger install modules/web --name web --values values/dev.vars.hcl
+  rigger install norca/nats --version "~> 1.2" --name nats --namespace apps
+  rigger install builtin/redis --name cache --var replicas=2
+  rigger install web --registry acme --name web --server`,
 	}
 
-	return run(ctx, logger, stderr, "install", func(ctx context.Context) error {
-		if f.server {
-			return serverInstall(ctx, logger, stdout, stderr, f)
+	f := addInstallFlags(cmd)
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := f.setArg(args); err != nil {
+			return err
 		}
 
-		return install(ctx, logger, stdout, stderr, f)
-	})
+		if f.server {
+			return serverInstall(cmd.Context(), a.logger, a.stdout, a.stderr, f)
+		}
+
+		return install(cmd.Context(), a.logger, a.stdout, a.stderr, f)
+	}
+
+	return cmd
 }
 
-// parseInstallFlags parses [dir|address] [flags]. The argument is a module
-// in a directory when it names one (or is missing: the current directory),
-// else the address of a module (isModuleAddress); with -registry it is the
-// name of a module of that registry. An error the flag set wrote already
-// is errReported.
-func parseInstallFlags(stderr io.Writer, args []string) (*installFlags, error) {
+// addInstallFlags adds the flags of rigger install to cmd, and returns
+// where they are read into.
+func addInstallFlags(cmd *cobra.Command) *installFlags {
 	f := &installFlags{}
 
-	var arg string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		arg, args = args[0], args[1:]
-	}
-
-	flags := flag.NewFlagSet("rigger install", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.Var(&f.files, "f", "a file of values (*.vars.hcl); may be given more than once")
-	flags.Var(&f.vars, "var", "a value, name=value; may be given more than once"+varSyntax)
+	flags := cmd.Flags()
+	flags.StringArrayVarP(&f.files, valuesFlag, "f", nil, "a `file` of values (*.vars.hcl); may be given more than once")
+	flags.StringArrayVar(&f.vars, varFlag, nil, "a value, `name=value`; may be given more than once"+varSyntax)
 	flags.StringVar(&f.name, "name", "", "name of the release")
-	flags.StringVar(&f.namespace, "namespace", "default", "namespace of the release")
-	flags.StringVar(&f.region, "region", "", "region of the release (default: the region of the cluster)")
-	flags.StringVar(&f.version, "version", "", "a module by its address: the version constraint (\"~> 1.2\"); none takes the newest")
-	flags.StringVar(&f.registry, "registry", "", "-server: a registry of the cluster to install from; the argument is the module as it lists it")
+	flags.StringVar(&f.namespace, namespaceFlag, "default", "namespace of the release")
+	flags.StringVar(&f.region, regionFlag, "", "region of the release (default: the region of the cluster)")
+	flags.StringVar(&f.version, versionFlag, "", `a module by its address: the version `+"`constraint`"+` ("~> 1.2"); none takes the newest`)
+	flags.StringVar(&f.registry, "registry", "", "with --server: a registry of the cluster to install from; the argument is the module as it lists it")
 	flags.DurationVar(&f.timeout, "timeout", 0, "how long to wait until the release is ready (default: the server's)")
-	flags.BoolVar(&f.adopt, "adopt", false, "take over a release another package manager applied or a stack owns")
-	flags.BoolVar(&f.server, "server", serverDefault(), serverUsage)
+	flags.BoolVar(&f.adopt, adoptFlag, false, "take over a release another package manager applied or a stack owns")
+	flags.BoolVar(&f.server, serverFlag, serverDefault(), serverUsage)
 
-	if err := flags.Parse(args); err != nil {
-		return nil, errReported
+	return f
+}
+
+// setArg reads the argument of install, after its flags. It is a module in
+// a directory when it names one (or is missing: the current directory),
+// else the address of a module (isModuleAddress); with --registry it is the
+// name of a module of that registry.
+func (f *installFlags) setArg(args []string) error {
+	if f.name == "" || len(args) > 1 {
+		return errInstallName
 	}
 
-	if f.name == "" || flags.NArg() > 0 {
-		return nil, errInstallName
+	var arg string
+	if len(args) == 1 {
+		arg = args[0]
 	}
 
 	switch {
 	case f.registry != "":
 		if !f.server {
-			return nil, errInstallRegistryServer
+			return errInstallRegistryServer
 		}
 
 		if arg == "" {
-			return nil, errInstallRegistryModule
+			return errInstallRegistryModule
 		}
 
 		f.address = arg
@@ -125,10 +144,10 @@ func parseInstallFlags(stderr io.Writer, args []string) (*installFlags, error) {
 	}
 
 	if f.address == "" && f.version != "" {
-		return nil, errInstallVersionDir
+		return errInstallVersionDir
 	}
 
-	return f, nil
+	return nil
 }
 
 // isModuleAddress reports whether arg is the address of a module rather

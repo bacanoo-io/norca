@@ -6,13 +6,13 @@ package command
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/cli/norcaapi"
 	"github.com/bacanoo-io/norca/rigger/host"
@@ -20,46 +20,98 @@ import (
 
 var errReleaseName = errors.New("the command needs the name of a release")
 
-// runRelease runs rigger release list|status|history|rollback|uninstall: one
-// release, without a stack, through the release API (design 10).
-func runRelease(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "release needs a command: list, status, history, rollback or uninstall")
+// cmdList is rigger release list and rigger registry list.
+const cmdList = "list"
 
-		return exitError
+// releaseDocs are the commands of rigger release, in the order of the
+// help: use, short, long and example.
+var releaseDocs = [][4]string{
+	{
+		cmdList, "List the releases of a namespace",
+		`List the current revision of each release of a namespace (--namespace "*":
+of every namespace): its status, its module and version, and the stack or
+package manager that owns it.`,
+		`  rigger release list
+  rigger release list --namespace "*"`,
+	},
+	{
+		"status <name>", "Show the current revision of a release and its drift",
+		`Show the current revision of a release and each of its resources that
+drifted from what was applied.`,
+		`  rigger release status web --namespace apps`,
+	},
+	{
+		"history <name>", "List the revisions of a release",
+		`List the revisions of a release, the current one among them.`,
+		`  rigger release history web --namespace apps`,
+	},
+	{
+		"rollback <name> [revision]", "Make a revision of a release current again",
+		`Make a revision of a release current again: the one given, else the
+previous one. --adopt restores a revision another package manager or stack
+applied.`,
+		`  rigger release rollback web
+  rigger release rollback web 3 --namespace apps`,
+	},
+	{
+		"uninstall <name>", "Uninstall a release",
+		`Uninstall a release of the namespace.`,
+		`  rigger release uninstall web --namespace apps`,
+	},
+}
+
+// newReleaseCommand is rigger release and its commands: one release,
+// without a stack, through the release API (design 10).
+func (a *app) newReleaseCommand() *cobra.Command {
+	sub := make([]*cobra.Command, 0, len(releaseDocs))
+	for _, doc := range releaseDocs {
+		sub = append(sub, a.newReleaseSubcommand(doc))
 	}
 
-	cmd, args := args[0], args[1:]
+	return newGroup(&cobra.Command{
+		Use:   "release",
+		Short: "One release, without a stack: list, status, history, rollback, uninstall",
+		Long: `The commands of one release of a module, without a stack, through the
+release API of the cluster.`,
+	}, sub...)
+}
 
-	var positional []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		positional, args = append(positional, args[0]), args[1:]
+// newReleaseSubcommand is one command of rigger release. Each parses the
+// flags they all took before; --adopt shows for rollback only.
+func (a *app) newReleaseSubcommand(doc [4]string) *cobra.Command {
+	var (
+		namespace, region string
+		adopt             bool
+	)
+
+	name, _, _ := strings.Cut(doc[0], " ")
+
+	cmd := &cobra.Command{
+		Use: doc[0], Short: doc[1], Long: doc[2], Example: doc[3],
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := newClient(region)
+			if err != nil {
+				return err
+			}
+
+			return releaseCommand(cmd.Context(), a.stdout, norcaapi.NewReleases(client), name, namespace, args, adopt)
+		},
 	}
 
-	flags := flag.NewFlagSet("rigger release "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	namespace := flags.String("namespace", "default", "namespace of the release (list: * for all)")
-	region := flags.String("region", "", "the region to talk to")
-	adopt := flags.Bool("adopt", false, "rollback: restore a revision of another manager or stack")
+	flags := cmd.Flags()
+	flags.StringVar(&namespace, namespaceFlag, "default", "namespace of the release (list: * for all)")
+	flags.StringVar(&region, regionFlag, "", "the region to talk to")
+	flags.BoolVar(&adopt, adoptFlag, false, "restore a revision of another manager or stack")
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
+	if name != "rollback" {
+		showOnly(cmd, namespaceFlag, regionFlag)
 	}
 
-	positional = append(positional, flags.Args()...)
-
-	return run(ctx, logger, stderr, "release."+cmd, func(ctx context.Context) error {
-		client, err := newClient(*region)
-		if err != nil {
-			return err
-		}
-
-		return releaseCommand(ctx, stdout, norcaapi.NewReleases(client), cmd, *namespace, positional, *adopt)
-	})
+	return cmd
 }
 
 func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Releases, cmd, namespace string, args []string, adopt bool) error {
-	if cmd == "list" {
+	if cmd == cmdList {
 		revs, err := releases.List(ctx, namespace)
 		if err != nil {
 			return err

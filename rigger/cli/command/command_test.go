@@ -21,11 +21,11 @@ func TestRun(t *testing.T) {
 		expectedStderr string
 	}{
 		{name: "version", args: []string{cmdVersion}, expectedCode: exitOK, expectedStdout: "rigger "},
-		{name: "help command", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage: rigger"},
-		{name: "help flag", args: []string{"-h"}, expectedCode: exitOK, expectedStderr: "Usage: rigger"},
-		{name: "no command", args: nil, expectedCode: exitError, expectedStderr: "Usage: rigger"},
+		{name: "help command", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: riggerUsage},
+		{name: "help flag", args: []string{"-h"}, expectedCode: exitOK, expectedStdout: riggerUsage},
+		{name: "no command", args: nil, expectedCode: exitError, expectedStderr: riggerUsage},
 		{name: "unknown command", args: []string{"nope"}, expectedCode: exitError, expectedStderr: `rigger: unknown command "nope"`},
-		{name: "unknown flag", args: []string{"-nope", cmdVersion}, expectedCode: exitError, expectedStderr: "flag provided but not defined"},
+		{name: "unknown flag", args: []string{"-nope", cmdVersion}, expectedCode: exitError, expectedStderr: "unknown shorthand flag: 'n' in -nope"},
 		{
 			name:           "invalid log format",
 			args:           []string{"-log-format", "xml", cmdVersion},
@@ -76,7 +76,7 @@ func TestRunProgram(t *testing.T) {
 		expectedStdout string
 	}{
 		{name: "version", args: []string{cmdVersion}, expectedCode: exitOK, expectedStdout: "rigger (norca 1.2.3)\n"},
-		{name: "help", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage: norca rigger [flags] <command>"},
+		{name: "help", args: []string{cmdHelp}, expectedCode: exitOK, expectedStdout: "Usage:\n  norca rigger [flags]\n  norca rigger [command]"},
 	}
 
 	for _, tt := range tests {

@@ -4,18 +4,20 @@
 // Package command holds the commands of the rigger program.
 //
 // The program is configured by flags and logs to standard error (design
-// 12.1); the engine reads neither.
+// 12.1); the engine reads neither. The command line is a tree of cobra
+// commands; each flag is written --name, and -name is read as --name
+// (normalizeArgs).
 package command
 
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
-	"runtime/debug"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/cli/internal/logging"
 	"github.com/bacanoo-io/norca/rigger/oplog"
@@ -53,180 +55,55 @@ const (
 	cmdValidate = "validate"
 )
 
-const usage = `Usage: rigger [flags] <command>
+// The flags of the program, which every command takes.
+const (
+	logFormatFlag = "log-format"
+	logLevelFlag  = "log-level"
+	jsonFlag      = "json"
+)
 
-Commands:
-  help                    print this help
-  version                 print the version of rigger
-  fmt [-check] [path ...] format the .hcl files under the paths (the current
-                          directory); -check lists those that are not
-                          formatted and fails
-  stack sync [dir] [-upgrade]
-                          resolve the versions of the modules of a stack,
-                          fetch and verify them, write rigger.lock.hcl
-  stack validate [dir] [-f values] [-var name=value]
-                          evaluate a stack without a cluster (each file of
-                          values/ when none is given)
-  stack plan [dir] [-f values] [-var name=value] [-json]
-                          what an apply would change; exit code 2 with
-                          changes
-  stack apply [dir] [-f values] [-var name=value] [-prune]
-                          plan and apply, release after release
-  stack status [dir] [-json]
-                          the releases of the stack, their revision, drift
-  stack destroy [dir]     uninstall the stack's releases
-  stack publish [dir] [-key name.key]
-                          validate a stack with metadata.hcl and its lock
-                          file, sign it, commit the signature and tag the
-                          version in its git repository (not pushed)
-  Every stack command but sync and publish takes, instead of a directory,
-  a published stack: <namespace>/<name> of the global registry or a git
-  address, with -version "~> 1.2".
-  With -server (or RIGGER_SERVER=1), stack plan, apply, status and
-  destroy, install and bundle import go to the servers of the cluster,
-  which fetch and evaluate; an apply or a destroy runs there as an
-  operation whose log the command follows. Ctrl-C cancels the operation
-  before its next release; a second Ctrl-C leaves it running.
-  operation follow|cancel|status <name> [-namespace ns]
-                          an apply or a destroy the servers run
-  install <dir|source> -name release [-version constraint] [-namespace ns]
-         [-f values] [-var name=value] [-registry name] [-adopt]
-                          install or upgrade one release of a module: in a
-                          directory, or by its source (<namespace>/<name> of
-                          the global registry, builtin/<name>, a git or
-                          oci:// address), the newest version that meets
-                          -version. With -server the servers fetch it from
-                          a registry they have synced (rigger registry
-                          sync): <namespace>/<name> from the global one,
-                          <name> -registry <registry> from another, or
-                          builtin/<name> from their own; no git or oci://
-  release list|status|history|rollback|uninstall [name] [-namespace ns] [-adopt]
-                          one release, without a stack
-  search [text] [-registry global|builtin|<repository>] [-kind module|stack]
-         [-category c] [-keyword k] [-offset n] [-limit n] [-max-width n] [-json]
-                          the modules and stacks of a registry, without a
-                          cluster: the global registry (default), the
-                          modules built into the program, or a registry
-                          repository (a git address or a directory) at the
-                          newest commit of its default branch, fetched
-                          into the cache
-  show <source> [-version constraint] [-kind module|stack] [-readme]
-       [-max-width n] [-json]
-                          one module or stack, without a cluster: the
-                          newest version that meets -version, fetched and
-                          verified as an install does; its metadata,
-                          versions, digest, signers, variables, outputs
-                          and, of a stack, its modules. The source is
-                          <namespace>/<name> of the global registry,
-                          builtin/<name>, a git address (a module of a
-                          registry repository: <repository>//modules/<name>)
-                          or oci://
-  registry list|status|sync [name]
-                          the registries of the cluster; sync fetches the
-                          index of one now (it is never synced on its own)
-  registry search <name> [text] [-kind module|stack] [-category c]
-         [-keyword k] [-offset n] [-limit n]
-                          the modules and stacks of a registry of the
-                          cluster at its last sync (without a cluster:
-                          rigger search)
-  registry select|unselect <name> module|stack <namespace>/<name>
-                          what a registry shows in the UI (display
-                          selected); the UI changes with the next sync
-  key generate [-out name] write name.key (encrypted with RIGGER_KEY_PASSWORD)
-                          and name.pub
-  key sign [dir] -key name.key
-                          sign the tree digest of a module into its
-                          .rigger-signatures directory
-  key verify [dir] -key name.pub
-                          check that a module is signed by the key
-  bundle create [stack] -o file.riggerbundle
-                          the modules of a stack from git sources, as its
-                          lock pins them, in one archive
-  bundle inspect file     what a bundle holds
-  bundle import file [-server]
-                          put a bundle into the cache, for an install
-                          without a network; with -server, into the
-                          cluster, for its servers
-  login <host> [-username name]
-                          keep the credentials of a host of git or OCI
-                          sources; the password (a token) is the first
-                          line of standard input
-  logout <host>           forget them
-  A credential goes to its host only, over https: those of login, else
-  RIGGER_GIT_USERNAME, RIGGER_GIT_PASSWORD for the host RIGGER_GIT_HOST,
-  and RIGGER_OCI_USERNAME, RIGGER_OCI_PASSWORD for RIGGER_OCI_HOST.
-  The cluster is that of NORCA_ADDR and NORCA_TOKEN. A source
-  <namespace>/<name> that names no registry of the stack is a module of
-  the global registry, github.com/bacanoo-io/norca-global-registry, or of
-  RIGGER_GLOBAL_REGISTRY (a git address or a directory).
-  convert pack <dir> -out <dir> [-examples <dir>]
-                          the mechanical part of turning a pack into a
-                          module: metadata, variables, examples; the
-                          templates kept as comments to rewrite as HCL
-  module validate [dir]   check a module without a cluster: its files, its
-                          icon, its tests, and its example values rendered
-                          (dir: the current one)
-  module test [dir]       run the tests of a module (tests/*.riggertest.hcl):
-                          its values in, assertions over its resources
-  module publish [dir] -to oci://host/repository
-                          push the module, with its child modules and
-                          signatures, tagged with its version
-  module publish [dir] [-key name.key]
-                          sign the module, commit the signature and tag
-                          the version in its git repository (not pushed)
-  index update [-dir registry] [-namespace ns] [-replace url=path]
-                          list in the entries of a registry of the shape of
-                          the global registry the versions the repositories
-                          of its namespaces have tagged, signed and checked
-  index check [-dir registry] [-base revision] [-replace url=path]
-                          check the files of such a registry; with -base,
-                          that a change only adds, and the added versions
-                          against their sources
-  module render [dir] [-f values.vars.hcl] [-var name=value]
-         [-release name] [-namespace ns] [-region region]
-                          evaluate a module and print its resources and
-                          outputs as JSON; secret items are named, not shown
+// The groups of the commands in the help of the program.
+const (
+	groupDevelop = "develop"
+	groupFind    = "find"
+	groupDeploy  = "deploy"
+	groupPublish = "publish"
+	groupProgram = "program"
+)
 
-Flags:
-`
-
-// command runs a command of the rigger program with its arguments.
-type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int
-
-// commands are the commands that take commands or flags of their own.
-var commands = map[string]command{
-	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall, cmdRegistry: runRegistry,
-	cmdSearch: runSearch, cmdShow: runShow, cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
-	cmdIndex: runIndex, cmdOperation: runOperation, cmdLogin: runLogin, cmdLogout: runLogout,
-}
-
-// Program is the program that runs the commands: the name its usage shows,
-// the version it prints and the commands only it has. The rigger program is
-// "rigger" with the version of its module; norca runs the same commands as
-// "norca rigger" with its own version, the commit Rigger was built from
-// (design/rig-integration.md 4.7).
+// Program is the program that runs the commands: the name its help shows,
+// the version and build it prints and the commands only it has. The rigger
+// program is "rigger" with the version of its build; norca runs the same
+// commands as "norca rigger" with its own version, the commit Rigger was
+// built from (design/rig-integration.md 4.7).
 type Program struct {
-	Name    string
+	// Name is the command line that runs the commands: "rigger", or "norca
+	// rigger" for a program that runs them as one of its own commands.
+	Name string
+	// Version is the version on one line: the header of the help says
+	// "Norca Rigger <Version>", rigger version "rigger <Version>".
 	Version string
+	// Build is what rigger version prints under the version; the Go
+	// version and the platform are added.
+	Build Build
 	// Commands are the commands of this program only, such as the
 	// generators of the rigger program ("operator init"): norca does not
 	// carry their code, because a program that does not name them does not
 	// link them.
 	Commands []Command
+	// Completion adds "completion", which writes the script that completes
+	// the program in a shell. A program that runs the commands as one of its
+	// own (norca) completes its own command line and leaves it out.
+	Completion bool
 }
 
-// Command is a command of one program only (Program.Commands).
-type Command struct {
-	// Name is the first word of the command line ("operator").
-	Name string
-	// Usage is its lines in the usage of the program, in the layout of the
-	// other commands.
-	Usage string
-	// Run runs it with the arguments after its name. It returns ErrReported
-	// when it has written its error itself (a flag error), flag.ErrHelp for
-	// -h.
-	Run func(ctx context.Context, stdout, stderr io.Writer, args []string) error
-}
+// Command makes a command of one program only (Program.Commands): a tree
+// of cobra commands, new on each call, because a run changes the flags it
+// parses. It writes to cmd.OutOrStdout and cmd.ErrOrStderr; an error it
+// returns is written by the program, unless it is ErrReported. Each
+// command of the tree that runs is an operation of the log, as the other
+// commands are.
+type Command func() *cobra.Command
 
 // ErrReported is the error of a command that has written its error to
 // standard error itself: the program exits with 1 and says nothing more.
@@ -235,106 +112,216 @@ var ErrReported = errReported
 // Run runs the rigger program with its arguments, without the program name,
 // and the commands only it has, and returns the exit code.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer, cmds ...Command) int {
-	return RunProgram(ctx, Program{Name: "rigger", Version: version(), Commands: cmds}, args, stdout, stderr)
+	ver, build := programBuild()
+
+	return RunProgram(ctx, Program{Name: "rigger", Version: ver, Build: build, Commands: cmds, Completion: true}, args, stdout, stderr)
 }
 
 // RunProgram runs the commands as prog, with the arguments that follow its
 // name, and returns the exit code.
 func RunProgram(ctx context.Context, prog Program, args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet(prog.Name, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.Usage = func() { printUsage(flags, prog) }
+	a := &app{prog: prog, stdout: stdout, stderr: stderr, logger: slog.New(slog.DiscardHandler)}
+	root := a.newRoot()
 
-	logFormat := flags.String("log-format", "text", "format of the log on standard error: text (a tree of operations) or json")
-	logLevel := flags.String("log-level", "info", "lowest level logged: debug, info, warn or error")
+	if isCompletion(args) {
+		// The line to complete (cobra's __complete): its words but the
+		// last, which is being typed, are read as a run reads them.
+		registerCompletions(root)
 
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return exitOK
+		if last := len(args) - 1; last > 0 {
+			args = append(append([]string{args[0]}, normalizeArgs(root, args[1:last])...), args[last:]...)
 		}
-
-		return exitError
+	} else {
+		args = normalizeArgs(root, args)
 	}
 
-	logger, err := newLogger(stderr, *logFormat, *logLevel)
-	if err != nil {
-		warn(stderr, "%v", err)
+	root.SetArgs(args)
 
-		return exitError
-	}
-
-	name := flags.Arg(0)
-	if cmd, ok := commands[name]; ok {
-		return cmd(ctx, logger, stdout, stderr, flags.Args()[1:])
-	}
-
-	for _, cmd := range prog.Commands {
-		if cmd.Name == name {
-			return runCommand(ctx, logger, stdout, stderr, cmd, flags.Args()[1:])
-		}
-	}
-
-	switch name {
-	case cmdVersion:
-		return run(ctx, logger, stderr, name, func(context.Context) error {
-			_, err := fmt.Fprintf(stdout, "rigger %s\n", prog.Version)
-
-			return err
-		})
-	case cmdHelp:
-		flags.SetOutput(stdout)
-		printUsage(flags, prog)
-
-		return exitOK
-	case "":
-		printUsage(flags, prog)
-
-		return exitError
-	default:
-		warn(stderr, "unknown command %q", name)
-		printUsage(flags, prog)
-
-		return exitError
-	}
+	return a.exitCode(root.ExecuteContext(ctx))
 }
 
-// runCommand runs a command of the program only, as run runs the others; -h
-// is not an error.
-func runCommand(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, cmd Command, args []string) int {
-	return run(ctx, logger, stderr, cmd.Name, func(ctx context.Context) error {
-		err := cmd.Run(ctx, stdout, stderr, args)
-		if errors.Is(err, flag.ErrHelp) {
+// app is one run of the program: its streams and, once the flags of the
+// program are read, its logger.
+type app struct {
+	prog           Program
+	stdout, stderr io.Writer
+	logger         *slog.Logger
+}
+
+// newRoot returns the command tree of the program.
+func (a *app) newRoot() *cobra.Command {
+	var (
+		logFormat, logLevel string
+		showVersion         bool
+	)
+
+	root := &cobra.Command{
+		Use:   "rigger",
+		Short: "The package manager of Norca",
+		Long:  a.rootLong(),
+		// The name the help shows: "norca rigger" is one command.
+		Annotations:       map[string]string{cobra.CommandDisplayNameAnnotation: a.prog.Name},
+		SilenceErrors:     true,
+		SilenceUsage:      true,
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: !a.prog.Completion},
+		PersistentPreRunE: func(*cobra.Command, []string) error {
+			logger, err := newLogger(a.stderr, logFormat, logLevel)
+			if err != nil {
+				return err
+			}
+
+			a.logger = logger
+
 			return nil
+		},
+		// Only --version runs the root: without a command it shows the help
+		// on standard error and fails, as a mistyped script should.
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if showVersion {
+				return a.span(cmd.Context(), cmdVersion, func(context.Context) error {
+					return writeVersion(a.stdout, a.prog, false)
+				})
+			}
+
+			cmd.SetOut(a.stderr)
+
+			if err := cmd.Help(); err != nil {
+				return err
+			}
+
+			return errReported
+		},
+	}
+
+	root.SetOut(a.stdout)
+	root.SetErr(a.stderr)
+	root.SetFlagErrorFunc(flagError)
+
+	root.PersistentFlags().StringVar(&logFormat, logFormatFlag, "text", "format of the log on standard error: `text` (a tree of operations) or json")
+	root.PersistentFlags().StringVar(&logLevel, logLevelFlag, "info", "lowest `level` logged: debug, info, warn or error")
+	root.Flags().BoolVar(&showVersion, cmdVersion, false, "print the version and the build of the program (as rigger version)")
+
+	root.AddGroup(
+		&cobra.Group{ID: groupFind, Title: "Find modules and stacks (no cluster needed):"},
+		&cobra.Group{ID: groupDeploy, Title: "Install into a cluster:"},
+		&cobra.Group{ID: groupDevelop, Title: "Write and check modules and stacks:"},
+		&cobra.Group{ID: groupPublish, Title: "Sign, publish and log in:"},
+		&cobra.Group{ID: groupProgram, Title: "The program:"},
+	)
+	root.SetHelpCommandGroupID(groupProgram)
+	root.SetCompletionCommandGroupID(groupProgram)
+
+	addToGroup(root, groupFind, a.newSearchCommand(), a.newShowCommand())
+	addToGroup(root, groupDeploy, a.newStackCommand(), a.newInstallCommand(), a.newReleaseCommand(),
+		a.newOperationCommand(), a.newRegistryCommand(), a.newBundleCommand())
+	addToGroup(root, groupDevelop, a.newModuleCommand(), a.newFmtCommand(), a.newConvertCommand())
+	addToGroup(root, groupPublish, a.newKeyCommand(), a.newIndexCommand(), a.newLoginCommand(), a.newLogoutCommand())
+	addToGroup(root, groupProgram, a.newVersionCommand())
+
+	for _, cmd := range a.prog.Commands {
+		c := cmd()
+		if c.GroupID == "" {
+			c.GroupID = groupDevelop
 		}
 
-		return err
-	})
+		root.AddCommand(c)
+	}
+
+	root.AddCommand(newEnvironmentTopic())
+
+	// Each command that runs is the root operation of the log; help and
+	// completion, added below, are not commands of Rigger.
+	a.withSpans(root)
+
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+	root.SetUsageTemplate(usageTemplate(root.UsageTemplate()))
+
+	return root
 }
 
-// run runs a command as the root operation of the log (package oplog) and
-// reports its error once, on standard error.
-func run(ctx context.Context, logger *slog.Logger, stderr io.Writer, name string, cmd func(context.Context) error) int {
-	ctx, span := oplog.Start(ctx, logger, slog.LevelDebug, "command."+name)
-	err := cmd(ctx)
+// addToGroup adds commands to parent, in a group of its help.
+func addToGroup(parent *cobra.Command, group string, cmds ...*cobra.Command) {
+	for _, c := range cmds {
+		c.GroupID = group
+		parent.AddCommand(c)
+	}
+}
+
+// withSpans wraps each command of the tree that runs and holds no
+// commands, but the root, in an operation of the log named after its path
+// ("command.stack.apply").
+func (a *app) withSpans(c *cobra.Command) {
+	for _, sub := range c.Commands() {
+		a.withSpans(sub)
+	}
+
+	if c.RunE == nil || c.HasSubCommands() || !c.HasParent() {
+		return
+	}
+
+	inner, name := c.RunE, spanName(c)
+	c.RunE = func(cmd *cobra.Command, args []string) error {
+		return a.span(cmd.Context(), name, func(ctx context.Context) error {
+			cmd.SetContext(ctx)
+
+			return inner(cmd, args)
+		})
+	}
+}
+
+// spanName is the path of a command without the program: "stack.apply".
+func spanName(c *cobra.Command) string {
+	var names []string
+	for p := c; p.HasParent(); p = p.Parent() {
+		names = append([]string{p.Name()}, names...)
+	}
+
+	return strings.Join(names, ".")
+}
+
+// span runs fn as the root operation of the log (package oplog).
+func (a *app) span(ctx context.Context, name string, fn func(context.Context) error) error {
+	ctx, span := oplog.Start(ctx, a.logger, slog.LevelDebug, "command."+name)
+	err := fn(ctx)
 	span.End(ctx, err)
 
+	return err
+}
+
+// exitCode reports the error of a run once, on standard error, and returns
+// the exit code.
+func (a *app) exitCode(err error) int {
 	switch {
+	case err == nil:
+		return exitOK
 	case errors.Is(err, errChanges):
 		return exitChanges
-	case err != nil:
-		if !errors.Is(err, errReported) {
-			warn(stderr, "%v", err)
-		}
-
-		return exitError
-	default:
-		return exitOK
+	case !errors.Is(err, errReported):
+		warn(a.stderr, "%v", err)
 	}
+
+	return exitError
 }
 
 // errChanges is the result of a plan with changes: exit code 2, no message
 // (design 9.2).
 var errChanges = errors.New("changes")
+
+// flagError is the error of flags that do not parse: the error of pflag and
+// where the flags of the command are listed.
+func flagError(cmd *cobra.Command, err error) error {
+	return fmt.Errorf("%w (%s)", err, helpHint(cmd))
+}
+
+// helpHint names the help of a command: "rigger help stack apply". The
+// help command works where "--help" does not reach the program (norca
+// takes -h and --help for itself).
+func helpHint(cmd *cobra.Command) string {
+	path := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().CommandPath())
+
+	return "see " + cmd.Root().CommandPath() + " " + cmdHelp + path
+}
 
 // newLogger returns the logger of the program on w, from the given level
 // up: a tree of operations for a person (text) or flat lines with the IDs
@@ -353,35 +340,6 @@ func newLogger(w io.Writer, format, level string) (*slog.Logger, error) {
 	default:
 		return nil, fmt.Errorf("invalid log format %q: want text or json", format)
 	}
-}
-
-// version returns the version of the module the program was built from.
-func version() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok || info.Main.Version == "" {
-		return "(devel)"
-	}
-
-	return info.Main.Version
-}
-
-// printUsage writes the usage, with the name of the program that runs the
-// commands and the commands only it has after the others.
-func printUsage(flags *flag.FlagSet, prog Program) {
-	var own strings.Builder
-	for _, cmd := range prog.Commands {
-		own.WriteString(cmd.Usage)
-	}
-
-	text := strings.Replace(usage, "Usage: rigger", "Usage: "+prog.Name, 1)
-	text = strings.Replace(text, "\nFlags:\n", own.String()+"\nFlags:\n", 1)
-
-	w := flags.Output()
-	if _, err := io.WriteString(w, text); err != nil {
-		return
-	}
-
-	flags.PrintDefaults()
 }
 
 // warn writes a message for the user to standard error. A failed write

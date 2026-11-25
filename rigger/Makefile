@@ -9,9 +9,19 @@ MODULES := . cli
 
 all: vet test build
 
-## build: build the rigger program into bin/rigger
+# The build rigger version prints: VERSION is set by a release (make build
+# VERSION=v0.4.0); COMMIT and DATE are the commit of the checkout and its
+# time. A build without them (go build, go install) reads what the go
+# command recorded instead.
+VERSION ?=
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
+DATE ?= $(shell git log -1 --format=%cI 2>/dev/null)
+BUILD_PKG := github.com/bacanoo-io/norca/rigger/cli/command
+LDFLAGS := -X $(BUILD_PKG).buildVersion=$(VERSION) -X $(BUILD_PKG).buildCommit=$(COMMIT) -X $(BUILD_PKG).buildDate=$(DATE)
+
+## build: build the rigger program into bin/rigger, with its version, commit and date
 build:
-	$(GO) -C cli build -o ../bin/rigger ./cmd/rigger
+	$(GO) -C cli build -ldflags "$(LDFLAGS)" -o ../bin/rigger ./cmd/rigger
 
 ## test: run the tests of both modules
 test:

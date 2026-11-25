@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/bacanoo-io/norca/norca/api"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
@@ -32,6 +34,19 @@ const (
 	riggerRelease  = "web"
 	someConstraint = "~> 1.2"
 )
+
+// parseInstallFlags parses the arguments of rigger install as the program
+// does: the flags, one dash or two, then the argument.
+func parseInstallFlags(_ io.Writer, args []string) (*installFlags, error) {
+	cmd := &cobra.Command{Use: cmdInstall}
+	f := addInstallFlags(cmd)
+
+	if err := cmd.ParseFlags(normalizeArgs(cmd, args)); err != nil {
+		return nil, err
+	}
+
+	return f, f.setArg(cmd.Flags().Args())
+}
 
 // The first argument of install is a directory when there is one, else the
 // address of a module, of which -version picks the version; with

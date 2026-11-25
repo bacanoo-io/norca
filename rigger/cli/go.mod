@@ -8,6 +8,8 @@ require (
 	github.com/bacanoo-io/norca/norca/jobspec2 v0.0.0
 	github.com/bacanoo-io/norca/rigger v0.0.0
 	github.com/hashicorp/hcl/v2 v2.20.2-0.20240517235513-55d9c02d147d
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.1.0
 	github.com/zclconf/go-cty v1.13.0
 )
 
@@ -38,6 +40,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20201016140508-a07e7d50bbee // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect

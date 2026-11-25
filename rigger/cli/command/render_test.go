@@ -261,7 +261,7 @@ func renderedOutput(t *testing.T, out []byte, name string) string {
 func TestReadValues_UnknownTypes(t *testing.T) {
 	t.Parallel()
 
-	values, diags := readValues(&renderFlags{vars: listFlag{"tag=1.20", "replicas=3", "name=redis", "on=true", `tags=["a"]`}}, nil)
+	values, diags := readValues(&renderFlags{vars: []string{"tag=1.20", "replicas=3", "name=redis", "on=true", `tags=["a"]`}}, nil)
 	if diags.HasErrors() {
 		t.Fatal(diags)
 	}

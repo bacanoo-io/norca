@@ -7,12 +7,12 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/cli/internal/credstore"
 	"github.com/bacanoo-io/norca/rigger/fetch"
@@ -24,80 +24,93 @@ var stdin io.Reader = os.Stdin
 // maxPasswordBytes bounds a password read from standard input.
 const maxPasswordBytes = 64 << 10
 
-// runLogin runs rigger login <host> [-username name]: the password is the
-// first line of standard input.
-func runLogin(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	host, args := hostArg(args)
+// newLoginCommand is rigger login <host> [--username name]: the password is
+// the first line of standard input.
+func (a *app) newLoginCommand() *cobra.Command {
+	var user string
 
-	flags := flag.NewFlagSet("rigger login", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	user := flags.String("username", "", "the user name (none for a token)")
+	cmd := &cobra.Command{
+		Use:   "login <host>",
+		Short: "Keep the credentials of a host of git or OCI sources",
+		Long: `Keep the credentials of a host of git or OCI sources, for fetching modules
+from it. The password, or a token, is the first line of standard input.
+A credential goes to its host only, over https. Without one of login the
+variables RIGGER_GIT_* and RIGGER_OCI_* apply (rigger help environment).`,
+		Example: `  echo "$TOKEN" | rigger login git.example.com
+  rigger login registry.example.com --username ci < password.txt`,
+		RunE: func(_ *cobra.Command, args []string) error {
+			host := firstArg(args)
+			if host == "" {
+				return errors.New("login needs a host: rigger login <host> [-username name], the password on standard input")
+			}
 
-	if err := flags.Parse(args); err != nil {
-		return exitError
+			password, err := readPassword(stdin)
+			if err != nil {
+				return err
+			}
+
+			store, err := credstore.Default()
+			if err != nil {
+				return err
+			}
+
+			if err := store.Login(host, user, password); err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintf(a.stdout, "logged in to %s\n", host)
+
+			return err
+		},
 	}
 
-	return run(ctx, logger, stderr, cmdLogin, func(context.Context) error {
-		if host == "" {
-			return errors.New("login needs a host: rigger login <host> [-username name], the password on standard input")
-		}
+	cmd.Flags().StringVar(&user, "username", "", "the user `name` (none for a token)")
 
-		password, err := readPassword(stdin)
-		if err != nil {
-			return err
-		}
-
-		store, err := credstore.Default()
-		if err != nil {
-			return err
-		}
-
-		if err := store.Login(host, *user, password); err != nil {
-			return err
-		}
-
-		_, err = fmt.Fprintf(stdout, "logged in to %s\n", host)
-
-		return err
-	})
+	return cmd
 }
 
-// runLogout runs rigger logout <host>.
-func runLogout(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	host, _ := hostArg(args)
+// newLogoutCommand is rigger logout <host>.
+func (a *app) newLogoutCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "logout <host>",
+		Short:   "Forget the credentials of a host",
+		Long:    `Forget the credentials rigger login keeps for a host.`,
+		Example: `  rigger logout git.example.com`,
+		RunE: func(_ *cobra.Command, args []string) error {
+			host := firstArg(args)
+			if host == "" {
+				return errors.New("logout needs a host: rigger logout <host>")
+			}
 
-	return run(ctx, logger, stderr, cmdLogout, func(context.Context) error {
-		if host == "" {
-			return errors.New("logout needs a host: rigger logout <host>")
-		}
+			store, err := credstore.Default()
+			if err != nil {
+				return err
+			}
 
-		store, err := credstore.Default()
-		if err != nil {
+			had, err := store.Logout(host)
+			if err != nil {
+				return err
+			}
+
+			if !had {
+				return fmt.Errorf("%s has no credentials of rigger login", host)
+			}
+
+			_, err = fmt.Fprintf(a.stdout, "logged out of %s\n", host)
+
 			return err
-		}
-
-		had, err := store.Logout(host)
-		if err != nil {
-			return err
-		}
-
-		if !had {
-			return fmt.Errorf("%s has no credentials of rigger login", host)
-		}
-
-		_, err = fmt.Fprintf(stdout, "logged out of %s\n", host)
-
-		return err
-	})
+		},
+	}
 }
 
-// hostArg takes the host before the flags.
-func hostArg(args []string) (string, []string) {
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		return args[0], args[1:]
+// firstArg is the first argument, the host of login and logout; empty for
+// none.
+func firstArg(args []string) string {
+	if len(args) == 0 {
+		return ""
 	}
 
-	return "", args
+	return args[0]
 }
 
 // readPassword reads the first line of r.

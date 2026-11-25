@@ -8,13 +8,14 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/bacanoo-io/norca/rigger/sign"
 )
@@ -28,49 +29,68 @@ var (
 	errKeyFlag  = errors.New("the command needs -key")
 )
 
-// runKey runs rigger key generate|sign|verify (design 8.1, 10).
-func runKey(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "key needs a command: generate, sign or verify")
+// newKeyCommand is rigger key generate|sign|verify (design 8.1, 10).
+func (a *app) newKeyCommand() *cobra.Command {
+	return newGroup(&cobra.Command{
+		Use:   "key",
+		Short: "Signing keys: generate, sign, verify",
+		Long: `The keys modules are signed with: a key pair, the signature of the tree
+digest of a module, and its check.`,
+	},
+		a.newKeySubcommand("generate", "Write a new key pair",
+			`Write a new key pair: <out>.key, the private key encrypted with the
+password of RIGGER_KEY_PASSWORD (empty: no password), and <out>.pub. An
+existing file is not overwritten.`,
+			`  RIGGER_KEY_PASSWORD=secret rigger key generate --out release`),
+		a.newKeySubcommand("sign [dir]", "Sign a module",
+			`Sign the tree digest of the module in dir (default: the current one) with
+the private key of --key (its password in RIGGER_KEY_PASSWORD), into its
+.rigger-signatures directory.`,
+			`  rigger key sign --key release.key
+  rigger key sign modules/web --key release.key`),
+		a.newKeySubcommand("verify [dir]", "Check that a module is signed by a key",
+			`Check that the module in dir (default: the current one) is signed by the
+public key of --key.`,
+			`  rigger key verify --key release.pub`),
+	)
+}
 
-		return exitError
+// newKeySubcommand is one command of rigger key. Each parses the flags they
+// all took before and shows its own.
+func (a *app) newKeySubcommand(use, short, long, example string) *cobra.Command {
+	var key, out string
+
+	name, _, _ := strings.Cut(use, " ")
+
+	cmd := &cobra.Command{
+		Use: use, Short: short, Long: long, Example: example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			switch name {
+			case "generate":
+				return generateKey(a.stdout, out)
+			case "sign":
+				return signModule(cmd.Context(), a.logger, a.stdout, a.stderr, dir, key)
+			default:
+				return verifyModule(cmd.Context(), a.logger, a.stdout, a.stderr, dir, key)
+			}
+		},
 	}
 
-	cmd, args := args[0], args[1:]
+	cmd.Flags().StringVar(&key, keyFlag, "", "the private key (sign) or the public key (verify)")
+	cmd.Flags().StringVar(&out, "out", "rigger", "the files to write, `<out>`.key and <out>.pub")
 
-	var positional []string
-	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		positional, args = append(positional, args[0]), args[1:]
+	if name == "generate" {
+		showOnly(cmd, "out")
+	} else {
+		showOnly(cmd, keyFlag)
 	}
 
-	flags := flag.NewFlagSet("rigger key "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	key := flags.String("key", "", "sign: the private key; verify: the public key")
-	out := flags.String("out", "rigger", "generate: the files to write, <out>.key and <out>.pub")
-
-	if err := flags.Parse(args); err != nil {
-		return exitError
-	}
-
-	positional = append(positional, flags.Args()...)
-	dir := "."
-
-	if len(positional) > 0 {
-		dir = positional[0]
-	}
-
-	return run(ctx, logger, stderr, "key."+cmd, func(ctx context.Context) error {
-		switch cmd {
-		case "generate":
-			return generateKey(stdout, *out)
-		case "sign":
-			return signModule(ctx, logger, stdout, stderr, dir, *key)
-		case "verify":
-			return verifyModule(ctx, logger, stdout, stderr, dir, *key)
-		default:
-			return fmt.Errorf("unknown key command %q", cmd)
-		}
-	})
+	return cmd
 }
 
 // generateKey writes a new key pair: <out>.key encrypted with the password

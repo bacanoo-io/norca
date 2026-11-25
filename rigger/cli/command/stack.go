@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,6 +18,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/spf13/cobra"
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
@@ -33,8 +33,8 @@ type stackFlags struct {
 	address string
 	version string
 	key     string
-	files   listFlag
-	vars    listFlag
+	files   []string
+	vars    []string
 	json    bool
 	prune   bool
 	adopt   bool
@@ -55,55 +55,184 @@ const (
 	cmdSync    = "sync"
 )
 
-// runStack runs rigger stack <command> [dir] [flags].
-func runStack(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, args []string) int {
-	if len(args) == 0 {
-		warn(stderr, "stack needs a command: sync, validate, plan, apply, status, destroy or publish")
+// The flags of the stack commands, and of install and module render.
+const (
+	valuesFlag    = "values"
+	varFlag       = "var"
+	regionFlag    = "region"
+	namespaceFlag = "namespace"
+	versionFlag   = "version"
+	serverFlag    = "server"
+	adoptFlag     = "adopt"
+	keyFlag       = "key"
+	pruneFlag     = "prune"
+)
 
-		return exitError
+// stackDoc is the help of a stack command and the flags it shows; it
+// parses the others too, hidden, as each command took them all before.
+type stackDoc struct {
+	use, short, long, example string
+	flags                     []string
+}
+
+// stackDocs are the stack commands, in the order of the help.
+var stackDocs = []stackDoc{
+	{
+		use:   "sync [dir]",
+		short: "Resolve, fetch and lock the versions of the modules of a stack",
+		long: `Resolve the versions of the modules of the stack in dir (default: the
+current directory), fetch and verify them, and write rigger.lock.hcl next to
+the stack. A module keeps the version its lock pins while that version meets
+its constraint; --upgrade takes the newest version that meets it.`,
+		example: `  rigger stack sync
+  rigger stack sync stacks/platform --upgrade`,
+		flags: []string{"upgrade"},
+	},
+	{
+		use:   "validate [dir|source]",
+		short: "Evaluate a stack without a cluster",
+		long: `Evaluate a stack without a cluster: with the values of --values and --var,
+or, without them, with each file of values under its values/ directory (or
+none, when it has none).`,
+		example: `  rigger stack validate
+  rigger stack validate stacks/platform --values values/dev.vars.hcl
+  rigger stack validate acme/data-platform --version "~> 1.2"`,
+		flags: []string{valuesFlag, varFlag, versionFlag},
+	},
+	{
+		use:   "plan [dir|source]",
+		short: "Show what an apply would change",
+		long: `Plan a stack against its cluster: the releases an apply installs, upgrades,
+keeps or removes, with the changes of their resources. The command exits
+with 2 when the plan has changes, with 0 when it has none.`,
+		example: `  rigger stack plan --values values/prod.vars.hcl
+  rigger stack plan acme/data-platform --version "~> 1.2" --values my.vars.hcl --json
+  rigger stack plan --server`,
+		flags: []string{valuesFlag, varFlag, jsonFlag, pruneFlag, adoptFlag, regionFlag, versionFlag, serverFlag, namespaceFlag},
+	},
+	{
+		use:   "apply [dir|source]",
+		short: "Plan a stack and apply it, release after release",
+		long: `Plan a stack and apply the plan, release after release. --prune uninstalls
+the releases the stack owns and no longer has; --adopt takes over releases
+another package manager applied or another stack owns.
+
+With --server the servers apply it as an operation, whose log the command
+follows: Ctrl-C cancels the operation before its next release; a second
+Ctrl-C leaves it running (rigger operation follow).`,
+		example: `  rigger stack apply --values values/prod.vars.hcl
+  rigger stack apply stacks/platform -f values/prod.vars.hcl --var replicas=3 --prune
+  rigger stack apply acme/data-platform --version "~> 1.2" --server --namespace data`,
+		flags: []string{valuesFlag, varFlag, jsonFlag, pruneFlag, adoptFlag, regionFlag, versionFlag, serverFlag, namespaceFlag},
+	},
+	{
+		use:   "status [dir|source]",
+		short: "Show the releases of a stack, their revision and drift",
+		long: `Show the releases the stack owns in its cluster: their revision, their
+status, the module and version they run, and whether their resources drifted
+from what was applied.`,
+		example: `  rigger stack status
+  rigger stack status stacks/platform --json`,
+		flags: []string{jsonFlag, regionFlag, versionFlag, serverFlag, namespaceFlag},
+	},
+	{
+		use:   "destroy [dir|source]",
+		short: "Uninstall the releases of a stack",
+		long: `Uninstall the releases the stack owns in its cluster. With --server the
+servers do it, as an operation whose log the command follows.`,
+		example: `  rigger stack destroy
+  rigger stack destroy acme/data-platform --server --namespace data`,
+		flags: []string{regionFlag, versionFlag, serverFlag, namespaceFlag},
+	},
+	{
+		use:   "publish [dir]",
+		short: "Sign a stack, commit the signature and tag its version",
+		long: `Validate a stack with metadata.hcl and its lock file, sign it with the
+private key of --key (its password in RIGGER_KEY_PASSWORD), commit the
+signature and tag the version in its git repository. Nothing is pushed.`,
+		example: `  rigger stack publish --key release.key`,
+		flags:   []string{keyFlag},
+	},
+}
+
+// newStackCommand is rigger stack and its commands.
+func (a *app) newStackCommand() *cobra.Command {
+	sub := make([]*cobra.Command, 0, len(stackDocs))
+	for _, doc := range stackDocs {
+		sub = append(sub, a.newStackSubcommand(doc))
 	}
 
-	cmd := args[0]
+	return newGroup(&cobra.Command{
+		Use:   "stack",
+		Short: "Work with a stack: sync, validate, plan, apply, status, destroy, publish",
+		Long: `The commands of a stack, a set of modules installed together, in the
+directory dir (default: the current one).
 
-	f, err := parseStackFlags(stderr, cmd, args[1:])
-	if err != nil {
-		if !errors.Is(err, flag.ErrHelp) {
-			warn(stderr, "%v", err)
-		}
+Every stack command but sync and publish takes, instead of a directory, a
+published stack: <namespace>/<name> of the global registry or a git address,
+with --version "~> 1.2".
 
-		return exitError
+With --server (or RIGGER_SERVER=1), plan, apply, status and destroy go to the
+servers of the cluster, which fetch and evaluate; an apply or a destroy runs
+there as an operation whose log the command follows.`,
+	}, sub...)
+}
+
+// newStackSubcommand is one command of rigger stack.
+func (a *app) newStackSubcommand(doc stackDoc) *cobra.Command {
+	f := &stackFlags{}
+	name, _, _ := strings.Cut(doc.use, " ")
+
+	cmd := &cobra.Command{
+		Use: doc.use, Short: doc.short, Long: doc.long, Example: doc.example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := f.setDir(args); err != nil {
+				return err
+			}
+
+			if f.server && isLocalStackCommand(name) {
+				return errServerOnly
+			}
+
+			if f.address != "" && (name == cmdSync || name == cmdPublish) {
+				return fmt.Errorf("stack %s works on a stack in a directory", name)
+			}
+
+			fn := stackCommand(a.logger, a.stdout, a.stderr, name, f)
+			if fn == nil {
+				return fmt.Errorf("unknown stack command %q", name)
+			}
+
+			return fn(cmd.Context())
+		},
 	}
 
-	if f.server && isLocalStackCommand(cmd) {
-		warn(stderr, "%v", errServerOnly)
+	flags := cmd.Flags()
+	flags.StringArrayVarP(&f.files, valuesFlag, "f", nil, "a `file` of values of the stack (values/dev.vars.hcl); may be given more than once")
+	flags.StringArrayVar(&f.vars, varFlag, nil, "a value of the stack, `name=value`; may be given more than once"+varSyntax)
+	flags.BoolVar(&f.json, jsonFlag, false, "write the plan or the status as JSON")
+	flags.BoolVar(&f.prune, pruneFlag, false, "uninstall the releases the stack owns and no longer has")
+	flags.BoolVar(&f.adopt, adoptFlag, false, "take over releases another package manager applied or another stack owns")
+	flags.StringVar(&f.region, regionFlag, "", "the region to talk to (default: the region of the stack)")
+	flags.BoolVar(&f.upgrade, "upgrade", false, "take the newest version that meets each constraint, not the locked one")
+	flags.StringVar(&f.version, versionFlag, "", `a published stack: the version `+"`constraint`"+` ("~> 1.2"); none takes the newest`)
+	flags.BoolVar(&f.server, serverFlag, serverDefault() && !isLocalStackCommand(name), serverUsage)
+	flags.StringVar(&f.namespace, namespaceFlag, "", "with --server, a published stack: the namespace of the stack (default: NORCA_NAMESPACE)")
+	flags.StringVar(&f.key, keyFlag, "", "the private `key` the version is signed with (password in RIGGER_KEY_PASSWORD)")
 
-		return exitError
-	}
+	showOnly(cmd, doc.flags...)
 
-	if f.address != "" && (cmd == cmdSync || cmd == cmdPublish) {
-		warn(stderr, "stack %s works on a stack in a directory", cmd)
-
-		return exitError
-	}
-
-	fn := stackCommand(logger, stdout, stderr, cmd, f)
-	if fn == nil {
-		warn(stderr, "unknown stack command %q", cmd)
-
-		return exitError
-	}
-
-	return run(ctx, logger, stderr, "stack."+cmd, fn)
+	return cmd
 }
 
 // isLocalStackCommand reports whether a stack command works here alone:
-// -server is an error for it, and RIGGER_SERVER doesn't apply to it.
+// --server is an error for it, and RIGGER_SERVER doesn't apply to it.
 func isLocalStackCommand(cmd string) bool {
 	return cmd == cmdSync || cmd == cmdPublish || cmd == cmdValidate
 }
 
 // stackCommand is the function of rigger stack <cmd>: here, or with
-// -server on the servers; nil for an unknown command.
+// --server on the servers; nil for an unknown command.
 func stackCommand(logger *slog.Logger, stdout, stderr io.Writer, cmd string, f *stackFlags) func(context.Context) error {
 	local := map[string]func(context.Context) error{
 		cmdPublish:  func(ctx context.Context) error { return publishStack(ctx, logger, stdout, stderr, f) },
@@ -129,48 +258,24 @@ func stackCommand(logger *slog.Logger, stdout, stderr io.Writer, cmd string, f *
 	return local[cmd]
 }
 
-func parseStackFlags(stderr io.Writer, cmd string, args []string) (*stackFlags, error) {
-	f := &stackFlags{dir: "."}
-
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		f.dir, args = args[0], args[1:]
-	}
-
-	flags := flag.NewFlagSet("rigger stack "+cmd, flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	flags.Var(&f.files, "f", "a file of values of the stack (values/dev.vars.hcl); may be given more than once")
-	flags.Var(&f.vars, "var", "a value of the stack, name=value; may be given more than once"+varSyntax)
-	flags.BoolVar(&f.json, "json", false, "write the plan or the status as JSON")
-	flags.BoolVar(&f.prune, "prune", false, "apply: uninstall the releases the stack owns and no longer has")
-	flags.BoolVar(&f.adopt, "adopt", false, "apply: take over releases another package manager applied or another stack owns")
-	flags.StringVar(&f.region, "region", "", "the region to talk to (default: the region of the stack)")
-	flags.BoolVar(&f.upgrade, "upgrade", false, "sync: take the newest version that meets each constraint, not the locked one")
-	flags.StringVar(&f.version, "version", "", "a published stack: the version constraint (\"~> 1.2\"); none takes the newest")
-	flags.BoolVar(&f.server, "server", serverDefault() && !isLocalStackCommand(cmd), serverUsage)
-	flags.StringVar(&f.namespace, "namespace", "", "-server, a published stack: the namespace of the stack (default: NORCA_NAMESPACE)")
-	flags.StringVar(&f.key, "key", "", "publish: the private key the version is signed with (password in RIGGER_KEY_PASSWORD)")
-
-	if err := flags.Parse(args); err != nil {
-		return nil, err
-	}
-
-	switch flags.NArg() {
+// setDir takes the one directory or source of a stack command, the current
+// directory without one. An argument that names no path and reads as an
+// address is the source of a published stack.
+func (f *stackFlags) setDir(args []string) error {
+	switch len(args) {
 	case 0:
+		f.dir = "."
 	case 1:
-		if f.dir != "." {
-			return nil, errOneStackDir
-		}
-
-		f.dir = flags.Arg(0)
+		f.dir = args[0]
 	default:
-		return nil, errOneStackDir
+		return errOneStackDir
 	}
 
 	if _, err := os.Stat(f.dir); err != nil && isStackAddress(f.dir) {
 		f.address = f.dir
 	}
 
-	return f, nil
+	return nil
 }
 
 var errOneStackDir = errors.New("a stack command takes one directory or the source of a published stack")
