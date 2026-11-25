@@ -106,7 +106,8 @@ t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 {
 	git ls-tree -r "$NOMAD_TAG" | awk -F'\t' '{split($1, a, " "); p = $2; sub(/^nomad\//, "norca/", p); print "norca/" p "\t" a[3]}'
-	git ls-tree -r "$PACK_TAG" | awk -F'\t' '{split($1, a, " "); print "norca/pack/" $2 "\t" a[3]}'
+	# Nomad Pack (norca/pack/) was removed from the tree in November 2026:
+	# no file at HEAD comes from it, and check 3 still reads its history.
 	# The exec2 driver came in unchanged from nomad-driver-exec2 v0.1.1 in one
 	# commit; that commit's tree is the upstream version of its files.
 	exec2=$(git log --format=%H --grep='^drivers/exec2: import nomad-driver-exec2' HEAD)

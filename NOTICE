@@ -13,6 +13,8 @@ Mozilla Public License 2.0:
   https://github.com/hashicorp/nomad-pack
   commit cd4d2a41c22adba1350b8d5da63252f2dde33262
   Copyright (c) HashiCorp, Inc.
+  (removed from the source tree in November 2026; its history remains in
+  this project's repository)
 
   HashiCorp Nomad Autoscaler v0.6.0
   https://github.com/hashicorp/nomad-autoscaler
