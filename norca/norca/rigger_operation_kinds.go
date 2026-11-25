@@ -150,6 +150,8 @@ type RiggerOperationRelease struct {
 	Action    string `json:"action"`
 	Revision  uint64 `json:"revision,omitempty"`
 	Skipped   bool   `json:"skipped,omitempty"`
+	// Failed is set for the release the operation failed at.
+	Failed bool `json:"failed,omitempty"`
 }
 
 // riggerOperationFromObject reads the typed view of an object.

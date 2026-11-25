@@ -39,6 +39,14 @@ const UNAVAILABLE_PAUSE_MS = 5000;
  * servers run) with the log of one followed while it runs, and an apply
  * again and a destroy of a published stack.
  */
+// What an operation did to a release: the action, and whether it failed
+// there or skipped the release.
+function outcomeText(outcome) {
+  if (outcome.failed) return `${outcome.action} (failed)`;
+  if (outcome.skipped) return `${outcome.action} (skipped)`;
+  return outcome.action;
+}
+
 export default class PackagesRiggerStack extends Component {
   @service token;
   @service system;
@@ -163,7 +171,7 @@ export default class PackagesRiggerStack extends Component {
     return (status.outcomes?.length ? status.outcomes : status.plan || []).map(
       (o) => ({
         ...o,
-        text: o.skipped ? `${o.action} (skipped)` : o.action,
+        text: outcomeText(o),
       })
     );
   }

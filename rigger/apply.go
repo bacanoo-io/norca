@@ -40,6 +40,9 @@ type ReleaseOutcome struct {
 	// Skipped is set for a remove without prune and for the releases after
 	// a failure.
 	Skipped bool `json:"skipped,omitempty"`
+	// Failed is set for the release whose apply failed: the apply stopped
+	// there, and the error of the apply says why.
+	Failed bool `json:"failed,omitempty"`
 }
 
 // ErrGeneratedMeanwhile is the error of an apply whose generated values
@@ -122,6 +125,7 @@ func (e *Engine) applyStack(ctx context.Context, plan *StackPlan, opts ApplyOpti
 		}
 
 		outcome, err := e.applyRelease(ctx, rp, opts)
+		outcome.Failed = err != nil
 		outcomes = append(outcomes, outcome)
 
 		if err != nil {

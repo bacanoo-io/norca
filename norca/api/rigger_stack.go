@@ -140,6 +140,8 @@ type RiggerOperationRelease struct {
 	Action    string `json:"action"`
 	Revision  uint64 `json:"revision,omitempty"`
 	Skipped   bool   `json:"skipped,omitempty"`
+	// Failed is set for the release the operation failed at.
+	Failed bool `json:"failed,omitempty"`
 }
 
 // RiggerLogLine is a record of the log of an operation (time, level, msg

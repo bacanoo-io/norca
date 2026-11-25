@@ -475,6 +475,41 @@ func (c *cancelAfterFirst) Apply(ctx context.Context, req host.ApplyRequest) (ho
 	return rev, err
 }
 
+// failFirst is the cluster of the stack tests that fails every apply.
+type failFirst struct {
+	*fakeCluster
+}
+
+var errApplyFails = errors.New("the deployment failed")
+
+func (c *failFirst) Apply(context.Context, host.ApplyRequest) (host.Revision, error) {
+	return host.Revision{}, errApplyFails
+}
+
+// A release whose apply fails is a failed outcome, not one that is done; the
+// releases after it are skipped.
+func TestStack_FailedReleaseOutcome(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+
+	e, err := rigger.New(rigger.WithReleases(&failFirst{fakeCluster: f}), rigger.WithSecrets(f), rigger.WithLogger(slog.New(slog.DiscardHandler)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plan := planOf(t, e, stackFiles(twoReleases), nil)
+
+	out, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{})
+	if !strings.Contains(diags.Error(), errApplyFails.Error()) {
+		t.Fatalf("ApplyStack() = %v, want the error of the apply", diags)
+	}
+
+	if len(out) != 2 || !out[0].Failed || out[0].Skipped || out[1].Failed || !out[1].Skipped {
+		t.Fatalf("outcomes %+v, want db failed and app skipped", out)
+	}
+}
+
 // A cancel stops an apply between two releases: the release being applied
 // finishes, the rest are skipped; a destroy stops so too.
 func TestStack_CancelBetweenReleases(t *testing.T) {

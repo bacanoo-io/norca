@@ -123,12 +123,15 @@ func TestWriteOperation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			const ns = "shop"
+
 			op := &api.RiggerOperation{Name: "shop-apply-1", Status: api.RiggerOperationStatus{
 				Phase: tt.phase, Error: tt.errText,
 				Outcomes: []api.RiggerOperationRelease{
-					{Namespace: "shop", Release: "db", Action: "install", Revision: 1},
-					{Namespace: "shop", Release: "cache", Action: "unchanged", Revision: 4},
-					{Namespace: "shop", Release: "web", Action: "upgrade", Skipped: true},
+					{Namespace: ns, Release: "db", Action: "install", Revision: 1},
+					{Namespace: ns, Release: "cache", Action: "unchanged", Revision: 4},
+					{Namespace: ns, Release: "api", Action: "install", Failed: true},
+					{Namespace: ns, Release: "web", Action: "upgrade", Skipped: true},
 				},
 			}}
 
@@ -136,7 +139,7 @@ func TestWriteOperation(t *testing.T) {
 
 			err := writeOperation(&buf, op)
 
-			want := "install shop/db: done (revision 1)\nupgrade shop/web: skipped (revision 0)\n"
+			want := "install shop/db: done (revision 1)\ninstall shop/api: failed\nupgrade shop/web: skipped\n"
 			if buf.String() != want {
 				t.Errorf("wrote %q, want %q", buf.String(), want)
 			}

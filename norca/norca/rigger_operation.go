@@ -690,7 +690,7 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 		out, diags := eng.ApplyStack(ctx, plan, rigger.ApplyOptions{Prune: op.Spec.Prune, Adopt: op.Spec.Adopt})
 		for _, o := range out {
 			outcomes = append(outcomes, RiggerOperationRelease{
-				Namespace: o.Release.Namespace, Release: o.Release.Name, Action: string(o.Action), Revision: o.Revision, Skipped: o.Skipped,
+				Namespace: o.Release.Namespace, Release: o.Release.Name, Action: string(o.Action), Revision: o.Revision, Skipped: o.Skipped, Failed: o.Failed,
 			})
 		}
 

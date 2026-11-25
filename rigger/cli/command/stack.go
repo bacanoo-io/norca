@@ -435,16 +435,12 @@ func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 // writeOutcomes writes what an apply did.
 func writeOutcomes(w io.Writer, outcomes []rigger.ReleaseOutcome) error {
 	for _, o := range outcomes {
-		status := "done"
-
-		switch {
-		case o.Skipped:
-			status = "skipped"
-		case o.Action == rigger.ActionUnchanged || o.Action == rigger.ActionDisabled:
+		if !o.Skipped && (o.Action == rigger.ActionUnchanged || o.Action == rigger.ActionDisabled) {
 			continue
 		}
 
-		if _, err := fmt.Fprintf(w, "%s %s/%s: %s (revision %d)\n", o.Action, o.Release.Namespace, o.Release.Name, status, o.Revision); err != nil {
+		line := outcomeLine(string(o.Action), o.Release.Namespace, o.Release.Name, o.Revision, o.Skipped, o.Failed)
+		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 	}

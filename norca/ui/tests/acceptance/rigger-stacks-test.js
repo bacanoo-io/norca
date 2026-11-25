@@ -158,6 +158,39 @@ module('Acceptance | rigger stacks', function (hooks) {
       .includesText('default/site-web: uninstall');
   });
 
+  test('a failed operation names the release it failed at', async function (assert) {
+    seedRiggerStack(server);
+    const op = server.db.norcaObjects.findBy({ Name: 'op-site-1' });
+    server.db.norcaObjects.update(op.id, {
+      Status: {
+        ...op.Status,
+        phase: 'Failed',
+        outcomes: [
+          {
+            namespace: 'default',
+            release: 'site-db',
+            action: 'install',
+            failed: true,
+          },
+          {
+            namespace: 'default',
+            release: 'site-web',
+            action: 'install',
+            skipped: true,
+          },
+        ],
+      },
+    });
+    await visit('/packages/stack/default/site?operation=op-site-1');
+    assert.dom('[data-test-operation-phase]').includesText('Failed');
+    assert
+      .dom('[data-test-operation-outcomes]')
+      .includesText('default/site-db: install (failed)');
+    assert
+      .dom('[data-test-operation-outcomes]')
+      .includesText('default/site-web: install (skipped)');
+  });
+
   test('an operation of the past is shown when chosen, a running one can be cancelled', async function (assert) {
     seedRiggerStack(server);
     const op = server.db.norcaObjects.findBy({ Name: 'op-site-1' });

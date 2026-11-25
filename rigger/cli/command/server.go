@@ -364,16 +364,12 @@ func logAttr(key string, v any) slog.Attr {
 // it did not succeed.
 func writeOperation(w io.Writer, op *api.RiggerOperation) error {
 	for _, o := range op.Status.Outcomes {
-		status := "done"
-		if o.Skipped {
-			status = "skipped"
-		}
-
 		if o.Action == string(rigger.ActionUnchanged) || o.Action == string(rigger.ActionDisabled) {
 			continue
 		}
 
-		if _, err := fmt.Fprintf(w, "%s %s/%s: %s (revision %d)\n", o.Action, o.Namespace, o.Release, status, o.Revision); err != nil {
+		line := outcomeLine(o.Action, o.Namespace, o.Release, o.Revision, o.Skipped, o.Failed)
+		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 	}
@@ -484,4 +480,18 @@ func convertJSON(from, to any) error {
 	}
 
 	return json.Unmarshal(data, to)
+}
+
+// outcomeLine is the line of a release of an apply: what was to be done to
+// it, and whether it was done, failed or skipped. The revision is named for
+// a release that was applied.
+func outcomeLine(action, namespace, release string, revision uint64, skipped, failed bool) string {
+	switch {
+	case failed:
+		return fmt.Sprintf("%s %s/%s: failed", action, namespace, release)
+	case skipped:
+		return fmt.Sprintf("%s %s/%s: skipped", action, namespace, release)
+	}
+
+	return fmt.Sprintf("%s %s/%s: done (revision %d)", action, namespace, release, revision)
 }
