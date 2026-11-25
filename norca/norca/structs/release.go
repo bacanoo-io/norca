@@ -33,16 +33,10 @@ const (
 	// Its kinds can't be written through the generic object API.
 	ReleaseObjectGroup = "packs.norca.io"
 
-	// ReleaseKind is the kind of release objects, ReleaseRevisionKind the
-	// kind of their revisions, and PackRegistryKind the kind of cluster
-	// pack registries.
+	// ReleaseKind is the kind of release objects and ReleaseRevisionKind
+	// the kind of their revisions.
 	ReleaseKind         = "Release"
 	ReleaseRevisionKind = "ReleaseRevision"
-	PackRegistryKind    = "Registry"
-
-	// PackUploadKind is the kind of the chunks of packs uploaded to a
-	// cluster registry of the type "uploads".
-	PackUploadKind = "PackUpload"
 
 	// ReleaseLabel is the label of revisions naming their release.
 	ReleaseLabel = "packs.norca.io/release"
@@ -219,12 +213,6 @@ var ReleaseKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseKind)
 
 // ReleaseRevisionKindRef is the "group/Kind" reference of revisions.
 var ReleaseRevisionKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseRevisionKind)
-
-// PackRegistryKindRef is the "group/Kind" reference of pack registries.
-var PackRegistryKindRef = ObjectKindRef(ReleaseObjectGroup, PackRegistryKind)
-
-// PackUploadKindRef is the "group/Kind" reference of pack upload chunks.
-var PackUploadKindRef = ObjectKindRef(ReleaseObjectGroup, PackUploadKind)
 
 // IsReleaseHookPhase reports whether phase is a hook phase.
 func IsReleaseHookPhase(phase string) bool {

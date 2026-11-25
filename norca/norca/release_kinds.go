@@ -86,69 +86,7 @@ const releaseRevisionKindSchema = `{
   }
 }`
 
-// packRegistryKindSchema is the JSON Schema of cluster pack registry objects.
-const packRegistryKindSchema = `{
-  "type": "object",
-  "properties": {
-    "spec": {
-      "type": "object",
-      "required": ["type", "source"],
-      "properties": {
-        "type": {"type": "string", "enum": ["dir", "git", "oci", "bundle", "uploads"]},
-        "source": {"type": "string"},
-        "defaultRef": {"type": "string"},
-        "syncInterval": {"type": "string"},
-        "authSecret": {
-          "type": "object",
-          "required": ["path"],
-          "properties": {
-            "namespace": {"type": "string"},
-            "path": {"type": "string", "minLength": 1}
-          },
-          "additionalProperties": false
-        },
-        "trustedKeys": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "status": {
-      "type": "object",
-      "properties": {
-        "phase": {"type": "string"},
-        "message": {"type": "string"},
-        "lastSyncedAt": {"type": "string"},
-        "lastGoodSyncAt": {"type": "string"},
-        "syncGeneration": {"type": "integer", "minimum": 0},
-        "packCount": {"type": "integer", "minimum": 0},
-        "packs": {"type": "array", "items": {"type": "object"}},
-        "uploads": {"type": "array", "items": {"type": "object"}}
-      }
-    }
-  }
-}`
-
-// packUploadKindSchema is the JSON Schema of the chunks of uploaded packs.
-const packUploadKindSchema = `{
-  "type": "object",
-  "properties": {
-    "spec": {
-      "type": "object",
-      "required": ["registry", "digest", "chunk", "chunks", "data"],
-      "properties": {
-        "registry": {"type": "string"},
-        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-        "fileName": {"type": "string"},
-        "format": {"type": "string", "enum": ["bundle", "archive"]},
-        "size": {"type": "integer", "minimum": 0},
-        "chunk": {"type": "integer", "minimum": 0},
-        "chunks": {"type": "integer", "minimum": 1},
-        "uploadedAt": {"type": "string"},
-        "data": {"type": "string"}
-      }
-    }
-  }
-}`
-
-// builtinReleaseKinds returns the built-in object kinds of releases and pack registries.
+// builtinReleaseKinds returns the built-in object kinds of releases.
 func builtinReleaseKinds() []*structs.ObjectKind {
 	return []*structs.ObjectKind{
 		{
@@ -183,33 +121,6 @@ func builtinReleaseKinds() []*structs.ObjectKind {
 				{Name: "Phase", Path: "status.phase"},
 			},
 		},
-		{
-			Group:       structs.ReleaseObjectGroup,
-			Kind:        structs.PackRegistryKind,
-			Description: "Cluster pack registry and catalog source (built in, managed by the pack registry API)",
-			Namespaced:  false,
-			Schema:      packRegistryKindSchema,
-			Columns: []*structs.ObjectKindColumn{
-				{Name: "Type", Path: "spec.type"},
-				{Name: "Source", Path: "spec.source"},
-				{Name: "Phase", Path: "status.phase"},
-				{Name: "Packs", Path: "status.packCount"},
-				{Name: "LastSynced", Path: "status.lastSyncedAt"},
-			},
-		},
-		{
-			Group:       structs.ReleaseObjectGroup,
-			Kind:        structs.PackUploadKind,
-			Description: "Chunk of a pack uploaded to a cluster pack registry (built in, managed by the pack upload API)",
-			Namespaced:  false,
-			Schema:      packUploadKindSchema,
-			Columns: []*structs.ObjectKindColumn{
-				{Name: "Registry", Path: "spec.registry"},
-				{Name: "File", Path: "spec.fileName"},
-				{Name: "Chunk", Path: "spec.chunk"},
-				{Name: "Chunks", Path: "spec.chunks"},
-			},
-		},
 	}
 }
 
@@ -225,21 +136,16 @@ type releaseManager struct {
 	logger hclog.Logger
 
 	// lock guards busy, the releases with a running operation, kindsReady,
-	// packCacheDir, term and ended.
-	lock         sync.Mutex
-	busy         map[string]struct{}
-	kindsReady   bool
-	packCacheDir string
+	// term and ended.
+	lock       sync.Mutex
+	busy       map[string]struct{}
+	kindsReady bool
 
 	// term is the leadership term operations start in, nil while this
 	// server is not the leader; ended are the terms ended since the last
 	// one began (release_leader.go, review finding ATM-12).
 	term  *releaseTerm
 	ended []*releaseTerm
-
-	// syncLock serializes the syncs of pack registries, which replace
-	// directories of the pack cache.
-	syncLock sync.Mutex
 
 	// claims are the resources release operations and passes of the tenant
 	// operator are writing now (resource_claims.go).
