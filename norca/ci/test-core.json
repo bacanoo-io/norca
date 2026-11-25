@@ -38,7 +38,6 @@
     "norca/stream/...",
     "norca/structs/...",
     "norca/volumewatcher/...",
-    "pack/...",
     "plugins/...",
     "scheduler/...",
     "testutil/..."
