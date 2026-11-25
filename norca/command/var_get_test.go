@@ -197,6 +197,27 @@ func TestVarGetCommand(t *testing.T) {
 	})
 }
 
+// A missing item is an error that names the item. The message took the item
+// from the second argument, which -item does not give: the command panicked
+// with "index out of range [1] with length 1".
+func TestVarGetCommand_MissingItem(t *testing.T) {
+	ci.Parallel(t)
+
+	_, client, url := testServer(t, true, nil)
+
+	sv, _, err := client.Variables().Create(testVariable(), nil)
+	require.NoError(t, err)
+
+	ui := cli.NewMockUi()
+	cmd := &VarGetCommand{Meta: Meta{Ui: ui}}
+
+	code := cmd.Run([]string{"-address=" + url, "-item=missing", sv.Path})
+
+	require.Equal(t, 1, code, "stderr: %s", ui.ErrorWriter.String())
+	require.Equal(t, `Variable does not contain "missing" item`, strings.TrimSpace(ui.ErrorWriter.String()))
+	require.Empty(t, ui.OutputWriter.String())
+}
+
 func validNS(r rune) rune {
 	if r == '/' || r == '_' {
 		return '-'
