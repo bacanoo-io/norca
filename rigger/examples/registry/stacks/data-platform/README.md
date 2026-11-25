@@ -16,8 +16,8 @@ and `nats`, with the password of the database superuser generated once.
 A published stack is used by its address, with values of one's own:
 
 ```shell
-rigger stack plan  github.com/example/rigger-registry//stacks/data-platform -version "~> 1.2" -f examples/shop.vars.hcl
-rigger stack apply github.com/example/rigger-registry//stacks/data-platform -version "~> 1.2" -f examples/shop.vars.hcl
+rigger stack plan  github.com/example/rigger-registry//stacks/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
+rigger stack apply github.com/example/rigger-registry//stacks/data-platform --version "~> 1.2" -f examples/shop.vars.hcl
 ```
 
 (`<namespace>/data-platform` is the address of a stack the global registry
@@ -58,4 +58,4 @@ module "shop-api" {
 ```
 
 Published as the tag `data-platform/v1.2.0`, signed like a module
-(`rigger stack publish -f examples/shop.vars.hcl -key <key>`).
+(`rigger stack publish --values examples/shop.vars.hcl --key <key>`).

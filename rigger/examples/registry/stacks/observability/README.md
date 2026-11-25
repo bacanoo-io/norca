@@ -33,8 +33,8 @@ What it shows:
   with the stack and needs no tag or signature of its own.
 
 ```shell
-rigger stack plan  github.com/example/rigger-registry//stacks/observability -version "~> 0.4" -f examples/cluster.vars.hcl
-rigger stack apply github.com/example/rigger-registry//stacks/observability -version "~> 0.4" -f examples/cluster.vars.hcl
+rigger stack plan  github.com/example/rigger-registry//stacks/observability --version "~> 0.4" -f examples/cluster.vars.hcl
+rigger stack apply github.com/example/rigger-registry//stacks/observability --version "~> 0.4" -f examples/cluster.vars.hcl
 ```
 
 Published as the tag `observability/v0.4.0`.

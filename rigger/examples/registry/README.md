@@ -46,21 +46,21 @@ A stack of a registry is a tested composition others install as one thing.
 ## Publishing
 
 ```shell
-rigger key generate -out registry          # registry.key (encrypted with RIGGER_KEY_PASSWORD), registry.pub
+rigger key generate --out registry         # registry.key (encrypted with RIGGER_KEY_PASSWORD), registry.pub
 
 rigger module validate modules/nats                  # schemas, examples, tests, icon
-rigger module publish  modules/nats -key registry.key # the signature of its tree digest, committed; tag nats/v1.0.0
+rigger module publish  modules/nats --key registry.key # the signature of its tree digest, committed; tag nats/v1.0.0
 
 rigger stack sync stacks/data-platform               # resolve the modules, write the lock
 cd stacks/data-platform
-rigger stack validate -f examples/shop.vars.hcl      # evaluate with the example values
-rigger stack publish  -f examples/shop.vars.hcl -key ../../registry.key # validate, sign, tag data-platform/v1.2.0
+rigger stack validate --values examples/shop.vars.hcl # evaluate with the example values
+rigger stack publish  --values examples/shop.vars.hcl --key ../../registry.key # validate, sign, tag data-platform/v1.2.0
 ```
 
 `rigger stack validate` and `publish` evaluate a stack with the files of its
-`values/`, or with those given with `-f`. A published stack keeps its value
+`values/`, or with those given with `--values`. A published stack keeps its value
 files in `examples/`, and one with a variable without a default
-(`data-platform`) is evaluated only with `-f`. Nothing is pushed: the tags
+(`data-platform`) is validated and published only with `--values`. Nothing is pushed: the tags
 and the commits of the signatures are pushed by hand.
 
 A signature is a file `.rigger-signatures/<key ID>.json` in the module or the

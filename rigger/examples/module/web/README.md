@@ -6,8 +6,8 @@ liveness checks, optional connections to a PostgreSQL and a NATS.
 ```shell
 rigger module validate .
 rigger module test .
-rigger module render . -release shop -f examples/with-database.vars.hcl
-rigger install . -name shop -f examples/with-database.vars.hcl
+rigger module render . --release shop -f examples/with-database.vars.hcl
+rigger install . --name shop -f examples/with-database.vars.hcl
 ```
 
 | Variable | Default | |

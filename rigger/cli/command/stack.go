@@ -147,11 +147,15 @@ servers do it, as an operation whose log the command follows.`,
 	{
 		use:   "publish [dir]",
 		short: "Sign a stack, commit the signature and tag its version",
-		long: `Validate a stack with metadata.hcl and its lock file, sign it with the
-private key of --key (its password in RIGGER_KEY_PASSWORD), commit the
-signature and tag the version in its git repository. Nothing is pushed.`,
-		example: `  rigger stack publish --key release.key`,
-		flags:   []string{keyFlag},
+		long: `Validate a stack with metadata.hcl and its lock file, as stack validate
+does (with the values of --values and --var, or, without them, with each
+file of values under its values/ directory), sign it with the private key
+of --key (its password in RIGGER_KEY_PASSWORD), commit the signature and tag
+the version in its git repository. Nothing is pushed. A stack with a
+variable without a default is published with --values.`,
+		example: `  rigger stack publish --key release.key
+  rigger stack publish stacks/data-platform --values examples/shop.vars.hcl --key registry.key`,
+		flags: []string{valuesFlag, varFlag, keyFlag},
 	},
 }
 

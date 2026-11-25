@@ -168,6 +168,19 @@ func TestRun_CommandHelp(t *testing.T) {
 	}
 }
 
+// TestRun_StackPublishHelp: stack publish validates with values, as stack
+// validate does, so its help shows --values and --var.
+func TestRun_StackPublishHelp(t *testing.T) {
+	t.Parallel()
+
+	commandHelp(t, []string{cmdHelp, cmdStack, cmdPublish}, []string{
+		"Examples:\n  rigger stack publish --key release.key\n  rigger stack publish stacks/data-platform --values examples/shop.vars.hcl --key registry.key",
+		"  -f, --values file ",
+		"      --var name=value ",
+		"      --key key ",
+	})
+}
+
 // commandHelp runs args, which show the help of a command, checks that it
 // holds each of want and not the header of the program, and returns it.
 func commandHelp(t *testing.T, args, want []string) string {
