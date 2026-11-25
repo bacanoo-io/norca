@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 
@@ -29,6 +30,10 @@ type ModuleOrigin struct {
 	Digest     string `json:"digest"`
 	// Signers are the key IDs of the signatures that verified the digest.
 	Signers []string `json:"signers,omitempty"`
+	// Signatures is how many signatures the version carries, verified or
+	// not: with none of Signers, a version with signatures is signed by
+	// keys that nothing here trusts.
+	Signatures int `json:"signatures,omitempty"`
 	// Warnings are the advisories of the version and, for a version that no
 	// key signed, that it is unsigned.
 	Warnings []string `json:"warnings,omitempty"`
@@ -87,11 +92,12 @@ func verifiedModule(req source.Request, fm *fetchedModule, trustedKeys []string)
 	o := &ModuleOrigin{
 		Source: req.Source, Version: fm.origin.Version, Repository: fm.origin.Repository,
 		Ref: fm.origin.Ref, Commit: fm.origin.Commit, Digest: fm.origin.Digest,
-		Signers: signers, Warnings: fm.warnings,
+		Signers: signers, Signatures: len(fm.signatures), Warnings: fm.warnings,
 	}
 
 	if len(signers) == 0 {
-		o.Warnings = append(o.Warnings, unsignedWarning(req.Source, o.Version))
+		_, detail := UnsignedWarning("module", req.Source, o.Version, o.Signatures)
+		o.Warnings = append(o.Warnings, detail)
 	}
 
 	mo := moduleOrigin{module: fm.module, source: req.Source, ref: fm.origin.Ref, commit: fm.origin.Commit, signers: signers}
@@ -102,10 +108,19 @@ func verifiedModule(req source.Request, fm *fetchedModule, trustedKeys []string)
 	return &Module{mod: fm.module, fsys: fm.module.FS, origin: &mo, fetched: o}, nil
 }
 
-// unsignedWarning is the warning of a version of a module that no key
-// signed.
-func unsignedWarning(src, v string) string {
-	return fmt.Sprintf("%s %s is not signed: only its commit and tree digest are checked", src, v)
+// UnsignedWarning is the summary and the detail of the warning of a
+// version of a module or a stack (kind) that no key verified: one without
+// signatures is not signed; one with signatures is signed by keys that
+// nothing here trusts (no trust, index or host names them), so they are
+// not verified. Either way only its commit and tree digest are checked.
+func UnsignedWarning(kind, src, v string, signatures int) (summary, detail string) {
+	title := strings.ToUpper(kind[:1]) + kind[1:]
+
+	if signatures == 0 {
+		return title + " not signed", fmt.Sprintf("%s %s is not signed: only its commit and tree digest are checked", src, v)
+	}
+
+	return title + " signature not verified", fmt.Sprintf("%s %s is signed, but by no key trusted here: only its commit and tree digest are checked", src, v)
 }
 
 // ErrDirectorySource is the error of the address of a directory where a
@@ -155,9 +170,8 @@ func (e *Engine) fetchNewestModule(ctx context.Context, address, constraint stri
 	diags := advisories(hcl.Range{}, req.Source, fm)
 
 	if o := m.fetched; req.Kind != source.KindBuiltin && len(o.Signers) == 0 {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagWarning, Summary: "Module not signed", Detail: unsignedWarning(req.Source, o.Version) + ".",
-		})
+		summary, detail := UnsignedWarning("module", req.Source, o.Version, o.Signatures)
+		diags = append(diags, &hcl.Diagnostic{Severity: hcl.DiagWarning, Summary: summary, Detail: detail + "."})
 	}
 
 	return m, diags

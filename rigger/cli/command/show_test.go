@@ -5,6 +5,7 @@ package command
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -206,6 +207,42 @@ func TestRun_Show_Builtin(t *testing.T) {
 	riggerRunErr(t, "builtin/redis is version "+v+" in this program", cmdShow, "builtin/redis", optVersion, ">= 99.0.0")
 	riggerRunErr(t, "no built-in module nothing", cmdShow, "builtin/nothing")
 	riggerRunErr(t, "a published stack comes from the global registry", cmdShow, "builtin/redis", optKind, kindStack)
+}
+
+// A signed module of a git repository by its address: no key of this
+// program trusts its signer, so the signature is not verified, which show
+// says instead of calling it not signed.
+func TestRun_Show_GitSignedNotTrusted(t *testing.T) {
+	repo := registryRepo(t)
+	keys := t.TempDir()
+
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+	t.Setenv(passwordEnv, "secret")
+
+	riggerRun(t, exitOK, []string{wroteLock}, "key", "generate", "--out", filepath.Join(keys, "signer"))
+
+	module := filepath.Join(repo, "modules", "greeter")
+	if err := os.WriteFile(filepath.Join(module, metadataFile), []byte("module {\n  name    = \"greeter\"\n  version = \"1.1.1\"\n}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	riggerRun(t, exitOK, []string{"signed greeter 1.1.1"}, "key", "sign", module, "--key", filepath.Join(keys, "signer.key"))
+	gitIn(t, repo, "add", "-A")
+	gitIn(t, repo, "commit", "--quiet", "-m", "greeter 1.1.1, signed")
+	gitIn(t, repo, "tag", "-a", "-m", "1.1.1", "greeter/v1.1.1")
+
+	code, out, stderr := riggerRunAll(t, cmdShow, repo+"//modules/greeter")
+	if code != exitOK {
+		t.Fatalf("rigger show = %d\nstderr:\n%s", code, stderr)
+	}
+
+	if strings.Contains(stderr, "is not signed") || !strings.Contains(stderr, "is signed, but by no key trusted here") {
+		t.Errorf("the warning does not say that the signature is not verified:\n%s", stderr)
+	}
+
+	if !tableRow("signed by", "not verified: 1 signature, by no key trusted here").MatchString(out) {
+		t.Errorf("the signed by row does not say that the signature is not verified:\n%s", out)
+	}
 }
 
 // A module of a git repository by its address: the versions of its tags,

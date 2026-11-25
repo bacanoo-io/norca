@@ -110,6 +110,9 @@ type shownSource struct {
 	Digest     string   `json:"digest"`
 	// Signers are the key IDs of the signatures that verified the digest.
 	Signers []string `json:"signers"`
+	// Signatures is how many signatures the version carries, verified or
+	// not: with no Signers, signed by keys that nothing here trusts.
+	Signatures int `json:"signatures"`
 	// Builtin reports a module built into the program, which is not signed.
 	Builtin bool `json:"builtin,omitempty"`
 	// Warnings are the advisories of the version and that it is not signed.
@@ -187,7 +190,7 @@ func showModule(ctx context.Context, eng *rigger.Engine, stderr io.Writer, addre
 	shown := &shownSource{
 		Source: address, Version: o.Version, Metadata: m.Metadata(),
 		Repository: o.Repository, Ref: o.Ref, Commit: o.Commit, Digest: o.Digest,
-		Signers: nonNil(o.Signers), Warnings: nonNil(o.Warnings),
+		Signers: nonNil(o.Signers), Signatures: o.Signatures, Warnings: nonNil(o.Warnings),
 		Variables: m.Variables(), Outputs: m.Outputs(),
 	}
 
@@ -220,7 +223,7 @@ func showStack(ctx context.Context, eng *rigger.Engine, stderr io.Writer, addres
 	shown := &shownSource{
 		Source: address, Version: o.Version,
 		Repository: o.Repository, Ref: o.Ref, Commit: o.Commit, Digest: o.Digest,
-		Signers: nonNil(o.Signers), Warnings: []string{},
+		Signers: nonNil(o.Signers), Signatures: o.Signatures, Warnings: []string{},
 		Variables: s.Variables(), Outputs: s.Outputs(), Modules: s.Modules(),
 	}
 
@@ -236,9 +239,9 @@ func showStack(ctx context.Context, eng *rigger.Engine, stderr io.Writer, addres
 
 	// A stack nothing signed is taken as a module is, with a warning.
 	if len(o.Signers) == 0 {
-		detail := fmt.Sprintf("%s %s is not signed: only its commit and tree digest are checked.", o.Source, o.Version)
-		diags = append(diags, &hcl.Diagnostic{Severity: hcl.DiagWarning, Summary: "Stack not signed", Detail: detail})
-		shown.Warnings = append(shown.Warnings, strings.TrimSuffix(detail, "."))
+		summary, detail := rigger.UnsignedWarning("stack", o.Source, o.Version, o.Signatures)
+		diags = append(diags, &hcl.Diagnostic{Severity: hcl.DiagWarning, Summary: summary, Detail: detail + "."})
+		shown.Warnings = append(shown.Warnings, detail)
 	}
 
 	if err := writeWarnings(stderr, address, warningsOnly(diags)); err != nil {
@@ -352,6 +355,10 @@ func signersText(s *shownSource) string {
 		return strings.Join(s.Signers, " ")
 	case s.Builtin:
 		return "not signed: built into the program"
+	case s.Signatures == 1:
+		return "not verified: 1 signature, by no key trusted here"
+	case s.Signatures > 1:
+		return fmt.Sprintf("not verified: %d signatures, by no key trusted here", s.Signatures)
 	default:
 		return "not signed"
 	}

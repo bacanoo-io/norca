@@ -33,6 +33,9 @@ type StackOrigin struct {
 	Commit     string   `json:"commit,omitempty"`
 	Digest     string   `json:"digest"`
 	Signers    []string `json:"signers,omitempty"`
+	// Signatures is how many signatures the version carries, verified or
+	// not (ModuleOrigin.Signatures).
+	Signatures int `json:"signatures,omitempty"`
 }
 
 // FetchStack fetches a published stack (design 7.5): the newest version
@@ -227,7 +230,7 @@ func (e *Engine) fetchPublished(ctx context.Context, req source.Request) (*fetch
 		stack: s, signatures: sigs, listing: fetched.Listing,
 		origin: &StackOrigin{
 			Source: req.Source, Version: req.Version, Repository: fetchedFrom(req, fetched.Origin), Path: path.Clean(fetched.Dir),
-			Ref: fetched.Origin.Ref, Commit: fetched.Origin.Commit, Digest: digest,
+			Ref: fetched.Origin.Ref, Commit: fetched.Origin.Commit, Digest: digest, Signatures: len(sigs),
 		},
 	}
 
