@@ -17,11 +17,24 @@ the language.
 rigger module validate examples/registry/modules/redis
 rigger module render examples/registry/modules/redis \
     -f examples/registry/modules/redis/examples/auth.vars.hcl \
-    -var memory=512 -release cache -namespace apps -region eu
+    --var memory=512 --release cache --namespace apps --region eu
 ```
 
 `render` prints the evaluated resources and outputs as JSON; a job is
 decoded by Norca's own job decoder. Secret items are named, never shown.
+
+A flag is written `--name` (`-f` is `--values`, `-o` is `--output`); the
+one-dash form `-name` is read the same, and flags may come before or after
+the arguments. Each command has its help, with examples; the environment
+the commands read is a help topic; the shell completes commands and flag
+values:
+
+```shell
+rigger help stack apply                 # or: rigger stack apply --help
+rigger help environment                 # RIGGER_SERVER, RIGGER_VAR_<name>, ...
+rigger version                          # version, commit, date, Go, platform (--json)
+source <(rigger completion bash)        # also zsh, fish, powershell
+```
 
 A stack names its modules by source; `norca/nats` is the module `nats` of
 the namespace `norca` of the global registry
@@ -31,44 +44,44 @@ the namespace `norca` of the global registry
 rigger stack sync my-stack          # resolve, fetch, verify, write rigger.lock.hcl
 rigger stack plan my-stack -f values/dev.vars.hcl
 rigger stack apply my-stack -f values/dev.vars.hcl
-rigger stack plan acme/data-platform -version "~> 1.2" -f my.vars.hcl
+rigger stack plan acme/data-platform --version "~> 1.2" -f my.vars.hcl
 ```
 
 What a registry offers is listed and shown without a cluster: the program
 fetches the registry into its cache, and a module or stack as an install
-would fetch and verify it (`-json` for scripts):
+would fetch and verify it (`--json` for scripts):
 
 ```shell
 rigger search                                   # the global registry
-rigger search nats -kind module -limit 10
-rigger search -registry builtin                 # the modules built into the program
-rigger search -registry github.com/acme/rigger-modules
-rigger search -max-width 0                      # the descriptions whole (default: 60 characters)
+rigger search nats --kind module --limit 10
+rigger search --registry builtin                 # the modules built into the program
+rigger search --registry github.com/acme/rigger-modules
+rigger search --max-width 0                      # the descriptions whole (default: 60 characters)
 rigger show norca/redis                         # versions, signers, variables, outputs
-rigger show norca/nats -version "~> 1.2" -readme
+rigger show norca/nats --version "~> 1.2" --readme
 rigger show github.com/acme/rigger-modules//modules/web
 ```
 
 One release of a module, without a stack, comes from a directory or by its
-source: the newest version that meets `-version`, verified as a stack's
+source: the newest version that meets `--version`, verified as a stack's
 modules are (a version of the global registry only listed and signed, its
 advisories shown as warnings), a built-in module of the version the
 program ships:
 
 ```shell
-rigger install ./modules/web -name shop -f values.vars.hcl
-rigger install norca/nats -version "~> 1.2" -name nats -namespace apps
-rigger install builtin/redis -name cache -var memory=512
-rigger install norca/nats -name nats -server              # the servers fetch from the global registry
-rigger install web -registry acme -name shop -server      # a registry of the cluster, by the module's name
-rigger install builtin/redis -name cache -server          # built into the servers
+rigger install ./modules/web --name shop -f values.vars.hcl
+rigger install norca/nats --version "~> 1.2" --name nats --namespace apps
+rigger install builtin/redis --name cache --var memory=512
+rigger install norca/nats --name nats --server              # the servers fetch from the global registry
+rigger install web --registry acme --name shop --server      # a registry of the cluster, by the module's name
+rigger install builtin/redis --name cache --server          # built into the servers
 ```
 
-With `-server` the servers fetch only from what they have: a registry of
+With `--server` the servers fetch only from what they have: a registry of
 the cluster they synced (`rigger registry sync <name>`; the global one is
 `global`) and their built-in modules. A git or `oci://` address is
 refused there; register its repository as a registry, or install without
-`-server`. A directory is sent as files.
+`--server`. A directory is sent as files.
 
 Git repositories are read with go-git, not with the git program, so the
 credential helpers and `~/.ssh/config` of git do not apply. An `ssh://`
@@ -83,7 +96,7 @@ for git and OCI sources alike: a stack, a lock file or an entry of an
 index names hosts others chose. Two places hold them:
 
 ```shell
-echo "$TOKEN" | rigger login git.example.com -username robot   # kept by host
+echo "$TOKEN" | rigger login git.example.com --username robot   # kept by host
 rigger logout git.example.com
 export RIGGER_GIT_HOST=git.example.com RIGGER_GIT_USERNAME=robot RIGGER_GIT_PASSWORD="$TOKEN"
 export RIGGER_OCI_HOST=registry.example.com RIGGER_OCI_USERNAME=robot RIGGER_OCI_PASSWORD="$TOKEN"
@@ -94,8 +107,8 @@ configuration directory of the user (`RIGGER_CREDENTIALS_FILE` names
 another), readable by the user only, and they come first. A password in
 the environment without its `_HOST` is an error.
 
-`rigger stack apply -adopt`, `rigger install -adopt` and
-`rigger release rollback -adopt` take over a release the pack manager
+`rigger stack apply --adopt`, `rigger install --adopt` and
+`rigger release rollback --adopt` take over a release the pack manager
 applied or another stack owns (a stack is its namespace and name); without
 the flag it is refused.
 
@@ -103,8 +116,8 @@ Publishing signs a module or stack and tags it in its repository; the
 global registry lists the tag once it passes its checks:
 
 ```shell
-rigger key generate -out acme
-rigger module publish modules/redis -key acme.key
+rigger key generate --out acme
+rigger module publish modules/redis --key acme.key
 git push origin redis/v1.0.0
 ```
 
@@ -136,7 +149,7 @@ Go 1.27 (the version of Norca). From the root of the repository:
 ```shell
 make vet test     # both modules
 make race lint    # the race detector, golangci-lint v2
-make build        # bin/rigger
+make build        # bin/rigger, with the version, commit and date rigger version prints
 ```
 
 `go.work` joins the two modules for development. The CLI module builds

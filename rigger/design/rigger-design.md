@@ -1032,14 +1032,14 @@ which operation, and which subtask to which task.
 
 ```
 rigger init                         a stack or a module from a skeleton
-rigger fmt [-check]                 format (all files are HCL, nothing is skipped)
+rigger fmt [--check]                format (all files are HCL, nothing is skipped)
 rigger module validate [dir]        schemas, values of the examples, icon, tests
 rigger search [text]                the modules and stacks of a registry, without a cluster
 rigger show <source>                a module or stack: variables, outputs, requires, versions
 rigger module test [dir]            tests/*.riggertest.hcl: values in, assertions over resources
 rigger module render <source>       the evaluated resources and outputs as JSON, for review
-                                 (-f values, -var name=value, -release, -namespace, -region)
-rigger module publish               sign, commit the signature, tag (-to oci://: push)
+                                 (-f values, --var name=value, --release, --namespace, --region)
+rigger module publish               sign, commit the signature, tag (--to oci://: push)
 rigger registry add|list|remove     registries of the user configuration
 rigger login <host>
 rigger key generate / sign / verify
@@ -1064,6 +1064,59 @@ rigger install <source> --name x -f values.hcl            a stack of one, for qu
 `rigger install` covers what `norca pack run` does today; everything else of a
 single release goes to the server's release API unchanged.
 
+**The command line** (as built 2026-11-25; the user found the standard
+`flag` package not adequate and decided the four points below). The
+commands are a tree of `spf13/cobra` commands with `spf13/pflag` flags
+(`cli/command`); `norca rigger` runs the same tree under the display name
+"norca rigger" (`Program.Name`, cobra's `CommandDisplayNameAnnotation`).
+
+- **`--name`, and `-name` too.** `--name` is the documented form. Before
+  cobra parses, `normalizeArgs` (`cli/command/args.go`) walks the arguments
+  as cobra finds the command (a word that names a command of the current
+  one, before any other word) and rewrites `-name` and `-name=value` into
+  `--name[=value]` when `name` is a long flag of that command or one its
+  parents pass down (`--log-format`, `--log-level`). It never rewrites the
+  value of a flag that takes one (`-var x=-y`, `-version -1`), anything
+  after `--`, a lone `-`, a negative number, or a word that names no flag
+  (`-zzz` reaches pflag, which reports it). One letter after one dash is a
+  shorthand: the only ones are `-f` (`--values`, a file of values: stack,
+  install, module render), `-o` (`--output`, bundle create) and cobra's
+  `-h`. The deployer's `stack apply <dir> -f <file> -var n=v -prune
+  -server=false`, the lab and the documentation keep working unchanged.
+- **Completion.** `rigger completion bash|zsh|fish|powershell` (cobra's)
+  completes the commands and the flags that take one of a fixed set:
+  `--kind module|stack`, `--registry global|builtin` of search,
+  `--category` (`module.Categories`), `--log-level`, `--log-format`, and
+  `module|stack` of `registry select|unselect`. `norca rigger` has no
+  completion command: norca completes its own command line.
+- **Help per command.** `rigger help <command...>`, `<command> --help` and
+  `-h` show the Use, Short, Long and Example of each command; `rigger help`
+  (and `norca rigger help`) starts with the header `Norca Rigger
+  <version>` and lists the commands by group with their Short. The
+  variables of the environment are the help topic `rigger help
+  environment`. Each command of a group (stack, registry, release, key,
+  bundle, operation, index) still parses every flag the group took with the
+  `flag` package, and hides in its help and completion those that do
+  nothing for it. A group without a command, or with one it does not hold,
+  fails as before ("stack needs a command: ..."). A flag that does not parse
+  is pflag's error and where the flags are listed ("unknown flag: --zzz
+  (see rigger help stack plan)").
+- **Flags anywhere.** Flags may come before or after the arguments of every
+  command (pflag's interspersed parsing); the commands no longer collect
+  their words by hand.
+
+Each command that runs is the root operation of the log
+(`command.<path>`, e.g. `command.stack.apply`), errors are written once on
+standard error as `rigger: <error>`, and the exit codes stay: 0, 1 for any
+error, 2 for a plan with changes. `rigger version` (and `rigger --version`)
+prints `rigger <version>` and the build: the commit and its date, the Go
+version and the platform (`--json` too). The Makefile sets them with
+`-ldflags -X .../cli/command.buildVersion|buildCommit|buildDate`; a build
+without them reads what the go command recorded (`debug.ReadBuildInfo`:
+module version, `vcs.revision`, `vcs.time`, `vcs.modified`). Built into
+norca the version is "(built into Norca v<version>)" with norca's commit
+and build date.
+
 **Search and show without a cluster** (as built 2026-11-25; the user asked
 to list and show the modules of a registry from the rigger program without
 a cluster). `rigger registry search` asks the servers of a cluster about a
@@ -1071,9 +1124,9 @@ registry they synced; `rigger search` and `rigger show` (also `norca rigger
 search|show`) need neither a cluster nor `NORCA_ADDR`. One `rigger show`
 replaces the `module show` and `stack show` of the sketch above.
 
-- `rigger search [text] [-registry global|builtin|<repository>] [-kind
-  module|stack] [-category c] [-keyword k] [-offset n] [-limit n]
-  [-max-width n] [-json]`
+- `rigger search [text] [--registry global|builtin|<repository>] [--kind
+  module|stack] [--category c] [--keyword k] [--offset n] [--limit n]
+  [--max-width n] [--json]`
   reads the registry as the servers sync one (design/rig-integration.md
   4.5 of norca), into the cache of the program: the global registry
   (`RIGGER_GLOBAL_REGISTRY` or the default; a directory is read as it is,
@@ -1084,15 +1137,15 @@ replaces the `module show` and `stack show` of the sketch above.
   `Checkout`, `TagsAt`, `catalog.Repository`). The query is
   `catalog.Search`, as the servers run it. The table shows kind, name
   (`<namespace>/<name>`, `builtin/<name>`, the name in a repository),
-  the newest version and the description (cut to `-max-width`
+  the newest version and the description (cut to `--max-width`
   characters at a word, default 60, 0 whole, so a row fits a line of a
   terminal), and `first-last of total` when
-  the matches fill more than one page; `-json` adds the address of each
+  the matches fill more than one page; `--json` adds the address of each
   item, by which `rigger show` and `rigger install` take it
   (`<repository>//modules/<name>` in a repository). The commit read is
   logged.
-- `rigger show <source> [-version c] [-kind module|stack] [-readme]
-  [-max-width n] [-json]` fetches the newest version that meets the constraint and
+- `rigger show <source> [--version c] [--kind module|stack] [--readme]
+  [--max-width n] [--json]` fetches the newest version that meets the constraint and
   verifies it as an install does (`Engine.FetchNewestModule`,
   `Engine.FetchStack`), and lists the versions an install chooses among
   (`Engine.ModuleVersions`, `Engine.StackVersions`: the index of the global
@@ -1104,8 +1157,8 @@ replaces the `module show` and `stack show` of the sketch above.
   sensitive one), the outputs (`Module.Outputs`, read from `outputs.hcl`
   without an evaluation), of a stack its module blocks with their sources,
   constraints and the versions its lock pins (`Stack.Modules`), and with
-  `-readme` the README. Advisories and a version nothing signed are
-  warnings on standard error. Without `-kind` the directory `stacks/<name>`
+  `--readme` the README. Advisories and a version nothing signed are
+  warnings on standard error. Without `--kind` the directory `stacks/<name>`
   of a git address is a stack, and a name of the global registry that lists
   no module of it is taken as a stack when it lists one.
 
