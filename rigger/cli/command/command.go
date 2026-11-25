@@ -45,7 +45,6 @@ const (
 	cmdShow     = "show"
 	cmdKey      = "key"
 	cmdBundle   = "bundle"
-	cmdConvert  = "convert"
 	cmdLogin    = "login"
 	cmdLogout   = "logout"
 
@@ -214,7 +213,7 @@ func (a *app) newRoot() *cobra.Command {
 	addToGroup(root, groupFind, a.newSearchCommand(), a.newShowCommand())
 	addToGroup(root, groupDeploy, a.newStackCommand(), a.newInstallCommand(), a.newReleaseCommand(),
 		a.newOperationCommand(), a.newRegistryCommand(), a.newBundleCommand())
-	addToGroup(root, groupDevelop, a.newModuleCommand(), a.newFmtCommand(), a.newConvertCommand())
+	addToGroup(root, groupDevelop, a.newModuleCommand(), a.newFmtCommand())
 	addToGroup(root, groupPublish, a.newKeyCommand(), a.newIndexCommand(), a.newLoginCommand(), a.newLogoutCommand())
 	addToGroup(root, groupProgram, a.newVersionCommand())
 

@@ -1642,6 +1642,8 @@ design stays in `design/` and is not published there, as with norca.
   text). The registry's `check-packs.sh` already renders every example; the
   same list drives the comparison.
 - What this conversion must prove is in question 2.
+- Every pack is converted, and Norca has no pack manager left (step 4.10),
+  so `rigger convert pack` was removed on 2026-11-25.
 
 ### 14.1 What the conversion on paper showed (phase 0, 2026-11-18)
 
@@ -1866,7 +1868,8 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
 
 Phase 5 as built (2026-11-18):
 
-- **`rigger convert pack <dir> -out <dir> [-examples <dir>]`** does the
+- **`rigger convert pack <dir> -out <dir> [-examples <dir>]`** (removed on
+  2026-11-25, section 14) did the
   mechanical part of section 14: the `module` block from `app` and `pack`;
   the variables without `namespace` and `region`, their checks as Rigger takes
   them (`item_min_length` and `item_pattern` in an `item` block, the
