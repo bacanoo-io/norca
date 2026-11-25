@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Nomad Pack is part of the norca module (norca/pack). The api client
+        # norca is the program. The api client
         # is a separate module; the controller SDK depends only on the api
         # module. tools holds the build tools (not shipped). jobspec2,
         # helper/resourcespec and helper/externalspec are the decoders

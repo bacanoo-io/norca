@@ -25,7 +25,6 @@ SPDX-License-Identifier = "MPL-2.0"
 
 # Files of the HashiCorp forks keep their own headers; files without a header
 # (generated code, test data) fall under the license of the fork.
-# norca/pack/** originates from HashiCorp Nomad Pack v0.4.2 (MPL 2.0).
 [[annotations]]
 path = ["norca/**"]
 precedence = "aggregate"
@@ -62,14 +61,6 @@ precedence = "closest"
 SPDX-FileCopyrightText = "The tstorage authors (github.com/nakabonne/tstorage)"
 SPDX-License-Identifier = "Apache-2.0"
 
-# Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
-# see norca/pack/fixtures/community/README.md.
-[[annotations]]
-path = ["norca/pack/fixtures/community/packs/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
-SPDX-License-Identifier = "MPL-2.0"
-
 # THIRD_PARTY_NOTICES.md is generated (norca/tools/thirdparty) and reproduces the
 # license texts and notices of the dependencies, some of which contain SPDX tags of
 # their own; those describe the dependencies, not this file.
@@ -78,15 +69,3 @@ path = "THIRD_PARTY_NOTICES.md"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
-
-# briandowns/spinner (https://github.com/briandowns/spinner, Apache-2.0),
-# copied into Nomad Pack and changed there by HashiCorp. The files keep the
-# Apache-2.0 notice of the original under an MPL-2.0 header that the
-# upstream header tool put in place of the original copyright line
-# ("Copyright (c) 2021 Brian J. Downs"); LICENSE in the directory is the
-# Apache License 2.0. This annotation overrides the file headers.
-[[annotations]]
-path = ["norca/pack/internal/pkg/spinner/**"]
-precedence = "override"
-SPDX-FileCopyrightText = ["2021-2022 Brian J. Downs", "IBM Corp. 2021, 2025"]
-SPDX-License-Identifier = "Apache-2.0 AND MPL-2.0"
