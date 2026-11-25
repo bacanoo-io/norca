@@ -7,9 +7,9 @@ module "example/nats" {
   repository = "github.com/example/rigger-registry"
   path       = "modules/nats"
   ref        = "nats/v1.0.0"
-  commit     = "c13cfad358d478f1f9496bfa08311c758d827909"
-  digest     = "sha256:b22d601c6fb3d774ada451e33a90c224971af32150dabf3ba05d7aed8bc269d0"
-  signers    = ["sha256:df36411592c3745a8f329ea55a36f616075a6cac3afc98a6cec00dd44a59a2d0"]
+  commit     = "dd25e479b41ff63f9b0bc89c72b4305375708aab"
+  digest     = "sha256:c8279660cc153e64dd6a277b1863df8c0dfd222bc6ddd4e89202e4f6592c2a60"
+  signers    = ["sha256:2071efdb9fa0fe44c8c03a505d6005f747c2beda32bbe12847371a8a46238907"]
 }
 
 module "example/postgres" {
@@ -18,7 +18,7 @@ module "example/postgres" {
   repository = "github.com/example/rigger-registry"
   path       = "modules/postgres"
   ref        = "postgres/v0.3.0"
-  commit     = "c13cfad358d478f1f9496bfa08311c758d827909"
-  digest     = "sha256:b0db7afcf86482a8a9e5e1854987b5e961faafcfc275b7a02ad8cb8b91fbe958"
-  signers    = ["sha256:df36411592c3745a8f329ea55a36f616075a6cac3afc98a6cec00dd44a59a2d0"]
+  commit     = "dd25e479b41ff63f9b0bc89c72b4305375708aab"
+  digest     = "sha256:b3c7a8489808ab819f0c726f8e37f4213a2fd4828df40bdee16e6d6a515d4a33"
+  signers    = ["sha256:2071efdb9fa0fe44c8c03a505d6005f747c2beda32bbe12847371a8a46238907"]
 }

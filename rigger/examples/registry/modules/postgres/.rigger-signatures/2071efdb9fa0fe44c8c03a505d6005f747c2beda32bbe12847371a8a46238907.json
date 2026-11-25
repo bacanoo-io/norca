@@ -1,0 +1,4 @@
+{
+  "payload": "{\"critical\":{\"identity\":{\"docker-reference\":\"rigger/postgres\"},\"image\":{\"docker-manifest-digest\":\"sha256:b3c7a8489808ab819f0c726f8e37f4213a2fd4828df40bdee16e6d6a515d4a33\"},\"type\":\"cosign container image signature\"},\"optional\":{\"rigger.module\":\"postgres\",\"rigger.version\":\"0.3.0\"}}",
+  "signature": "MEUCIQDmKfSDUGFHqBnh5dEiDfdj3NfT3uM7sWku/hwXs4ksQgIgA+8Bu5XdDJunT1buPZcvQorQfWg02+XjS8ObeGoxdN4="
+}

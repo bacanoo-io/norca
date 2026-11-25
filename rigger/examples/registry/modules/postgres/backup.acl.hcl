@@ -9,9 +9,17 @@ policy "backup" {
     job_id = "${local.job}-backup"
   }
 
-  rules = <<-EOT
-    namespace "${rigger.namespace}" {
-      capabilities = ["read-job"]
+  # The rules as a block: Rigger writes it as the text of the policy. The
+  # namespace is the one of the release; a label of HCL is a literal, so it
+  # is given by a dynamic block.
+  rules {
+    dynamic "namespace" {
+      for_each = [rigger.namespace]
+      labels   = [namespace.value]
+
+      content {
+        capabilities = ["read-job"]
+      }
     }
-  EOT
+  }
 }

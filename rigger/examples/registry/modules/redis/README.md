@@ -10,8 +10,8 @@ without it Redis is a cache that starts empty. Run several releases for
 several independent servers.
 
 ```shell
-rigger install . -name cache -namespace apps
-rigger install . -name cache -namespace apps -f examples/persistent.vars.hcl
+rigger install . --name cache --namespace apps
+rigger install . --name cache --namespace apps --values examples/persistent.vars.hcl
 ```
 
 In a stack the password is generated and never written down:

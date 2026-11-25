@@ -22,7 +22,7 @@ A single PostgreSQL server with what usually comes with it.
   of its owner, in the shape an application module takes as a value.
 
 ```shell
-rigger install . -name postgres -f examples/two-databases.vars.hcl
+rigger install . --name postgres --values examples/two-databases.vars.hcl
 ```
 
 This module has no `icon.png`, so it is shown with the default icon.

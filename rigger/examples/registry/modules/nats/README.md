@@ -17,7 +17,7 @@ A NATS cluster for the applications of one Norca region.
   JetStream domain of the consumers.
 
 ```shell
-rigger install . -name nats -f examples/cluster-with-users.vars.hcl
+rigger install . --name nats --values examples/cluster-with-users.vars.hcl
 ```
 
 | Output | |
