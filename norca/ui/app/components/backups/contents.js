@@ -10,6 +10,7 @@ import { action } from '@ember/object';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
+import { isReleaseKind } from 'nomad-ui/utils/releases';
 import {
   backupContents,
   CONTENT_TYPES,
@@ -195,11 +196,14 @@ export default class BackupsContents extends Component {
     if (!type) return OBJECT_VIEW;
     return {
       ...OBJECT_VIEW,
-      // The objects of the package manager own other resources.
-      item: (o) =>
-        o.ID.startsWith('packs.norca.io/')
+      // The releases and their revisions own other resources: they are
+      // not restored one by one. The ID is <group>/<kind>/<name>.
+      item: (o) => {
+        const [group, kind] = o.ID.split('/');
+        return isReleaseKind(group, kind)
           ? undefined
-          : { Type: type, Namespace: o.Namespace || undefined, ID: o.ID },
+          : { Type: type, Namespace: o.Namespace || undefined, ID: o.ID };
+      },
     };
   }
 

@@ -33,7 +33,7 @@
         {{/each}}
         {{#if this.driftCount}}
           <Ui::Alert @tone="warning" @title="{{this.driftCount}} {{if (eq this.driftCount 1) 'release differs' 'releases differ'}} from their revision" class="mb-3" data-test-drift-alert>
-            Their resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.
+            Their resources were changed outside the release. Roll back, or take the change into the variables and upgrade.
           </Ui::Alert>
         {{/if}}
         <Ui::DataTable
@@ -58,7 +58,7 @@
             <Ui::Input
               @type="search"
               @icon="search"
-              @placeholder="Search releases or packs..."
+              @placeholder="Search releases or packages..."
               @value={{this.list.searchTerm}}
               @onInput={{this.list.search}}
               aria-label="Search releases"

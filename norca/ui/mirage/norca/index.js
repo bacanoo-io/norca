@@ -12,7 +12,6 @@ import registerScalingRoutes, { seedScaling } from './scaling';
 import registerNetworkRoutes, { seedNetwork } from './network';
 import registerDeploymentRoutes from './deployments';
 import registerReleaseRoutes, { seedReleases } from './releases';
-import registerPackRoutes, { seedPacks } from './packs';
 import registerObjectRoutes, { seedObjects } from './objects';
 import registerRiggerRoutes, { seedRigger } from './rigger';
 import registerSecretRoutes, { seedSecrets } from './secrets';
@@ -26,7 +25,6 @@ export function registerNorcaAreas(server) {
   registerNetworkRoutes(server);
   registerDeploymentRoutes(server);
   registerReleaseRoutes(server);
-  registerPackRoutes(server);
   registerObjectRoutes(server);
   registerRiggerRoutes(server);
   registerSecretRoutes(server);
@@ -39,7 +37,6 @@ export function seedNorcaAreas(server) {
   seedScaling(server);
   seedNetwork(server);
   seedReleases(server);
-  seedPacks(server);
   seedObjects(server);
   seedRigger(server);
   seedSecrets(server);

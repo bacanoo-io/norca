@@ -19,7 +19,7 @@ import {
   deleteKind,
   prettySchema,
 } from 'nomad-ui/utils/objects';
-import { listReleases } from 'nomad-ui/utils/releases';
+import { listReleases, isReleaseKind } from 'nomad-ui/utils/releases';
 import { formatNs } from 'nomad-ui/utils/scaling';
 import { kindOwners } from 'nomad-ui/components/kinds/list';
 
@@ -54,11 +54,11 @@ export default class KindsDetail extends Component {
   @tracked isDeleting = false;
 
   get builtIn() {
-    return this.args.group === 'packs.norca.io';
+    return isReleaseKind(this.args.group, this.args.kind);
   }
 
   // Kinds are written with operator write; the built-in kinds of the
-  // packs.norca.io group are read-only.
+  // releases are read-only.
   get canWrite() {
     return !this.builtIn && allowsBlock(this.token, 'Operator', 'write');
   }

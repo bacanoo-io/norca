@@ -10,11 +10,6 @@ import { inject as service } from '@ember/service';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
 import {
-  getCatalogPack,
-  planPackRelease,
-  deployPackRelease,
-} from 'nomad-ui/utils/releases';
-import {
   formSchema,
   initialState,
   applyJSON,
@@ -22,109 +17,22 @@ import {
   setPath,
   validate,
   overrides,
-  secrets,
   evaluateShowIf,
-  runCommand,
-  atomicDefault,
   compareVersionsDesc,
 } from 'nomad-ui/utils/pack-form';
 
-// The tabs of the form itself, after those of the pack.
+// The tabs of the form itself, after those of the schema.
 const OWN_TABS = ['json', 'cli'];
 
 /**
- * The backend of a pack of a cluster registry: what the form loads, plans
- * and applies. Another backend (utils/rigger: riggerBackend) has the same
- * members.
- */
-function packBackend(form) {
-  return {
-    kind: 'pack',
-    noun: 'pack',
-    hasAtomic: true,
-    hasDescription: true,
-    hasAdopt: false,
-    async load(region, version) {
-      const r = await getCatalogPack(
-        form.token,
-        region,
-        form.args.registry,
-        form.args.pack,
-        version
-      );
-      return { detail: r.body, version: r.body?.Pack?.Version || version };
-    },
-    schema(detail) {
-      return detail?.UIFormSchema;
-    },
-    storedSecrets() {
-      return [];
-    },
-    versions(detail) {
-      return detail?.Versions || [];
-    },
-    compatibility(detail) {
-      const e = detail?.Pack || {};
-      if (!detail || e.Compatible !== false) return null;
-      const missing = (e.MissingFeatures || []).join(', ');
-      return missing || `requires Norca ${e.Requires?.Norca || ''}`.trim();
-    },
-    body({ version, values, secrets, description, atomic }) {
-      const body = {
-        Registry: form.args.registry,
-        Pack: form.args.pack,
-        Version: version,
-        Values: values,
-      };
-      if (secrets.length) body.Secrets = secrets;
-      if (description) body.Description = description;
-      if (atomic !== undefined) body.Atomic = atomic;
-      return body;
-    },
-    async plan(region, namespace, release, body) {
-      const r = await planPackRelease(
-        form.token,
-        region,
-        namespace,
-        release,
-        body
-      );
-      return {
-        changes: r.body?.Changes || [],
-        warnings: r.body?.Warnings || [],
-      };
-    },
-    async apply(region, namespace, release, body) {
-      const r = await deployPackRelease(
-        form.token,
-        region,
-        namespace,
-        release,
-        body
-      );
-      return r.body;
-    },
-    command(state) {
-      return runCommand({
-        registry: form.args.registry,
-        pack: form.args.pack,
-        form: form.form,
-        ...state,
-      });
-    },
-  };
-}
-
-/**
- * The install (or upgrade) form of a pack of a cluster registry. The
- * servers synthesize the form schema from the variables of the pack
- * (GET /v1/pack/:registry/:pack), render the pack with the values and
- * apply it as a release revision (plan-pack, deploy-pack). With @backend
- * (utils/rigger: riggerBackend) it is the form of a module of Rigger.
+ * The install (or upgrade) form of a module or a stack of Rigger. The
+ * servers make the form schema from its variables; @backend loads it,
+ * plans and applies (utils/rigger: riggerBackend, riggerStackBackend).
  *
- *   <Packages::SchemaForm @registry="builtin" @pack="redis" @version="1.0.0"
- *     @detail={{this.detail}} @region={{this.region}}
- *     @onDeployed={{this.deployed}} @onClose={{this.close}} />
+ *   <Packages::SchemaForm @backend={{this.backend}} @registry="global"
+ *     @pack="redis" @version="1.0.0" @detail={{this.detail}}
+ *     @region={{this.region}} @onDeployed={{this.deployed}}
+ *     @onClose={{this.close}} />
  *
  * For an upgrade, @releaseName, @namespace and @initialValues (the values
  * of the deployed revision) are set and @isUpgrade is true.
@@ -142,10 +50,6 @@ export default class PackagesSchemaForm extends Component {
 
   @tracked releaseName = this.args.releaseName || this.defaultReleaseName;
   @tracked namespace = this.args.namespace || 'default';
-  @tracked description = '';
-  // Atomic mode of this install or upgrade: "default" leaves it to the
-  // namespace (no Atomic in the request), "on" or "off" sets it.
-  @tracked atomic = 'default';
   @tracked activeTab = null;
 
   @tracked values = {};
@@ -166,7 +70,7 @@ export default class PackagesSchemaForm extends Component {
   @tracked plan = null;
   @tracked actionError = null;
 
-  backend = this.args.backend || packBackend(this);
+  backend = this.args.backend;
 
   constructor() {
     super(...arguments);
@@ -229,7 +133,7 @@ export default class PackagesSchemaForm extends Component {
 
   @action setJson(text) {
     this.jsonDraft = text;
-    const res = applyJSON(this.form, this.values, text);
+    const res = applyJSON(this.form, text);
     if (res.error) {
       this.jsonError = res.error;
       return;
@@ -286,41 +190,6 @@ export default class PackagesSchemaForm extends Component {
     return list;
   }
 
-  // The atomic default of the namespace, null when its meta isn't known.
-  get namespaceAtomic() {
-    const ns = (this.system.namespaces || []).find(
-      (n) => (n.get ? n.get('name') : n.Name || n) === this.namespace
-    );
-    return atomicDefault(ns?.get ? ns.get('meta') : ns?.Meta);
-  }
-
-  get atomicOptions() {
-    const def = this.namespaceAtomic;
-    return [
-      {
-        value: 'default',
-        label:
-          def === null
-            ? 'Namespace default'
-            : `Namespace default (${def ? 'on' : 'off'})`,
-      },
-      { value: 'on', label: 'On' },
-      { value: 'off', label: 'Off' },
-    ];
-  }
-
-  get atomicValue() {
-    if (this.atomic === 'on') return true;
-    if (this.atomic === 'off') return false;
-    return undefined;
-  }
-
-  get atomicHelp() {
-    return `A failed ${
-      this.isUpgrade ? 'upgrade' : 'install'
-    } restores the resources as they were before it, instead of leaving them as far as it got. On by default in namespaces with the meta environment = "production" or pack.atomic = "true".`;
-  }
-
   get regions() {
     return (this.system.regions || []).slice().sort();
   }
@@ -329,25 +198,15 @@ export default class PackagesSchemaForm extends Component {
     return overrides(this.form, this.values, this.args.initialValues);
   }
 
-  get payloadSecrets() {
-    return secrets(this.form, this.values);
-  }
-
   get cliCommand() {
     return this.backend.command({
       version: this.version,
       release: this.releaseName,
       namespace: this.namespace,
-      atomic: this.atomicValue,
       values: this.payloadValues,
-      secrets: this.payloadSecrets,
       adopt: this.adopt,
       form: this.form,
     });
-  }
-
-  get hasSecrets() {
-    return this.form.fields.some((f) => f.secret);
   }
 
   get compatibilityProblem() {
@@ -429,15 +288,6 @@ export default class PackagesSchemaForm extends Component {
     this.namespace = value;
   }
 
-  @action setAtomic(value) {
-    this.atomic = value;
-    this.plan = null;
-  }
-
-  @action setDescription(value) {
-    this.description = value;
-  }
-
   @action setAdopt(value) {
     this.adopt = value;
     this.plan = null;
@@ -489,7 +339,6 @@ export default class PackagesSchemaForm extends Component {
     const errors = validate(this.form, this.values, {
       redacted: this.redacted,
       draftErrors: this.draftErrors,
-      upgrade: this.isUpgrade,
     });
     if (this.hasReleaseName && !this.releaseName.trim())
       errors.__name = 'The release name is required';
@@ -508,9 +357,6 @@ export default class PackagesSchemaForm extends Component {
       version: this.version,
       release: this.releaseName.trim(),
       values: this.payloadValues,
-      secrets: this.payloadSecrets,
-      description: this.description.trim(),
-      atomic: this.atomicValue,
       adopt: this.adopt,
       detail: this.detail,
     });

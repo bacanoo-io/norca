@@ -4,12 +4,12 @@
  */
 
 /**
- * The install form of a catalog pack. The servers synthesize a JSON Schema
- * from the variables of the pack with x-ui-* directives
- * (pack/sdk/pack/variables/schema.go): x-ui-tabs (objects of id, label,
- * icon and order, or names), and per property x-ui-tab, x-ui-group,
- * x-ui-order, x-ui-widget, x-ui-unit, x-ui-presets and x-ui-show-if. The
- * variables without a default are required.
+ * The install form of a module or a stack of Rigger. The servers make a
+ * JSON Schema from its variables with x-ui-* directives
+ * (rigger/formschema.go): x-ui-tabs (objects of id, label, icon and order,
+ * or names), and per property x-ui-tab, x-ui-group, x-ui-order,
+ * x-ui-widget, x-ui-unit, x-ui-presets and x-ui-show-if. The variables
+ * without a default are required.
  *
  * The form keeps the full values (the defaults and the changes) and sends
  * only the overrides: the values that differ from the defaults, the
@@ -30,7 +30,7 @@ const TAB_ICONS = {
   dependencies: 'packages',
 };
 
-// Packs name icons; the UI has a subset of Tabler (scripts/generate-icons.js).
+// Schemas name icons; the UI has a subset of Tabler (scripts/generate-icons.js).
 export function knownIcon(name) {
   return name && ICONS[name] ? name : null;
 }
@@ -153,10 +153,6 @@ function fieldOf(key, prop, required, path) {
     showIf: prop['x-ui-show-if'] || null,
     enumLabels: prop['x-ui-enum-labels'] || {},
     secret: widget === 'secret' || prop['x-ui-secret'] === true,
-    // A secret written to an item of a Variable of the pack, never to the
-    // release values (x-ui-secret-path, x-ui-secret-item).
-    secretPath: prop['x-ui-secret-path'] || '',
-    secretItem: prop['x-ui-secret-item'] || key,
     required,
     integer: prop.type === 'integer',
     itemsNumeric: ['number', 'integer'].includes(prop.items?.type),
@@ -212,7 +208,7 @@ export function newRow(field) {
 
 /**
  * The item with a new cell value. An empty value of an optional attribute
- * is removed, so the pack applies its default.
+ * is removed, so the module applies its default.
  */
 export function setCell(field, row, column, value) {
   const out = { ...(row || {}) };
@@ -303,8 +299,7 @@ function parseMaybeJSON(v) {
   }
 }
 
-// Values of CLI installs are strings (the -var text); bring them to the
-// type of the field.
+// Brings a value that is text to the type of the field.
 function coerce(field, v) {
   if (v === undefined || v === null) return v;
   switch (field.widget) {
@@ -340,8 +335,7 @@ export function initialState(form, initialValues = {}) {
   for (const [key, v] of Object.entries(initialValues || {})) {
     const f = form.fields.find((f) => f.key === key);
     if (v === REDACTED) {
-      // Variable secrets keep their stored item when left empty.
-      if (!f?.secretPath) redacted.push(key);
+      redacted.push(key);
       values[key] = '';
     } else {
       values[key] = f ? coerce(f, v) : v;
@@ -443,13 +437,13 @@ export function cellId(field, index, column) {
 export function validate(
   form,
   values,
-  { redacted = [], draftErrors = {}, upgrade = false } = {}
+  { redacted = [], draftErrors = {} } = {}
 ) {
   const errors = { ...draftErrors };
   // The error of a value: required, a number in its range, or one of the
   // choices. id is where the error is reported.
   const scalar = (f, id, v) => {
-    if (f.required && isEmpty(v) && !(f.secretPath && upgrade)) {
+    if (f.required && isEmpty(v)) {
       errors[id] = redacted.includes(f.key)
         ? `${f.title} is stored redacted: enter it again`
         : `${f.title} is required`;
@@ -494,7 +488,7 @@ export function validate(
     check(f, values[f.key]);
   }
   // A redacted secret left empty would replace the stored one with the
-  // default of the pack.
+  // default of the module.
   for (const key of redacted) {
     const f = form.fields.find((f) => f.key === key);
     if (f && !errors[f.id] && isEmpty(values[key])) {
@@ -510,10 +504,9 @@ function same(a, b) {
 
 /**
  * The values of the form for the JSON text of the overrides (the JSON tab):
- * the defaults, the values of the Variable secrets (which the JSON leaves
- * out), and the values of the text. Returns { values } or { error }.
+ * the defaults and the values of the text. Returns { values } or { error }.
  */
-export function applyJSON(form, values, text) {
+export function applyJSON(form, text) {
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -524,22 +517,11 @@ export function applyJSON(form, values, text) {
     return { error: 'The values must be a JSON object of variable names' };
   }
   const byKey = new Map(form.fields.map((f) => [f.key, f]));
-  const unknown = Object.keys(parsed).filter(
-    (k) => !byKey.has(k) || byKey.get(k).secretPath
-  );
+  const unknown = Object.keys(parsed).filter((k) => !byKey.has(k));
   if (unknown.length) {
-    return {
-      error: `Not variables of the pack${
-        unknown.some((k) => byKey.get(k)?.secretPath)
-          ? ' (secrets are entered on their tab)'
-          : ''
-      }: ${unknown.join(', ')}`,
-    };
+    return { error: `Not variables of this form: ${unknown.join(', ')}` };
   }
   const out = initialState(form, {}).values;
-  for (const f of form.fields) {
-    if (f.secretPath) out[f.key] = values[f.key];
-  }
   for (const [k, v] of Object.entries(parsed)) {
     out[k] = coerce(byKey.get(k), v);
   }
@@ -549,12 +531,12 @@ export function applyJSON(form, values, text) {
 /**
  * The values to send: those that differ from the defaults, the required
  * ones and those the release had, of the visible fields. Empty values of
- * optional fields are left to the pack.
+ * optional fields are left to the module.
  */
 export function overrides(form, values, initialValues = {}) {
   const out = {};
   for (const f of form.fields) {
-    if (f.secretPath || !evaluateShowIf(f.showIf, values)) continue;
+    if (!evaluateShowIf(f.showIf, values)) continue;
     const v = values[f.key];
     if (isEmpty(v) && !f.required) continue;
     const def = f.hasDefault ? coerce(f, f.default) : emptyValue(f);
@@ -563,81 +545,6 @@ export function overrides(form, values, initialValues = {}) {
     }
   }
   return out;
-}
-
-/** The Variable secrets of the form: [{ Path, Items }] (namespace of the release). */
-export function secrets(form, values) {
-  const byPath = new Map();
-  for (const f of form.fields) {
-    const v = values[f.key];
-    if (!f.secretPath || isEmpty(v) || !evaluateShowIf(f.showIf, values))
-      continue;
-    if (!byPath.has(f.secretPath))
-      byPath.set(f.secretPath, { Path: f.secretPath, Items: {} });
-    byPath.get(f.secretPath).Items[f.secretItem] = String(v);
-  }
-  return [...byPath.values()];
-}
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * The CLI command equivalent to the install. Secret values are left as
- * placeholders. The registry is that of the cluster: the CLI needs a local
- * registry of the same source (norca pack registry add).
- */
-export function runCommand({
-  registry,
-  pack,
-  version,
-  release,
-  namespace,
-  atomic,
-  values,
-  secrets = [],
-  form,
-}) {
-  const parts = [`norca pack run ${shellQuote(pack)}`];
-  if (registry) parts.push(`--registry=${shellQuote(registry)}`);
-  if (version) parts.push(`--ref=${shellQuote(version)}`);
-  if (release) parts.push(`--name=${shellQuote(release)}`);
-  if (namespace && namespace !== 'default')
-    parts.push(`--namespace=${shellQuote(namespace)}`);
-  if (atomic !== undefined) parts.push(`--atomic=${atomic}`);
-  for (const key of Object.keys(values || {}).sort()) {
-    const f = form?.fields.find((f) => f.key === key);
-    const v = values[key];
-    const text = f?.secret
-      ? '<secret>'
-      : typeof v === 'string'
-      ? v
-      : JSON.stringify(v);
-    parts.push(`--var ${shellQuote(`${key}=${text}`)}`);
-  }
-  for (const s of secrets) {
-    for (const item of Object.keys(s.Items).sort()) {
-      parts.push(`--var-secret ${shellQuote(`${s.Path}:${item}=<secret>`)}`);
-    }
-  }
-  return parts.join(' \\\n  ');
-}
-
-/**
- * The atomic default of releases in a namespace, as the servers decide it
- * (structs.ReleaseAtomicDefault): the meta pack.atomic, else on in
- * namespaces with the meta environment production or prod. Null when the
- * meta of the namespace is not known.
- */
-export function atomicDefault(meta) {
-  if (!meta || typeof meta !== 'object') return null;
-  const flag = String(meta['pack.atomic'] ?? '').toLowerCase();
-  if (['true', '1', 't'].includes(flag)) return true;
-  if (['false', '0', 'f'].includes(flag)) return false;
-  return ['production', 'prod'].includes(
-    String(meta.environment || '').toLowerCase()
-  );
 }
 
 function versionParts(v) {

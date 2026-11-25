@@ -21,12 +21,6 @@ import {
   checkDrift,
   uninstallRelease,
   compareRevisions,
-  listPackRegistries,
-  upsertPackRegistry,
-  upgradeTarget,
-  registrySuggestion,
-  isLocalPack,
-  uploadPack,
   isDrifted,
   signature,
   phaseTone,
@@ -39,7 +33,9 @@ import { listRiggerRegistries, riggerBackend } from 'nomad-ui/utils/rigger';
  * comparison of two revisions, hooks and tests, conditions, drift, the
  * state in every region of a multi-region install and the event log.
  * Roll back (with a dry run first), run the tests and uninstall for tokens
- * with write on the release.
+ * with write on the release. A release of Rigger is upgraded from the
+ * registry it came from; one the pack manager made can only be rolled
+ * back and uninstalled.
  */
 export default class PackagesRelease extends Component {
   @service token;
@@ -62,7 +58,7 @@ export default class PackagesRelease extends Component {
   @tracked rollback = null;
   @tracked uninstalling = false;
   @tracked skipHooks = false;
-  @tracked editingValues = false;
+  @tracked showingValues = false;
 
   get deployedRevision() {
     const n = this.release?.Status?.Revision;
@@ -72,21 +68,21 @@ export default class PackagesRelease extends Component {
   @tracked upgrading = false;
 
   @action openValues() {
-    this.editingValues = true;
+    this.showingValues = true;
   }
 
   @action closeValues() {
-    this.editingValues = false;
+    this.showingValues = false;
   }
 
-  // The pack of the deployed revision, when it came from a cluster
-  // registry: the servers can render an upgrade from the catalog.
-  // The cluster registries of the region, to upgrade from; null until
+  // The values of the deployed revision, as the release keeps them.
+  get deployedValues() {
+    return this.deployedRevision?.Spec?.Values || {};
+  }
+
+  // The registries of Rigger in the region, to upgrade from; null until
   // loaded or without the permission to read them.
   @tracked clusterRegistries = null;
-  @tracked addingRegistry = null; // { name, type, source, defaultRef }
-  @tracked registryError = null;
-  @tracked isAddingRegistry = false;
 
   get deployedPack() {
     return this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
@@ -95,6 +91,11 @@ export default class PackagesRelease extends Component {
   // A release that Rigger applied (the manager of its pack fields).
   get isRigger() {
     return this.deployedPack?.Manager === 'rigger';
+  }
+
+  // A release the pack manager made: nothing upgrades it any more.
+  get isPack() {
+    return Boolean(this.release) && !this.isRigger;
   }
 
   // The stack that owns the release: its apply upgrades it.
@@ -126,16 +127,7 @@ export default class PackagesRelease extends Component {
     };
   }
 
-  // The cluster registry and pack to upgrade the release from: the
-  // registry it was installed from on the servers, or, for releases of
-  // the CLI, a cluster registry of the source the CLI recorded.
-  get upgradeTarget() {
-    if (this.isRigger) return this.riggerTarget;
-    return upgradeTarget(this.deployedPack, this.clusterRegistries);
-  }
-
-  // The backend of the upgrade form of a release of Rigger; none for a
-  // pack, whose form has its own.
+  // The backend of the upgrade form.
   get upgradeBackend() {
     const t = this.riggerTarget;
     return t
@@ -147,116 +139,13 @@ export default class PackagesRelease extends Component {
       : undefined;
   }
 
-  // A cluster registry to add for a CLI install from a registry the
-  // cluster doesn't have.
-  get registrySuggestion() {
-    if (this.isRigger || !this.clusterRegistries || this.upgradeTarget)
-      return null;
-    return registrySuggestion(this.deployedPack, this.clusterRegistries);
-  }
-
   async loadRegistries() {
+    if (!this.isRigger) return;
     try {
-      const r = this.isRigger
-        ? await listRiggerRegistries(this.token, this.region)
-        : await listPackRegistries(this.token, this.region);
+      const r = await listRiggerRegistries(this.token, this.region);
       this.clusterRegistries = r.body || [];
     } catch (e) {
       this.clusterRegistries = null;
-    }
-  }
-
-  // A release of a pack from a local directory: uploading the pack makes
-  // it upgradable here.
-  get canUploadPack() {
-    return (
-      !this.isRigger &&
-      Boolean(this.clusterRegistries) &&
-      !this.upgradeTarget &&
-      isLocalPack(this.deployedPack)
-    );
-  }
-
-  @tracked isUploadingPack = false;
-
-  @action async uploadReleasePack(event) {
-    const file = event?.target?.files?.[0];
-    if (!file) return;
-    this.isUploadingPack = true;
-    try {
-      const r = await uploadPack(this.token, this.region, '', file);
-      const packs = r.body?.Registry?.Status?.Packs || [];
-      if (!packs.some((p) => p.Name === this.deployedPack?.Name)) {
-        this.notifications.add({
-          title: `${file.name} has no pack ${this.deployedPack?.Name}`,
-          color: 'critical',
-        });
-      } else {
-        this.notifications.add({
-          title: `${file.name} uploaded`,
-          color: 'success',
-        });
-      }
-      await this.loadRegistries();
-    } catch (e) {
-      this.notifications.add({
-        title: `${file.name} could not be uploaded`,
-        message: errorMessage(e),
-        color: 'critical',
-      });
-    } finally {
-      this.isUploadingPack = false;
-      if (event?.target) event.target.value = '';
-    }
-  }
-
-  @action openAddRegistry() {
-    this.registryError = null;
-    this.addingRegistry = { ...this.registrySuggestion };
-  }
-
-  @action closeAddRegistry() {
-    this.addingRegistry = null;
-  }
-
-  @action setAddRegistry(field, value) {
-    this.addingRegistry = { ...this.addingRegistry, [field]: value };
-  }
-
-  @action async confirmAddRegistry() {
-    const r = this.addingRegistry;
-    this.isAddingRegistry = true;
-    this.registryError = null;
-    try {
-      const res = await upsertPackRegistry(
-        this.token,
-        this.region,
-        r.name.trim(),
-        {
-          type: r.type,
-          source: r.source,
-          defaultRef: r.defaultRef.trim() || undefined,
-        }
-      );
-      const status = res.body?.Status || {};
-      if (status.Phase === 'Error') {
-        this.notifications.add({
-          title: `${r.name} added, but the sync failed`,
-          message: status.Message,
-          color: 'critical',
-        });
-      } else {
-        this.notifications.add({
-          title: `${r.name} added to the cluster`,
-          color: 'success',
-        });
-      }
-      this.addingRegistry = null;
-      await this.loadRegistries();
-    } catch (e) {
-      this.registryError = errorMessage(e);
-    } finally {
-      this.isAddingRegistry = false;
     }
   }
 

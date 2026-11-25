@@ -8,8 +8,8 @@ import {
   normalize,
   compareRevisions,
   signature,
-  valuesSchema,
-  upgradeCommand,
+  isReleaseKind,
+  RELEASE_KIND,
 } from 'nomad-ui/utils/releases';
 import {
   kindDocument,
@@ -220,41 +220,13 @@ module('Unit | Utility | phase 3 areas', function () {
     });
   });
 
-  test('release values: the root schema and the prepared upgrade command', function (assert) {
-    const revision = {
-      Revision: 3,
-      Spec: {
-        Pack: { Name: 'app', Version: '1.2.0', Registry: 'acme' },
-        VariablesSchemas: [
-          { Pack: 'app.redis', Schema: '{"type":"object"}' },
-          { Pack: 'app', Schema: '{"type":"object","required":["image"]}' },
-        ],
-      },
-    };
-    assert.deepEqual(valuesSchema(revision), {
-      type: 'object',
-      required: ['image'],
-    });
-    assert.strictEqual(valuesSchema({ Spec: {} }), null);
-
-    const command = upgradeCommand(
-      { Name: 'web', Namespace: 'team-a' },
-      revision,
-      { replicas: 2, image: "it's", ports: [80] }
-    );
-    assert.strictEqual(
-      command,
-      [
-        'norca pack run app',
-        "  --registry='acme'",
-        "  --ref='1.2.0'",
-        "  --name='web'",
-        "  --namespace='team-a'",
-        "  --var 'image=it'\\''s'",
-        "  --var 'ports=[80]'",
-        "  --var 'replicas=2'",
-      ].join(' \\\n')
-    );
+  test('the kinds of the releases are built in, the other kinds of their group are not', function (assert) {
+    assert.strictEqual(RELEASE_KIND, 'rigger.norca.io/Release');
+    assert.true(isReleaseKind('rigger.norca.io', 'Release'));
+    assert.true(isReleaseKind('rigger.norca.io', 'ReleaseRevision'));
+    assert.false(isReleaseKind('rigger.norca.io', 'Registry'));
+    assert.false(isReleaseKind('rigger.norca.io', 'Operation'));
+    assert.false(isReleaseKind('db.example.com', 'Release'));
   });
 
   test('object and kind documents for the editors', function (assert) {

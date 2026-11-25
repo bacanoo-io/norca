@@ -18,6 +18,7 @@ import {
   display,
   objectHealth,
 } from 'nomad-ui/utils/objects';
+import { isReleaseKind } from 'nomad-ui/utils/releases';
 import LocalList from 'nomad-ui/utils/local-list';
 import { allowsObject } from 'nomad-ui/utils/norca-acl';
 
@@ -42,7 +43,8 @@ export default class ObjectsList extends Component {
 
   get canCreate() {
     const k = this.kind;
-    if (!k || k.Group === 'packs.norca.io') return false;
+    // The release API writes the objects of the release kinds.
+    if (!k || isReleaseKind(k.Group, k.Kind)) return false;
     return allowsObject(
       this.token,
       this.targetNamespace,
@@ -89,7 +91,7 @@ export default class ObjectsList extends Component {
     const wanted = this.args.kind;
     return (
       this.kinds.find((k) => kindId(k) === wanted) ||
-      this.kinds.find((k) => k.Group !== 'packs.norca.io') ||
+      this.kinds.find((k) => !isReleaseKind(k.Group, k.Kind)) ||
       this.kinds[0] ||
       null
     );

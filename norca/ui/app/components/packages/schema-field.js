@@ -9,7 +9,7 @@ import { action } from '@ember/object';
 import { draftOf, isTextWidget } from 'nomad-ui/utils/pack-form';
 
 /**
- * One field of the pack install form (utils/pack-form), by its widget.
+ * One field of the install form (utils/pack-form), by its widget.
  * Object variables render their attributes as nested fields. Lists, maps
  * and JSON values are edited as text: @drafts keeps the text by field id
  * while it does not parse.
@@ -76,16 +76,7 @@ export default class PackagesSchemaField extends Component {
   }
 
   get help() {
-    const f = this.field;
-    if (this.isText) return this.textHelp;
-    if (f.secretPath) {
-      const where = `Written to the ${f.secretItem} item of the ${f.secretPath} Variable, never to the release.`;
-      const keep = this.args.isUpgrade
-        ? ' Leave empty to keep the stored value.'
-        : '';
-      return [f.description, where + keep].filter(Boolean).join(' ');
-    }
-    return f.description;
+    return this.isText ? this.textHelp : this.field.description;
   }
 
   get value() {

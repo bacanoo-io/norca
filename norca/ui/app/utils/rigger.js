@@ -261,8 +261,6 @@ export function riggerBackend({ token, registry, module }) {
   return {
     kind: 'rigger',
     noun: 'module',
-    hasAtomic: false,
-    hasDescription: false,
     hasAdopt: true,
     async load(region, version) {
       const r = await riggerModuleDetail(
@@ -448,8 +446,6 @@ export function riggerStackBackend({ token, registry, stack }) {
   return {
     kind: 'rigger-stack',
     noun: 'stack',
-    hasAtomic: false,
-    hasDescription: false,
     hasAdopt: true,
     hasReleaseName: false,
     applyLabel: 'Apply',

@@ -8,7 +8,7 @@ import { action } from '@ember/object';
 import { cellId, newRow, setCell } from 'nomad-ui/utils/pack-form';
 
 /**
- * A list of objects of the pack install form as a table (the object-list
+ * A list of objects of the install form as a table (the object-list
  * widget): a row per item, a column per attribute of the items, rows added
  * and removed. Every change sends the whole list to @onChange.
  *

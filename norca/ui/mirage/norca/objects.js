@@ -569,7 +569,7 @@ export function seedObjects(server) {
     Generation: 2,
     Owners: [
       {
-        Kind: 'packs.norca.io/Release',
+        Kind: 'rigger.norca.io/Release',
         Namespace: 'staging',
         Name: 'test-stack',
         ID: 'r-9',

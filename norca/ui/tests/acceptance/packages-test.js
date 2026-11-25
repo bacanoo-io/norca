@@ -4,27 +4,13 @@
  */
 
 /* eslint-disable qunit/require-expect */
-import {
-  click,
-  currentURL,
-  fillIn,
-  select,
-  triggerEvent,
-  visit,
-} from '@ember/test-helpers';
+import { click, currentURL, fillIn, select, visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
-import { seedReleases, revision } from 'nomad-ui/mirage/norca/releases';
-import { seedPacks } from 'nomad-ui/mirage/norca/packs';
-import {
-  useToken,
-  lastBody,
-  lastRequest,
-  setEditorText,
-  editorJSON,
-} from 'nomad-ui/tests/helpers/norca';
+import { seedReleases } from 'nomad-ui/mirage/norca/releases';
+import { useToken, lastBody, lastRequest } from 'nomad-ui/tests/helpers/norca';
 
 const RELEASE = '/packages/platform/postgres-operator';
 
@@ -38,10 +24,9 @@ module('Acceptance | packages', function (hooks) {
     server.create('node-pool');
     server.create('node');
     seedReleases(server);
-    seedPacks(server);
   });
 
-  test('the releases with pack, revision, status, drift and signature', async function (assert) {
+  test('the releases with package, revision, status, drift and signature', async function (assert) {
     useToken(null, 'management');
     await visit('/packages');
 
@@ -169,38 +154,32 @@ module('Acceptance | packages', function (hooks) {
       .exists({ count: 1 });
   });
 
-  test('values are edited against the variables schema and become an upgrade command', async function (assert) {
+  test('the values of the deployed revision are shown', async function (assert) {
     useToken(null, 'management');
     await visit(RELEASE);
-    await click('[data-test-edit-values]');
-    assert.dom('[data-test-values-editor]').exists();
-    const values = editorJSON();
-    assert.strictEqual(values.replicas, 3, 'the deployed revision 3');
-    await a11yAudit(assert, STRICT);
-
-    await setEditorText({ ...values, replicas: 8 });
-    assert
-      .dom('[data-test-editor-problem]')
-      .includesText('replicas: must be at most 5');
-
-    await setEditorText({ ...values, replicas: 4 });
-    await click('[data-test-editor-review-button]');
-    assert.dom('[data-test-editor-review] [data-test-text-diff]').exists();
-    await click('[data-test-editor-submit]');
-    assert.dom('[data-test-values-command-ready]').exists();
-    const command = document
-      .querySelector('[data-test-values-command] pre')
-      .textContent.trim();
-    assert.ok(
-      command.startsWith('norca pack run postgres-operator'),
-      'renders the same pack'
+    await click('[data-test-show-values]');
+    const values = JSON.parse(
+      document.querySelector('[data-test-release-values] pre').textContent
     );
-    assert.ok(command.includes("--name='postgres-operator'"));
-    assert.ok(command.includes("--namespace='platform'"));
-    assert.ok(command.includes("--var 'replicas=4'"));
+    assert.strictEqual(values.replicas, 3, 'the deployed revision 3');
+    assert
+      .dom('[data-test-release-values]')
+      .includesText('revision 3', 'the revision the values are of');
+    await a11yAudit(assert, STRICT);
+  });
+
+  test('a release of the pack manager is rolled back and uninstalled, not upgraded', async function (assert) {
+    useToken(null, 'management');
+    await visit(RELEASE);
+    assert
+      .dom('[data-test-release-pack-manager]')
+      .includesText('nothing upgrades this release');
+    assert.dom('[data-test-upgrade-release]').doesNotExist();
+    assert.dom('[data-test-rollback]').isEnabled();
+    assert.dom('[data-test-uninstall]').exists();
     assert.notOk(
-      lastRequest('PUT', '/v1/release/postgres-operator'),
-      'nothing is written by the UI'
+      server.pretender.handledRequests.find((r) => r.url.includes('pack-')),
+      'no request to the routes of the pack manager'
     );
   });
 
@@ -212,7 +191,7 @@ module('Acceptance | packages', function (hooks) {
           Capabilities: ['read-job'],
           Objects: [
             {
-              Kind: 'packs.norca.io/Release',
+              Kind: 'rigger.norca.io/Release',
               Policy: 'read',
               Capabilities: [],
             },
@@ -222,10 +201,10 @@ module('Acceptance | packages', function (hooks) {
     });
     await visit(RELEASE);
     assert.dom('[data-test-check-drift]').exists();
+    assert.dom('[data-test-show-values]').exists();
     assert.dom('[data-test-rollback]').doesNotExist();
     assert.dom('[data-test-uninstall]').doesNotExist();
     assert.dom('[data-test-run-tests]').doesNotExist();
-    assert.dom('[data-test-edit-values]').doesNotExist();
   });
 
   test('without releases the list says how to install a package', async function (assert) {
@@ -233,138 +212,5 @@ module('Acceptance | packages', function (hooks) {
     server.db.norcaReleases.remove();
     await visit('/packages');
     assert.dom('[data-test-ui-table-empty]').includesText('rigger install');
-  });
-
-  test('a release from a cluster registry is upgraded with its values', async function (assert) {
-    useToken(null, 'management');
-    // A pack installed by the servers (norca pack run on the servers, or a
-    // UI before Rigger): the catalog of the UI installs modules of Rigger.
-    await fetch('/v1/release/redis/deploy-pack?namespace=default', {
-      method: 'POST',
-      body: JSON.stringify({
-        Registry: 'builtin',
-        Pack: 'redis',
-        Version: '7.2.4',
-        Values: { auth_enabled: true },
-        Secrets: [{ Path: 'nomad/jobs/redis', Items: { password: 's3cret' } }],
-      }),
-    });
-    await visit('/packages/default/redis');
-
-    await click('[data-test-upgrade-release]');
-    assert
-      .dom('[data-test-upgrade-modal] [data-test-form-release-name]')
-      .isDisabled();
-    await click('[data-test-upgrade-modal] [data-test-tab="security"]');
-    assert
-      .dom('[data-test-pack-field="auth_enabled"] input')
-      .isChecked('the values of the release');
-    assert
-      .dom('[data-test-pack-field="redis_password"]')
-      .includesText('Leave empty to keep');
-    await click('[data-test-upgrade-modal] [data-test-tab="resources"]');
-    await fillIn('[data-test-pack-field="resources.memory"] input', '1024');
-    await click('[data-test-upgrade-modal] [data-test-btn-deploy]');
-
-    const body = lastBody('POST', '/v1/release/redis/deploy-pack');
-    assert.deepEqual(body.Values, {
-      auth_enabled: true,
-      resources: { cpu: 500, memory: 1024 },
-    });
-    assert.notOk(body.Secrets, 'the stored password is kept');
-    assert.dom('[data-test-upgrade-modal]').doesNotExist();
-
-    // Releases of CLI installs (a registry URL) are upgraded with the CLI.
-    await visit(RELEASE);
-    assert.dom('[data-test-upgrade-release]').doesNotExist();
-  });
-
-  test('a release installed with the CLI is upgraded after its registry is added', async function (assert) {
-    useToken(null, 'management');
-    // norca pack run web-app --registry=apps-local, from an OCI registry.
-    const pack = {
-      name: 'web-app',
-      version: '1.2.0',
-      registry: 'apps-local',
-      source: 'oci://ghcr.io/example/packs:1.2.0',
-      ref: '1.2.0',
-    };
-    server.db.norcaReleases.insert({
-      Region: 'global',
-      ID: 'rel-web',
-      Namespace: 'default',
-      Name: 'web',
-      Spec: { pack, revision: 1, maxHistory: 10, atomic: true },
-      Status: { phase: 'deployed', revision: 1, resources: [], conditions: [] },
-      History: [
-        revision('default', 'web', 1, '1.2.0', {
-          spec: { pack, values: { image: 'nginx:1' } },
-          status: { phase: 'deployed', hooks: [] },
-        }),
-      ],
-      Events: [],
-      Drift: [],
-    });
-
-    await visit('/packages/default/web');
-    assert.dom('[data-test-upgrade-release]').doesNotExist();
-    await click('[data-test-add-release-registry]');
-    assert.dom('[data-test-add-registry-name]').hasValue('apps-local');
-    assert.dom('[data-test-add-registry-ref]').hasValue('1.2.0');
-    assert
-      .dom('[data-test-add-registry-source]')
-      .hasValue('oci://ghcr.io/example/packs');
-    await click('[data-test-add-registry-confirm]');
-    assert.deepEqual(lastBody('POST', '/v1/pack-registry'), {
-      Name: 'apps-local',
-      Spec: {
-        type: 'oci',
-        source: 'oci://ghcr.io/example/packs',
-        defaultRef: '1.2.0',
-      },
-    });
-
-    await click('[data-test-upgrade-release]');
-    assert
-      .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
-      .hasValue('nginx:1', 'the values of the CLI install');
-  });
-
-  test('a release from a local directory is upgraded after its pack is uploaded', async function (assert) {
-    useToken(null, 'management');
-    const pack = {
-      name: 'web-app',
-      version: '1.2.0',
-      registry: '<<local folder>>',
-      path: '/home/ops/packs/web-app',
-    };
-    server.db.norcaReleases.insert({
-      Region: 'global',
-      ID: 'rel-local',
-      Namespace: 'default',
-      Name: 'local-web',
-      Spec: { pack, revision: 1, maxHistory: 10, atomic: true },
-      Status: { phase: 'deployed', revision: 1, resources: [], conditions: [] },
-      History: [
-        revision('default', 'local-web', 1, '1.2.0', {
-          spec: { pack, values: { image: 'nginx:1' } },
-          status: { phase: 'deployed', hooks: [] },
-        }),
-      ],
-      Events: [],
-      Drift: [],
-    });
-
-    await visit('/packages/default/local-web');
-    assert.dom('[data-test-upgrade-release]').doesNotExist();
-    assert.dom('[data-test-add-release-registry]').doesNotExist();
-    await triggerEvent('[data-test-upload-release-pack] input', 'change', {
-      files: [new File(['archive'], 'web-app-1.2.0.tgz')],
-    });
-    await click('[data-test-upgrade-release]');
-    assert
-      .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
-      .hasValue('nginx:1');
-    assert.dom('[data-test-upgrade-modal]').includesText('uploads registry');
   });
 });

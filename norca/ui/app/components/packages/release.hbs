@@ -13,27 +13,14 @@
     <:actions>
       {{#if this.release}}
         <Ui::Button @icon="refresh" @isLoading={{eq this.busy "drift"}} data-test-check-drift {{on "click" this.runDrift}}>Check drift</Ui::Button>
+        {{#if this.deployedRevision}}
+          <Ui::Button @icon="code" data-test-show-values {{on "click" this.openValues}}>Values</Ui::Button>
+        {{/if}}
         {{#if this.canWrite}}
           <Ui::Button @icon="player-play" @isLoading={{eq this.busy "test"}} data-test-run-tests {{on "click" this.runTests}}>Run tests</Ui::Button>
           <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
-          {{#if this.deployedRevision}}
-            {{#unless this.isRigger}}
-              <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
-            {{/unless}}
-            {{#if this.upgradeTarget}}
-              <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
-            {{else if this.registrySuggestion}}
-              <Ui::Button @icon="database" data-test-add-release-registry {{on "click" this.openAddRegistry}}>Add its registry to upgrade</Ui::Button>
-            {{else if this.canUploadPack}}
-              <Ui::FileButton
-                @label={{if this.isUploadingPack "Uploading..." "Upload the pack to upgrade"}}
-                @icon="upload"
-                @accept=".tar,.tgz,.gz,application/gzip,application/x-tar"
-                @onChange={{this.uploadReleasePack}}
-                title="The pack was installed from a local directory: upload it as a tar.gz of its directory or a bundle"
-                data-test-upload-release-pack
-              />
-            {{/if}}
+          {{#if (and this.deployedRevision this.riggerTarget)}}
+            <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
           {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>
         {{/if}}
@@ -60,10 +47,18 @@
           {{#each this.driftEntries as |d|}}
             <div><span class="font-monospace">{{d.Type}} {{d.Namespace}}/{{d.Name}}</span>: {{d.Reason}}</div>
           {{/each}}
-          Roll back to the revision, or take the change into the pack variables and upgrade.
+          Roll back to the revision{{#unless this.isPack}}, or take the change into the variables and upgrade{{/unless}}.
         </Ui::Alert>
       {{else if this.drift}}
         <Ui::Alert @tone="success" class="mb-3" data-test-release-in-sync>The resources match revision {{this.drift.Revision}}.</Ui::Alert>
+      {{/if}}
+
+      {{#if this.isPack}}
+        <Ui::Alert @tone="info" @title="A release of the pack manager" class="mb-3" data-test-release-pack-manager>
+          Rigger replaced the pack manager, so nothing upgrades this release. It can be rolled back and uninstalled.
+          To upgrade what it runs, install its module from the Catalog under the same release name with
+          Take over the release.
+        </Ui::Alert>
       {{/if}}
 
       {{#if this.owner}}
@@ -134,7 +129,7 @@
             </div>
           </div>
           {{#if this.comparison}}
-            <p data-test-compare-pack>Pack: {{this.comparison.pack}}. {{this.comparison.changedValues}} changed {{if (eq this.comparison.changedValues 1) "value" "values"}}.</p>
+            <p data-test-compare-pack>{{if this.isRigger "Module" "Pack"}}: {{this.comparison.pack}}. {{this.comparison.changedValues}} changed {{if (eq this.comparison.changedValues 1) "value" "values"}}.</p>
             <Ui::Table
               @caption="Values"
               @columns={{array (hash key="key" label="Variable") (hash key="a" label="From") (hash key="b" label="To")}}
@@ -267,66 +262,29 @@
     </Ui::Confirm>
   {{/if}}
 
-  {{#if this.editingValues}}
-    <Packages::ValuesEditor @release={{this.release}} @revision={{this.deployedRevision}} @onClose={{this.closeValues}} />
-  {{/if}}
-
-  {{#if this.addingRegistry}}
-    <Ui::Modal @title="Add the registry of {{this.release.Name}}" @size="lg" @onClose={{this.closeAddRegistry}} data-test-add-registry-modal>
+  {{#if this.showingValues}}
+    <Ui::Modal @title="Values of {{this.release.Name}}" @size="lg" @onClose={{this.closeValues}} data-test-release-values>
       <p class="text-secondary">
-        The release was installed with the CLI from this registry. Added to the cluster, the servers fetch it,
-        and the release can be upgraded from it here.
+        The variable values of revision {{this.deployedRevision.Revision}}, the deployed one. Sensitive values are never
+        shown here.
       </p>
-      {{#if this.registryError}}
-        <Ui::Alert @tone="danger" class="mb-3" data-test-add-registry-error>{{this.registryError}}</Ui::Alert>
-      {{/if}}
-      <div class="row g-3">
-        <div class="col-md-6">
-          <Ui::Field @label="Name" @help="The name of the cluster registry." as |f|>
-            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.name}} @onInput={{fn this.setAddRegistry "name"}} data-test-add-registry-name />
-          </Ui::Field>
-        </div>
-        <div class="col-md-6">
-          <Ui::Field @label="Reference" @help="The tag or branch to fetch; latest when empty." as |f|>
-            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.defaultRef}} @onInput={{fn this.setAddRegistry "defaultRef"}} @placeholder="latest" data-test-add-registry-ref />
-          </Ui::Field>
-        </div>
-      </div>
-      <div class="row g-3">
-        <div class="col-md-4">
-          <Ui::Field @label="Type" as |f|>
-            <Ui::Input @id={{f.id}} @value={{if (eq this.addingRegistry.type "oci") "OCI registry" "Git repository"}} @readonly={{true}} />
-          </Ui::Field>
-        </div>
-        <div class="col-md-8">
-          <Ui::Field @label="Source" as |f|>
-            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.source}} @readonly={{true}} @monospace={{true}} data-test-add-registry-source />
-          </Ui::Field>
-        </div>
-      </div>
-      <p class="small text-secondary mt-2">
-        A private source needs its credentials: add the registry on the Registries tab of Packages instead.
-      </p>
-      <div class="d-flex justify-content-end gap-2 pt-3 border-top">
-        <Ui::Button @variant="ghost" {{on "click" this.closeAddRegistry}}>Cancel</Ui::Button>
-        <Ui::Button @variant="primary" @icon="check" @isLoading={{this.isAddingRegistry}} {{on "click" this.confirmAddRegistry}} data-test-add-registry-confirm>Add and sync</Ui::Button>
-      </div>
+      <Ui::CodeBlock @label="Variable values" @code={{this.deployedValues}} @copy={{true}} @wrap={{true}} />
     </Ui::Modal>
   {{/if}}
 
-  {{#if this.upgrading}}
+  {{#if (and this.upgrading this.riggerTarget)}}
     <Ui::Modal @title="Upgrade {{this.release.Name}}" @size="xl" @onClose={{this.closeUpgrade}} data-test-upgrade-modal>
       <p class="text-secondary">
-        The servers render {{this.upgradeTarget.name}} of the {{this.upgradeTarget.registry}} registry with these values and
-        apply it as the next revision. Pick another version to upgrade the {{if this.isRigger "module" "pack"}} itself.
-        {{#if this.isRigger}}Sensitive values are not kept with a release: enter them again, or the module takes its default.{{/if}}
+        The servers render {{this.riggerTarget.name}} of the {{this.riggerTarget.registry}} registry with these values and
+        apply it as the next revision. Pick another version to upgrade the module itself.
+        Sensitive values are not kept with a release: enter them again, or the module takes its default.
       </p>
       <Packages::SchemaForm
         @backend={{this.upgradeBackend}}
         @isUpgrade={{true}}
-        @registry={{this.upgradeTarget.registry}}
-        @pack={{this.upgradeTarget.name}}
-        @version={{this.upgradeTarget.version}}
+        @registry={{this.riggerTarget.registry}}
+        @pack={{this.riggerTarget.name}}
+        @version={{this.riggerTarget.version}}
         @releaseName={{this.release.Name}}
         @namespace={{this.release.Namespace}}
         @region={{this.region}}

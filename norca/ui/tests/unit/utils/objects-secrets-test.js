@@ -83,11 +83,21 @@ module('Unit | Utility | objects and secrets', function () {
     assert.notOk(noKind.route, 'without the kind there is no link');
 
     const release = ownerFromMeta({
-      'norca.owner': 'web/crd/packs-norca-io/Release/shop',
-      'norca.owner.kind': 'packs.norca.io/Release',
+      'norca.owner': 'web/crd/rigger-norca-io/Release/shop',
+      'norca.owner.kind': 'rigger.norca.io/Release',
     });
     assert.strictEqual(release.kind, 'release');
     assert.deepEqual(release.models, ['web', 'shop']);
+
+    const operation = ownerFromMeta({
+      'norca.owner': 'web/crd/rigger-norca-io/Operation/apply-1',
+      'norca.owner.kind': 'rigger.norca.io/Operation',
+    });
+    assert.strictEqual(
+      operation.route,
+      'objects.object',
+      'another kind of the group is an object'
+    );
 
     assert.strictEqual(
       ownerFromMeta({ 'pack.release': 'shop', 'pack.release_namespace': 'web' })

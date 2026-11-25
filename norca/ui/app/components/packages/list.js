@@ -23,10 +23,10 @@ import LocalList from 'nomad-ui/utils/local-list';
 const POLL_MS = 30000;
 
 /**
- * The installed packages: the pack releases of the regions and namespaces
- * in scope with pack and version, revision, phase, drift, regions and
- * signature. Installing and upgrading are done with the norca pack CLI,
- * which renders the pack.
+ * The installed packages: the releases of the regions and namespaces in
+ * scope with package and version, revision, phase, drift, regions and
+ * signature, and the tabs of Rigger (stacks, catalog, registries), which
+ * installs and upgrades them.
  */
 export default class PackagesList extends Component {
   @service token;
@@ -84,7 +84,7 @@ export default class PackagesList extends Component {
 
   columns = [
     { key: 'name', label: 'Release', sortable: true, hideable: false },
-    { key: 'pack', label: 'Pack', sortable: true },
+    { key: 'pack', label: 'Package', sortable: true },
     { key: 'revision', label: 'Revision', sortable: true },
     { key: 'phase', label: 'Status', sortable: true },
     { key: 'driftLabel', label: 'Drift', sortable: true },

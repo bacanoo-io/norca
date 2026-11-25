@@ -116,10 +116,6 @@ module('Acceptance | rigger catalog', function (hooks) {
 
     assert.dom('[data-test-form-release-name]').hasValue('redis');
     assert
-      .dom('[data-test-form-atomic]')
-      .doesNotExist('Rigger has no atomic mode of its own');
-    assert.dom('[data-test-form-description]').doesNotExist();
-    assert
       .dom('[data-test-form-stored-secrets]')
       .includesText('nomad/jobs/redis#tls_key');
 
@@ -332,10 +328,18 @@ module('Acceptance | rigger catalog', function (hooks) {
     assert.dom('[data-test-release-details]').includesText('Rigger');
     assert.dom('[data-test-release-details]').includesText('norca/redis');
     assert.dom('[data-test-release-details]').includesText('global');
-    assert
-      .dom('[data-test-edit-values]')
-      .doesNotExist('no pack command for a module');
+    assert.dom('[data-test-release-pack-manager]').doesNotExist();
     assert.dom('[data-test-release-owner]').doesNotExist();
+
+    await click('[data-test-show-values]');
+    assert.deepEqual(
+      JSON.parse(
+        document.querySelector('[data-test-release-values] pre').textContent
+      ),
+      { auth_enabled: true },
+      'the values of the release, without the sensitive one'
+    );
+    await click('[data-test-release-values] [data-test-modal-close]');
 
     await click('[data-test-upgrade-release]');
     assert

@@ -13,6 +13,8 @@
 // the owner, which the link to the object needs (the dashed group can't be
 // turned back into the group).
 
+import { RELEASE_KIND } from 'nomad-ui/utils/releases';
+
 const RELEASE = 'pack.release';
 const RELEASE_NAMESPACE = 'pack.release_namespace';
 const OBJECT = 'norca.owner';
@@ -57,7 +59,7 @@ export function ownerFromMeta(meta) {
       name: parsed.name,
       namespace: parsed.namespace,
     };
-    if (parsed.group === 'packs.norca.io' && parsed.kindName === 'Release') {
+    if (`${parsed.group}/${parsed.kindName}` === RELEASE_KIND) {
       return {
         ...owner,
         kind: 'release',

@@ -6,7 +6,6 @@
 import { Response } from 'miragejs';
 import { collection, body, plain, error, json } from './util';
 import { revision } from './releases';
-import { REDIS_SCHEMA, APP_SCHEMA } from './packs';
 
 // Mirage routes of Rigger on the servers (norca/command/agent/
 // rigger_endpoint.go): the registries are objects of the kind
@@ -46,27 +45,154 @@ const KIND_SCHEMA = JSON.stringify({
   },
 });
 
-// The redis module of Rigger: the form of the redis pack, its password a
-// sensitive value, and a TLS key the job reads from the secret store.
-const RIGGER_REDIS_SCHEMA = (() => {
-  const s = JSON.parse(JSON.stringify(REDIS_SCHEMA));
-  s.properties.redis_password = {
-    ...s.properties.redis_password,
-    'x-ui-secret': true,
-  };
-  delete s.properties.redis_password['x-ui-widget'];
-  delete s.properties.redis_password['x-ui-secret-path'];
-  delete s.properties.redis_password['x-ui-secret-item'];
-  s.properties.tls_key = {
-    type: 'string',
-    title: 'TLS key',
-    'x-ui-tab': 'security',
-    'x-ui-widget': 'secret',
-    'x-ui-secret-path': 'nomad/jobs/redis',
-    'x-ui-secret-item': 'tls_key',
-  };
-  return s;
-})();
+// The form schema of the redis module: its password is a sensitive value,
+// and the job reads a TLS key from the secret store.
+const REDIS_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  type: 'object',
+  title: 'redis',
+  'x-ui-tabs': [
+    { id: 'general', title: 'General', icon: 'sliders' },
+    { id: 'resources', title: 'Resources & Scaling', icon: 'cpu' },
+    { id: 'security', title: 'Security & Secrets', icon: 'lock' },
+  ],
+  properties: {
+    job_name: {
+      type: 'string',
+      title: 'Job Name',
+      default: 'redis',
+      'x-ui-tab': 'general',
+      'x-ui-group': 'Identity',
+      'x-ui-order': 1,
+    },
+    mode: {
+      type: 'string',
+      title: 'Topology Mode',
+      enum: ['standalone', 'replica', 'sentinel'],
+      'x-ui-enum-labels': {
+        standalone: 'Standalone',
+        replica: 'Primary + Replicas',
+        sentinel: 'High Availability (Sentinel)',
+      },
+      default: 'standalone',
+      'x-ui-tab': 'general',
+      'x-ui-group': 'Identity',
+      'x-ui-widget': 'segmented',
+      'x-ui-order': 2,
+    },
+    namespace: {
+      type: 'string',
+      title: 'Namespace',
+      default: 'default',
+      'x-ui-tab': 'general',
+      'x-ui-group': 'Placement',
+      'x-ui-widget': 'namespace-select',
+      'x-ui-order': 3,
+    },
+    datacenters: {
+      type: 'array',
+      title: 'Datacenters',
+      items: { type: 'string' },
+      default: ['*'],
+      'x-ui-tab': 'general',
+      'x-ui-group': 'Placement',
+      'x-ui-widget': 'datacenter-multiselect',
+      'x-ui-order': 4,
+    },
+    replicas: {
+      type: 'integer',
+      title: 'Replicas',
+      minimum: 1,
+      maximum: 9,
+      default: 2,
+      'x-ui-tab': 'resources',
+      'x-ui-group': 'Capacity & Scaling',
+      'x-ui-widget': 'slider',
+      'x-ui-unit': 'replicas',
+      'x-ui-show-if': { field: 'mode', equals: 'replica' },
+      'x-ui-order': 1,
+    },
+    resources: {
+      type: 'object',
+      title: 'Resources',
+      properties: {
+        cpu: {
+          type: 'number',
+          title: 'CPU',
+          'x-ui-unit': 'MHz',
+          'x-ui-presets': [250, 500, 1000],
+          'x-ui-order': 10,
+        },
+        memory: {
+          type: 'number',
+          title: 'Memory',
+          'x-ui-unit': 'MiB',
+          'x-ui-presets': [256, 512, 1024],
+          'x-ui-order': 20,
+        },
+      },
+      default: { cpu: 500, memory: 256 },
+      'x-ui-tab': 'resources',
+      'x-ui-group': 'Capacity & Scaling',
+      'x-ui-order': 2,
+    },
+    auth_enabled: {
+      type: 'boolean',
+      title: 'Require a password',
+      default: false,
+      'x-ui-tab': 'security',
+      'x-ui-group': 'Authentication',
+      'x-ui-widget': 'switch',
+      'x-ui-order': 1,
+    },
+    redis_password: {
+      type: 'string',
+      title: 'Redis Password',
+      'x-ui-tab': 'security',
+      'x-ui-group': 'Authentication',
+      'x-ui-secret': true,
+      'x-ui-show-if': { field: 'auth_enabled', equals: true },
+      'x-ui-order': 2,
+    },
+    extra_env: {
+      type: 'object',
+      title: 'Extra Env',
+      additionalProperties: { type: 'string' },
+      default: {},
+      'x-ui-tab': 'general',
+      'x-ui-group': 'Advanced',
+      'x-ui-widget': 'key-value',
+      'x-ui-order': 9,
+    },
+    tls_key: {
+      type: 'string',
+      title: 'TLS key',
+      'x-ui-tab': 'security',
+      'x-ui-widget': 'secret',
+      'x-ui-secret-path': 'nomad/jobs/redis',
+      'x-ui-secret-item': 'tls_key',
+    },
+  },
+};
+
+const APP_SCHEMA = {
+  type: 'object',
+  title: 'web-app',
+  'x-ui-tabs': [
+    { id: 'general', label: 'General', icon: 'settings', order: 10 },
+  ],
+  properties: {
+    image: {
+      type: 'string',
+      title: 'Image',
+      'x-ui-tab': 'general',
+      'x-ui-group': 'General Configuration',
+      'x-ui-widget': 'text',
+      'x-ui-order': 10,
+    },
+  },
+  required: ['image'],
+};
 
 function moduleOf(namespace, name, versions, extra = {}) {
   return { kind: 'module', namespace, name, versions, ...extra };
@@ -81,7 +207,7 @@ export const MODULES = {
       category: 'database',
       keywords: ['cache', 'kv'],
       license: 'BSD-3-Clause',
-      schema: RIGGER_REDIS_SCHEMA,
+      schema: REDIS_SCHEMA,
       readme: '# redis\n\nIn-memory data store.\n',
       icon: true,
     }),

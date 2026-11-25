@@ -346,6 +346,44 @@ module('Acceptance | objects and type definitions', function (hooks) {
     assert.dom('[data-test-new-kind]').doesNotExist();
   });
 
+  test('the kinds of the releases are built in, the other kinds of their group are not', async function (assert) {
+    for (const [Kind, Namespaced] of [
+      ['Release', true],
+      ['Registry', false],
+    ]) {
+      server.db.norcaObjectKinds.insert({
+        Group: 'rigger.norca.io',
+        Kind,
+        Namespaced,
+        Schema: JSON.stringify({ type: 'object' }),
+      });
+    }
+
+    await visit('/kinds');
+    assert
+      .dom(
+        '[data-test-kind-row="rigger.norca.io/Release"] [data-test-kind-package]'
+      )
+      .hasText('built-in');
+    assert
+      .dom(
+        '[data-test-kind-row="rigger.norca.io/Registry"] [data-test-kind-package]'
+      )
+      .doesNotIncludeText('built-in');
+
+    await visit('/kinds/rigger.norca.io/Release');
+    assert.dom('[data-test-kind-owner]').includesText('built-in');
+    assert.dom('[data-test-edit-kind]').doesNotExist();
+    await visit('/kinds/rigger.norca.io/Registry');
+    assert.dom('[data-test-edit-kind]').exists();
+
+    await visit('/objects?kind=rigger.norca.io%2FRelease');
+    assert.dom('[data-test-kind-select]').hasValue('rigger.norca.io/Release');
+    assert.dom('[data-test-new-object]').doesNotExist();
+    await visit('/objects?kind=rigger.norca.io%2FRegistry');
+    assert.dom('[data-test-new-object]').exists();
+  });
+
   test('a token without admission rights does not see the menu item', async function (assert) {
     useToken({
       Namespaces: [{ Name: 'default', Capabilities: ['list-jobs'] }],

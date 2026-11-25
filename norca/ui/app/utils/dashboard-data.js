@@ -430,7 +430,7 @@ export function buildWarnings(summaries) {
             : `A hook of release ${r.name} failed in ${where}.`,
         text:
           r.kind === 'drift'
-            ? 'Its resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.'
+            ? 'Its resources were changed outside the release. Roll back, or take the change into the variables and upgrade.'
             : 'Look at the hook job and its allocations, fix the cause and upgrade or roll back the release.',
         route: 'packages.release',
         models: [r.namespace || 'default', r.name],

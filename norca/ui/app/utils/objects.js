@@ -5,6 +5,7 @@
 
 import { apiRequest } from 'nomad-ui/utils/norca-api';
 import { conditionTone, worstCondition } from 'nomad-ui/utils/conditions';
+import { RELEASE_KIND } from 'nomad-ui/utils/releases';
 
 // Object kinds (type definitions) and custom objects (K8s item 8). A kind
 // defines the schema, CEL rules, list columns, the scale subresource and
@@ -174,7 +175,7 @@ export function ownerLink(owner, object) {
       route: 'jobs.job.index',
       models: [`${owner.Name}@${namespace || 'default'}`],
     };
-  if (owner.Kind === 'packs.norca.io/Release')
+  if (owner.Kind === RELEASE_KIND)
     return {
       label: `Release ${owner.Name}`,
       route: 'packages.release',

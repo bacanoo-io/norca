@@ -12,7 +12,7 @@ import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
 import { listKinds, listObjects, kindId } from 'nomad-ui/utils/objects';
-import { listReleases } from 'nomad-ui/utils/releases';
+import { listReleases, isReleaseKind } from 'nomad-ui/utils/releases';
 import LocalList from 'nomad-ui/utils/local-list';
 
 // The release that registered each kind, from the resources of the
@@ -96,7 +96,7 @@ export default class KindsList extends Component {
       return {
         ...k,
         id,
-        builtIn: k.Group === 'packs.norca.io',
+        builtIn: isReleaseKind(k.Group, k.Kind),
         scope: k.Namespaced ? 'namespace' : 'cluster',
         rules: (k.Rules || []).length,
         columns: (k.Columns || []).length,

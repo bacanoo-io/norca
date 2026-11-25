@@ -5,7 +5,7 @@
 
 import { collection, body, plain, error, json, inNamespace } from './util';
 
-// Mirage routes of the pack release API. norcaReleases holds Release JSON
+// Mirage routes of the release API. norcaReleases holds Release JSON
 // plus Region, History ([ReleaseRevision], newest first), Events (the object
 // event log of the release) and Drift (the drift entries a check finds).
 // The typed views use camelCase keys inside Spec and Status, as an agent
@@ -218,7 +218,7 @@ export default function registerReleaseRoutes(server) {
   });
 
   server.get(
-    '/object/packs.norca.io/Release/:name/events',
+    '/object/rigger.norca.io/Release/:name/events',
     function ({ db }, request) {
       const r = find(db, request);
       if (!r) return error(404, 'object not found');
