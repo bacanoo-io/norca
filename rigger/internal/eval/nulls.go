@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/dynblock"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // withoutNulls is the body of a job as the decoder of the host is given it:
@@ -34,11 +35,12 @@ type withoutNulls struct {
 	source hcl.Body
 }
 
-// jobBody is the body of a job for the decoder: its dynamic blocks
-// expanded, so that every attribute is evaluated with the iterators of its
-// blocks, then without its nulls.
+// jobBody is the body of a job for the decoder: read as Norca's job decoder
+// reads a job file, with the blocks of its free-form parts as values
+// (freeForm), its dynamic blocks expanded, so that every attribute is
+// evaluated with the iterators of its blocks, then without its nulls.
 func jobBody(body hcl.Body, ctx *hcl.EvalContext) hcl.Body {
-	return &withoutNulls{body: dynblock.Expand(body, ctx), ctx: ctx, source: body}
+	return &withoutNulls{body: dynblock.Expand(asFreeForm(body), ctx), ctx: ctx, source: body}
 }
 
 func dropNulls(body hcl.Body, ctx *hcl.EvalContext) hcl.Body {
@@ -78,7 +80,7 @@ func (b *withoutNulls) widen(schema *hcl.BodySchema) (*hcl.BodySchema, map[strin
 			continue
 		}
 
-		v, diags := a.Expr.Value(b.ctx)
+		v, diags := objectValue(a, b.ctx)
 		if diags.HasErrors() || v.IsNull() || !v.IsWhollyKnown() || (!v.Type().IsObjectType() && !v.Type().IsMapType()) {
 			continue
 		}
@@ -123,7 +125,7 @@ func (b *withoutNulls) blocksOf(content *hcl.BodyContent, asBlocks map[string]bo
 
 		delete(content.Attributes, name)
 
-		v, _ := a.Expr.Value(b.ctx)
+		v, _ := objectValue(a, b.ctx)
 
 		body := &mapBody{attrs: hcl.Attributes{}, rng: a.Range}
 
@@ -242,4 +244,25 @@ func (b *withoutNulls) attributes(attrs hcl.Attributes) hcl.Attributes {
 	}
 
 	return out
+}
+
+// objectValue is the value of an attribute that may stand for a block: the
+// object it is written as. A free-form body (freeForm) gives an attribute
+// written as an object constructor as a tuple of that object, as the job
+// decoder of Norca reads one; for a block the decoder takes by its schema
+// the object itself is meant.
+func objectValue(a *hcl.Attribute, ctx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	v, diags := a.Expr.Value(ctx)
+
+	wrapped := hcl.UnwrapExpressionUntil(a.Expr, func(e hcl.Expression) bool {
+		_, ok := e.(*tupleOfOne)
+
+		return ok
+	})
+	if _, ok := wrapped.(*tupleOfOne); ok && !diags.HasErrors() && v.IsKnown() && !v.IsNull() &&
+		v.Type().IsTupleType() && v.LengthInt() == 1 {
+		return v.Index(cty.NumberIntVal(0)), diags
+	}
+
+	return v, diags
 }
