@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"maps"
@@ -301,6 +302,35 @@ func TestEngine_ReadStack_Examples(t *testing.T) {
 				t.Errorf("the metadata names the stack %q %q, the rigger block %q", md.Name, md.Version, s.Name())
 			}
 		})
+	}
+}
+
+// What rigger show describes of a stack without evaluating it: its
+// variables, its outputs and its module blocks with their sources and
+// constraints. A module the lock file does not pin has no version.
+func TestStack_Summary(t *testing.T) {
+	t.Parallel()
+
+	fsys := stackFiles(twoReleases + "\nmodule \"cache\" {\n  source  = \"builtin/redis\"\n  version = \"~> 0.4\"\n}\n")
+	fsys["s/outputs.hcl"] = &fstest.MapFile{Data: []byte("output \"service\" {\n  value       = module.db.service\n  description = \"The database\"\n}\n")}
+
+	s, diags := engine(t).ReadStack(t.Context(), fsys, "s")
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if got := fmt.Sprintf("%+v", s.Variables()); got != "[{Name:size Description: Type:any Default:1 Required:false Sensitive:false}]" {
+		t.Errorf("Variables() = %s", got)
+	}
+
+	if got := fmt.Sprintf("%+v", s.Outputs()); got != "[{Name:service Description:The database Sensitive:false}]" {
+		t.Errorf("Outputs() = %s", got)
+	}
+
+	want := "[{Release:app Source:./modules/app Constraint: Version:} {Release:db Source:./modules/db Constraint: Version:} " +
+		"{Release:cache Source:builtin/redis Constraint:~> 0.4 Version:}]"
+	if got := fmt.Sprintf("%+v", s.Modules()); got != want {
+		t.Errorf("Modules() = %s, want %s", got, want)
 	}
 }
 

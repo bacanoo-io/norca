@@ -148,9 +148,32 @@ func Repository(fsys fs.FS, tags []string) ([]Item, error) {
 		}
 	}
 
+	return directoryItems(fsys, []index.Kind{index.KindModule, index.KindStack}, func(name string, _ module.Metadata) []string {
+		return slices.Clone(versions[name])
+	})
+}
+
+// Builtin lists the modules built into a program (package builtin): the
+// directories modules/<name> with a metadata.hcl, each of the one version
+// its metadata says. A module whose metadata does not say one, or does not
+// read, is listed with none.
+func Builtin(fsys fs.FS) ([]Item, error) {
+	return directoryItems(fsys, []index.Kind{index.KindModule}, func(_ string, md module.Metadata) []string {
+		if md.Version == "" {
+			return nil
+		}
+
+		return []string{md.Version}
+	})
+}
+
+// directoryItems lists the modules and stacks of the kinds in the
+// directories of a registry repository, with the versions versionsOf
+// gives a name and its metadata (empty when it does not read).
+func directoryItems(fsys fs.FS, kinds []index.Kind, versionsOf func(name string, md module.Metadata) []string) ([]Item, error) {
 	var out []Item
 
-	for _, kind := range []index.Kind{index.KindModule, index.KindStack} {
+	for _, kind := range kinds {
 		dirs, err := fs.Glob(fsys, path.Join(topDir(kind), "*", "metadata.hcl"))
 		if err != nil {
 			return nil, err
@@ -158,14 +181,19 @@ func Repository(fsys fs.FS, tags []string) ([]Item, error) {
 
 		for _, file := range dirs {
 			name := path.Base(path.Dir(file))
-			item := Item{Kind: kind, Name: name, Versions: slices.Clone(versions[name])}
-			sortVersions(item.Versions)
 
 			// What it says of itself at the commit; one that does not read
 			// is still listed, as a load names its error.
-			if md, diags := lang.ReadMetadata(fsys, path.Dir(file)); !diags.HasErrors() {
-				item.Description, item.Category, item.Keywords, item.License = md.Description, md.Category, md.Keywords, md.License
+			md, diags := lang.ReadMetadata(fsys, path.Dir(file))
+			if diags.HasErrors() {
+				md = module.Metadata{}
 			}
+
+			item := Item{
+				Kind: kind, Name: name, Versions: versionsOf(name, md),
+				Description: md.Description, Category: md.Category, Keywords: md.Keywords, License: md.License,
+			}
+			sortVersions(item.Versions)
 
 			out = append(out, item)
 		}

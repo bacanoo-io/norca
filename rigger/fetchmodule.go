@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 
@@ -201,6 +202,84 @@ func (e *Engine) fetchNewest(ctx context.Context, req source.Request, constraint
 	mo := moduleOrigin{module: fm.module, source: req.Source}
 
 	return &Module{mod: fm.module, fsys: fm.module.FS, origin: &mo, fetched: o}, fm, nil
+}
+
+// ModuleVersions returns the versions of the module of an address that
+// FetchNewestModule chooses among, the newest first: of the global
+// registry those its index lists but the blocked ones, of git and OCI the
+// tags that are versions. A built-in module has one, the version the
+// program ships. An address of a directory is refused (ErrDirectorySource);
+// a module the global registry does not list is an error that matches
+// fs.ErrNotExist.
+func (e *Engine) ModuleVersions(ctx context.Context, address string) (_ []string, retErr error) {
+	defer e.recoverErr(ctx, "module.versions", &retErr)
+
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "module.versions", "source", source.Redact(address))
+
+	out, err := e.moduleVersions(ctx, address)
+	span.End(ctx, err)
+
+	return out, err
+}
+
+func (e *Engine) moduleVersions(ctx context.Context, address string) ([]string, error) {
+	req, err := source.Parse(address, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Kind == source.KindDirectory {
+		return nil, fmt.Errorf("%s: %w", source.Redact(address), ErrDirectorySource)
+	}
+
+	if e.fetcher == nil {
+		return nil, ErrNoFetcher
+	}
+
+	if req.Kind == source.KindBuiltin {
+		fm, err := e.fetchModule(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		return []string{fm.origin.Version}, nil
+	}
+
+	available, err := e.fetcher.Versions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return versionsNewestFirst(available), nil
+}
+
+// versionsNewestFirst returns the versions of available that are versions,
+// each once, the newest first.
+func versionsNewestFirst(available []source.Available) []string {
+	type parsed struct {
+		text string
+		v    version.Version
+	}
+
+	var vs []parsed
+
+	for _, a := range available {
+		v, err := version.Parse(a.Version)
+		if err != nil || slices.ContainsFunc(vs, func(p parsed) bool { return version.Compare(p.v, v) == 0 }) {
+			continue
+		}
+
+		vs = append(vs, parsed{text: a.Version, v: v})
+	}
+
+	slices.SortFunc(vs, func(a, b parsed) int { return version.Compare(b.v, a.v) })
+
+	out := make([]string, 0, len(vs))
+	for _, p := range vs {
+		out = append(out, p.text)
+	}
+
+	return out
 }
 
 // builtinMeets checks that the version of a built-in module meets a

@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package module describes a module of Rigger as plain data: its metadata, the
-// tabs of its install form and its variables (design 4.4, 4.5). The engine
-// fills these from metadata.hcl and variables.hcl; a host shows them, for
-// example in rigger module show or in the install form of the UI.
+// tabs of its install form, its variables and its outputs (design 4.4,
+// 4.5). The engine fills these from metadata.hcl, variables.hcl and
+// outputs.hcl; a host shows them, for example in rigger show or in the
+// install form of the UI.
 package module
 
 // Metadata is the module block of metadata.hcl.
@@ -75,9 +76,22 @@ type Variable struct {
 	Description string `json:"description,omitempty"`
 	// Type is the type constraint as written, such as "list(string)".
 	Type string `json:"type"`
+	// Default is the default value as JSON text, such as "2", "\"hello\""
+	// or "null"; empty for a variable without a default, and for a
+	// sensitive one, whose default is never shown.
+	Default string `json:"default,omitempty"`
 	// Required reports a variable without a default: a value must be given.
 	Required bool `json:"required,omitempty"`
 	// Sensitive reports a value that never appears in a plan, a log or a
 	// revision (design 6.3).
+	Sensitive bool `json:"sensitive,omitempty"`
+}
+
+// Output describes an output of a module or a stack, as outputs.hcl
+// declares it; its value is known only when the module is evaluated.
+type Output struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Sensitive reports an output whose value is never shown.
 	Sensitive bool `json:"sensitive,omitempty"`
 }

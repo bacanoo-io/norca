@@ -52,18 +52,9 @@ func (e *Engine) FetchStack(ctx context.Context, address, constraint string) (_ 
 }
 
 func (e *Engine) fetchStack(ctx context.Context, address, constraint string) (*Stack, hcl.Diagnostics) {
-	req, err := source.Parse(address, nil)
-	if err == nil && req.Kind != source.KindGlobal && req.Kind != source.KindGit {
-		err = fmt.Errorf("%s: %w", address, ErrNotStackSource)
-	}
-
+	req, err := stackRequest(address)
 	if err != nil {
 		return nil, errorDiags("Invalid stack source", err)
-	}
-
-	req.Stack = true
-	if req.Kind == source.KindGlobal {
-		req.Path = "stacks/" + req.Name
 	}
 
 	fs, err := e.fetchNewestStack(ctx, req, constraint)
@@ -79,6 +70,61 @@ func (e *Engine) fetchStack(ctx context.Context, address, constraint string) (*S
 	diags = append(diags, fs.advisories(hcl.Range{})...)
 
 	return &Stack{s: fs.stack, origin: fs.origin}, diags
+}
+
+// stackRequest is the request of the published stack of an address: of the
+// global registry or of a git repository (ErrNotStackSource).
+func stackRequest(address string) (source.Request, error) {
+	req, err := source.Parse(address, nil)
+	if err == nil && req.Kind != source.KindGlobal && req.Kind != source.KindGit {
+		err = fmt.Errorf("%s: %w", source.Redact(address), ErrNotStackSource)
+	}
+
+	if err != nil {
+		return source.Request{}, err
+	}
+
+	req.Stack = true
+	if req.Kind == source.KindGlobal {
+		req.Path = "stacks/" + req.Name
+	}
+
+	return req, nil
+}
+
+// StackVersions returns the versions of the published stack of an address
+// that FetchStack chooses among, the newest first: of the global registry
+// those its index lists but the blocked ones, of git the tags that are
+// versions. An address of no published stack is refused
+// (ErrNotStackSource); a stack the global registry does not list is an
+// error that matches fs.ErrNotExist.
+func (e *Engine) StackVersions(ctx context.Context, address string) (_ []string, retErr error) {
+	defer e.recoverErr(ctx, "stack.versions", &retErr)
+
+	ctx, span := oplog.Start(ctx, e.logger, slog.LevelDebug, "stack.versions", "source", source.Redact(address))
+
+	out, err := e.stackVersions(ctx, address)
+	span.End(ctx, err)
+
+	return out, err
+}
+
+func (e *Engine) stackVersions(ctx context.Context, address string) ([]string, error) {
+	req, err := stackRequest(address)
+	if err != nil {
+		return nil, err
+	}
+
+	if e.fetcher == nil {
+		return nil, ErrNoFetcher
+	}
+
+	available, err := e.fetcher.Versions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return versionsNewestFirst(available), nil
 }
 
 // fetchedStack is a published stack fetched from a source.

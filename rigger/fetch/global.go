@@ -31,6 +31,24 @@ func (f *Fetcher) SetGlobalRegistry(address string) {
 	f.global, f.index = address, nil
 }
 
+// GlobalRegistry returns the address of the global registry the fetcher
+// reads: DefaultGlobalRegistry unless SetGlobalRegistry set another.
+func (f *Fetcher) GlobalRegistry() string {
+	f.indexMu.Lock()
+	defer f.indexMu.Unlock()
+
+	return f.global
+}
+
+// GlobalDirectory reports whether the address of a global registry is a
+// directory, read as it is: the absolute path of one. Any other address is
+// a git repository, read at the commit of its default branch.
+func GlobalDirectory(address string) bool {
+	info, err := os.Stat(address)
+
+	return err == nil && info.IsDir() && filepath.IsAbs(address)
+}
+
 // globalIndex is the files of the global registry.
 type globalIndex struct {
 	fsys       fs.FS
@@ -98,7 +116,7 @@ func (f *Fetcher) currentIndex() (*globalIndex, string) {
 
 // indexFS returns the files of the global registry at an address.
 func (f *Fetcher) indexFS(ctx context.Context, global string) (fs.FS, error) {
-	if info, err := os.Stat(global); err == nil && info.IsDir() && filepath.IsAbs(global) {
+	if GlobalDirectory(global) {
 		return os.DirFS(global), nil
 	}
 

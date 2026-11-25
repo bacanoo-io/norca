@@ -13,7 +13,9 @@ import (
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/bacanoo-io/norca/rigger/internal/eval"
 	"github.com/bacanoo-io/norca/rigger/internal/lang"
@@ -71,15 +73,91 @@ func (m *Module) Tabs() []module.Tab {
 // Variables returns the variables of the module in the order of
 // variables.hcl.
 func (m *Module) Variables() []module.Variable {
-	out := make([]module.Variable, 0, len(m.mod.Variables))
-	for _, v := range m.mod.Variables {
+	return variablesOf(m.mod)
+}
+
+// Outputs returns the outputs of the module in the order of outputs.hcl,
+// with what they say of themselves; nothing is evaluated.
+func (m *Module) Outputs() []module.Output {
+	return outputsOf(m.mod.Outputs)
+}
+
+// Readme returns the README.md of the module directory; the error matches
+// fs.ErrNotExist when it has none.
+func (m *Module) Readme() ([]byte, error) {
+	return fs.ReadFile(m.mod.FS, "README.md") // FS is the module directory
+}
+
+// variablesOf describes the variables of mod in the order of variables.hcl.
+func variablesOf(mod *lang.Module) []module.Variable {
+	if mod == nil {
+		return nil
+	}
+
+	out := make([]module.Variable, 0, len(mod.Variables))
+	for _, v := range mod.Variables {
 		out = append(out, module.Variable{
 			Name:        v.Name,
 			Description: v.Description,
 			Type:        v.TypeText,
+			Default:     defaultText(v),
 			Required:    v.Default == cty.NilVal,
 			Sensitive:   v.Sensitive,
 		})
+	}
+
+	return out
+}
+
+// defaultText is the default of a variable as JSON text; empty for none,
+// for a sensitive variable, and for one that is not known before an
+// evaluation.
+func defaultText(v *lang.Variable) string {
+	if v.Default == cty.NilVal || v.Sensitive || !v.Default.IsWhollyKnown() {
+		return ""
+	}
+
+	// A null of no type would be written as JSON of a dynamic value.
+	if v.Default.IsNull() {
+		return "null"
+	}
+
+	data, err := ctyjson.Marshal(v.Default, v.Default.Type())
+	if err != nil {
+		return ""
+	}
+
+	return string(data)
+}
+
+// outputsOf describes the output blocks of outputs.hcl, in their order: the
+// label, and the description and sensitive attributes as they are written.
+// An attribute that is not a literal of its type says nothing; the
+// evaluation reports it.
+func outputsOf(blocks []*hcl.Block) []module.Output {
+	schema := &hcl.BodySchema{Attributes: []hcl.AttributeSchema{{Name: "description"}, {Name: "sensitive"}}}
+
+	out := make([]module.Output, 0, len(blocks))
+
+	for _, b := range blocks {
+		if len(b.Labels) == 0 {
+			continue
+		}
+
+		o := module.Output{Name: b.Labels[0]}
+
+		content, _, _ := b.Body.PartialContent(schema)
+		if content != nil {
+			if attr, ok := content.Attributes["description"]; ok {
+				_ = gohcl.DecodeExpression(attr.Expr, nil, &o.Description) // stays empty on an error
+			}
+
+			if attr, ok := content.Attributes["sensitive"]; ok {
+				_ = gohcl.DecodeExpression(attr.Expr, nil, &o.Sensitive) // stays false on an error
+			}
+		}
+
+		out = append(out, o)
 	}
 
 	return out

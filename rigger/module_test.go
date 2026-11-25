@@ -5,6 +5,8 @@ package rigger_test
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"io/fs"
@@ -51,6 +53,114 @@ func TestEngine_LoadModule(t *testing.T) {
 		if v.Name == "redis_password" && !v.Sensitive {
 			t.Error("redis_password is not sensitive")
 		}
+	}
+}
+
+// summaryModule is a module with variables of each kind of default, outputs
+// and a README, as rigger show describes one.
+var summaryModule = fstest.MapFS{
+	"metadata.hcl": {Data: []byte("module {\n  name    = \"web\"\n  version = \"1.0.0\"\n}\n")},
+	"variables.hcl": {Data: []byte(`variable "replicas" {
+  type        = number
+  default     = 2
+  description = "How many run"
+}
+
+variable "name" {
+  type = string
+}
+
+variable "password" {
+  type      = string
+  default   = "s3cret"
+  sensitive = true
+}
+
+variable "tags" {
+  type    = list(string)
+  default = ["a", "b"]
+}
+
+variable "extra" {
+  default = null
+}
+`)},
+	"outputs.hcl": {Data: []byte(`output "url" {
+  value       = "http://${var.name}"
+  description = "Where it answers"
+}
+
+output "token" {
+  value     = var.password
+  sensitive = true
+}
+`)},
+	"README.md": {Data: []byte("# web\n")},
+}
+
+// The variables of a module say their default as JSON text, but that of a
+// sensitive one, which is never shown.
+func TestModule_Variables(t *testing.T) {
+	t.Parallel()
+
+	m, diags := engine(t).LoadModule(t.Context(), summaryModule)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	var got []string
+	for _, v := range m.Variables() {
+		got = append(got, fmt.Sprintf("%s %s %q required=%t sensitive=%t", v.Name, v.Type, v.Default, v.Required, v.Sensitive))
+	}
+
+	want := []string{
+		`replicas number "2" required=false sensitive=false`,
+		`name string "" required=true sensitive=false`,
+		`password string "" required=false sensitive=true`,
+		`tags list(string) "[\"a\",\"b\"]" required=false sensitive=false`,
+		`extra any "null" required=false sensitive=false`,
+	}
+
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("Variables() =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// The outputs of a module in the order of outputs.hcl, with what they say
+// of themselves; nothing is evaluated.
+func TestModule_Outputs(t *testing.T) {
+	t.Parallel()
+
+	m, diags := engine(t).LoadModule(t.Context(), summaryModule)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	got := fmt.Sprintf("%+v", m.Outputs())
+	if want := "[{Name:url Description:Where it answers Sensitive:false} {Name:token Description: Sensitive:true}]"; got != want {
+		t.Errorf("Outputs() = %s, want %s", got, want)
+	}
+}
+
+func TestModule_Readme(t *testing.T) {
+	t.Parallel()
+
+	m, diags := engine(t).LoadModule(t.Context(), summaryModule)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if readme, err := m.Readme(); err != nil || string(readme) != "# web\n" {
+		t.Errorf("Readme() = %q, %v", readme, err)
+	}
+
+	bare, diags := engine(t).LoadModule(t.Context(), fstest.MapFS{"metadata.hcl": summaryModule["metadata.hcl"]})
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if _, err := bare.Readme(); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Readme() of a module without one = %v, want fs.ErrNotExist", err)
 	}
 }
 

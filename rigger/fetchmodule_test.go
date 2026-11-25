@@ -394,6 +394,96 @@ func checkNewest(t *testing.T, e *Engine, m *Module, address, version, ref strin
 	}
 }
 
+// The versions of a module by its address, the newest first, are those an
+// install chooses among: what is no version is left out, a version listed
+// twice is listed once; a built-in module has the one the program ships. A
+// directory has none to list.
+func TestEngine_ModuleVersions(t *testing.T) {
+	t.Parallel()
+
+	e, err := New(WithFetcher(newestFetcher{versions: []string{webV1, webV2, "1.4.0", "not-a-version", webV1}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, address string
+		expected      string
+		err           string
+	}{
+		{name: "the global registry", address: webSource, expected: "2.0.0 1.4.0 1.0.0"},
+		{name: "git", address: "example.com/acme/modules//web", expected: "2.0.0 1.4.0 1.0.0"},
+		{name: "builtin", address: webBuiltin, expected: webV1},
+		{name: "a directory", address: "dir://modules/web", err: ErrDirectorySource.Error()},
+		{name: "no address", address: "not an address", err: source.ErrAddress.Error()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := e.ModuleVersions(t.Context(), tt.address)
+			if tt.err != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.err) {
+					t.Fatalf("ModuleVersions() = %v, %v, want %q", got, err, tt.err)
+				}
+
+				return
+			}
+
+			if err != nil || strings.Join(got, " ") != tt.expected {
+				t.Errorf("ModuleVersions() = %v, %v, want %s", got, err, tt.expected)
+			}
+		})
+	}
+
+	bare, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := bare.ModuleVersions(t.Context(), webSource); !errors.Is(err, ErrNoFetcher) {
+		t.Errorf("ModuleVersions() without a fetcher = %v", err)
+	}
+}
+
+// stackFetcher lists versions for the requests of a stack only, as the
+// global registry lists a stack apart from a module of its name.
+type stackFetcher struct{ newestFetcher }
+
+func (f stackFetcher) Versions(ctx context.Context, req source.Request) ([]source.Available, error) {
+	if !req.Stack {
+		return nil, fmt.Errorf("no module %s: %w", req.Source, fs.ErrNotExist)
+	}
+
+	return f.newestFetcher.Versions(ctx, req)
+}
+
+// The versions of a published stack are asked for as a stack's; only the
+// global registry and git have published stacks.
+func TestEngine_StackVersions(t *testing.T) {
+	t.Parallel()
+
+	e, err := New(WithFetcher(stackFetcher{newestFetcher{versions: []string{webV1, webV2}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, address := range []string{webSource, "example.com/acme/stacks//stacks/web"} {
+		if got, err := e.StackVersions(t.Context(), address); err != nil || strings.Join(got, " ") != "2.0.0 1.0.0" {
+			t.Errorf("StackVersions(%s) = %v, %v", address, got, err)
+		}
+	}
+
+	if _, err := e.ModuleVersions(t.Context(), webSource); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("ModuleVersions() of a stack = %v, want fs.ErrNotExist", err)
+	}
+
+	if _, err := e.StackVersions(t.Context(), webBuiltin); !errors.Is(err, ErrNotStackSource) {
+		t.Errorf("StackVersions() of a built-in module = %v, want ErrNotStackSource", err)
+	}
+}
+
 // A module loaded from files records the source of the install, "local" on
 // a server, and the module of the global registry is not a module of files.
 func TestEngine_PlanInstallLocalSource(t *testing.T) {

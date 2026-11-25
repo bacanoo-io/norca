@@ -180,6 +180,34 @@ func TestRepository(t *testing.T) {
 	}
 }
 
+// The modules built into a program: each of the one version its
+// metadata.hcl says, with what it says of itself; a directory without
+// metadata.hcl is no module, one without a version has none.
+func TestBuiltin(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"modules/redis/metadata.hcl": {Data: []byte("module {\n  name        = \"redis\"\n  version     = \"0.4.2\"\n" +
+			"  description = \"A Redis cache\"\n  category    = \"database\"\n}\n")},
+		"modules/audit/metadata.hcl": {Data: []byte("module {\n  name    = \"audit\"\n  version = \"1.0.0\"\n}\n")},
+		"modules/draft/metadata.hcl": {Data: []byte("module {\n  name = \"draft\"\n}\n")},
+		"modules/notes/README.md":    {Data: []byte("no metadata\n")},
+	}
+
+	items, err := catalog.Builtin(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := describe(items), "module audit 1.0.0; module draft; module redis 0.4.2"; got != want {
+		t.Errorf("Builtin() = %s, want %s", got, want)
+	}
+
+	if redis := items[2]; redis.Description != "A Redis cache" || redis.Category != "database" {
+		t.Errorf("the redis of Builtin() = %+v", redis)
+	}
+}
+
 func TestSearch(t *testing.T) {
 	t.Parallel()
 

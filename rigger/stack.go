@@ -87,6 +87,42 @@ func (s *Stack) Readme() ([]byte, error) {
 // modules, values and lock file included.
 func (s *Stack) Digest() (string, error) { return lang.StackDigest(s.s) }
 
+// Variables returns the variables of the stack in the order of its
+// variables.hcl, as Module.Variables describes those of a module.
+func (s *Stack) Variables() []module.Variable { return variablesOf(s.s.Vars) }
+
+// Outputs returns the outputs of the stack in the order of its outputs.hcl;
+// nothing is evaluated.
+func (s *Stack) Outputs() []module.Output { return outputsOf(s.s.Outputs) }
+
+// StackModule is a module block of a stack: the release it makes, its
+// source and version constraint as written, and the version the lock file
+// pins (empty for a module of the stack's own and for one the lock does not
+// pin).
+type StackModule struct {
+	Release    string `json:"release"`
+	Source     string `json:"source"`
+	Constraint string `json:"constraint,omitempty"`
+	Version    string `json:"version,omitempty"`
+}
+
+// Modules returns the module blocks of the stack in the order of its
+// releases.
+func (s *Stack) Modules() []StackModule {
+	out := make([]StackModule, 0, len(s.s.Releases))
+
+	for _, r := range s.s.Releases {
+		m := StackModule{Release: r.Name, Source: r.Source, Constraint: r.Version}
+		if r.Locked != nil {
+			m.Version = r.Locked.Version
+		}
+
+		out = append(out, m)
+	}
+
+	return out
+}
+
 // LockedModule is a module of a source other than the stack's own, as the
 // lock file pins it.
 type LockedModule struct {

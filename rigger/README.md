@@ -34,6 +34,20 @@ rigger stack apply my-stack -f values/dev.vars.hcl
 rigger stack plan acme/data-platform -version "~> 1.2" -f my.vars.hcl
 ```
 
+What a registry offers is listed and shown without a cluster: the program
+fetches the registry into its cache, and a module or stack as an install
+would fetch and verify it (`-json` for scripts):
+
+```shell
+rigger search                                   # the global registry
+rigger search nats -kind module -limit 10
+rigger search -registry builtin                 # the modules built into the program
+rigger search -registry github.com/acme/rigger-modules
+rigger show norca/redis                         # versions, signers, variables, outputs
+rigger show norca/nats -version "~> 1.2" -readme
+rigger show github.com/acme/rigger-modules//modules/web
+```
+
 One release of a module, without a stack, comes from a directory or by its
 source: the newest version that meets `-version`, verified as a stack's
 modules are (a version of the global registry only listed and signed, its

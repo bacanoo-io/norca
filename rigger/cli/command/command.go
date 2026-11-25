@@ -39,6 +39,8 @@ const (
 	cmdInstall  = "install"
 	cmdRelease  = "release"
 	cmdRegistry = "registry"
+	cmdSearch   = "search"
+	cmdShow     = "show"
 	cmdKey      = "key"
 	cmdBundle   = "bundle"
 	cmdConvert  = "convert"
@@ -100,13 +102,32 @@ Commands:
                           builtin/<name> from their own; no git or oci://
   release list|status|history|rollback|uninstall [name] [-namespace ns] [-adopt]
                           one release, without a stack
+  search [text] [-registry global|builtin|<repository>] [-kind module|stack]
+         [-category c] [-keyword k] [-offset n] [-limit n] [-json]
+                          the modules and stacks of a registry, without a
+                          cluster: the global registry (default), the
+                          modules built into the program, or a registry
+                          repository (a git address or a directory) at the
+                          newest commit of its default branch, fetched
+                          into the cache
+  show <source> [-version constraint] [-kind module|stack] [-readme] [-json]
+                          one module or stack, without a cluster: the
+                          newest version that meets -version, fetched and
+                          verified as an install does; its metadata,
+                          versions, digest, signers, variables, outputs
+                          and, of a stack, its modules. The source is
+                          <namespace>/<name> of the global registry,
+                          builtin/<name>, a git address (a module of a
+                          registry repository: <repository>//modules/<name>)
+                          or oci://
   registry list|status|sync [name]
                           the registries of the cluster; sync fetches the
                           index of one now (it is never synced on its own)
   registry search <name> [text] [-kind module|stack] [-category c]
          [-keyword k] [-offset n] [-limit n]
-                          the modules and stacks of a registry at its last
-                          sync
+                          the modules and stacks of a registry of the
+                          cluster at its last sync (without a cluster:
+                          rigger search)
   registry select|unselect <name> module|stack <namespace>/<name>
                           what a registry shows in the UI (display
                           selected); the UI changes with the next sync
@@ -174,7 +195,7 @@ type command func(ctx context.Context, logger *slog.Logger, stdout, stderr io.Wr
 // commands are the commands that take commands or flags of their own.
 var commands = map[string]command{
 	cmdModule: runModule, cmdFmt: runFmt, cmdStack: runStack, cmdInstall: runInstall, cmdRegistry: runRegistry,
-	cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
+	cmdSearch: runSearch, cmdShow: runShow, cmdRelease: runRelease, cmdKey: runKey, cmdBundle: runBundle, cmdConvert: runConvert,
 	cmdIndex: runIndex, cmdOperation: runOperation, cmdLogin: runLogin, cmdLogout: runLogout,
 }
 

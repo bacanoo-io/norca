@@ -1034,7 +1034,8 @@ which operation, and which subtask to which task.
 rigger init                         a stack or a module from a skeleton
 rigger fmt [-check]                 format (all files are HCL, nothing is skipped)
 rigger module validate [dir]        schemas, values of the examples, icon, tests
-rigger module show <source>         variables, outputs, requires, versions
+rigger search [text]                the modules and stacks of a registry, without a cluster
+rigger show <source>                a module or stack: variables, outputs, requires, versions
 rigger module test [dir]            tests/*.riggertest.hcl: values in, assertions over resources
 rigger module render <source>       the evaluated resources and outputs as JSON, for review
                                  (-f values, -var name=value, -release, -namespace, -region)
@@ -1050,7 +1051,6 @@ rigger stack apply [--prune]        make it so
 rigger stack status                 releases of the stack, readiness, drift
 rigger stack destroy                uninstall the releases of the stack
 rigger stack validate [dir]         schemas, values of the examples, lock, icon
-rigger stack show <source>          variables, outputs, the modules a version locks
 rigger stack publish                sign, commit the signature, tag; needs a matching lock
 rigger index update|check           list new versions in the global registry; check its files
 
@@ -1063,6 +1063,48 @@ rigger install <source> --name x -f values.hcl            a stack of one, for qu
 
 `rigger install` covers what `norca pack run` does today; everything else of a
 single release goes to the server's release API unchanged.
+
+**Search and show without a cluster** (as built 2026-11-25; the user asked
+to list and show the modules of a registry from the rigger program without
+a cluster). `rigger registry search` asks the servers of a cluster about a
+registry they synced; `rigger search` and `rigger show` (also `norca rigger
+search|show`) need neither a cluster nor `NORCA_ADDR`. One `rigger show`
+replaces the `module show` and `stack show` of the sketch above.
+
+- `rigger search [text] [-registry global|builtin|<repository>] [-kind
+  module|stack] [-category c] [-keyword k] [-offset n] [-limit n] [-json]`
+  reads the registry as the servers sync one (design/rig-integration.md
+  4.5 of norca), into the cache of the program: the global registry
+  (`RIGGER_GLOBAL_REGISTRY` or the default; a directory is read as it is,
+  as an install reads it, a git address at the newest commit of its default
+  branch: `Fetcher.Sync`, `Checkout`, `catalog.Global`), the modules built
+  into the program (`catalog.Builtin`, each of its one version), or a
+  registry repository, a git address or a directory of one (`Sync`,
+  `Checkout`, `TagsAt`, `catalog.Repository`). The query is
+  `catalog.Search`, as the servers run it. The table shows kind, name
+  (`<namespace>/<name>`, `builtin/<name>`, the name in a repository),
+  the newest version and the description, and `first-last of total` when
+  the matches fill more than one page; `-json` adds the address of each
+  item, by which `rigger show` and `rigger install` take it
+  (`<repository>//modules/<name>` in a repository). The commit read is
+  logged.
+- `rigger show <source> [-version c] [-kind module|stack] [-readme]
+  [-json]` fetches the newest version that meets the constraint and
+  verifies it as an install does (`Engine.FetchNewestModule`,
+  `Engine.FetchStack`), and lists the versions an install chooses among
+  (`Engine.ModuleVersions`, `Engine.StackVersions`: the index of the global
+  registry but its blocked versions, the tags of git and OCI, the one
+  version of a built-in module). It shows the metadata (description, url,
+  license, category, keywords, requires), the versions, repository, tag,
+  commit, digest and the key IDs of the signers (or "not signed"), the
+  variables (`Module.Variables`, with the default as JSON text, never of a
+  sensitive one), the outputs (`Module.Outputs`, read from `outputs.hcl`
+  without an evaluation), of a stack its module blocks with their sources,
+  constraints and the versions its lock pins (`Stack.Modules`), and with
+  `-readme` the README. Advisories and a version nothing signed are
+  warnings on standard error. Without `-kind` the directory `stacks/<name>`
+  of a git address is a stack, and a name of the global registry that lists
+  no module of it is taken as a stack when it lists one.
 
 ## 11. Extension points
 

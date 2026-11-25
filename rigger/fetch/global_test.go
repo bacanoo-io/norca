@@ -356,6 +356,51 @@ func TestFetcher_ReadIndex_HangingRegistry(t *testing.T) {
 	}
 }
 
+// The address of the global registry is the default until it is set, and
+// one of an absolute directory is read as it is, not as a repository.
+func TestFetcher_GlobalRegistry(t *testing.T) {
+	t.Parallel()
+
+	f := New(t.TempDir())
+	if got := f.GlobalRegistry(); got != DefaultGlobalRegistry {
+		t.Errorf("GlobalRegistry() = %q, want the default", got)
+	}
+
+	dir := t.TempDir()
+	f.SetGlobalRegistry(dir)
+
+	if got := f.GlobalRegistry(); got != dir {
+		t.Errorf("GlobalRegistry() = %q, want %q", got, dir)
+	}
+
+	file := filepath.Join(dir, "advisories.json")
+	if err := os.WriteFile(file, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name     string
+		address  string
+		expected bool
+	}{
+		{name: "an absolute directory", address: dir, expected: true},
+		{name: "a file", address: file},
+		{name: "a relative path", address: "."},
+		{name: "a file url", address: "file://" + filepath.ToSlash(dir)},
+		{name: "a git address", address: DefaultGlobalRegistry},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := GlobalDirectory(tt.address); got != tt.expected {
+				t.Errorf("GlobalDirectory(%q) = %t, want %t", tt.address, got, tt.expected)
+			}
+		})
+	}
+}
+
 // The index a fetcher keeps is of the registry it reads now: one that was
 // being read when the address changed is not kept for the new address.
 func TestFetcher_SetGlobalRegistry_WhileReading(t *testing.T) {
