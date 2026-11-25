@@ -4,9 +4,11 @@
 package command
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -152,6 +154,52 @@ func riggerRunErr(t *testing.T, want string, args ...string) {
 	if !strings.Contains(stderr.String(), want) {
 		t.Fatalf("rigger %s: stderr does not contain %q:\n%s", strings.Join(args, " "), want, stderr.String())
 	}
+}
+
+// A built-in module is of the version the program ships. A lock file that a
+// program with another version of the module wrote no longer fits: the
+// message says which version the program has and how the lock is written
+// again.
+func TestRun_StackSync_BuiltinOfAnotherVersion(t *testing.T) {
+	t.Setenv("RIGGER_CACHE_DIR", t.TempDir())
+
+	dir := writeTree(t, map[string]string{
+		stackFile: `rigger {
+  name = "cache"
+}
+
+module "redis" {
+  source = "builtin/redis"
+}
+`,
+	})
+
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir)
+
+	lock := filepath.Join(dir, lockFile)
+
+	src, err := os.ReadFile(lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := regexp.MustCompile(`version = "([^"]+)"`).FindSubmatch(src)
+	if m == nil {
+		t.Fatalf("the lock file names no version:\n%s", src)
+	}
+
+	shipped := string(m[1])
+
+	if err := os.WriteFile(lock, bytes.Replace(src, m[0], []byte(`version = "0.0.1"`), 1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "builtin/redis is version " + shipped + " in this program, not 0.0.1: a lock file that records 0.0.1 is written again with rigger stack sync -upgrade"
+	riggerRunErr(t, want, "stack", "validate", dir)
+	riggerRunErr(t, want, "stack", "sync", dir)
+
+	riggerRun(t, exitOK, []string{wroteLock}, "stack", "sync", dir, "-upgrade")
+	riggerRun(t, exitOK, []string{"stack cache"}, "stack", "validate", dir)
 }
 
 // A lock file that changes is written beside the old one and takes its

@@ -374,12 +374,8 @@ func (e *Engine) fetchAndLoad(ctx context.Context, req source.Request) (*fetched
 		}
 	}
 
-	switch {
-	case fm.origin.Version == "":
-		fm.origin.Version = m.Metadata.Version
-	case fm.origin.Version != m.Metadata.Version:
-		return nil, fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",
-			req.Source, origin.Ref, origin.Version, m.Metadata.Version)
+	if err := fm.checkVersion(req); err != nil {
+		return nil, err
 	}
 
 	if err := verifyHostTrust(fetched.TrustedKeys, signedContent{
@@ -401,6 +397,29 @@ func fetchedFrom(req source.Request, o source.Origin) string {
 	}
 
 	return req.Repository
+}
+
+// checkVersion checks the version a module was fetched as against the one
+// its metadata says; a module fetched without a version is of the version
+// of its metadata.
+func (fm *fetchedModule) checkVersion(req source.Request) error {
+	said := fm.module.Metadata.Version
+
+	switch {
+	case fm.origin.Version == "":
+		fm.origin.Version = said
+	case fm.origin.Version == said:
+	case req.Kind == source.KindBuiltin:
+		// A built-in module has no tag: it is of the version the program
+		// ships, and only a lock file names another.
+		return fmt.Errorf("%s is version %s in this program, not %s: a lock file that records %s is written again with rigger stack sync -upgrade",
+			req.Source, said, fm.origin.Version, fm.origin.Version)
+	default:
+		return fmt.Errorf("%s: the tag %s is version %s, the metadata of the module says %q",
+			req.Source, fm.origin.Ref, fm.origin.Version, said)
+	}
+
+	return nil
 }
 
 // checkListing checks a fetched version against what the index lists of it: the
