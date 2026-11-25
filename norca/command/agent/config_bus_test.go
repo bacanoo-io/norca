@@ -169,7 +169,7 @@ server {
 	kv, err := (&BusConfig{MaxStorage: "1GiB", ConsulKVMaxBytes: "64MiB"}).toServerConfig(c.Ports)
 	must.NoError(t, err)
 	must.Eq(t, int64(64<<20), kv.ConsulKVMaxBytes)
-	must.Eq(t, int64((256+64+64+64+64+256)<<20), kv.PlannedStorage()) // events, push notices, usage reports, KV, Rigger logs and bundles
+	must.Eq(t, int64((256+64+64+64+288)<<20), kv.PlannedStorage()) // events, usage reports, KV, Rigger logs and bundles (half of what they leave)
 	_, err = (&BusConfig{MaxStorage: "1GiB", ConsulKVMaxBytes: "900MiB"}).toServerConfig(c.Ports)
 	must.ErrorContains(t, err, "Consul KV 900MiB")
 	_, err = (&BusConfig{ConsulKVMaxBytes: "lots"}).toServerConfig(c.Ports)
