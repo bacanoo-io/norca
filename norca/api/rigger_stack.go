@@ -29,6 +29,24 @@ type RiggerStackRequest struct {
 	ValuesJSON json.RawMessage `json:",omitempty"`
 	Prune      bool
 	Adopt      bool
+	// Origin is where the files of the stack came from; only with Files.
+	Origin *RiggerStackOrigin `json:",omitempty"`
+}
+
+// RiggerStackOrigin is where a stack sent as files came from: the
+// repository its sender fetched it from, as the sender says. The servers
+// record it in the operation, and the commit in the releases of the stack's
+// own modules; they verify nothing of it.
+type RiggerStackOrigin struct {
+	// Repository is the address of the repository, without credentials.
+	Repository string `json:"repository,omitempty"`
+	// Ref is the branch or the tag.
+	Ref string `json:"ref,omitempty"`
+	// Commit is the commit: 7 to 64 hexadecimal digits.
+	Commit string `json:"commit,omitempty"`
+	// Signer is who signed the commit or the tag, when the sender verified
+	// a signature.
+	Signer string `json:"signer,omitempty"`
 }
 
 // RiggerReleaseRef names a release.
@@ -113,9 +131,11 @@ type RiggerOperationSpec struct {
 	Source      string `json:"source,omitempty"`
 	Version     string `json:"version,omitempty"`
 	FilesDigest string `json:"filesDigest,omitempty"`
-	Prune       bool   `json:"prune,omitempty"`
-	Adopt       bool   `json:"adopt,omitempty"`
-	RequestedBy string `json:"requestedBy,omitempty"`
+	// Origin is where the sender of a local stack fetched it from.
+	Origin      *RiggerStackOrigin `json:"origin,omitempty"`
+	Prune       bool               `json:"prune,omitempty"`
+	Adopt       bool               `json:"adopt,omitempty"`
+	RequestedBy string             `json:"requestedBy,omitempty"`
 }
 
 // RiggerOperationStatus is how an operation went: Phase is Running,

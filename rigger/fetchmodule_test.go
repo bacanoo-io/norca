@@ -177,6 +177,10 @@ func checkFetched(t *testing.T, e *Engine, m *Module, digest string, signers []s
 	if got.Source != webSource || got.Ref != webTag || got.Digest != digest || len(got.Signers) != len(signers) {
 		t.Errorf("the release records %+v", got)
 	}
+
+	if o.Commit == "" || got.Commit != o.Commit {
+		t.Errorf("the release records the commit %q, want the commit the module was fetched at, %q", got.Commit, o.Commit)
+	}
 }
 
 // A module loaded from files records the source of the install, "local" on

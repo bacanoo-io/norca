@@ -337,6 +337,53 @@ func TestStack_PlanApply(t *testing.T) {
 	}
 }
 
+// A stack that a client fetched from a repository says at which commit: the
+// releases of its own modules record it. The commit is no part of the
+// digest of a release: the same stack at another commit changes nothing,
+// and the releases keep the commit that last changed them.
+func TestStack_Commit(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeCluster()
+	e := stackEngine(t, f)
+	first, second := strings.Repeat("1", 40), strings.Repeat("2", 40)
+
+	planAt := func(commit string) *rigger.StackPlan {
+		s, diags := e.LoadStack(t.Context(), stackFiles(twoReleases), "s")
+		if diags.HasErrors() {
+			t.Fatal(diags)
+		}
+
+		s.SetCommit(commit)
+
+		plan, diags := e.PlanStack(t.Context(), s, nil)
+		if diags.HasErrors() {
+			t.Fatal(diags)
+		}
+
+		return plan
+	}
+
+	plan := planAt(first)
+	if _, diags := e.ApplyStack(t.Context(), plan, rigger.ApplyOptions{}); diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	if len(f.releases) != 2 {
+		t.Fatalf("%d releases applied, want db and app", len(f.releases))
+	}
+
+	for ref, reqs := range f.releases {
+		if got := reqs[len(reqs)-1].Module.Commit; got != first {
+			t.Errorf("the release %s records the commit %q, want that of the stack, %q", ref.Name, got, first)
+		}
+	}
+
+	if got := actions(planAt(second)); got != "db:unchanged app:unchanged" {
+		t.Errorf("the plan of the same stack at another commit = %s, want nothing to do", got)
+	}
+}
+
 // checkApplied checks what an apply of the stack wrote: the generated
 // password in the secret and the secret item, not in the revision, and the
 // output of db in app.

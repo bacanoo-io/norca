@@ -27,6 +27,11 @@ type ModuleRef struct {
 	Version string `json:"version"`
 	// Ref is the tag the version was found by; empty for a local module.
 	Ref string `json:"ref,omitempty"`
+	// Commit is the git commit the module was fetched at. For a module of
+	// a stack's own directory it is the commit of the stack, when the stack
+	// has one (Stack.SetCommit, a published stack). It is recorded, and no
+	// part of the digest of the release.
+	Commit string `json:"commit,omitempty"`
 	// Digest is the tree digest of the module version (design 8.1).
 	Digest string `json:"digest"`
 	// Signers are the key IDs of the signatures that verified the digest.

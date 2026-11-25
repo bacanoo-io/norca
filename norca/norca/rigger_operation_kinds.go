@@ -50,6 +50,16 @@ const riggerOperationKindSchema = `{
         "source": {"type": "string"},
         "version": {"type": "string"},
         "filesDigest": {"type": "string"},
+        "origin": {
+          "type": "object",
+          "properties": {
+            "repository": {"type": "string"},
+            "ref": {"type": "string"},
+            "commit": {"type": "string"},
+            "signer": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
         "prune": {"type": "boolean"},
         "adopt": {"type": "boolean"},
         "requestedBy": {"type": "string"}
@@ -115,8 +125,11 @@ type RiggerOperationSpec struct {
 	Source      string `json:"source,omitempty"`
 	Version     string `json:"version,omitempty"`
 	FilesDigest string `json:"filesDigest,omitempty"`
-	Prune       bool   `json:"prune,omitempty"`
-	Adopt       bool   `json:"adopt,omitempty"`
+	// Origin is where the sender of a local stack fetched it from, as the
+	// sender says.
+	Origin *RiggerStackOrigin `json:"origin,omitempty"`
+	Prune  bool               `json:"prune,omitempty"`
+	Adopt  bool               `json:"adopt,omitempty"`
 	// RequestedBy is the accessor of the token that asked for it.
 	RequestedBy string `json:"requestedBy,omitempty"`
 }

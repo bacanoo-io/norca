@@ -82,6 +82,8 @@ type RiggerStackRequest struct {
 	Prune bool
 	// Adopt takes over releases another manager applied (an apply).
 	Adopt bool
+	// Origin is where the files of the stack came from; only with Files.
+	Origin *RiggerStackOrigin
 	structs.WriteRequest
 }
 
@@ -444,8 +446,17 @@ func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcC
 		diags hcl.Diagnostics
 	)
 
+	origin, err := args.Origin.checked(local)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	if local {
 		st, diags = eng.LoadStackFiles(ctx, args.Files)
+		if st != nil && origin != nil {
+			// The releases of the stack's own modules record the commit.
+			st.SetCommit(origin.Commit)
+		}
 	} else {
 		st, diags = eng.FetchStack(ctx, args.Source, args.Version)
 	}
@@ -583,6 +594,9 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	if len(args.Files) > 0 {
 		sum := sha256.Sum256(args.Files)
 		op.Spec.FilesDigest = "sha256:" + hex.EncodeToString(sum[:])
+
+		// Checked when the stack was loaded (riggerStack).
+		op.Spec.Origin, _ = args.Origin.checked(true)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

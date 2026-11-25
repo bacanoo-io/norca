@@ -316,7 +316,7 @@ func moduleRef(p *api.ReleasePack) host.ModuleRef {
 		return host.ModuleRef{}
 	}
 
-	ref := host.ModuleRef{Name: p.Name, Source: p.Source, Version: p.Version, Ref: p.Ref, Digest: p.Digest}
+	ref := host.ModuleRef{Name: p.Name, Source: p.Source, Version: p.Version, Ref: p.Ref, Commit: p.Commit, Digest: p.Digest}
 	if p.TrustedSigner != "" {
 		ref.Signers = []string{p.TrustedSigner}
 	}
@@ -338,6 +338,7 @@ func applyRequest(req host.ApplyRequest) (*api.ReleaseApplyRequest, error) {
 	out := &api.ReleaseApplyRequest{
 		Pack: &api.ReleasePack{
 			Name: req.Module.Name, Version: req.Module.Version, Source: req.Module.Source, Ref: req.Module.Ref, Digest: req.Module.Digest,
+			Commit:     req.Module.Commit,
 			Requires:   requires(req.Module.Requires),
 			Signatures: signatures(req.Module.Signatures),
 			Manager:    api.ReleaseManagerRigger,

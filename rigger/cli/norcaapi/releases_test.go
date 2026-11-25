@@ -50,6 +50,28 @@ func TestApplyRequest_OwnerManagerDigest(t *testing.T) {
 	}
 }
 
+// The commit of the module goes into the release, and comes back with the
+// module of a revision.
+func TestApplyRequest_Commit(t *testing.T) {
+	t.Parallel()
+
+	out, err := applyRequest(host.ApplyRequest{
+		Release: host.ReleaseRef{Namespace: stackNamespace, Name: shop},
+		Module:  host.ModuleRef{Name: shop, Version: "0.1.0", Digest: "sha256:module", Commit: "0123abc"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.Pack.Commit != "0123abc" {
+		t.Errorf("the release records the commit %q, want that of the module", out.Pack.Commit)
+	}
+
+	if back := moduleRef(out.Pack); back.Commit != "0123abc" {
+		t.Errorf("the module of a revision has the commit %q, want the recorded one", back.Commit)
+	}
+}
+
 // shop is the stack of the tests of ownerOf, stackNamespace its namespace.
 const (
 	shop           = "shop"

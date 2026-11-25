@@ -84,7 +84,7 @@ func (e *Engine) fetchVerified(ctx context.Context, req source.Request, trustedK
 		o.Warnings = append(o.Warnings, fmt.Sprintf("%s %s is not signed: only its commit and tree digest are checked", req.Source, o.Version))
 	}
 
-	mo := moduleOrigin{module: fm.module, source: req.Source, ref: fm.origin.Ref, signers: signers}
+	mo := moduleOrigin{module: fm.module, source: req.Source, ref: fm.origin.Ref, commit: fm.origin.Commit, signers: signers}
 	for _, s := range fm.signatures {
 		mo.signatures = append(mo.signatures, host.Signature{Payload: s.Payload, Signature: s.Signature})
 	}

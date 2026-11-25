@@ -33,6 +33,25 @@ type Stack struct {
 	s *lang.Stack
 	// origin is set for a stack fetched from a source.
 	origin *StackOrigin
+	// commit is the commit a stack loaded from files was fetched at
+	// (SetCommit).
+	commit string
+}
+
+// SetCommit says at which git commit the files of the stack were fetched:
+// a client that reads a stack from a repository knows it, and the engine
+// can't. The releases of the stack's own modules record it
+// (host.ModuleRef.Commit). A published stack has the commit of its origin.
+func (s *Stack) SetCommit(commit string) { s.commit = commit }
+
+// sourceCommit is the commit of the files of the stack: of its origin, or
+// the one SetCommit named; empty when nobody knows it.
+func (s *Stack) sourceCommit() string {
+	if s.origin != nil && s.origin.Commit != "" {
+		return s.origin.Commit
+	}
+
+	return s.commit
 }
 
 // Name is the name of the stack, the owner of its releases.
@@ -196,7 +215,9 @@ type StackPlan struct {
 
 	namespace string
 	generated map[string]string
-	secrets   []eval.StackSecret
+	// commit is the commit of the files of the stack (Stack.sourceCommit).
+	commit  string
+	secrets []eval.StackSecret
 }
 
 // HasChanges reports whether an apply would change something, removals
@@ -260,7 +281,10 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, append(diags, moreDiags...)
 	}
 
-	plan := &StackPlan{Stack: s.Name(), Region: s.Region(), namespace: eval.StackNamespace(s.s), generated: map[string]string{}}
+	plan := &StackPlan{
+		Stack: s.Name(), Region: s.Region(), namespace: eval.StackNamespace(s.s), generated: map[string]string{},
+		commit: s.sourceCommit(),
+	}
 
 	existing, err := e.readGenerated(ctx, plan)
 	if err != nil {
@@ -351,7 +375,15 @@ func (e *Engine) planReleases(ctx context.Context, plan *StackPlan, res *eval.St
 		if rr.Enabled {
 			var err error
 
-			rp, err = e.planRelease(ctx, ref, owner, plan.Region, origin(rr.Release), rr.Values, rr.Result, settings(rr.Release))
+			m := origin(rr.Release)
+
+			// A module of the stack's own directory came with the files
+			// of the stack: it is of their commit.
+			if m.commit == "" && rr.Release.Address == nil {
+				m.commit = plan.commit
+			}
+
+			rp, err = e.planRelease(ctx, ref, owner, plan.Region, m, rr.Values, rr.Result, settings(rr.Release))
 			if err != nil {
 				return nil, fmt.Errorf("release %s: %w", rr.Name, err)
 			}
@@ -442,8 +474,10 @@ func settings(r *lang.StackRelease) host.Settings {
 type moduleOrigin struct {
 	module      *lang.Module
 	source, ref string
-	signers     []string
-	signatures  []host.Signature
+	// commit is the git commit the module was fetched at.
+	commit     string
+	signers    []string
+	signatures []host.Signature
 }
 
 // origin is the module of a release of a stack and where it came from: the
@@ -451,7 +485,7 @@ type moduleOrigin struct {
 func origin(r *lang.StackRelease) moduleOrigin {
 	o := moduleOrigin{module: r.Module, source: r.Source, signers: r.Signers}
 	if r.Locked != nil {
-		o.ref = r.Locked.Ref
+		o.ref, o.commit = r.Locked.Ref, r.Locked.Commit
 	}
 
 	for _, s := range r.Signatures {
@@ -535,7 +569,7 @@ func applyRequest(ref host.ReleaseRef, owner, region string, m moduleOrigin, val
 	req := host.ApplyRequest{
 		Release: ref, Owner: owner, Settings: set,
 		Module: host.ModuleRef{
-			Name: md.Name, Version: md.Version, Source: m.source, Ref: m.ref, Digest: moduleDigest, Requires: &md.Requires,
+			Name: md.Name, Version: md.Version, Source: m.source, Ref: m.ref, Commit: m.commit, Digest: moduleDigest, Requires: &md.Requires,
 			Signers: m.signers, Signatures: m.signatures,
 		},
 		Secrets: map[string]map[string]host.Sensitive{},
