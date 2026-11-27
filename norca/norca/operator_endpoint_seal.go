@@ -106,12 +106,14 @@ func (op *Operator) SealStatus(args *structs.SealStatusRequest, reply *structs.S
 // SealUnseal enters one unseal share on a server, or discards the shares
 // entered so far (Reset). It needs operator:write. The share is never
 // logged.
-func (op *Operator) SealUnseal(args *structs.SealUnsealRequest, reply *structs.SealUnsealResponse) error {
+func (op *Operator) SealUnseal(args *structs.SealUnsealRequest, reply *structs.SealUnsealResponse) (retErr error) {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if region := args.RequestRegion(); region != op.srv.Region() {
 		args.SetForwarded()
 		return op.srv.forwardRegion(region, "Operator.SealUnseal", args, reply)
 	}
+	audit := op.srv.auditCall("Operator.SealUnseal", args)
+	defer audit.done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -128,6 +130,7 @@ func (op *Operator) SealUnseal(args *structs.SealUnsealRequest, reply *structs.S
 		if err != nil {
 			return err
 		}
+		audit.forwarded()
 		return op.srv.forwardServer(target, "Operator.SealUnseal", args, reply)
 	}
 
@@ -288,11 +291,12 @@ func (op *Operator) SealRewrapConfirm(args *structs.SealRewrapDoneRequest, reply
 // shares generates the unseal key and returns its shares once; in a new
 // region configured with a shares seal it initializes the keyring. It needs
 // operator:write.
-func (k *Keyring) Rewrap(args *structs.KeyringRewrapRequest, reply *structs.KeyringRewrapResponse) error {
+func (k *Keyring) Rewrap(args *structs.KeyringRewrapRequest, reply *structs.KeyringRewrapResponse) (retErr error) {
 	authErr := k.srv.Authenticate(k.ctx, args)
 	if done, err := k.srv.forward("Keyring.Rewrap", args, args, reply); done {
 		return err
 	}
+	defer k.srv.auditCall("Keyring.Rewrap", args).done(&retErr)
 	k.srv.MeasureRPCRate("keyring", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -312,6 +316,6 @@ func (k *Keyring) Rewrap(args *structs.KeyringRewrapRequest, reply *structs.Keyr
 		return structs.NewErrRPCCoded(http.StatusBadRequest, err.Error())
 	}
 	*reply = *resp
-	k.logger.Info("keyring rewrap requested", "audit", true, "to", args.To, "rewrap_id", resp.RewrapID)
+	k.logger.Info("keyring rewrap requested", "to", args.To, "rewrap_id", resp.RewrapID)
 	return nil
 }

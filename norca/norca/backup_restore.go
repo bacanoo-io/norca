@@ -30,11 +30,12 @@ const maxBackupRestoreItems = 100
 // and every restored job becomes a new, traceable version. The full mode
 // previews a full region restore, or creates a pending request that a
 // second administrator approves with ApproveRestore.
-func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.BackupRestoreResponse) error {
+func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.BackupRestoreResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.Restore", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.Restore", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

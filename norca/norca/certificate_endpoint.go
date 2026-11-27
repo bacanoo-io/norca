@@ -136,11 +136,12 @@ func (c *Certificate) requireManagement(args structs.RequestWithIdentity) error 
 // ImportAuthority puts the CA of an operator in the place of the issuing CA
 // of the region. The certificates of the built-in issuer are issued again
 // with it.
-func (c *Certificate) ImportAuthority(args *structs.CertificateAuthorityImportRequest, reply *structs.CertificateAuthorityResponse) error {
+func (c *Certificate) ImportAuthority(args *structs.CertificateAuthorityImportRequest, reply *structs.CertificateAuthorityResponse) (retErr error) {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("Certificate.ImportAuthority", args, args, reply); done {
 		return err
 	}
+	defer c.srv.auditCall("Certificate.ImportAuthority", args).done(&retErr)
 	c.srv.MeasureRPCRate("certificate", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -161,11 +162,12 @@ func (c *Certificate) ImportAuthority(args *structs.CertificateAuthorityImportRe
 
 // RotateAuthority replaces the issuing CA of the region with a new one of
 // the leader.
-func (c *Certificate) RotateAuthority(args *structs.CertificateAuthorityRotateRequest, reply *structs.CertificateAuthorityResponse) error {
+func (c *Certificate) RotateAuthority(args *structs.CertificateAuthorityRotateRequest, reply *structs.CertificateAuthorityResponse) (retErr error) {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("Certificate.RotateAuthority", args, args, reply); done {
 		return err
 	}
+	defer c.srv.auditCall("Certificate.RotateAuthority", args).done(&retErr)
 	c.srv.MeasureRPCRate("certificate", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -216,11 +218,12 @@ const certificateRevokeAttempts = 5
 // that keeps its certificates (keep_certificates) and waits for something
 // else can still be revoked. The answer says Deleting then, since nothing is
 // issued for such an object.
-func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *structs.CertificateRevokeResponse) error {
+func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *structs.CertificateRevokeResponse) (retErr error) {
 	authErr := c.srv.Authenticate(c.ctx, args)
 	if done, err := c.srv.forward("Certificate.Revoke", args, args, reply); done {
 		return err
 	}
+	defer c.srv.auditCall("Certificate.Revoke", args).done(&retErr)
 	c.srv.MeasureRPCRate("certificate", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

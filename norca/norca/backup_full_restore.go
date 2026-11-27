@@ -148,7 +148,7 @@ func (b *Backup) requestFullRestore(args *structs.BackupRestoreRequest, reply *s
 		return err
 	}
 	record.CreateIndex, record.ModifyIndex = index, index
-	b.logger.Info("full restore requested", "audit", true, "restore_id", record.ID, "backup_id", record.BackupID,
+	b.logger.Info("full restore requested", "restore_id", record.ID, "backup_id", record.BackupID,
 		"requested_by", identity, "expires_at", record.ExpiresAt)
 
 	reply.Restore = record
@@ -334,11 +334,12 @@ func (b *Backup) pendingFullRestore(id string) (*structs.BackupRestore, error) {
 // administrator and runs it: an automatic backup of the current state, the
 // keys of the backup into the keystore of every server, then the Raft state
 // of the backup with the path of "operator snapshot restore".
-func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply *structs.BackupRestoreResponse) error {
+func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply *structs.BackupRestoreResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.ApproveRestore", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.ApproveRestore", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -396,7 +397,7 @@ func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply
 	if _, err := b.writeRestoreRecord(record); err != nil {
 		return err
 	}
-	b.logger.Info("full restore approved", "audit", true, "restore_id", record.ID, "backup_id", record.BackupID,
+	b.logger.Info("full restore approved", "restore_id", record.ID, "backup_id", record.BackupID,
 		"requested_by", record.RequestedBy, "approved_by", identity)
 
 	restored, err := b.runFullRestore(ctx, record, backupRecord, dest, st, ids, args.AuthToken)
@@ -409,11 +410,12 @@ func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply
 
 // RejectRestore rejects a pending full restore. The requester can withdraw
 // their own request.
-func (b *Backup) RejectRestore(args *structs.BackupRestoreRejectRequest, reply *structs.BackupRestoreResponse) error {
+func (b *Backup) RejectRestore(args *structs.BackupRestoreRejectRequest, reply *structs.BackupRestoreResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.RejectRestore", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.RejectRestore", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -445,7 +447,7 @@ func (b *Backup) RejectRestore(args *structs.BackupRestoreRejectRequest, reply *
 	if err != nil {
 		return err
 	}
-	b.logger.Info("full restore rejected", "audit", true, "restore_id", record.ID, "rejected_by", identity,
+	b.logger.Info("full restore rejected", "restore_id", record.ID, "rejected_by", identity,
 		"reason", args.Reason)
 	record.ModifyIndex = index
 	reply.Restore = record

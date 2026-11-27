@@ -26,7 +26,7 @@ const maxRestoreKeys = 1000
 // The server that receives the request adds the keys to its own keystore
 // first, then sends them to the other servers with LocalOnly set, which
 // only servers may do.
-func (k *Keyring) Restore(args *structs.KeyringRestoreRequest, reply *structs.KeyringRestoreResponse) error {
+func (k *Keyring) Restore(args *structs.KeyringRestoreRequest, reply *structs.KeyringRestoreResponse) (retErr error) {
 	authErr := k.srv.Authenticate(k.ctx, args)
 	if args.LocalOnly {
 		// The fan-out of another server of the region: never forwarded.
@@ -35,6 +35,10 @@ func (k *Keyring) Restore(args *structs.KeyringRestoreRequest, reply *structs.Ke
 		}
 	} else if done, err := k.srv.forward("Keyring.Restore", args, args, reply); done {
 		return err
+	}
+	if !args.LocalOnly {
+		// The call of an operator, not the fan-out of a server.
+		defer k.srv.auditCall("Keyring.Restore", args).done(&retErr)
 	}
 	k.srv.MeasureRPCRate("keyring", structs.RateMetricWrite, args)
 	if authErr != nil {

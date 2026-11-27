@@ -387,11 +387,12 @@ func (n *Node) constructNodeServerInfoResponse(nodeID string, snap *state.StateS
 
 // Deregister is used to remove a client from the cluster. If a client should
 // just be made unavailable for scheduling, a status update is preferred.
-func (n *Node) Deregister(args *structs.NodeDeregisterRequest, reply *structs.NodeUpdateResponse) error {
+func (n *Node) Deregister(args *structs.NodeDeregisterRequest, reply *structs.NodeUpdateResponse) (retErr error) {
 	authErr := n.srv.Authenticate(n.ctx, args)
 	if done, err := n.srv.forward("Node.Deregister", args, args, reply); done {
 		return err
 	}
+	defer n.srv.auditCall("Node.Deregister", args).done(&retErr)
 	n.srv.MeasureRPCRate("node", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -414,11 +415,12 @@ func (n *Node) Deregister(args *structs.NodeDeregisterRequest, reply *structs.No
 }
 
 // BatchDeregister is used to remove client nodes from the cluster.
-func (n *Node) BatchDeregister(args *structs.NodeBatchDeregisterRequest, reply *structs.NodeUpdateResponse) error {
+func (n *Node) BatchDeregister(args *structs.NodeBatchDeregisterRequest, reply *structs.NodeUpdateResponse) (retErr error) {
 	authErr := n.srv.Authenticate(n.ctx, args)
 	if done, err := n.srv.forward("Node.BatchDeregister", args, args, reply); done {
 		return err
 	}
+	defer n.srv.auditCall("Node.BatchDeregister", args).done(&retErr)
 	n.srv.MeasureRPCRate("node", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -789,12 +791,13 @@ func nodeStatusTransitionRequiresEval(newStatus, oldStatus string) bool {
 
 // UpdateDrain is used to update the drain mode of a client node
 func (n *Node) UpdateDrain(args *structs.NodeUpdateDrainRequest,
-	reply *structs.NodeDrainUpdateResponse) error {
+	reply *structs.NodeDrainUpdateResponse) (retErr error) {
 
 	authErr := n.srv.Authenticate(n.ctx, args)
 	if done, err := n.srv.forward("Node.UpdateDrain", args, args, reply); done {
 		return err
 	}
+	defer n.srv.auditCall("Node.UpdateDrain", args).done(&retErr)
 	n.srv.MeasureRPCRate("node", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -917,12 +920,13 @@ func drainUpdatedBy(identity *structs.AuthenticatedIdentity) string {
 
 // UpdateEligibility is used to update the scheduling eligibility of a node
 func (n *Node) UpdateEligibility(args *structs.NodeUpdateEligibilityRequest,
-	reply *structs.NodeEligibilityUpdateResponse) error {
+	reply *structs.NodeEligibilityUpdateResponse) (retErr error) {
 
 	authErr := n.srv.Authenticate(n.ctx, args)
 	if done, err := n.srv.forward("Node.UpdateEligibility", args, args, reply); done {
 		return err
 	}
+	defer n.srv.auditCall("Node.UpdateEligibility", args).done(&retErr)
 	n.srv.MeasureRPCRate("node", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

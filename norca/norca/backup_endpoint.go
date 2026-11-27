@@ -130,11 +130,12 @@ func (b *Backup) checkVersion() error {
 }
 
 // Save takes a manual backup on the leader.
-func (b *Backup) Save(args *structs.BackupSaveRequest, reply *structs.BackupSaveResponse) error {
+func (b *Backup) Save(args *structs.BackupSaveRequest, reply *structs.BackupSaveResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.Save", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.Save", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -185,11 +186,12 @@ func (b *Backup) Save(args *structs.BackupSaveRequest, reply *structs.BackupSave
 }
 
 // Update pins, unpins or labels a backup.
-func (b *Backup) Update(args *structs.BackupUpdateRequest, reply *structs.BackupUpdateResponse) error {
+func (b *Backup) Update(args *structs.BackupUpdateRequest, reply *structs.BackupUpdateResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.Update", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.Update", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -243,11 +245,12 @@ func (b *Backup) Update(args *structs.BackupUpdateRequest, reply *structs.Backup
 }
 
 // Delete deletes backups, honoring pinning and min_keep.
-func (b *Backup) Delete(args *structs.BackupDeleteRequest, reply *structs.GenericResponse) error {
+func (b *Backup) Delete(args *structs.BackupDeleteRequest, reply *structs.GenericResponse) (retErr error) {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.Delete", args, args, reply); done {
 		return err
 	}
+	defer b.srv.auditCall("Backup.Delete", args).done(&retErr)
 	b.srv.MeasureRPCRate("backup", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

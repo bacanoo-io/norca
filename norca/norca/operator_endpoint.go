@@ -121,12 +121,13 @@ func (s *Server) raftConfiguration() (*structs.RaftConfigurationResponse, error)
 // quorum but no longer known to Serf or the catalog) by address in the form of
 // "IP:port". The reply argument is not used, but it required to fulfill the RPC
 // interface.
-func (op *Operator) RaftRemovePeerByAddress(args *structs.RaftPeerByAddressRequest, reply *struct{}) error {
+func (op *Operator) RaftRemovePeerByAddress(args *structs.RaftPeerByAddressRequest, reply *struct{}) (retErr error) {
 
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.RaftRemovePeerByAddress", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.RaftRemovePeerByAddress", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -182,12 +183,13 @@ REMOVE:
 // quorum but no longer known to Serf or the catalog) by address in the form of
 // "IP:port". The reply argument is not used, but is required to fulfill the RPC
 // interface.
-func (op *Operator) RaftRemovePeerByID(args *structs.RaftPeerByIDRequest, reply *struct{}) error {
+func (op *Operator) RaftRemovePeerByID(args *structs.RaftPeerByIDRequest, reply *struct{}) (retErr error) {
 
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.RaftRemovePeerByID", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.RaftRemovePeerByID", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -272,12 +274,13 @@ func (op *Operator) AutopilotGetConfiguration(args *structs.GenericRequest, repl
 }
 
 // AutopilotSetConfiguration is used to set the current Autopilot configuration.
-func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRequest, reply *bool) error {
+func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRequest, reply *bool) (retErr error) {
 
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.AutopilotSetConfiguration", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.AutopilotSetConfiguration", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -352,12 +355,13 @@ func (op *Operator) ServerHealth(args *structs.GenericRequest, reply *structs.Op
 }
 
 // SchedulerSetConfiguration is used to set the current Scheduler configuration.
-func (op *Operator) SchedulerSetConfiguration(args *structs.SchedulerSetConfigRequest, reply *structs.SchedulerSetConfigurationResponse) error {
+func (op *Operator) SchedulerSetConfiguration(args *structs.SchedulerSetConfigRequest, reply *structs.SchedulerSetConfigurationResponse) (retErr error) {
 
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.SchedulerSetConfiguration", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.SchedulerSetConfiguration", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -567,7 +571,11 @@ func (op *Operator) snapshotRestore(conn io.ReadWriteCloser) {
 	decoder := codec.NewDecoder(conn, structs.MsgpackHandle)
 	encoder := codec.NewEncoder(conn, structs.MsgpackHandle)
 
+	// restoreErr is the error the restore failed with, for its audit
+	// record.
+	var restoreErr error
 	handleFailure := func(code int, err error) {
+		restoreErr = err
 		encoder.Encode(&structs.SnapshotRestoreResponse{
 			ErrorCode: code,
 			ErrorMsg:  err.Error(),
@@ -604,6 +612,7 @@ func (op *Operator) snapshotRestore(conn io.ReadWriteCloser) {
 		return
 
 	}
+	defer op.srv.auditCall("Operator.SnapshotRestore", &args).done(&restoreErr)
 
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, &args)
 	if authErr != nil {

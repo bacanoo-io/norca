@@ -27,11 +27,12 @@ var promoteStandbyTimeout = 30 * time.Second
 // failover time. Autopilot stays the only owner of the voter set; the call
 // waits for the promotion. Nothing is removed unless the promotion can
 // follow (manualPromotionBlocked).
-func (op *Operator) RaftPromoteStandby(args *structs.RaftPromoteStandbyRequest, reply *structs.RaftPromoteStandbyResponse) error {
+func (op *Operator) RaftPromoteStandby(args *structs.RaftPromoteStandbyRequest, reply *structs.RaftPromoteStandbyResponse) (retErr error) {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.RaftPromoteStandby", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.RaftPromoteStandby", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

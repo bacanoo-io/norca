@@ -173,11 +173,12 @@ func (s *Server) recoverSecretCoreWithKey(ctx context.Context, key []byte) error
 // request (operator:write), collected on the leader, or with the key itself
 // from the secret store key object of a backup (management). The leader
 // re-wraps the key with the region's seals, and the core unseals.
-func (op *Operator) SealRecover(args *structs.SealRecoverRequest, reply *structs.SealRecoverResponse) error {
+func (op *Operator) SealRecover(args *structs.SealRecoverRequest, reply *structs.SealRecoverResponse) (retErr error) {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.SealRecover", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.SealRecover", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

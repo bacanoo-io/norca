@@ -243,11 +243,12 @@ func mtlsDNSNames(services []*structs.Service, namespace, region string) []strin
 
 // RotateCA replaces the active CA of the region. It requires a management
 // token.
-func (m *MTLS) RotateCA(args *structs.MTLSRotateRequest, reply *structs.MTLSRotateResponse) error {
+func (m *MTLS) RotateCA(args *structs.MTLSRotateRequest, reply *structs.MTLSRotateResponse) (retErr error) {
 	authErr := m.srv.Authenticate(m.ctx, args)
 	if done, err := m.srv.forward("MTLS.RotateCA", args, args, reply); done {
 		return err
 	}
+	defer m.srv.auditCall("MTLS.RotateCA", args).done(&retErr)
 	m.srv.MeasureRPCRate("mtls", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

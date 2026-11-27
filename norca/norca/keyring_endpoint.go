@@ -32,12 +32,13 @@ func NewKeyringEndpoint(srv *Server, ctx *RPCContext, enc *Encrypter) *Keyring {
 	return &Keyring{srv: srv, ctx: ctx, logger: srv.logger.Named("keyring"), encrypter: enc}
 }
 
-func (k *Keyring) Rotate(args *structs.KeyringRotateRootKeyRequest, reply *structs.KeyringRotateRootKeyResponse) error {
+func (k *Keyring) Rotate(args *structs.KeyringRotateRootKeyRequest, reply *structs.KeyringRotateRootKeyResponse) (retErr error) {
 
 	authErr := k.srv.Authenticate(k.ctx, args)
 	if done, err := k.srv.forward("Keyring.Rotate", args, args, reply); done {
 		return err
 	}
+	defer k.srv.auditCall("Keyring.Rotate", args).done(&retErr)
 	k.srv.MeasureRPCRate("keyring", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -161,12 +162,13 @@ func (k *Keyring) List(args *structs.KeyringListRootKeyMetaRequest, reply *struc
 
 // Update updates an existing key in the keyring, including both the
 // key material and metadata.
-func (k *Keyring) Update(args *structs.KeyringUpdateRootKeyRequest, reply *structs.KeyringUpdateRootKeyResponse) error {
+func (k *Keyring) Update(args *structs.KeyringUpdateRootKeyRequest, reply *structs.KeyringUpdateRootKeyResponse) (retErr error) {
 
 	authErr := k.srv.Authenticate(k.ctx, args)
 	if done, err := k.srv.forward("Keyring.Update", args, args, reply); done {
 		return err
 	}
+	defer k.srv.auditCall("Keyring.Update", args).done(&retErr)
 	k.srv.MeasureRPCRate("keyring", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -323,12 +325,13 @@ func (k *Keyring) Get(args *structs.KeyringGetRootKeyRequest, reply *structs.Key
 	return k.srv.blockingRPC(&opts)
 }
 
-func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *structs.KeyringDeleteRootKeyResponse) error {
+func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *structs.KeyringDeleteRootKeyResponse) (retErr error) {
 
 	authErr := k.srv.Authenticate(k.ctx, args)
 	if done, err := k.srv.forward("Keyring.Delete", args, args, reply); done {
 		return err
 	}
+	defer k.srv.auditCall("Keyring.Delete", args).done(&retErr)
 	k.srv.MeasureRPCRate("keyring", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

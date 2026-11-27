@@ -52,11 +52,12 @@ func (op *Operator) BusStatus(args *structs.BusStatusRequest, reply *structs.Bus
 // ConsulKVRestore replaces the Consul KV bucket of the system bus with the
 // keys of a backup. Like the restore of the keyring it needs a management
 // token: it overwrites keys of every namespace.
-func (op *Operator) ConsulKVRestore(args *structs.ConsulKVRestoreRequest, reply *structs.ConsulKVRestoreResponse) error {
+func (op *Operator) ConsulKVRestore(args *structs.ConsulKVRestoreRequest, reply *structs.ConsulKVRestoreResponse) (retErr error) {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.ConsulKVRestore", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.ConsulKVRestore", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -91,11 +92,12 @@ func (op *Operator) ConsulKVRestore(args *structs.ConsulKVRestoreRequest, reply 
 // ConsulKVMigrate copies the keys of the Consul KV kept in Variables into
 // the bucket of the system bus. It needs operator write; only the keys the
 // token may read as Variables are copied.
-func (op *Operator) ConsulKVMigrate(args *structs.ConsulKVMigrateRequest, reply *structs.ConsulKVMigrateResponse) error {
+func (op *Operator) ConsulKVMigrate(args *structs.ConsulKVMigrateRequest, reply *structs.ConsulKVMigrateResponse) (retErr error) {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.ConsulKVMigrate", args, args, reply); done {
 		return err
 	}
+	defer op.srv.auditCall("Operator.ConsulKVMigrate", args).done(&retErr)
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
