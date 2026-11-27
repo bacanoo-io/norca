@@ -150,7 +150,7 @@ func eventRecord(ev *Event, observed time.Time) otellog.Record {
 
 // cutUTF8 returns b as a string of at most limit bytes, cut at a rune
 // boundary, and whether it was cut.
-func cutUTF8(b []byte, limit int) (string, bool) {
+func cutUTF8[T ~string | ~[]byte](b T, limit int) (string, bool) {
 	if len(b) <= limit {
 		return string(b), false
 	}

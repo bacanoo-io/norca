@@ -26,9 +26,10 @@ const (
 	logExportInterval    = time.Second
 	logAttributeCountMax = 128
 
-	// logValueLengthMax bounds a string attribute and the body of an agent
-	// log record, so that one huge line can't make a batch too large for
-	// the receiver.
+	// logValueLengthMax bounds a string attribute (the SDK's attribute
+	// value limit) and the body of an agent log record (the log sink cuts
+	// it, as the SDK applies no limit to a body), so that one huge line
+	// can't make a batch too large for the receiver.
 	logValueLengthMax = 16 << 10
 )
 

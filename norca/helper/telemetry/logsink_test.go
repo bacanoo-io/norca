@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/hashicorp/go-hclog"
@@ -245,6 +247,20 @@ func TestLogSink_ErrorWithStacktrace(t *testing.T) {
 	typed := recordAttrs(records[2])
 	must.Eq(t, "typed", typed["exception.message"].AsString())
 	must.Eq(t, "norca.typed", typed["exception.type"].AsString())
+}
+
+// The body of a record is cut at logValueLengthMax, at a rune boundary, as
+// the SDK cuts the string attributes; it applies no limit to a body.
+func TestLogSink_LongLine(t *testing.T) {
+	ci.Parallel(t)
+
+	sink, mem := boundSink(t, hclog.Trace)
+	sink.Accept("agent", hclog.Info, "a"+strings.Repeat("é", logValueLengthMax))
+	records := mem.all()
+	must.Len(t, 1, records)
+	body := records[0].Body().AsString()
+	must.Eq(t, logValueLengthMax-1, len(body), must.Sprint("cut before the rune that does not fit"))
+	must.True(t, utf8.ValidString(body))
 }
 
 func TestLogSink_TraceContext(t *testing.T) {

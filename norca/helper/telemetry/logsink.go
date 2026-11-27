@@ -193,7 +193,8 @@ func (s *LogSink) record(name string, level hclog.Level, msg string, args []any)
 	sev := logSeverities[level]
 	r.SetSeverity(sev.number)
 	r.SetSeverityText(sev.text)
-	r.SetBody(otellog.StringValue(msg))
+	body, _ := cutUTF8(msg, logValueLengthMax)
+	r.SetBody(otellog.StringValue(body))
 	if name != "" {
 		r.AddAttributes(otellog.String(AttrLogger, name))
 	}
