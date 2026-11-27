@@ -776,8 +776,8 @@ func (a *Agent) finalizeClientConfig(c *clientconfig.Config) error {
 	}
 	if len(invalidConsulKeys) > 0 {
 		a.logger.Warn("invalid consul keys", "keys", strings.Join(invalidConsulKeys, ","))
-		a.logger.Warn(`Norca client ignores consul related configuration in client options.
-		Configure the Consul integration in the consul block of the agent configuration instead.`)
+		a.logger.Warn("the client ignores the consul related configuration in the client options: " +
+			"configure the Consul integration in the consul block of the agent configuration instead")
 	}
 
 	return nil

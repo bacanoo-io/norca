@@ -397,7 +397,7 @@ func connLimiter(connLimit int, handshakeTimeout time.Duration, tlsConfig *tls.C
 		if err == connlimit.ErrPerClientIPLimitReached {
 			metrics.IncrCounter([]string{"agent", "http", "exceeded"}, 1)
 			if n := limiter.Reserve(); n.Delay() == 0 {
-				logger.Warn("Too many concurrent connections", "address", conn.RemoteAddr().String(), "limit", connLimit)
+				logger.Warn("too many concurrent connections", "address", conn.RemoteAddr().String(), "limit", connLimit)
 				// Norca: the answer to a TLS connection is written on its
 				// network connection, which the server no longer has
 				// then: what the server serves and closes after this is
@@ -870,7 +870,7 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 		start := time.Now()
 		logger := telemetry.LogWith(s.logger, req.Context())
 		defer func() {
-			logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
+			logger.Debug("request complete", "http_method", req.Method, "http_path", reqURL, "duration", time.Since(start))
 		}()
 		obj, err := s.auditHandler(handler)(resp, req)
 
@@ -906,9 +906,9 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 			resp.WriteHeader(code)
 			resp.Write([]byte(errMsg))
 			if isAPIClientError(code) {
-				logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Debug("request failed", "http_method", req.Method, "http_path", reqURL, "error", err, "http_status", code)
 			} else {
-				logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Error("request failed", "http_method", req.Method, "http_path", reqURL, "error", err, "http_status", code)
 			}
 			return
 		}
@@ -958,7 +958,7 @@ func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *htt
 		start := time.Now()
 		logger := telemetry.LogWith(s.logger, req.Context())
 		defer func() {
-			logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
+			logger.Debug("request complete", "http_method", req.Method, "http_path", reqURL, "duration", time.Since(start))
 		}()
 		obj, err := s.auditNonJSONHandler(handler)(resp, req)
 
@@ -968,9 +968,9 @@ func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *htt
 			resp.WriteHeader(code)
 			resp.Write([]byte(errMsg))
 			if isAPIClientError(code) {
-				logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Debug("request failed", "http_method", req.Method, "http_path", reqURL, "error", err, "http_status", code)
 			} else {
-				logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Error("request failed", "http_method", req.Method, "http_path", reqURL, "error", err, "http_status", code)
 			}
 			return
 		}
@@ -1289,7 +1289,7 @@ func (s *HTTPServer) wrapUntrustedContent(handler handlerFn) handlerFn {
 				// log. s.wrap does not even log when resp.Write fails,
 				// so log at low level.
 				s.logger.Debug("error writing HTTP response", "error", err,
-					"method", req.Method, "path", req.URL.String())
+					"http_method", req.Method, "http_path", req.URL.Path)
 			}
 		}()
 
@@ -1347,13 +1347,13 @@ func (a *authMiddleware) ServeHTTP(resp http.ResponseWriter, req *http.Request) 
 		// When ACLs are enabled, WhoAmI returns ErrPermissionDenied on bad
 		// credentials, so convert it to a Forbidden response code.
 		if strings.HasSuffix(err.Error(), structs.ErrPermissionDenied.Error()) {
-			a.srv.logger.Debug("Failed to authenticated Task API request", "method", req.Method, "url", req.URL)
+			a.srv.logger.Debug("failed to authenticate Task API request", "http_method", req.Method, "http_path", req.URL.Path)
 			resp.WriteHeader(http.StatusForbidden)
 			resp.Write([]byte(http.StatusText(http.StatusForbidden)))
 			return
 		}
 
-		a.srv.logger.Error("error authenticating built API request", "error", err, "url", req.URL, "method", req.Method)
+		a.srv.logger.Error("error authenticating built API request", "error", err, "http_path", req.URL.Path, "http_method", req.Method)
 		resp.WriteHeader(http.StatusInternalServerError)
 		resp.Write([]byte("Server error authenticating request\n"))
 		return
@@ -1361,12 +1361,12 @@ func (a *authMiddleware) ServeHTTP(resp http.ResponseWriter, req *http.Request) 
 
 	// Require an acl token or workload identity
 	if reply.Identity == nil || (reply.Identity.ACLToken == nil && reply.Identity.Claims == nil) {
-		a.srv.logger.Debug("Failed to authenticated Task API request", "method", req.Method, "url", req.URL)
+		a.srv.logger.Debug("failed to authenticate Task API request", "http_method", req.Method, "http_path", req.URL.Path)
 		resp.WriteHeader(http.StatusForbidden)
 		resp.Write([]byte(http.StatusText(http.StatusForbidden)))
 		return
 	}
 
-	a.srv.logger.Trace("Authenticated request", "id", reply.Identity, "method", req.Method, "url", req.URL)
+	a.srv.logger.Trace("authenticated request", "identity", reply.Identity.String(), "http_method", req.Method, "http_path", req.URL.Path)
 	a.wrapped.ServeHTTP(resp, req)
 }

@@ -5,7 +5,6 @@
 package monitor
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -64,7 +63,7 @@ func TestMonitor_DroppedMessages(t *testing.T) {
 	logCh := m.Start()
 
 	for i := 0; i <= 100; i++ {
-		logger.Debug(fmt.Sprintf("test message %d", i))
+		logger.Debug("test message", "i", i)
 	}
 
 	received := ""

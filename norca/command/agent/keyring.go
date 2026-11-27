@@ -38,8 +38,8 @@ func initKeyring(path, key string, l log.Logger) error {
 		case 24:
 			encMethod = "AES-192"
 		}
-		msg := fmt.Sprintf("given %d-byte gossip key enables %s encryption, generate a 32-byte key to enable AES-256", len(key), encMethod)
-		l.Info(msg)
+		l.Info("the gossip key is shorter than 32 bytes: generate a 32-byte key to enable AES-256",
+			"key_bytes", len(key), "encryption", encMethod)
 	}
 
 	// Just exit if the file already exists.

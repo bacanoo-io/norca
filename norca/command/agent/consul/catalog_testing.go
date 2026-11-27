@@ -62,12 +62,12 @@ func NewMockCatalog(l hclog.Logger) *MockCatalog {
 
 func (m *MockCatalog) Datacenters() ([]string, error) {
 	dcs := []string{"dc1"}
-	m.logger.Trace("Datacenters()", "dcs", dcs, "error", "nil")
+	m.logger.Trace("datacenters()", "datacenters", dcs, "error", "nil")
 	return dcs, nil
 }
 
 func (m *MockCatalog) Service(service, tag string, q *api.QueryOptions) ([]*api.CatalogService, *api.QueryMeta, error) {
-	m.logger.Trace("Services()", "service", service, "tag", tag, "query_options", q)
+	m.logger.Trace("services()", "service", service, "tag", tag, "query_options", q)
 	return nil, nil, nil
 }
 

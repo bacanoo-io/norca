@@ -507,9 +507,9 @@ func (s *HTTPServer) updateServers(resp http.ResponseWriter, req *http.Request) 
 	}
 
 	// Set the servers list into the client
-	s.logger.Trace("adding servers to the client's primary server list", "servers", servers, "path", "/v1/agent/servers", "method", "PUT")
+	s.logger.Trace("adding servers to the client's primary server list", "servers", servers, "http_path", "/v1/agent/servers", "http_method", "PUT")
 	if _, err := client.SetServers(servers); err != nil {
-		s.logger.Error("failed adding servers to client's server list", "servers", servers, "error", err, "path", "/v1/agent/servers", "method", "PUT")
+		s.logger.Error("failed adding servers to client's server list", "servers", servers, "error", err, "http_path", "/v1/agent/servers", "http_method", "PUT")
 		//TODO is this the right error to return?
 		return nil, CodedError(400, err.Error())
 	}
@@ -755,7 +755,7 @@ func (s *HTTPServer) AgentHostRequest(resp http.ResponseWriter, req *http.Reques
 	// The RPC endpoint actually forwards the request to the correct
 	// agent, but we need to use the correct RPC interface.
 	localClient, remoteClient, localServer := s.rpcHandlerForNode(lookupNodeID)
-	s.logger.Debug("s.rpcHandlerForNode()", "lookupNodeID", lookupNodeID, "serverID", serverID, "nodeID", nodeID, "localClient", localClient, "remoteClient", remoteClient, "localServer", localServer)
+	s.logger.Debug("s.rpcHandlerForNode()", "requested_node_id", lookupNodeID, "server_id", serverID, "node_id", nodeID, "local_client", localClient, "remote_client", remoteClient, "local_server", localServer)
 
 	// Make the RPC call
 	if localClient {

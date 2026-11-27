@@ -36,7 +36,7 @@ type mockUpdater struct {
 }
 
 func (m *mockUpdater) TaskStateUpdated() {
-	m.logger.Named("mock.updater").Debug("Update!")
+	m.logger.Named("mock.updater").Debug("update!")
 }
 
 // TestConsul_Integration asserts TaskRunner properly registers and deregisters

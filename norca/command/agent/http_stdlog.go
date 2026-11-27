@@ -26,10 +26,10 @@ type httpServerLoggerAdapter struct {
 func (l *httpServerLoggerAdapter) Write(data []byte) (int, error) {
 	if bytes.Contains(data, []byte("panic")) {
 		str := string(bytes.TrimRight(data, " \t\n"))
-		l.logger.Error(str)
+		l.logger.Error(str) //logcheck:ignore a line of the net/http server
 	} else if l.logger.IsTrace() {
 		str := string(bytes.TrimRight(data, " \t\n"))
-		l.logger.Trace(str)
+		l.logger.Trace(str) //logcheck:ignore a line of the net/http server
 	}
 
 	return len(data), nil

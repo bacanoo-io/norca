@@ -34,9 +34,9 @@ func checkConsulTLSSkipVerify(ctx context.Context, logger log.Logger, client Age
 		self, err := client.Self()
 		if err == nil {
 			if supportsTLSSkipVerify(self) {
-				logger.Trace("Consul supports TLSSkipVerify")
+				logger.Trace("consul supports TLSSkipVerify")
 			} else {
-				logger.Warn("Consul does NOT support TLSSkipVerify; please upgrade Consul",
+				logger.Warn("consul does NOT support TLSSkipVerify; please upgrade Consul",
 					"min_version", consulTLSSkipVerifyMinVersion)
 			}
 			return

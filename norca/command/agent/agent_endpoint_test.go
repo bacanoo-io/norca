@@ -1434,7 +1434,7 @@ func TestHTTP_XSS_Monitor(t *testing.T) {
 		OUTER:
 			for {
 				// Log a needle and look for it in the response haystack
-				s.Server.logger.Error(tc.Logline)
+				s.Server.logger.Error(tc.Logline) //logcheck:ignore the line the test looks for
 
 				select {
 				case <-time.After(30 * time.Millisecond):

@@ -243,7 +243,7 @@ func maybeTweakTaggedAddresses(wanted *api.AgentServiceRegistration, existing *a
 // critical fields are not deeply equal, they considered different.
 func (s *ServiceClient) different(wanted *api.AgentServiceRegistration, existing *api.AgentService, sidecar *api.AgentService) bool {
 	trace := func(field string, left, right any) {
-		s.logger.Trace("registrations different", "id", wanted.ID,
+		s.logger.Trace("registrations different", "service_id", wanted.ID,
 			"field", field, "wanted", fmt.Sprintf("%#v", left), "existing", fmt.Sprintf("%#v", right),
 		)
 	}
@@ -838,7 +838,7 @@ func (c *ServiceClient) sync(reason syncReason) error {
 		sidecarInConsul := getNomadSidecar(id, servicesInConsul)
 
 		if !exists || c.agentServiceUpdateRequired(reason, serviceInNomad, serviceInConsul, sidecarInConsul) {
-			c.logger.Trace("must register service", "id", id, "exists", exists, "reason", reason)
+			c.logger.Trace("must register service", "service_id", id, "exists", exists, "reason", reason)
 			if err = c.agentAPI.ServiceRegister(serviceInNomad); err != nil {
 				metrics.IncrCounter([]string{"client", "consul", "sync_failure"}, 1)
 				return err
