@@ -66,7 +66,7 @@ on every step.
 | Leader ring buffer (30 buckets over `metrics_window`) | Built-in autoscaler | `autoscaler/metrics.go` | built |
 | Long windows (`query_window` beyond `metrics_window`) and warmup after a leader change | Metrics store phases 4c–4f | `usage_apm.go` (`fromHistory`), `bus_telemetry.go` (`seedAutoscalerUsage`) | built |
 | Stored history of every series on every server, retention 1h–30d | Metrics store (`internal-metrics-storage-tstorage.md`, `metric-storage-update.md`) | `norca/norca/metricsstore` | built |
-| Source of task group usage (`nomad.cpu`, `nomad.memory`, ..., `taskgroup_<op>_<metric>`, `/<group>/<job>@<namespace>` suffix for another group) | Built-in autoscaler | `autoscaler/usage_apm.go` | built |
+| Source of task group usage (`norca.cpu`, `norca.memory`, ..., `taskgroup_<op>_<metric>`, `/<group>/<job>@<namespace>` suffix for another group) | Built-in autoscaler | `autoscaler/usage_apm.go` | built |
 | Source `norca` of the cluster gauges (`cluster.cpu_allocated?dc=..&pool=..&op=max`) | Node scaling phase 0 | `autoscaler/cluster_apm.go` | built |
 | Plugin-based scaling: `engine = "external"` policies for an external autoscaler process, external APM/strategy plugin binaries in `plugin_dir`, the Prometheus APM plugin | Built-in autoscaler | `autoscaler/policies.go` (`isBuiltinPolicy`), `plugins.go`, `plugins/external`, `plugins/apm/prometheus` | built; **kept and must keep working** (decided 2026-11-12); never used by a Norca feature itself |
 | Custom object target: a policy writes the object's scale subresource; the controller derives the group count | Operator framework (`custom-objects-and-operator-framework.md` §2.4, §4.5) | `autoscaler/target_object.go`, `executor_object.go`, `CustomObject.Scale` | built |
@@ -116,10 +116,10 @@ only Raft writes are the scaling actions and their events, as today.
 
 | Check metric today | Store series | Value |
 | --- | --- | --- |
-| `nomad.cpu` | `norca.group.cpu` | CPU used, % of the allocated CPU |
-| `nomad.memory` | `norca.group.memory` | memory used, % of the allocated memory |
-| `nomad.cpu_mhz` | `norca.group.cpu_mhz` | CPU used, MHz |
-| `nomad.memory_mb` | `norca.group.memory_mb` | memory used, MiB |
+| `norca.cpu` | `norca.group.cpu` | CPU used, % of the allocated CPU |
+| `norca.memory` | `norca.group.memory` | memory used, % of the allocated memory |
+| `norca.cpu_mhz` | `norca.group.cpu_mhz` | CPU used, MHz |
+| `norca.memory_mb` | `norca.group.memory_mb` | memory used, MiB |
 
 Also accepted: `taskgroup_<avg|max|sum>_<cpu-allocated|memory-allocated|memory>`; `sum` is the
 average times the running allocations. A query can name another group with the suffix

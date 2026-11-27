@@ -19,7 +19,7 @@ Norca elevates workload placement, horizontal elasticity, and voluntary disrupti
 | Capability | Upstream Nomad v1.6.5 | Norca Architecture |
 | :--- | :--- | :--- |
 | **Cross-Job Pod Affinity / Anti-Affinity** | Not supported (only node-attribute `affinity` and intra-group `distinct_hosts`). | Native `colocate` and `separate` blocks (`norca/scheduler/alloc_affinity.go`) with `meta` selectors, cross-namespace ACL checks, and O(1) incremental plan folding. |
-| **Horizontal Workload Autoscaling** | Requires deploying and operating an external `nomad-autoscaler` binary polling HTTP APIs. | Built into the Raft leader (`norca/norca/autoscaler/`), using client-pushed ring-buffer usage metrics (`nomad.cpu`, `nomad.memory`), Prometheus APM, quota capping, and oscillation suspension. |
+| **Horizontal Workload Autoscaling** | Requires deploying and operating an external `nomad-autoscaler` binary polling HTTP APIs. | Built into the Raft leader (`norca/norca/autoscaler/`), using client-pushed ring-buffer usage metrics (`norca.cpu`, `norca.memory`), Prometheus APM, quota capping, and oscillation suspension. |
 | **Voluntary Disruption Protection** | Only static `migrate.max_parallel` during node drains; `alloc stop` ignores group health. | Declarative `disruption` budgets (`min_healthy` / `max_unavailable`), deployment-aware drain gating, and atomic `POST /v1/allocation/:id/evict` (`429 Too Many Requests` + `Retry-After`). |
 | **AZ / Datacenter Traffic Locality** | Requires external service mesh or manual template filtering. | Native `discovery { prefer = "datacenter" }` with `min_local` and `overflow_fraction` tier spillover (`norca/norca/structs/discovery.go`). |
 
@@ -111,7 +111,7 @@ When a scheduler worker processes an `Evaluation`, it constructs a `GenericStack
 |                                                 v                                                 |
 |  +---------------------------------------------------------------------------------------------+  |
 |  | 3. Check & Strategy Execution (norca/norca/autoscaler/check.go:54)                          |  |
-|  |    - Metrics Sources: Built-in `usageAPM` (`nomad.cpu`, `nomad.memory`), `prometheus`, ext  |  |
+|  |    - Metrics Sources: Built-in `usageAPM` (`norca.cpu`, `norca.memory`), `prometheus`, ext  |  |
 |  |    - Strategies: `target-value`, `threshold`, `fixed-value`, `pass-through`, external gRPC  |  |
 |  |    - Clamps to `[policy.Min, policy.Max]`; resolves check groups via `PreemptScalingAction` |  |
 |  |    - Caps scale-up at Namespace Quota (`capAtQuota`, coordination.go:23)                    |  |
@@ -274,10 +274,10 @@ Unlike the external `nomad-autoscaler`—which opens HTTP connections to every c
 
 | Built-in `metric` Shorthand | Legacy `nomad-apm` Query Equivalent | Underlying Metric & Operation |
 | :--- | :--- | :--- |
-| **`nomad.cpu`** | `avg_cpu-allocated` | Sample-weighted mean CPU % of allocated CPU across running allocs |
-| **`nomad.memory`** | `avg_memory-allocated` | Sample-weighted mean Memory % of allocated memory across running allocs |
-| **`nomad.cpu_mhz`** | — | Sample-weighted mean CPU usage in MHz per allocation |
-| **`nomad.memory_mb`** | `avg_memory` *(scaled $\times 1024^2$ to bytes)* | Sample-weighted mean Memory usage in MiB per allocation |
+| **`norca.cpu`** | `avg_cpu-allocated` | Sample-weighted mean CPU % of allocated CPU across running allocs |
+| **`norca.memory`** | `avg_memory-allocated` | Sample-weighted mean Memory % of allocated memory across running allocs |
+| **`norca.cpu_mhz`** | — | Sample-weighted mean CPU usage in MHz per allocation |
+| **`norca.memory_mb`** | `avg_memory` *(scaled $\times 1024^2$ to bytes)* | Sample-weighted mean Memory usage in MiB per allocation |
 | — | `max_cpu-allocated` / `max_memory-allocated` | Maximum single-allocation CPU % or Memory % observed in window |
 | — | `sum_cpu-allocated` / `sum_memory-allocated` | $\text{agg.avg} \times N_{\text{runningAllocs}}$ (`usage_apm.go:78`) |
 
@@ -494,7 +494,7 @@ job "checkout" {
 
         # Typed check using built-in client-pushed usage metrics (zero Client RPCs)
         check "cpu-utilization" {
-          metric         = "nomad.cpu"
+          metric         = "norca.cpu"
           query_window   = "2m"
           strategy       = "target-value"
           target         = 70
@@ -589,5 +589,5 @@ job "checkout" {
 
 1. **Cross-Namespace `colocate` / `separate` ACL Requirements**: When a job's `colocate` or `separate` block specifies `namespace = "other"`, the ACL token submitting `norca job run` or `norca job plan` must possess `read-job` in `"other"` (`norca/norca/job_endpoint_hook_alloc_affinity.go:98`), preventing unauthorized tenants from probing workload topology in foreign namespaces.
 2. **Avoid `100%` Disruption Budgets in Production**: Setting `min_healthy = "100%"` or `max_unavailable = 0` sets `RequiredHealthy == DesiredCount`. Because `DisruptionsAllowed = max(0, Healthy - RequiredHealthy - DeploymentReserved)`, `DisruptionsAllowed` will permanently be `0`, causing `norca alloc stop -respect-disruption` to return `429 Too Many Requests` and causing node drains to stall until their force-stop deadline. Always leave at least 1 replica of slack (or use `max_unavailable = 1` / `"10%"`).
-3. **Post-Failover Autoscaler Warmup (`metrics_window`)**: Client usage reports (`TaskGroupUsageReport`) are held exclusively in leader memory to avoid Raft log amplification. Following a Raft leader election, checks using `nomad.cpu`, `nomad.memory`, `nomad.cpu_mhz`, or `nomad.memory_mb` wait for one full `metrics_window` (default `5m`) before acting (`ErrInsufficientData`). Keep `metrics_window` between `2m` and `5m` for responsive post-failover recovery.
+3. **Post-Failover Autoscaler Warmup (`metrics_window`)**: Client usage reports (`TaskGroupUsageReport`) are held exclusively in leader memory to avoid Raft log amplification. Following a Raft leader election, checks using `norca.cpu`, `norca.memory`, `norca.cpu_mhz`, or `norca.memory_mb` wait for one full `metrics_window` (default `5m`) before acting (`ErrInsufficientData`). Keep `metrics_window` between `2m` and `5m` for responsive post-failover recovery.
 4. **Oscillation Suspension Recovery**: If a workload's scaling policy flips direction `3` times within `10m`, the built-in autoscaler suspends the policy for `15m` and writes an error `ScalingEvent` visible in `norca job scaling-events -verbose <job>`. Widening the `target-value` `threshold` deadband (e.g., from `0.01` to `0.05`) or increasing `cooldown` prevents rapid scale-up/scale-down thrashing.

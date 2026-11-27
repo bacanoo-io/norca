@@ -5,7 +5,7 @@ SPDX-License-Identifier: MPL-2.0
 
 # OpenTelemetry in the agent – plan
 
-**Status:** Draft · 2026-11-10 · nothing built; all open questions decided on 2026-11-10 (the table below lists the
+**Status:** Building since 2026-11-27 (phases 0–5); all open questions decided on 2026-11-10, 2026-11-11 and 2026-11-27 (the table below lists the
 decisions; [decisions of 2026-11-10](#decisions-of-2026-11-10) lists them in one place). Related:
 [metric-storage-update.md](metric-storage-update.md) and
 [internal-metrics-storage-tstorage.md](internal-metrics-storage-tstorage.md) (the metrics store,
@@ -105,7 +105,7 @@ What exists, read from the code on `test/lab-2026-11-10` (7b0adac8a).
 | Call sites | In the `norca` module outside tests: `MeasureSince` 416, `MeasureSinceWithLabels` 4, `IncrCounter` 65, `IncrCounterWithLabels` 31, `SetGauge` 41, `SetGaugeWithLabels` 58, `AddSample` 0. |
 | `/v1/metrics` | `command/agent/metrics_endpoint.go`: JSON from the `InmemSink` (`DisplayMetrics`), or `?format=prometheus` through `promhttp` on the default registry; **415 "Prometheus is not enabled"** when `prometheus_metrics` is off. Routes in `command/agent/http.go` line ~527 (`/v1/metrics`, `/history`, `/series`, `/summary`). CLI `norca operator metrics` (`command/metrics.go`), API `api/operator_metrics.go`. |
 | Metrics store | `norca/metricsstore` (tstorage). Fed by the servers' own sampling of the state (`norca/metrics_store_sample.go` and siblings), by the clients' usage reports on the system bus (`norca/bus_telemetry.go` → `RecordNodeHost`), and for the two Raft times by reading the **InmemSink** (`norca/metrics_store_server.go`, `telemetryReader.raftTimings`, via `norca/config.go` `TelemetrySink`). It does **not** read the Prometheus sink. |
-| Autoscaler sources | `norca/autoscaler/plugins/plugins.go`: `nomad-apm` (live state and allocation stats, `plugins/apm/nomadapm`), `norca` (the cluster gauges of the metrics store, `cluster_apm.go`) and the usage source (`usage_apm.go`), and `prometheus` (`plugins/apm/prometheus`, a **query client** of an external Prometheus server via `client_golang/api`). None reads the agent's Prometheus sink. The autoscaler emits `nomad.autoscaler.usage.*` through go-metrics (`norca/autoscaler/metrics.go`). |
+| Autoscaler sources | `norca/autoscaler/plugins/plugins.go`: `nomad-apm` (live state and allocation stats, `plugins/apm/nomadapm`), `norca` (the cluster gauges of the metrics store, `cluster_apm.go`) and the usage source (`usage_apm.go`), and `prometheus` (`plugins/apm/prometheus`, a **query client** of an external Prometheus server via `client_golang/api`). None reads the agent's Prometheus sink. The autoscaler emitted `nomad.nomad.autoscaler.usage.*` through go-metrics (`norca/autoscaler/metrics.go`); `norca.autoscaler.usage.*` since phase 1. |
 | Logging | `command/agent/command.go`: `SetupLoggers` (gated writer, level filter, syslog, rotating log file) and `hclog.NewInterceptLogger` with `log_level`, `log_json`, `log_include_location`; the standard `log` package is redirected into hclog; with `log_json` the CLI UI writes through hclog (`helper/logging/logging.go`). Only `log_level` is reloaded on SIGHUP. `/v1/agent/monitor` streams logs through an interceptor sink (`command/agent/agent_endpoint.go`, `log_json`, `log_include_location` query options). `helper/grpc-middleware/logging` exists for gRPC logging. The `controller` module uses `log/slog`. |
 | Log keys | Counted in `norca/`, `client/`, `command/`, `drivers/`: `"error"` 945 (no `"err"`); `"alloc_id"` 70 vs `"alloc"` 58; `"job"` 164 vs `"job_id"` 5; `"eval"` 36 vs `"eval_id"` 11; `"node_id"` 55 vs `"node"` 46; `"group"` 38, `"task_group"` 3. 35 log calls format the message with `fmt.Sprintf`. |
 | Correlation | None: no request ID, no trace ID. The HTTP wrapper logs `request complete` / `request failed` with `method`, `path`, `duration`, `code` (`command/agent/http.go` `wrap`). |
@@ -159,7 +159,7 @@ telemetry {
   collection_interval        = "10s"
   publish_allocation_metrics = true
   publish_node_metrics       = true
-  prefix_filter              = ["-nomad.raft.replication.appendEntries"]
+  prefix_filter              = ["-norca.raft.replication.appendEntries"]
 
   # Was: prometheus_metrics = true
   prometheus {
@@ -302,8 +302,8 @@ discipline and correlation. The current logs stay; they are extended and normali
   wrapper's `request complete`/`request failed`, the RPC error paths, the worker, the plan applier,
   the alloc runner phases. A trace ID exists even for unsampled requests (the SDK creates span
   contexts for dropped spans), so log lines of one request correlate even when the trace was not
-  exported. With `otlp.traces` off no TracerProvider is installed and no IDs are added (open
-  question 13: always install one for correlation).
+  exported. Without an `otlp` block no TracerProvider is installed and no IDs are added; with one,
+  IDs are created even when trace export is off (decision 13).
 - **Check.** A small analyzer in `tools/` (run by `go vet -vettool` in CI or by a test) reports: a key
   outside the convention where a convention key exists (`alloc`, `err`, `job` with a string value
   ...), an odd number of key/value arguments, `fmt.Sprintf` as the message. It runs on changed
@@ -406,7 +406,7 @@ context (exemplars) matters; the bridge is the default.
   (to verify at implementation; go-metrics keys are mostly `[a-z_.]`).
 - **Temporality:** cumulative by default (what Prometheus-style backends and OpenObserve expect;
   OpenObserve's handling of delta and exponential histograms was **not verified**). Delta optional.
-- **Runtime metrics:** go-metrics already emits `nomad.runtime.*`; the OTel runtime instrumentation
+- **Runtime metrics:** go-metrics already emits `norca.runtime.*`; the OTel runtime instrumentation
   is not added.
 - **No exemplars:** the go-metrics API has no context, so histograms carry no trace exemplars.
   Acceptable; a later native instrument for RPC latency could add them.
@@ -705,7 +705,7 @@ an `Operator` event topic for live subscribers comes along with the audit record
 
 | Phase | Content | Acceptance |
 | --- | --- | --- |
-| 0 | The removal of the statsd, statsite, DogStatsD and Circonus sinks with their keys and dependencies (its own commit, first). `helper/telemetry`: config structs, parse, merge, validation, `-dev` defaults; resource; gRPC exporter construction (TLS, headers, `headers_file`, gzip, timeout, retry); provider lifecycle and ordered shutdown; error handler with rate limit and `nomad.agent.otlp.*` counters; the in-process OTLP test server. `prometheus { enabled, expiration }` replaces `prometheus_metrics`. | Config tests pass for every key and error case; an agent with `otlp` pointing to a closed port starts in the same time as without and logs one rate-limited warning per signal per minute; shutdown completes within 5 s with the collector down; with the test server up, an empty export round-trips over TLS, mTLS and plaintext with headers and gzip. |
+| 0 | The removal of the statsd, statsite, DogStatsD and Circonus sinks with their keys and dependencies (its own commit, first). `helper/telemetry`: config structs, parse, merge, validation, `-dev` defaults; resource; gRPC exporter construction (TLS, headers, `headers_file`, gzip, timeout, retry); provider lifecycle and ordered shutdown; error handler with rate limit and `norca.agent.otlp.*` counters; the in-process OTLP test server. `prometheus { enabled, expiration }` replaces `prometheus_metrics`. | Config tests pass for every key and error case; an agent with `otlp` pointing to a closed port starts in the same time as without and logs one rate-limited warning per signal per minute; shutdown completes within 5 s with the collector down; with the test server up, an empty export round-trips over TLS, mTLS and plaintext with headers and gzip. |
 | 1 | Metrics: the rename to `norca.*` first (naming table, call sites, bridge prefix, internal readers: metrics store, cluster gauges, autoscaler sources, UI charts; metrics reference, packs, dashboards); then the go-metrics → OTel bridge sink in the fanout; histogram buckets; cardinality limit; the otel-collector pack's OTLP mode and `127.0.0.1` listener; docs for `telemetry` and metrics. | No `nomad.*` metric name is left in the code or the docs; with Prometheus off, the lab collector receives the `norca.*` RPC, Raft, allocation and runtime metrics with the resource attributes; series of a stopped allocation disappear after the expiry; `/v1/metrics` JSON, the metrics store and the autoscaler `norca` source behave as before (their tests unchanged); bridge benchmark within 1.5× the Prometheus sink per call. |
 | 2 | Structured logs: final key list, the analyzer, renames package group by package group (server, client, agent, drivers, helpers), `fmt.Sprintf` messages converted, level fixes, context loggers in worker/plan applier/watchers. The audit records of operator write calls ([decision 16](#operator-audit-and-event-export)): the operation table with its allow lists, one record per call. | The analyzer reports nothing on the `norca` module; `log_json` output of a lab run has only convention keys for IDs; no log line interpolates a value into the message; tests that assert log output updated. |
 | 3 | Traces, core: TracerProvider and sampler; otelhttp with route names and exclusions; `TraceParent` in `InternalRpcInfo` (codec regenerated); the RPC codec wrapper on servers, in-process RPC and the client RPC server; forwarding and Raft apply spans; FSM apply on the leader; `trace_id` in HTTP/RPC logs; `Norca-Trace-Id` header; `trust_http_parent`. | A `norca job run` against a follower yields one trace: HTTP span → `Job.Register` on the follower → forward → `Job.Register` on the leader → `raft.apply` → `fsm.apply`; excluded methods create no spans; an incoming sampled `traceparent` is a link unless trusted; the request's log lines carry the same `trace_id`; bench soak within budget. |
@@ -765,3 +765,57 @@ Decided by the user on 2026-11-11:
     event topic is not decided.
 17. **Event stream export:** accepted as proposed: optional, off by default, the events as OTLP log
     records with a topic filter, resumable; with phase 5.
+
+Decided by the user on 2026-11-27 (before the build started):
+
+18. **Naming scheme of the rename:** the inner `nomad` prefix of the server becomes `server`:
+    `nomad.nomad.*` → `norca.server.*` (`norca.server.rpc.request`, `norca.server.fsm.*`,
+    `norca.server.client.update_status`), `nomad.client.*` → `norca.client.*`, `nomad.raft.*` →
+    `norca.raft.*`, `nomad.runtime.*` → `norca.runtime.*`, and so on for memberlist, serf and the
+    autoscaler. Dropping the inner prefix was not chosen because 15 server keys (`client.*`) would
+    collide with the client agent's `norca.client.*` family.
+19. **Scope of the build:** phases 0–5 in one run, one branch per phase, each fast-forwarded into the
+    local main when green (compliance audit, codec check, notices), branches pushed, main pushed by
+    the user.
+20. **`Operator` event topic:** no. The audit records of decision 16 go only where the logs go
+    (file, syslog, `/v1/agent/monitor`, OTLP in phase 5); a topic can be added later.
+21. **Lab and module:** the `observability` lab case is written and run when the lab runner is up;
+    the pack section now means the Rig module `otel-collector` in `norca-registry` (packs are gone):
+    its new version (`127.0.0.1` listener, OTLP mode without the Prometheus scrape) is prepared on a
+    branch; signing and the tag push are the user's.
+22. **Receiver for the lab and manual checks:** `norca-mock-apm` (`E:/orchestrate/norca-mock-apm`,
+    OTLP/gRPC on 4317, NDJSON per signal, query API on the admin port) replaces the collector
+    `file`/`debug` exporter in the `observability` lab case and is the receiver for manual runs. It
+    may be changed (user, 2026-11-27): it gets TLS, mTLS, gzip and an optional required-header
+    check, so the TLS/auth options of the `otlp` block can be checked against a real process. The Go
+    tests keep the in-process OTLP test server (no external binary in `go test`).
+23. **Event export as built in phase 5 (provisional, reversible):** the configuration is a server-only
+    `events { enabled = false, topics = [...] }` block inside `otlp { logs { } }`, which needs
+    `logs.enabled`; no wildcard, the topics that may carry secrets or identities (`ACL*`,
+    `Variables`, `Secret`, `SecretAccess`) go out only when listed. The leader reads
+    `NORCA_EVENTS_<region>` and `NORCA_ADMIN_EVENTS_<region>` (Node, Server, Backup and the ACL
+    topics are only there) through a durable JetStream consumer `norca-otlp-export` of each, in
+    process, without a token; at least once, acknowledged after the receiver accepted, resumed by
+    the next leader; a new consumer starts with new events (no 72 h burst); while the receiver is
+    down the leader retries the one batch it holds and fetches nothing more. The two consumers
+    count toward `bus.events.max_consumers` (default 64). Record body = the event's `Payload`
+    JSON (cut at 1 MiB, `norca.event.truncated`), attributes `norca.event.topic/type/key/index`,
+    `norca.namespace`. Log export: an hclog sink registered before the agent (up to 1024 setup
+    records kept until the providers start), `logs.level` reloadable, loop guard by the
+    `otlp_internal` marker; lines whose call sites check `IsDebug()`/`IsTrace()` follow the agent's
+    `log_level`, not `logs.level`. Dependencies otel/log, sdk/log, otlploggrpc v0.20.0.
+24. **Start window, found by the lab and fixed (2026-11-27):** the OTLP providers started only once
+    the agent ran (the resource carries the client's node ID), so a restarted server that won the
+    election again processed its first evaluations untraced. Fixed on `otel/followups`: the
+    providers start before the agent with the identity of the configuration, and
+    `Providers.Identify` adds the node and server IDs once it runs; until then nothing is exported
+    with an incomplete resource: ended spans wait in the span queue (`max_queue_size`), a metric
+    export waits for the identity within its timeout, the log sink keeps up to 1024 lines, the event
+    export waits; a failed startup exports what it held with the configuration's identity.
+25. **Decided 2026-11-27 (user):** the hclog root logger of the agent is renamed `nomad` → `norca`
+    (module names such as `norca.audit`); the autoscaler's query names `nomad.cpu`, `nomad.memory`,
+    `nomad.cpu_mhz`, `nomad.memory_mb` become `norca.*`; a nacked evaluation's redelivery starts a
+    new trace (as built in phase 4); the upstream `allocRunner.AllocState` race and the
+    `TestAllocRunner_Restore_LifecycleHooks` test that waits on the wrong runner are fixed;
+    `norca/website/` is removed once everything relevant is in norca-doc (content carried over uses
+    Norca names).
