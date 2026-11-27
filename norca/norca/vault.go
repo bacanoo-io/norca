@@ -482,14 +482,48 @@ func (v *vaultClient) buildClient() error {
 	return nil
 }
 
+// connectionRetryInterval returns the wait between two attempts to reach Vault:
+// the configured ConnectionRetryIntv, or DefaultVaultConnectRetryIntv when the
+// config leaves it unset, because a zero interval retries without a pause.
+func (v *vaultClient) connectionRetryInterval() time.Duration {
+	if v.config.ConnectionRetryIntv > 0 {
+		return v.config.ConnectionRetryIntv
+	}
+	return config.DefaultVaultConnectRetryIntv
+}
+
+// dyingContext returns a context that is cancelled when the client's tomb
+// starts dying. The caller must call the cancel function; it also ends the
+// goroutine that watches the tomb.
+func (v *vaultClient) dyingContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	dying := v.tomb.Dying()
+	go func() {
+		select {
+		case <-dying:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
+
 // establishConnection is used to make first contact with Vault. This should be
 // called in a go-routine since the connection is retried until the Vault Client
 // is stopped or the connection is successfully made at which point the renew
 // loop is started.
 func (v *vaultClient) establishConnection() {
+	// Stop and SetConfig wait for this goroutine: a stop cancels the Vault
+	// request in flight instead of waiting for its lookups to time out.
+	ctx, cancel := v.dyingContext()
+	defer cancel()
+
+	retryIntv := v.connectionRetryInterval()
+
 	// Create the retry timer and set initial duration to zero so it fires
 	// immediately
 	retryTimer := time.NewTimer(0)
+	defer retryTimer.Stop()
 	initStatus := false
 OUTER:
 	for {
@@ -497,20 +531,33 @@ OUTER:
 		case <-v.tomb.Dying():
 			return
 		case <-retryTimer.C:
+			// select picks at random when the timer and the stop are both
+			// ready; the stop wins.
+			if !v.tomb.Alive() {
+				return
+			}
+
 			// Retry validating the token till success
-			if err := v.parseSelfToken(); err != nil {
+			if err := v.parseSelfToken(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+
 				// if parsing token fails, try to distinguish legitimate token error from transient Vault initialization/connection issue
 				if !initStatus {
-					if _, err := v.clientSys.Sys().Health(); err != nil {
-						v.logger.Warn("failed to contact Vault API", "retry", v.config.ConnectionRetryIntv, "error", err)
-						retryTimer.Reset(v.config.ConnectionRetryIntv)
+					if _, err := v.clientSys.Sys().HealthWithContext(ctx); err != nil {
+						if ctx.Err() != nil {
+							return
+						}
+						v.logger.Warn("failed to contact Vault API", "retry", retryIntv, "error", err)
+						retryTimer.Reset(retryIntv)
 						continue OUTER
 					}
 					initStatus = true
 				}
 
-				v.logger.Error("failed to validate self token/role", "retry", v.config.ConnectionRetryIntv, "error", err)
-				retryTimer.Reset(v.config.ConnectionRetryIntv)
+				v.logger.Error("failed to validate self token/role", "retry", retryIntv, "error", err)
+				retryTimer.Reset(retryIntv)
 				v.l.Lock()
 				v.connEstablished = true
 				v.connEstablishedErr = fmt.Errorf("failed to establish connection to Vault: %v", err)
@@ -718,9 +765,9 @@ func (v *vaultClient) getWrappingFn() func(operation, path string) string {
 // parseSelfToken looks up the Vault token in Vault and parses its data storing
 // it in the client. If the token is not valid for Nomads purposes an error is
 // returned.
-func (v *vaultClient) parseSelfToken() error {
+func (v *vaultClient) parseSelfToken(ctx context.Context) error {
 	// Try looking up the token using the self endpoint
-	secret, err := v.lookupSelf()
+	secret, err := v.lookupSelf(ctx)
 	if err != nil {
 		return err
 	}
@@ -782,13 +829,13 @@ func (v *vaultClient) parseSelfToken() error {
 	}
 
 	// Check we have the correct capabilities
-	if err := v.validateCapabilities(role, data.Root()); err != nil {
+	if err := v.validateCapabilities(ctx, role, data.Root()); err != nil {
 		_ = multierror.Append(&mErr, err)
 	}
 
 	// If given a role validate it
 	if role != "" {
-		if err := v.validateRole(role); err != nil {
+		if err := v.validateRole(ctx, role); err != nil {
 			_ = multierror.Append(&mErr, err)
 		}
 	}
@@ -797,18 +844,18 @@ func (v *vaultClient) parseSelfToken() error {
 }
 
 // lookupSelf is a helper function that looks up latest self lease info.
-func (v *vaultClient) lookupSelf() (*vapi.Secret, error) {
+func (v *vaultClient) lookupSelf(ctx context.Context) (*vapi.Secret, error) {
 	// Get the initial lease duration
 	auth := v.client.Auth().Token()
 
-	secret, err := auth.LookupSelf()
+	secret, err := auth.LookupSelfWithContext(ctx)
 	if err == nil && secret != nil && secret.Data != nil {
 		return secret, nil
 	}
 
 	// Try looking up our token directly, even when we get an empty response,
 	// in case of an unexpected event - a true failure would occur in this lookup again
-	secret, err = auth.Lookup(v.client.Token())
+	secret, err = auth.LookupWithContext(ctx, v.client.Token())
 	switch {
 	case err != nil:
 		return nil, fmt.Errorf("failed to lookup Vault periodic token: %v", err)
@@ -830,10 +877,10 @@ func (v *vaultClient) getRole() string {
 
 // validateCapabilities checks that Nomad's Vault token has the correct
 // capabilities.
-func (v *vaultClient) validateCapabilities(role string, root bool) error {
+func (v *vaultClient) validateCapabilities(ctx context.Context, role string, root bool) error {
 	// Check if the token can lookup capabilities.
 	var mErr multierror.Error
-	_, _, err := v.hasCapability(vaultCapabilitiesLookupPath, vaultCapabilitiesCapability)
+	_, _, err := v.hasCapability(ctx, vaultCapabilitiesLookupPath, vaultCapabilitiesCapability)
 	if err != nil {
 		// Check if there is a permission denied
 		if structs.VaultUnrecoverableError.MatchString(err.Error()) {
@@ -851,7 +898,7 @@ func (v *vaultClient) validateCapabilities(role string, root bool) error {
 	// verify is a helper function that verifies the token has one of the
 	// capabilities on the given path and adds an issue to the error
 	verify := func(path string, requiredCaps []string) {
-		ok, caps, err := v.hasCapability(path, requiredCaps)
+		ok, caps, err := v.hasCapability(ctx, path, requiredCaps)
 		if err != nil {
 			_ = multierror.Append(&mErr, err)
 		} else if !ok {
@@ -886,8 +933,8 @@ func (v *vaultClient) validateCapabilities(role string, root bool) error {
 // hasCapability takes a path and returns whether the token has at least one of
 // the required capabilities on the given path. It also returns the set of
 // capabilities the token does have as well as any error that occurred.
-func (v *vaultClient) hasCapability(path string, required []string) (bool, []string, error) {
-	caps, err := v.client.Sys().CapabilitiesSelf(path)
+func (v *vaultClient) hasCapability(ctx context.Context, path string, required []string) (bool, []string, error) {
+	caps, err := v.client.Sys().CapabilitiesSelfWithContext(ctx, path)
 	if err != nil {
 		return false, nil, err
 	}
@@ -903,13 +950,13 @@ func (v *vaultClient) hasCapability(path string, required []string) (bool, []str
 
 // validateRole contacts Vault and checks that the given Vault role is valid for
 // the purposes of being used by Nomad
-func (v *vaultClient) validateRole(role string) error {
+func (v *vaultClient) validateRole(ctx context.Context, role string) error {
 	if role == "" {
 		return fmt.Errorf("Invalid empty role name")
 	}
 
 	// Validate the role
-	rsecret, err := v.client.Logical().Read(fmt.Sprintf("auth/token/roles/%s", role))
+	rsecret, err := v.client.Logical().ReadWithContext(ctx, fmt.Sprintf("auth/token/roles/%s", role))
 	if err != nil {
 		return fmt.Errorf("failed to lookup role %q: %v", role, err)
 	}

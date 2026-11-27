@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -285,6 +287,74 @@ func TestVaultClient_EstablishConnection(t *testing.T) {
 		}
 
 		break
+	}
+}
+
+func TestVaultClient_ConnectionRetryInterval(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name       string
+		configured time.Duration
+		want       time.Duration
+	}{
+		{name: "unset uses the default", configured: 0, want: config.DefaultVaultConnectRetryIntv},
+		{name: "negative uses the default", configured: -time.Second, want: config.DefaultVaultConnectRetryIntv},
+		{name: "configured is kept", configured: 5 * time.Second, want: 5 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &vaultClient{config: &config.VaultConfig{ConnectionRetryIntv: tt.configured}}
+			require.Equal(t, tt.want, v.connectionRetryInterval())
+		})
+	}
+}
+
+// TestVaultClient_StopCancelsConnectionAttempt checks that Stop does not wait
+// for a connection attempt to a Vault that does not answer: the attempt is
+// cancelled.
+func TestVaultClient_StopCancelsConnectionAttempt(t *testing.T) {
+	ci.Parallel(t)
+
+	requested := make(chan struct{}, 1)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case requested <- struct{}{}:
+		default:
+		}
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+
+	conf := &config.VaultConfig{
+		Enabled: pointer.Of(true),
+		Token:   uuid.Generate(),
+		Addr:    srv.URL,
+	}
+	client, err := NewVaultClient(conf, testlog.HCLogger(t), nil, nil)
+	require.NoError(t, err)
+
+	select {
+	case <-requested:
+	case <-time.After(10 * time.Second):
+		client.Stop()
+		t.Fatal("the Vault client sent no request")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		client.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop waited for the Vault request in flight")
 	}
 }
 
