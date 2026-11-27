@@ -83,9 +83,11 @@ func excludedPluginMethod(fullMethod string) bool {
 }
 
 // PluginDialOptions returns the gRPC dial options of the agent's clients of
-// plugins (drivers and devices): a client span per call made within a span
-// of the agent (a task's start, for instance), with the agent's tracer
-// provider. Calls made outside a span and the long streams start no span;
+// driver plugins: a client span per call made within a span of the agent
+// (a task's start, for instance), with the agent's tracer provider. The
+// device plugins do not get them: the device manager calls them with its
+// own context, never within a span (Reserve takes no context), so they
+// would only be filtered. Calls made outside a span and the long streams start no span;
 // the plugin process side is not traced, and no trace context is sent to
 // it. It returns nil when t is nil.
 func (t *Tracing) PluginDialOptions() []grpc.DialOption {

@@ -22,12 +22,12 @@ func (a *Agent) setupPlugins() error {
 
 	// Build the plugin loader
 	config := &loader.PluginLoaderConfig{
-		Logger:            a.logger,
-		PluginDir:         a.config.PluginDir,
-		Configs:           a.config.Plugins,
-		InternalPlugins:   internal,
-		SupportedVersions: loader.AgentSupportedApiVersions,
-		GRPCDialOptions:   a.tracing.PluginDialOptions(),
+		Logger:                a.logger,
+		PluginDir:             a.config.PluginDir,
+		Configs:               a.config.Plugins,
+		InternalPlugins:       internal,
+		SupportedVersions:     loader.AgentSupportedApiVersions,
+		DriverGRPCDialOptions: a.tracing.PluginDialOptions(),
 	}
 	l, err := loader.NewPluginLoader(config)
 	if err != nil {

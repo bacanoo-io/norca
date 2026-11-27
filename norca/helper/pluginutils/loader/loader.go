@@ -78,10 +78,11 @@ type PluginLoaderConfig struct {
 	// SupportedVersions is a mapping of plugin type to the supported versions
 	SupportedVersions map[string][]string
 
-	// GRPCDialOptions are added to the gRPC connections of the external
-	// plugins it launches or reattaches to (Norca: the trace
-	// instrumentation of the plugin clients).
-	GRPCDialOptions []grpc.DialOption
+	// DriverGRPCDialOptions are added to the gRPC connections of the
+	// external driver plugins it launches or reattaches to (Norca: the
+	// trace instrumentation of the driver clients). The device plugins
+	// don't get them: no device call is made within a span.
+	DriverGRPCDialOptions []grpc.DialOption
 }
 
 // PluginLoader is used to retrieve plugins either externally or from internal
@@ -99,8 +100,8 @@ type PluginLoader struct {
 	// plugins maps a plugin to information required to launch it
 	plugins map[PluginID]*pluginInfo
 
-	// grpcDialOptions are the extra dial options of the plugin clients
-	grpcDialOptions []grpc.DialOption
+	// driverDialOptions are the extra dial options of the driver clients
+	driverDialOptions []grpc.DialOption
 }
 
 // pluginInfo captures the necessary information to launch and configure a
@@ -143,7 +144,7 @@ func NewPluginLoader(config *PluginLoaderConfig) (*PluginLoader, error) {
 		supportedVersions: supportedVersions,
 		pluginDir:         config.PluginDir,
 		plugins:           make(map[PluginID]*pluginInfo),
-		grpcDialOptions:   config.GRPCDialOptions,
+		driverDialOptions: config.DriverGRPCDialOptions,
 	}
 
 	if err := l.init(config); err != nil {
@@ -206,6 +207,15 @@ func (l *PluginLoader) Reattach(name, pluginType string, config *plugin.Reattach
 	return l.dispensePlugin(pluginType, "", "", nil, config, l.logger)
 }
 
+// dialOptions returns the extra gRPC dial options of a plugin client: the
+// driver clients get the trace instrumentation, the others nothing.
+func (l *PluginLoader) dialOptions(pluginType string) []grpc.DialOption {
+	if pluginType == base.PluginTypeDriver {
+		return l.driverDialOptions
+	}
+	return nil
+}
+
 // dispensePlugin is used to launch or reattach to an external plugin.
 func (l *PluginLoader) dispensePlugin(
 	pluginType, apiVersion, cmd string, args []string, reattach *plugin.ReattachConfig,
@@ -228,7 +238,7 @@ func (l *PluginLoader) dispensePlugin(
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger:           logger,
 		Reattach:         reattach,
-		GRPCDialOptions:  l.grpcDialOptions,
+		GRPCDialOptions:  l.dialOptions(pluginType),
 	})
 
 	// Connect via RPC

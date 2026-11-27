@@ -15,7 +15,7 @@
 // names and attributes of the scheduling and allocation spans (spans.go);
 // and on the clients the phase tracking of the runners (SpanTracker), the
 // client spans of the RPCs made within a phase (TraceRPCs) and the gRPC
-// instrumentation of the plugin clients (PluginDialOptions).
+// instrumentation of the driver plugin clients (PluginDialOptions).
 //
 // The agent configuration is the only source of the settings: every option
 // that the exporters or the SDK would read from an OTEL_* environment
