@@ -56,6 +56,7 @@ func keys(logger hclog.Logger, err error, key string) {
 	logger.Info("reserved", "trace_id", "abc")  // want `key "trace_id" is reserved for helper/telemetry`
 	logger.Info("error key", "reason", err)     // want `key "reason" holds an error`
 	logger.Info("second error", "stat_error", err, "errors", errors.Join(err))
+	logger.Info("twice", "node_id", "a", "node_id", "b") // want `key "node_id" is logged twice`
 	w := &wrapper{logger}
 	w.Info("via wrapper", "alloc", "a") // want `key "alloc" is not the key of the convention: use "alloc_id"`
 }

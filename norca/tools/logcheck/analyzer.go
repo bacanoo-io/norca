@@ -9,8 +9,9 @@
 // fmt.Sprintf, concatenated or taken from a variable), a message that starts
 // with a capital letter followed by a lower case one, ends with a period or
 // holds a format verb; for those calls and for With it reports an odd number
-// of key/value arguments, a key that is not a constant, not lower
-// snake_case, replaced by a key of the convention, ambiguous or reserved,
+// of key/value arguments, a key logged twice, a key that is not a constant,
+// not lower snake_case, replaced by a key of the convention, ambiguous or
+// reserved,
 // an error logged under another key than error (or a key ending in _error),
 // an object of the structs package logged as a whole where its ID is meant,
 // and a secret field logged as a value.
@@ -230,8 +231,13 @@ func (c *checker) checkCall(call *ast.CallExpr) {
 	if len(args)%2 != 0 && !c.isStacktrace(args[len(args)-1]) {
 		c.pass.Reportf(call.Lparen, "odd number of key/value arguments (%d)", len(args))
 	}
+	seen := map[string]bool{}
 	for i := 0; i+1 < len(args); i += 2 {
-		c.checkPair(args[i], args[i+1])
+		key := c.checkPair(args[i], args[i+1])
+		if key != "" && seen[key] {
+			c.pass.Reportf(args[i].Pos(), "key %q is logged twice", key)
+		}
+		seen[key] = true
 	}
 }
 
@@ -323,14 +329,17 @@ func isIdentifier(word string) bool {
 	return false
 }
 
-func (c *checker) checkPair(keyExpr, value ast.Expr) {
+// checkPair checks a key/value pair and returns the key the convention
+// wants for it ("" for a key that is not a constant).
+func (c *checker) checkPair(keyExpr, value ast.Expr) string {
 	tv := c.pass.TypesInfo.Types[keyExpr]
 	if tv.Value == nil || tv.Value.Kind() != constant.String {
 		c.pass.Reportf(keyExpr.Pos(), "key is not a constant string")
-		return
+		return ""
 	}
 	key := c.checkKey(keyExpr, constant.StringVal(tv.Value))
 	c.checkValue(keyExpr, key, value)
+	return key
 }
 
 // checkKey reports a key that breaks the convention and returns the key the
