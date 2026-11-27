@@ -12,8 +12,11 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	ti "github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/interfaces"
 	ci "github.com/bacanoo-io/norca/norca/client/interfaces"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // artifactHook downloads artifacts for a task.
@@ -21,7 +24,15 @@ type artifactHook struct {
 	eventEmitter ti.EventEmitter
 	logger       log.Logger
 	getter       ci.ArtifactGetter
+
+	// tracing traces the downloads, nil without an otlp block (Norca)
+	tracing *telemetry.Tracing
 }
+
+// attrArtifactDestination is the destination of a downloaded artifact,
+// relative to the task directory; never its source, which may carry
+// credentials.
+const attrArtifactDestination = attribute.Key("norca.artifact.destination")
 
 func newArtifactHook(e ti.EventEmitter, getter ci.ArtifactGetter, logger log.Logger) *artifactHook {
 	h := &artifactHook{
@@ -32,7 +43,14 @@ func newArtifactHook(e ti.EventEmitter, getter ci.ArtifactGetter, logger log.Log
 	return h
 }
 
-func (h *artifactHook) doWork(req *interfaces.TaskPrestartRequest, resp *interfaces.TaskPrestartResponse, jobs chan *structs.TaskArtifact, errorChannel chan error, wg *sync.WaitGroup, responseStateMutex *sync.Mutex) {
+// withTracing makes the hook trace each download with an artifact.download
+// span within the span of its Prestart context (Norca).
+func (h *artifactHook) withTracing(t *telemetry.Tracing) *artifactHook {
+	h.tracing = t
+	return h
+}
+
+func (h *artifactHook) doWork(ctx context.Context, req *interfaces.TaskPrestartRequest, resp *interfaces.TaskPrestartResponse, jobs chan *structs.TaskArtifact, errorChannel chan error, wg *sync.WaitGroup, responseStateMutex *sync.Mutex) {
 	defer wg.Done()
 	for artifact := range jobs {
 		aid := artifact.Hash()
@@ -46,7 +64,11 @@ func (h *artifactHook) doWork(req *interfaces.TaskPrestartRequest, resp *interfa
 
 		h.logger.Debug("downloading artifact", "artifact", artifact.GetterSource, "alloc_id", aid)
 
-		if err := h.getter.Get(req.TaskEnv, artifact); err != nil {
+		_, span := h.tracing.StartIn(ctx, telemetry.SpanArtifactDownload, trace.SpanKindInternal,
+			attrArtifactDestination.String(artifact.RelativeDest))
+		err := h.getter.Get(req.TaskEnv, artifact)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			wrapped := structs.NewRecoverableError(
 				fmt.Errorf("failed to download artifact %q: %v", artifact.GetterSource, err),
 				true,
@@ -101,7 +123,7 @@ func (h *artifactHook) Prestart(ctx context.Context, req *interfaces.TaskPrestar
 		var wg sync.WaitGroup
 		for i := 0; i < maxConcurrency; i++ {
 			wg.Add(1)
-			go h.doWork(req, resp, jobsChannel, errorChannel, &wg, responseStateMutex)
+			go h.doWork(ctx, req, resp, jobsChannel, errorChannel, &wg, responseStateMutex)
 		}
 		wg.Wait()
 	}()

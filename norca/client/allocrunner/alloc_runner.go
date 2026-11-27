@@ -12,6 +12,8 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 
 	"github.com/bacanoo-io/norca/norca/client/allocdir"
@@ -34,6 +36,7 @@ import (
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/client/vaultclient"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/device"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers"
@@ -192,6 +195,16 @@ type allocRunner struct {
 	// hooks to communicate with Nomad Servers.
 	rpcClient config.RPCer
 
+	// taskRPCClient is the RPC client of the task runners: the client's
+	// own, which each task runner traces with its own phases (Norca).
+	taskRPCClient config.RPCer
+
+	// phase is the phase span in progress, and restored whether the runner
+	// was restored, which gets no alloc.start trace (Norca,
+	// alloc_runner_tracing.go).
+	phase    telemetry.SpanTracker
+	restored bool
+
 	// serviceRegWrapper is the handler wrapper that is used by service hooks
 	// to perform service and check registration and deregistration.
 	serviceRegWrapper *wrapper.HandlerWrapper
@@ -239,6 +252,7 @@ func NewAllocRunner(config *config.AllocRunnerConfig) (interfaces.AllocRunner, e
 		driverManager:            config.DriverManager,
 		serversContactedCh:       config.ServersContactedCh,
 		rpcClient:                config.RPCClient,
+		taskRPCClient:            config.RPCClient,
 		serviceRegWrapper:        config.ServiceRegWrapper,
 		checkStore:               config.CheckStore,
 		getter:                   config.Getter,
@@ -247,6 +261,11 @@ func NewAllocRunner(config *config.AllocRunnerConfig) (interfaces.AllocRunner, e
 
 	// Create the logger based on the allocation ID
 	ar.logger = config.Logger.Named("alloc_runner").With("alloc_id", alloc.ID)
+
+	// The hooks' RPCs join the phase in progress (Norca)
+	if config.RPCClient != nil {
+		ar.rpcClient = ar.clientConfig.Tracing.TraceRPCs(config.RPCClient, ar.phase.Context)
+	}
 
 	// Create alloc broadcaster
 	ar.allocBroadcaster = cstructs.NewAllocBroadcaster(ar.logger)
@@ -299,7 +318,7 @@ func (ar *allocRunner) initTaskRunners(tasks []*structs.Task) error {
 			ServiceRegWrapper:   ar.serviceRegWrapper,
 			Getter:              ar.getter,
 			AllocHookResources:  ar.hookResources,
-			RPCClient:           ar.rpcClient,
+			RPCClient:           ar.taskRPCClient,
 		}
 
 		if ar.cpusetManager != nil {
@@ -343,16 +362,23 @@ func (ar *allocRunner) Run() {
 	// When handling (potentially restored) terminal alloc, ensure tasks and post-run hooks are run
 	// to perform any cleanup that's necessary, potentially not done prior to earlier termination
 
-	// Run the prestart hooks if non-terminal
+	// Run the prestart hooks if non-terminal, in the alloc.start trace of a
+	// runner that was not restored (Norca)
 	if ar.shouldRun() {
+		startCtx, startSpan := context.Background(), trace.SpanFromContext(context.Background())
+		if !ar.restored {
+			startCtx, startSpan = ar.startPhase(startCtx, telemetry.SpanAllocStart)
+		}
 		if err := ar.prerun(); err != nil {
-			ar.logger.Error("prerun failed", "error", err)
+			ar.phaseLogger().Error("prerun failed", "error", err)
+			startSpan.SetStatus(codes.Error, err.Error())
 
 			for _, tr := range ar.tasks {
 				// emit event and mark task to be cleaned up during runTasks()
 				tr.MarkFailedKill(fmt.Sprintf("failed to setup alloc: %v", err))
 			}
 		}
+		ar.startTasksTrace(startCtx, startSpan)
 	}
 
 	// Run the runners (blocks until they exit)
@@ -426,6 +452,8 @@ func (ar *allocRunner) GetAllocDir() *allocdir.AllocDir {
 // Restore state from database. Must be called after NewAllocRunner but before
 // Run.
 func (ar *allocRunner) Restore() error {
+	ar.restored = true
+
 	// Retrieve deployment status to avoid reseting it across agent
 	// restarts. Once a deployment status is set Nomad no longer monitors
 	// alloc health, so we must persist deployment state across restarts.
@@ -662,6 +690,13 @@ func hasSidecarTasks(tasks map[string]*taskrunner.TaskRunner) bool {
 // logged except taskrunner.ErrTaskNotRunning which is ignored. Task states
 // after Kill has been called are returned.
 func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
+	return ar.killTasksCtx(context.TODO())
+}
+
+// killTasksCtx is killTasks within the span of ctx, a phase of the
+// allocation, which the task runners' kills join (Norca).
+func (ar *allocRunner) killTasksCtx(ctx context.Context) map[string]*structs.TaskState {
+	logger := telemetry.LogWith(ar.logger, ctx)
 	var mu sync.Mutex
 	states := make(map[string]*structs.TaskState, len(ar.tasks))
 
@@ -676,9 +711,9 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 
 		taskEvent := structs.NewTaskEvent(structs.TaskKilling)
 		taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
-		err := tr.Kill(context.TODO(), taskEvent)
+		err := tr.Kill(ctx, taskEvent)
 		if err != nil && err != taskrunner.ErrTaskNotRunning {
-			ar.logger.Warn("error stopping leader task", "error", err, "task", name)
+			logger.Warn("error stopping leader task", "error", err, "task", name)
 		}
 
 		taskState := tr.TaskState()
@@ -699,9 +734,9 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 			defer wg.Done()
 			taskEvent := structs.NewTaskEvent(structs.TaskKilling)
 			taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
-			err := tr.Kill(context.TODO(), taskEvent)
+			err := tr.Kill(ctx, taskEvent)
 			if err != nil && err != taskrunner.ErrTaskNotRunning {
-				ar.logger.Warn("error stopping task", "error", err, "task", name)
+				logger.Warn("error stopping task", "error", err, "task", name)
 			}
 
 			taskState := tr.TaskState()
@@ -723,9 +758,9 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 			defer wg.Done()
 			taskEvent := structs.NewTaskEvent(structs.TaskKilling)
 			taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
-			err := tr.Kill(context.TODO(), taskEvent)
+			err := tr.Kill(ctx, taskEvent)
 			if err != nil && err != taskrunner.ErrTaskNotRunning {
-				ar.logger.Warn("error stopping sidecar task", "error", err, "task", name)
+				logger.Warn("error stopping sidecar task", "error", err, "task", name)
 			}
 
 			taskState := tr.TaskState()
@@ -989,9 +1024,18 @@ func (ar *allocRunner) handleAllocUpdate(update *structs.Allocation) {
 		tr.Update(update)
 	}
 
-	// If alloc is being terminated, kill all tasks, leader first
+	// If alloc is being terminated, kill all tasks, leader first, in the
+	// alloc.stop trace, which ends once the tasks exited and the postrun
+	// hooks ran (Norca)
 	if stopping {
-		ar.killTasks()
+		ctx, span := ar.startPhase(context.Background(), telemetry.SpanAllocStop)
+		ar.killTasksCtx(ctx)
+		if span.IsRecording() {
+			go func() {
+				<-ar.waitCh
+				span.End()
+			}()
+		}
 	}
 
 }
@@ -1001,9 +1045,13 @@ func (ar *allocRunner) Listener() *cstructs.AllocListener {
 }
 
 func (ar *allocRunner) destroyImpl() {
+	// The destroy is the alloc.gc trace (Norca)
+	ctx, span := ar.startPhase(context.Background(), telemetry.SpanAllocGC)
+	defer span.End()
+
 	// Stop any running tasks and persist states in case the client is
 	// shutdown before Destroy finishes.
-	states := ar.killTasks()
+	states := ar.killTasksCtx(ctx)
 	calloc := ar.clientAlloc(states)
 	ar.stateUpdater.AllocStateUpdated(calloc)
 
@@ -1012,7 +1060,8 @@ func (ar *allocRunner) destroyImpl() {
 
 	// Run destroy hooks
 	if err := ar.destroy(); err != nil {
-		ar.logger.Warn("error running destroy hooks", "error", err)
+		ar.phaseLogger().Warn("error running destroy hooks", "error", err)
+		span.SetStatus(codes.Error, err.Error())
 	}
 
 	// Wait for task state update handler to exit before removing local
@@ -1270,7 +1319,10 @@ func (ar *allocRunner) RestartTask(taskName string, event *structs.TaskEvent) er
 		return fmt.Errorf("Could not find task runner for task: %s", taskName)
 	}
 
-	return tr.Restart(context.TODO(), event, false)
+	ctx, span := ar.startPhase(context.TODO(), telemetry.SpanAllocRestart)
+	err := tr.Restart(ctx, event, false)
+	telemetry.EndSpan(span, err)
+	return err
 }
 
 // RestartRunning restarts all tasks that are currently running.
@@ -1287,12 +1339,16 @@ func (ar *allocRunner) RestartAll(event *structs.TaskEvent) error {
 }
 
 // restartTasks restarts all task runners concurrently.
-func (ar *allocRunner) restartTasks(ctx context.Context, event *structs.TaskEvent, failure bool, force bool) error {
+func (ar *allocRunner) restartTasks(ctx context.Context, event *structs.TaskEvent, failure bool, force bool) (rerr error) {
 
 	// ensure we are not trying to restart an alloc that is terminal
 	if !ar.shouldRun() {
 		return fmt.Errorf("restart of an alloc that should not run")
 	}
+
+	// the restart is the alloc.restart trace (Norca)
+	ctx, span := ar.startPhase(ctx, telemetry.SpanAllocRestart)
+	defer func() { telemetry.EndSpan(span, rerr) }()
 
 	waitCh := make(chan struct{})
 	var err *multierror.Error

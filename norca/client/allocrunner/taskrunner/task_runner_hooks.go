@@ -13,6 +13,7 @@ import (
 	"github.com/LK4D4/joincontext"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/state"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	multierror "github.com/hashicorp/go-multierror"
@@ -69,7 +70,7 @@ func (tr *TaskRunner) initHooks() {
 		newLogMonHook(tr, hookLogger),
 		newDispatchHook(alloc, hookLogger),
 		newVolumeHook(tr, hookLogger),
-		newArtifactHook(tr, tr.getter, hookLogger),
+		newArtifactHook(tr, tr.getter, hookLogger).withTracing(tr.clientConfig.Tracing),
 		newStatsHook(tr, tr.clientConfig.StatsCollectionInterval, hookLogger),
 		newDeviceHook(tr.devicemanager, hookLogger),
 		newAPIHook(tr.shutdownCtx, tr.clientConfig.APIListenerRegistrar, hookLogger),
@@ -325,7 +326,10 @@ func (tr *TaskRunner) prestart() error {
 
 		// Run the prestart hook
 		var resp interfaces.TaskPrestartResponse
-		if err := pre.Prestart(joinedCtx, &req, &resp); err != nil {
+		hookCtx, span := tr.hookSpan(joinedCtx, name)
+		err := pre.Prestart(hookCtx, &req, &resp)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			tr.emitHookError(err, name)
 			return structs.WrapRecoverable(fmt.Sprintf("prestart hook %q failed: %v", name, err), err)
 		}
@@ -413,7 +417,10 @@ func (tr *TaskRunner) poststart() error {
 			TaskEnv:       tr.envBuilder.Build(),
 		}
 		var resp interfaces.TaskPoststartResponse
-		if err := post.Poststart(tr.killCtx, &req, &resp); err != nil {
+		hookCtx, span := tr.hookSpan(tr.killCtx, name)
+		err := post.Poststart(hookCtx, &req, &resp)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			tr.emitHookError(err, name)
 			merr.Errors = append(merr.Errors, fmt.Errorf("poststart hook %q failed: %v", name, err))
 		}
@@ -509,7 +516,10 @@ func (tr *TaskRunner) stop() error {
 		}
 
 		var resp interfaces.TaskStopResponse
-		if err := post.Stop(tr.killCtx, &req, &resp); err != nil {
+		hookCtx, span := tr.hookSpan(tr.killCtx, name)
+		err := post.Stop(hookCtx, &req, &resp)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			tr.emitHookError(err, name)
 			merr.Errors = append(merr.Errors, fmt.Errorf("stop hook %q failed: %v", name, err))
 		}
@@ -613,7 +623,10 @@ func (tr *TaskRunner) preKill() {
 		// Run the pre kill hook
 		req := interfaces.TaskPreKillRequest{}
 		var resp interfaces.TaskPreKillResponse
-		if err := killHook.PreKilling(context.Background(), &req, &resp); err != nil {
+		hookCtx, span := tr.hookSpan(context.Background(), name)
+		err := killHook.PreKilling(hookCtx, &req, &resp)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			tr.emitHookError(err, name)
 			tr.logger.Error("prekill hook failed", "hook", name, "error", err)
 		}

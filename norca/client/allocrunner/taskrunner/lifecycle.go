@@ -7,6 +7,7 @@ package taskrunner
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
@@ -70,7 +71,14 @@ func (tr *TaskRunner) ForceRestart(ctx context.Context, event *structs.TaskEvent
 //
 // It should never be called directly as it doesn't verify if the task state
 // allows for a restart.
-func (tr *TaskRunner) restartImpl(ctx context.Context, event *structs.TaskEvent, failure bool) error {
+func (tr *TaskRunner) restartImpl(ctx context.Context, event *structs.TaskEvent, failure bool) (err error) {
+	// within alloc.restart, the restart is a task.restart span, the parent
+	// of the next start attempt (Norca)
+	ctx, span := tr.startPhaseSpan(ctx, telemetry.SpanTaskRestart)
+	if span.IsRecording() {
+		defer func() { telemetry.EndSpan(span, err) }()
+		tr.TraceNextStart(ctx, nil)
+	}
 
 	// Check if the task is able to restart based on its state and the type of
 	// restart event that was triggered.
@@ -147,8 +155,12 @@ func (tr *TaskRunner) Signal(event *structs.TaskEvent, s string) error {
 
 // Kill a task. Blocks until task exits or context is canceled. State is set to
 // dead.
-func (tr *TaskRunner) Kill(ctx context.Context, event *structs.TaskEvent) error {
+func (tr *TaskRunner) Kill(ctx context.Context, event *structs.TaskEvent) (err error) {
 	tr.logger.Trace("kill requested")
+
+	// within a phase of the allocation, the kill is a task.stop span (Norca)
+	_, span := tr.startPhaseSpan(ctx, telemetry.SpanTaskStop)
+	defer func() { telemetry.EndSpan(span, err) }()
 
 	// Cancel the task runner to break out of restart delay or the main run
 	// loop.

@@ -13,6 +13,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	clientconfig "github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/taskenv"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
@@ -173,7 +174,10 @@ func (ar *allocRunner) prerun() error {
 			ar.logger.Trace("running pre-run hook", "hook", name, "start", start)
 		}
 
-		if err := pre.Prerun(); err != nil {
+		span := ar.startHookSpan(name)
+		err := pre.Prerun()
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			return fmt.Errorf("pre-run hook %q failed: %v", name, err)
 		}
 
@@ -253,7 +257,10 @@ func (ar *allocRunner) postrun() error {
 			ar.logger.Trace("running post-run hook", "hook", name, "start", start)
 		}
 
-		if err := post.Postrun(); err != nil {
+		span := ar.startHookSpan(name)
+		err := post.Postrun()
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			return fmt.Errorf("hook %q failed: %v", name, err)
 		}
 
@@ -292,7 +299,10 @@ func (ar *allocRunner) destroy() error {
 			ar.logger.Trace("running destroy hook", "hook", name, "start", start)
 		}
 
-		if err := h.Destroy(); err != nil {
+		span := ar.startHookSpan(name)
+		err := h.Destroy()
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			merr.Errors = append(merr.Errors, fmt.Errorf("destroy hook %q failed: %v", name, err))
 		}
 
@@ -320,7 +330,9 @@ func (ar *allocRunner) preKillHooks() {
 			ar.logger.Trace("running alloc pre shutdown hook", "hook", name, "start", start)
 		}
 
+		span := ar.startHookSpan(name)
 		pre.PreKill()
+		span.End()
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
@@ -368,7 +380,9 @@ func (ar *allocRunner) taskRestartHooks() {
 				"hook", name, "start", start)
 		}
 
+		span := ar.startHookSpan(name)
 		re.PreTaskRestart()
+		span.End()
 
 		if ar.logger.IsTrace() {
 			end := time.Now()

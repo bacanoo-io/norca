@@ -41,6 +41,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/hclspecutils"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/hclutils"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	bstructs "github.com/bacanoo-io/norca/norca/plugins/base/structs"
@@ -186,6 +187,11 @@ type TaskRunner struct {
 
 	// rpcClient is used by hooks that talk to the servers
 	rpcClient config.RPCer
+
+	// startTrace is the parent of the next task.start span, and phase the
+	// task's span in progress (Norca, task_runner_tracing.go).
+	startTrace startTrace
+	phase      telemetry.SpanTracker
 
 	// secretProviders and secretAuditor are used by the secret hook and
 	// the norcaSecret template function (Norca); nil builds the defaults.
@@ -430,6 +436,11 @@ func NewTaskRunner(config *Config) (*TaskRunner, error) {
 	// Create the logger based on the allocation ID
 	tr.logger = config.Logger.Named("task_runner").With("task", config.Task.Name)
 
+	// The hooks' RPCs join the task's span in progress (Norca)
+	if config.RPCClient != nil {
+		tr.rpcClient = tr.clientConfig.Tracing.TraceRPCs(config.RPCClient, tr.phase.Context)
+	}
+
 	// Pull out the task's resources
 	ares := tr.alloc.AllocatedResources
 	if ares == nil {
@@ -542,6 +553,7 @@ func (tr *TaskRunner) MarkFailedKill(reason string) {
 // Run closes WaitCh when it exits. Should be started in a goroutine.
 func (tr *TaskRunner) Run() {
 	defer close(tr.waitCh)
+	defer tr.finishStartTrace()
 	var result *drivers.ExitResult
 
 	tr.stateLock.RLock()
@@ -610,39 +622,49 @@ MAIN:
 			// yay proceed
 		}
 
+		// The start attempt is a task.start span when the alloc.start or a
+		// restart handed it a parent (Norca)
+		startCtx, endStart := tr.startTaskStart()
+
 		// Run the prestart hooks
 		if err := tr.prestart(); err != nil {
-			tr.logger.Error("prestart failed", "error", err)
+			telemetry.LogWith(tr.logger, startCtx).Error("prestart failed", "error", err)
 			tr.restartTracker.SetStartError(err)
+			endStart(err)
 			goto RESTART
 		}
 
 		// Check for a terminal allocation once more before proceeding as the
 		// prestart hooks may have been skipped.
 		if tr.shouldShutdown() {
+			endStart(nil)
 			break MAIN
 		}
 
 		select {
 		case <-tr.killCtx.Done():
+			endStart(nil)
 			break MAIN
 		case <-tr.shutdownCtx.Done():
 			// TaskRunner was told to exit immediately
+			endStart(nil)
 			return
 		default:
 		}
 
 		// Run the task
 		if err := tr.runDriver(); err != nil {
-			tr.logger.Error("running driver failed", "error", err)
+			telemetry.LogWith(tr.logger, startCtx).Error("running driver failed", "error", err)
 			tr.restartTracker.SetStartError(err)
+			endStart(err)
 			goto RESTART
 		}
 
 		// Run the poststart hooks
 		if err := tr.poststart(); err != nil {
-			tr.logger.Error("poststart failed", "error", err)
+			telemetry.LogWith(tr.logger, startCtx).Error("poststart failed", "error", err)
 		}
+		endStart(nil)
 
 		// Grab the result proxy and wait for task to exit
 	WAIT:
@@ -935,7 +957,7 @@ func (tr *TaskRunner) runDriver() error {
 	}
 
 	// Start the job if there's no existing handle (or if RecoverTask failed)
-	handle, net, err := tr.driver.StartTask(taskConfig)
+	handle, net, err := tr.startDriverTask(taskConfig)
 	if err != nil {
 		// The plugin has died, try relaunching it
 		if err == bstructs.ErrPluginShutdown {
@@ -946,7 +968,7 @@ func (tr *TaskRunner) runDriver() error {
 				return taskErr
 			}
 
-			handle, net, err = tr.driver.StartTask(taskConfig)
+			handle, net, err = tr.startDriverTask(taskConfig)
 			if err != nil {
 				taskErr := fmt.Errorf("failed to start task after driver exited unexpectedly: %v", err)
 				tr.EmitEvent(structs.NewTaskEvent(structs.TaskDriverFailure).SetDriverError(taskErr))
