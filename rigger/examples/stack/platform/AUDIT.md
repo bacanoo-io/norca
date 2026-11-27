@@ -5,9 +5,11 @@
 The base of audit is a module of rigger (`builtin/audit`, an idea, not built),
 to be imported in `stack.hcl` like the other modules; until it is built its
 block is a comment there, because a stack that names a module rigger does
-not have is refused. What is audited is a
-resource file of a module, `<name>.audit.hcl`, here
-`modules/shop-api/shop.audit.hcl`; it says what and nothing about how:
+not have is refused. What is audited is to be declared in a resource file
+of a module, `<name>.audit.hcl`, which says what and nothing about how. The
+stack carries none yet: the Norca servers have no kind `audit`, and Rigger
+refuses a resource of a kind its host cannot apply. The declaration would
+read:
 
 ```hcl
 audit "shop" {

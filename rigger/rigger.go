@@ -19,9 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/oplog"
+	"github.com/bacanoo-io/norca/rigger/resource"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
@@ -39,6 +41,7 @@ type Engine struct {
 	cluster  host.Cluster
 	jobs     host.JobDecoder
 	decoder  host.ResourceDecoder
+	kinds    []resource.Kind
 	releases host.Releases
 	secrets  host.Secrets
 	store    host.Store
@@ -112,6 +115,28 @@ func WithResourceDecoder(d host.ResourceDecoder) Option {
 		}
 
 		e.decoder = d
+
+		return nil
+	}
+}
+
+// WithKinds names the kinds of resources the host applies. A module with
+// a resource of another kind is refused wherever it is evaluated (validate,
+// render, plan, install), so it fails before an apply does. Without the
+// option the engine takes every kind. An empty or repeated kind is invalid.
+func WithKinds(kinds ...resource.Kind) Option {
+	return func(e *Engine) error {
+		if len(kinds) == 0 {
+			return fmt.Errorf("%w: no kinds", ErrInvalidOption)
+		}
+
+		for i, k := range kinds {
+			if k == "" || slices.Contains(kinds[:i], k) {
+				return fmt.Errorf("%w: kind %q", ErrInvalidOption, k)
+			}
+		}
+
+		e.kinds = slices.Clone(kinds)
 
 		return nil
 	}

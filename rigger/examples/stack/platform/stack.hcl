@@ -81,8 +81,10 @@ module "nats" {
 # The base of audit is to be a module of rigger itself: no registry, no
 # version, no signature. Run by the standalone rigger it gets the changes
 # through a leaf node (AUDIT.md); once rigger is embedded in the Norca servers
-# it sits on the internal bus. What is audited is declared in a resource file
-# of a module (modules/shop-api/shop.audit.hcl); subjects, streams, consumers
+# it sits on the internal bus. What is audited is to be declared in a resource
+# file of a module (<name>.audit.hcl, AUDIT.md), which this stack does not
+# carry yet: the servers have no kind audit, and rigger refuses a resource of
+# a kind its host cannot apply. Subjects, streams, consumers
 # and tokens are the business of this module.
 #
 # rigger has no such module yet, and a stack that names a built-in module

@@ -33,9 +33,56 @@ type Config struct {
 	// Decoder decodes the resources of the kinds it names from their block
 	// written as HCL; nil leaves every other kind the value of its block.
 	Decoder host.ResourceDecoder
+	// Kinds are the kinds of resources the host applies; a resource of
+	// another kind is an error of the evaluation. Nil takes every kind.
+	Kinds []resource.Kind
 	// Test asks for the values a test reads: Resource.Value and
 	// Result.OutputValues.
 	Test bool
+}
+
+// CheckKinds reports every resource of m and of its child modules whose
+// kind is not one of kinds, the kinds the host applies; nil kinds take
+// every kind. It needs no values: a resource is reported whether it is
+// enabled or not.
+func CheckKinds(m *lang.Module, kinds []resource.Kind) hcl.Diagnostics {
+	if kinds == nil {
+		return nil
+	}
+
+	var diags hcl.Diagnostics
+
+	for _, r := range m.Resources {
+		if d := kindDiag(r, kinds); d != nil {
+			diags = append(diags, d)
+		}
+	}
+
+	for _, c := range m.Children {
+		diags = append(diags, CheckKinds(c.Module, kinds)...)
+	}
+
+	return diags
+}
+
+// kindDiag is the error of a resource whose kind the host does not apply,
+// or nil.
+func kindDiag(r *lang.Resource, kinds []resource.Kind) *hcl.Diagnostic {
+	if kinds == nil || slices.Contains(kinds, r.Type.Kind) {
+		return nil
+	}
+
+	names := make([]string, len(kinds))
+	for i, k := range kinds {
+		names[i] = string(k)
+	}
+
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError, Summary: "Kind not applied by the host",
+		Detail: fmt.Sprintf("The resource %s is of the kind %s, which this host cannot apply; it applies %s.",
+			r.Name, r.Type.Kind, strings.Join(names, ", ")),
+		Subject: r.Block.DefRange.Ptr(),
+	}
 }
 
 // Result is an evaluated module.
@@ -147,6 +194,18 @@ func (r *run) module(m *lang.Module, vars cty.Value, facts Facts, prefix string)
 	}
 
 	e := &evaluator{run: r, sources: m.Sources, base: base}
+
+	// A kind the host cannot apply fails the evaluation before a resource
+	// is evaluated: render, validate and plan refuse what an apply would.
+	for _, lr := range m.Resources {
+		if d := kindDiag(lr, r.cfg.Kinds); d != nil {
+			diags = append(diags, d)
+		}
+	}
+
+	if diags.HasErrors() {
+		return nil, cty.NilVal, diags
+	}
 
 	for _, lr := range m.Resources {
 		if over := stopped(r.ctx, lr.Block.DefRange); over.HasErrors() {

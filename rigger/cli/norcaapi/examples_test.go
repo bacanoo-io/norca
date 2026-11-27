@@ -21,7 +21,8 @@ import (
 const examplesDir = "../../examples"
 
 // TestEngine_ValidateModule_Examples renders the value files of the
-// examples with the job decoder of Norca (design 7.4).
+// examples with the job decoder of Norca (design 7.4), and with the kinds
+// the release API applies: an example has no resource Norca refuses.
 func TestEngine_ValidateModule_Examples(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +32,7 @@ func TestEngine_ValidateModule_Examples(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}))
+			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithKinds(norcaapi.Kinds()...))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +60,7 @@ func TestEngine_TestModule_Examples(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}))
+			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithKinds(norcaapi.Kinds()...))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +152,8 @@ func exampleStacks(t *testing.T) []string {
 }
 
 // TestEngine_ValidateStack_Examples is rigger stack validate of the stacks
-// of examples/, with the decoders of Norca: a stack loads with its lock
+// of examples/, with the decoders and the kinds of Norca (the stack
+// platform had an audit resource that the release API refuses): a stack loads with its lock
 // file, the modules of the example registry among them, and evaluates with
 // each of its value files (values/ of a stack of one's own, examples/ of a
 // published stack), without a diagnostic.
@@ -167,7 +169,7 @@ func TestEngine_ValidateStack_Examples(t *testing.T) {
 			}
 
 			eng, err := rigger.New(rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
-				rigger.WithFetcher(exampleRegistry{}))
+				rigger.WithKinds(norcaapi.Kinds()...), rigger.WithFetcher(exampleRegistry{}))
 			if err != nil {
 				t.Fatal(err)
 			}

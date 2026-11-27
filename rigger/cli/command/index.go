@@ -123,8 +123,13 @@ func newIndexer(logger *slog.Logger, dir, today string, replace []string) (*inde
 		return nil, err
 	}
 
-	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}),
-		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}), rigger.WithFetcher(fetcher))
+	eng, err := rigger.New(
+		rigger.WithLogger(logger),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
+		rigger.WithFetcher(fetcher),
+	)
 	if err != nil {
 		return nil, err
 	}

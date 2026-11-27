@@ -18,7 +18,10 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/hashicorp/hcl/v2"
+
 	rigger "github.com/bacanoo-io/norca/rigger"
+	"github.com/bacanoo-io/norca/rigger/resource"
 )
 
 func engine(t *testing.T) *rigger.Engine {
@@ -265,6 +268,68 @@ func TestEngine_ValidateModule_Defaults(t *testing.T) {
 
 			if !strings.Contains(diags.Error(), tt.expected) {
 				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), tt.expected)
+			}
+		})
+	}
+}
+
+// The example stack of 2026-11-27 had a resource of the kind audit, which
+// the loader takes and the release API of Norca does not: the stack
+// validated and failed its apply. An engine given the kinds of its host
+// refuses such a resource where it validates and evaluates, once, even
+// when it is not enabled; an engine without them takes every kind.
+func TestEngine_ValidateModule_Kinds(t *testing.T) {
+	t.Parallel()
+
+	files := fstest.MapFS{
+		metadataFile:         {Data: []byte("module {\n  name = \"shop\"\n  version = \"1.0.0\"\n}\n")},
+		"shop.audit.hcl":     {Data: []byte("audit \"shop\" {\n  enabled = false\n  keep    = \"90d\"\n}\n")},
+		"shop.namespace.hcl": {Data: []byte("namespace \"shop\" {\n  description = \"the shop\"\n}\n")},
+	}
+
+	tests := []struct {
+		name     string
+		kinds    []resource.Kind
+		expected string
+	}{
+		{name: "kinds of the host", kinds: resource.Builtin(), expected: "The resource shop is of the kind audit, which this host cannot apply"},
+		{name: "every kind", kinds: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := []rigger.Option{rigger.WithLogger(slog.New(slog.DiscardHandler))}
+			if tt.kinds != nil {
+				opts = append(opts, rigger.WithKinds(tt.kinds...))
+			}
+
+			e, err := rigger.New(opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			m, diags := e.LoadModule(t.Context(), files)
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			validated := e.ValidateModule(t.Context(), m)
+			_, evaluated := e.Evaluate(t.Context(), m, rigger.Install{Release: "shop", Namespace: "default", Region: "global"})
+
+			for what, diags := range map[string]hcl.Diagnostics{"ValidateModule": validated, "Evaluate": evaluated} {
+				if tt.expected == "" {
+					if diags.HasErrors() {
+						t.Errorf("%s() = %v, want no error", what, diags)
+					}
+
+					continue
+				}
+
+				if len(diags) != 1 || !strings.Contains(diags[0].Detail, tt.expected) {
+					t.Errorf("%s() = %v, want one error that contains %q", what, diags, tt.expected)
+				}
 			}
 		})
 	}

@@ -98,6 +98,18 @@ var payloads = map[resource.Kind]func(*api.ReleaseResource) any{
 	resource.KindObject: func(r *api.ReleaseResource) any { r.Object = &api.CustomObject{}; return r.Object },
 }
 
+// Kinds are the kinds of resources the release API applies, in the order
+// the server applies them: what an engine of a Norca host is given
+// (rigger.WithKinds), so that a module of another kind fails its
+// validation and not its apply.
+func Kinds() []resource.Kind {
+	return slices.DeleteFunc(resource.Builtin(), func(k resource.Kind) bool {
+		_, ok := payloads[k]
+
+		return !ok
+	})
+}
+
 // decodeSpec decodes the spec of a resource into the API type: a job as
 // it is, another kind with its keys mapped onto the fields of the type.
 func decodeSpec(r resource.Resource, target any) error {

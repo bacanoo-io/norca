@@ -74,9 +74,11 @@ second apply keeps them.
 The stack writes no audit module of its own: it is to import the base that
 rigger carries, `builtin/audit` (an idea, not designed in detail and not
 built: a stack that names it is refused today, so the block is a comment in
-`stack.hcl`), and declares what is audited in a resource file,
-`modules/shop-api/shop.audit.hcl`:
-namespaces, kinds of resources, actions, how long, who may read. Run by the
+`stack.hcl`), and is to declare what is audited in a resource file of a
+module, `<name>.audit.hcl` (its form is in [AUDIT.md](AUDIT.md)): namespaces,
+kinds of resources, actions, how long, who may read. The stack carries no
+such file yet: the Norca servers have no kind `audit`, and Rigger refuses a
+resource of a kind its host cannot apply. Run by the
 standalone rigger the changes come from outside: with `bus_servers` set, the
 `nats` module receives the changes of the Norca region into its account
 `AUDIT`, and what has to be set up around it (the leaf listener, the policy,

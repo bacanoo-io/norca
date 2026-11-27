@@ -79,6 +79,7 @@ func (s *Server) riggerEngine(h *riggerHosts, opts ...rigger.Option) (*rigger.En
 		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
 		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
 		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
 		rigger.WithCluster(riggerCluster{h}),
 		rigger.WithReleases(riggerReleases{h}),
 		rigger.WithSecrets(riggerSecrets{h}),

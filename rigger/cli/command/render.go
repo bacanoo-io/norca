@@ -79,7 +79,12 @@ their values not shown. No cluster is needed.`,
 // writes its resources and outputs to stdout as JSON. The jobs are decoded
 // with the job decoder of Norca.
 func renderModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, f *renderFlags) error {
-	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(
+		rigger.WithLogger(logger),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
+	)
 	if err != nil {
 		return err
 	}

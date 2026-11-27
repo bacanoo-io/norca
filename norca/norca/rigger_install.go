@@ -414,6 +414,7 @@ func (s *Server) riggerFetchEngine(fetcher source.Fetcher) (*rigger.Engine, erro
 		rigger.WithLogger(slog.New(&hclogHandler{logger: s.logger.Named("rigger")})),
 		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
 		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
 		rigger.WithFetcher(fetcher),
 	)
 }

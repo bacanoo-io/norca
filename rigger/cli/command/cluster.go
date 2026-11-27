@@ -49,7 +49,9 @@ func clusterEngine(logger *slog.Logger, client *api.Client, namespace string) (*
 	return rigger.New(
 		rigger.WithLogger(logger),
 		rigger.WithFetcher(fetcher),
-		rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
 		rigger.WithCluster(norcaapi.NewCluster(client)),
 		rigger.WithReleases(norcaapi.NewReleases(client)),
 		rigger.WithSecrets(norcaapi.NewSecrets(client, namespace)),
@@ -84,5 +86,11 @@ func offlineEngine(logger *slog.Logger) (*rigger.Engine, error) {
 		return nil, err
 	}
 
-	return rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}), rigger.WithFetcher(fetcher))
+	return rigger.New(
+		rigger.WithLogger(logger),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
+		rigger.WithFetcher(fetcher),
+	)
 }

@@ -189,6 +189,9 @@ func TestNew_InvalidOptions(t *testing.T) {
 		{name: "nil fetcher", opt: WithFetcher(nil), expected: "rigger: invalid option: nil fetcher"},
 		{name: "nil clock", opt: WithClock(nil), expected: "rigger: invalid option: nil clock"},
 		{name: "nil logger", opt: WithLogger(nil), expected: "rigger: invalid option: nil logger"},
+		{name: "no kinds", opt: WithKinds(), expected: "rigger: invalid option: no kinds"},
+		{name: "empty kind", opt: WithKinds(""), expected: `rigger: invalid option: kind ""`},
+		{name: "repeated kind", opt: WithKinds("job", "job"), expected: `rigger: invalid option: kind "job"`},
 		{name: "zero limits", opt: WithLimits(Limits{}), expected: "rigger: invalid option: module bytes 0 is not positive\n" +
 			"file bytes 0 is not positive\nresources 0 is not positive\ndepth 0 is not positive\nmodules 0 is not positive\nduration 0s is not positive"},
 	}

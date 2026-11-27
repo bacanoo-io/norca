@@ -87,7 +87,12 @@ func oneDirectory(err error) cobra.PositionalArgs {
 // validateModule loads the module in dir and validates it; the examples are
 // rendered with the job decoder of Norca.
 func validateModule(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer, dir string) error {
-	eng, err := rigger.New(rigger.WithLogger(logger), rigger.WithJobDecoder(norcaapi.JobDecoder{}), rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}))
+	eng, err := rigger.New(
+		rigger.WithLogger(logger),
+		rigger.WithJobDecoder(norcaapi.JobDecoder{}),
+		rigger.WithResourceDecoder(norcaapi.ResourceDecoder{}),
+		rigger.WithKinds(norcaapi.Kinds()...),
+	)
 	if err != nil {
 		return err
 	}

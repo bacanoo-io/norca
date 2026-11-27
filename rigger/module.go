@@ -269,12 +269,21 @@ func (e *Engine) variables(ctx context.Context, m *Module, values Values) (cty.V
 // and evaluated (design 7.4), the module with no values when every variable
 // has a default, and a warning for each variable that changes
 // nothing (design 14.1). A module with a job is evaluated only by an engine
-// with a job decoder.
+// with a job decoder. An engine given the kinds of its host (WithKinds)
+// first refuses a resource of another kind, and then checks nothing else.
 func (e *Engine) ValidateModule(ctx context.Context, m *Module) (retDiags hcl.Diagnostics) {
 	defer e.recoverDiags(ctx, "module.validate", &retDiags)
 
 	ctx, span := oplog.Start(ctx, e.logger, slog.LevelInfo, "module.validate",
 		"module", m.mod.Metadata.Name, "version", m.mod.Metadata.Version)
+
+	// A kind the host cannot apply is reported once, for a library and a
+	// module without examples too, and nothing is evaluated.
+	if kindDiags := eval.CheckKinds(m.mod, e.kinds); kindDiags.HasErrors() {
+		span.End(ctx, diagsErr(kindDiags))
+
+		return kindDiags
+	}
 
 	diags := e.checkIcon(m)
 	diags = append(diags, lang.UnusedVariables(m.mod)...)
