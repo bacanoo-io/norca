@@ -351,7 +351,8 @@ func extraKeys(c *Config) error {
 		}
 	}
 
-	for _, k := range []string{"datadog_tags"} {
+	// The list of the telemetry block leaves its keys behind in JSON
+	for _, k := range []string{"prefix_filter"} {
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, k)
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, "telemetry")
 	}

@@ -102,10 +102,6 @@ func (s *HTTPServer) AgentSelfRequest(resp http.ResponseWriter, req *http.Reques
 		self.Config.Consul.Token = "<redacted>"
 	}
 
-	if self.Config != nil && self.Config.Telemetry != nil && self.Config.Telemetry.CirconusAPIToken != "" {
-		self.Config.Telemetry.CirconusAPIToken = "<redacted>"
-	}
-
 	if self.Config != nil && self.Config.Server != nil {
 		self.Config.Server.Backup.Redact()
 	}

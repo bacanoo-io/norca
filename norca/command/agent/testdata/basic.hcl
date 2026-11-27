@@ -202,8 +202,6 @@ audit {
 }
 
 telemetry {
-  statsite_address           = "127.0.0.1:1234"
-  statsd_address             = "127.0.0.1:2345"
   prometheus_metrics         = true
   disable_hostname           = true
   collection_interval        = "3s"

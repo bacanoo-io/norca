@@ -67,13 +67,6 @@ func redactNorcaConfig(c *Config) {
 	if c.Vault != nil {
 		c.Vault.Addr = redactAddress(c.Vault.Addr)
 	}
-	if c.Telemetry != nil {
-		c.Telemetry.CirconusAPIURL = redactAddress(c.Telemetry.CirconusAPIURL)
-		// the submission URL of a check ends in its secret
-		if c.Telemetry.CirconusCheckSubmissionURL != "" {
-			c.Telemetry.CirconusCheckSubmissionURL = redactedValue
-		}
-	}
 	c.Plugins = redactPlugins(c.Plugins)
 
 	if c.Server != nil && c.Server.Admission != nil {

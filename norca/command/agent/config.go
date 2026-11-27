@@ -1130,10 +1130,6 @@ func (s *ServerConfig) EncryptBytes() ([]byte, error) {
 
 // Telemetry is the telemetry configuration for the server
 type Telemetry struct {
-	StatsiteAddr             string        `hcl:"statsite_address"`
-	StatsdAddr               string        `hcl:"statsd_address"`
-	DataDogAddr              string        `hcl:"datadog_address"`
-	DataDogTags              []string      `hcl:"datadog_tags"`
 	PrometheusMetrics        bool          `hcl:"prometheus_metrics"`
 	DisableHostname          bool          `hcl:"disable_hostname"`
 	UseNodeName              bool          `hcl:"use_node_name"`
@@ -1161,77 +1157,6 @@ type Telemetry struct {
 	// rate is well-controlled but cardinality of requesters is high.
 	DisableRPCRateMetricsLabels bool `hcl:"disable_rpc_rate_metrics_labels"`
 
-	// Circonus: see https://github.com/circonus-labs/circonus-gometrics
-	// for more details on the various configuration options.
-	// Valid configuration combinations:
-	//    - CirconusAPIToken
-	//      metric management enabled (search for existing check or create a new one)
-	//    - CirconusSubmissionUrl
-	//      metric management disabled (use check with specified submission_url,
-	//      broker must be using a public SSL certificate)
-	//    - CirconusAPIToken + CirconusCheckSubmissionURL
-	//      metric management enabled (use check with specified submission_url)
-	//    - CirconusAPIToken + CirconusCheckID
-	//      metric management enabled (use check with specified id)
-
-	// CirconusAPIToken is a valid API Token used to create/manage check. If provided,
-	// metric management is enabled.
-	// Default: none
-	CirconusAPIToken string `hcl:"circonus_api_token"`
-	// CirconusAPIApp is an app name associated with API token.
-	// Default: "nomad"
-	CirconusAPIApp string `hcl:"circonus_api_app"`
-	// CirconusAPIURL is the base URL to use for contacting the Circonus API.
-	// Default: "https://api.circonus.com/v2"
-	CirconusAPIURL string `hcl:"circonus_api_url"`
-	// CirconusSubmissionInterval is the interval at which metrics are submitted to Circonus.
-	// Default: 10s
-	CirconusSubmissionInterval string `hcl:"circonus_submission_interval"`
-	// CirconusCheckSubmissionURL is the check.config.submission_url field from a
-	// previously created HTTPTRAP check.
-	// Default: none
-	CirconusCheckSubmissionURL string `hcl:"circonus_submission_url"`
-	// CirconusCheckID is the check id (not check bundle id) from a previously created
-	// HTTPTRAP check. The numeric portion of the check._cid field.
-	// Default: none
-	CirconusCheckID string `hcl:"circonus_check_id"`
-	// CirconusCheckForceMetricActivation will force enabling metrics, as they are encountered,
-	// if the metric already exists and is NOT active. If check management is enabled, the default
-	// behavior is to add new metrics as they are encountered. If the metric already exists in the
-	// check, it will *NOT* be activated. This setting overrides that behavior.
-	// Default: "false"
-	CirconusCheckForceMetricActivation string `hcl:"circonus_check_force_metric_activation"`
-	// CirconusCheckInstanceID serves to uniquely identify the metrics coming from this "instance".
-	// It can be used to maintain metric continuity with transient or ephemeral instances as
-	// they move around within an infrastructure.
-	// Default: hostname:app
-	CirconusCheckInstanceID string `hcl:"circonus_check_instance_id"`
-	// CirconusCheckSearchTag is a special tag which, when coupled with the instance id, helps to
-	// narrow down the search results when neither a Submission URL or Check ID is provided.
-	// Default: service:app (e.g. service:nomad)
-	CirconusCheckSearchTag string `hcl:"circonus_check_search_tag"`
-	// CirconusCheckTags is a comma separated list of tags to apply to the check. Note that
-	// the value of CirconusCheckSearchTag will always be added to the check.
-	// Default: none
-	CirconusCheckTags string `hcl:"circonus_check_tags"`
-	// CirconusCheckDisplayName is the name for the check which will be displayed in the Circonus UI.
-	// Default: value of CirconusCheckInstanceID
-	CirconusCheckDisplayName string `hcl:"circonus_check_display_name"`
-	// CirconusBrokerID is an explicit broker to use when creating a new check. The numeric portion
-	// of broker._cid. If metric management is enabled and neither a Submission URL nor Check ID
-	// is provided, an attempt will be made to search for an existing check using Instance ID and
-	// Search Tag. If one is not found, a new HTTPTRAP check will be created.
-	// Default: use Select Tag if provided, otherwise, a random Enterprise Broker associated
-	// with the specified API token or the default Circonus Broker.
-	// Default: none
-	CirconusBrokerID string `hcl:"circonus_broker_id"`
-	// CirconusBrokerSelectTag is a special tag which will be used to select a broker when
-	// a Broker ID is not provided. The best use of this is to as a hint for which broker
-	// should be used based on *where* this particular instance is running.
-	// (e.g. a specific geo location or datacenter, dc:sfo)
-	// Default: none
-	CirconusBrokerSelectTag string `hcl:"circonus_broker_select_tag"`
-
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -1242,7 +1167,6 @@ func (t *Telemetry) Copy() *Telemetry {
 	}
 
 	nt := *t
-	nt.DataDogTags = slices.Clone(t.DataDogTags)
 	nt.PrefixFilter = slices.Clone(t.PrefixFilter)
 	nt.FilterDefault = pointer.Copy(t.FilterDefault)
 	nt.ExtraKeysHCL = slices.Clone(t.ExtraKeysHCL)
@@ -2592,18 +2516,6 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 func (a *Telemetry) Merge(b *Telemetry) *Telemetry {
 	result := *a
 
-	if b.StatsiteAddr != "" {
-		result.StatsiteAddr = b.StatsiteAddr
-	}
-	if b.StatsdAddr != "" {
-		result.StatsdAddr = b.StatsdAddr
-	}
-	if b.DataDogAddr != "" {
-		result.DataDogAddr = b.DataDogAddr
-	}
-	if b.DataDogTags != nil {
-		result.DataDogTags = b.DataDogTags
-	}
 	if b.PrometheusMetrics {
 		result.PrometheusMetrics = b.PrometheusMetrics
 	}
@@ -2626,46 +2538,6 @@ func (a *Telemetry) Merge(b *Telemetry) *Telemetry {
 	if b.PublishAllocationMetrics {
 		result.PublishAllocationMetrics = true
 	}
-	if b.CirconusAPIToken != "" {
-		result.CirconusAPIToken = b.CirconusAPIToken
-	}
-	if b.CirconusAPIApp != "" {
-		result.CirconusAPIApp = b.CirconusAPIApp
-	}
-	if b.CirconusAPIURL != "" {
-		result.CirconusAPIURL = b.CirconusAPIURL
-	}
-	if b.CirconusCheckSubmissionURL != "" {
-		result.CirconusCheckSubmissionURL = b.CirconusCheckSubmissionURL
-	}
-	if b.CirconusSubmissionInterval != "" {
-		result.CirconusSubmissionInterval = b.CirconusSubmissionInterval
-	}
-	if b.CirconusCheckID != "" {
-		result.CirconusCheckID = b.CirconusCheckID
-	}
-	if b.CirconusCheckForceMetricActivation != "" {
-		result.CirconusCheckForceMetricActivation = b.CirconusCheckForceMetricActivation
-	}
-	if b.CirconusCheckInstanceID != "" {
-		result.CirconusCheckInstanceID = b.CirconusCheckInstanceID
-	}
-	if b.CirconusCheckSearchTag != "" {
-		result.CirconusCheckSearchTag = b.CirconusCheckSearchTag
-	}
-	if b.CirconusCheckTags != "" {
-		result.CirconusCheckTags = b.CirconusCheckTags
-	}
-	if b.CirconusCheckDisplayName != "" {
-		result.CirconusCheckDisplayName = b.CirconusCheckDisplayName
-	}
-	if b.CirconusBrokerID != "" {
-		result.CirconusBrokerID = b.CirconusBrokerID
-	}
-	if b.CirconusBrokerSelectTag != "" {
-		result.CirconusBrokerSelectTag = b.CirconusBrokerSelectTag
-	}
-
 	if b.PrefixFilter != nil {
 		result.PrefixFilter = b.PrefixFilter
 	}

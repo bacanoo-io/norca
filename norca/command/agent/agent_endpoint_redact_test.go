@@ -62,8 +62,7 @@ func TestHTTP_AgentSelf_RedactsNATSURLs(t *testing.T) {
 
 // The agent self endpoint returns no credential of the other settings that
 // can hold one: the basic authentication of Consul, addresses given as URLs,
-// the cloud auto-join entries, the submission URL of Circonus, and (as far
-// as their names tell) the free-form settings of plugins and client options.
+// the cloud auto-join entries, and (as far as their names tell) the free-form settings of plugins and client options.
 func TestHTTP_AgentSelf_RedactsAddressesAndFreeForm(t *testing.T) {
 	ci.Parallel(t)
 
@@ -79,8 +78,6 @@ func TestHTTP_AgentSelf_RedactsAddressesAndFreeForm(t *testing.T) {
 		s.Config.Consul.Auth = "consul:" + secret
 		s.Config.Consul.Addr = "https://consul:" + secret + "@consul.example.com:8501"
 		s.Config.Vault.Addr = "https://" + secret + "@vault.example.com:8200"
-		s.Config.Telemetry.CirconusAPIURL = "https://api.circonus.com/v2?key=" + secret
-		s.Config.Telemetry.CirconusCheckSubmissionURL = "https://trap.example.com/module/httptrap/id/" + secret
 		s.Config.Client.Servers = join()
 		s.Config.Client.ServerJoin = &ServerJoin{RetryJoin: join(), StartJoin: join()}
 		s.Config.Server.RetryJoin = join()
@@ -122,8 +119,6 @@ func TestHTTP_AgentSelf_RedactsAddressesAndFreeForm(t *testing.T) {
 		must.Eq(t, "<redacted>", c.Consul.Auth)
 		must.Eq(t, "https://xxxxx@consul.example.com:8501", c.Consul.Addr)
 		must.Eq(t, "https://xxxxx@vault.example.com:8200", c.Vault.Addr)
-		must.Eq(t, "https://api.circonus.com/v2?key=<redacted>", c.Telemetry.CirconusAPIURL)
-		must.Eq(t, "<redacted>", c.Telemetry.CirconusCheckSubmissionURL)
 		wantJoin := []string{
 			"10.0.0.1:4648",
 			"provider=aws tag_key=<redacted> tag_value=<redacted> access_key_id=<redacted> secret_access_key=<redacted>",

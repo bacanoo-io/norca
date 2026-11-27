@@ -33,8 +33,6 @@ import (
 	discover "github.com/hashicorp/go-discover"
 	hclog "github.com/hashicorp/go-hclog"
 	metrics "github.com/hashicorp/go-metrics"
-	"github.com/hashicorp/go-metrics/circonus"
-	"github.com/hashicorp/go-metrics/datadog"
 	"github.com/hashicorp/go-metrics/prometheus"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hashicorp/logutils"
@@ -1099,24 +1097,7 @@ func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
 		metricsConf.FilterDefault = *telConfig.FilterDefault
 	}
 
-	// Configure the statsite sink
 	var fanout metrics.FanoutSink
-	if telConfig.StatsiteAddr != "" {
-		sink, err := metrics.NewStatsiteSink(telConfig.StatsiteAddr)
-		if err != nil {
-			return inm, err
-		}
-		fanout = append(fanout, sink)
-	}
-
-	// Configure the statsd sink
-	if telConfig.StatsdAddr != "" {
-		sink, err := metrics.NewStatsdSink(telConfig.StatsdAddr)
-		if err != nil {
-			return inm, err
-		}
-		fanout = append(fanout, sink)
-	}
 
 	// Configure the prometheus sink
 	if telConfig.PrometheusMetrics {
@@ -1125,53 +1106,6 @@ func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
 			return inm, err
 		}
 		fanout = append(fanout, promSink)
-	}
-
-	// Configure the datadog sink
-	if telConfig.DataDogAddr != "" {
-		sink, err := datadog.NewDogStatsdSink(telConfig.DataDogAddr, config.NodeName)
-		if err != nil {
-			return inm, err
-		}
-		sink.SetTags(telConfig.DataDogTags)
-		fanout = append(fanout, sink)
-	}
-
-	// Configure the Circonus sink
-	if telConfig.CirconusAPIToken != "" || telConfig.CirconusCheckSubmissionURL != "" {
-		cfg := &circonus.Config{}
-		cfg.Interval = telConfig.CirconusSubmissionInterval
-		cfg.CheckManager.API.TokenKey = telConfig.CirconusAPIToken
-		cfg.CheckManager.API.TokenApp = telConfig.CirconusAPIApp
-		cfg.CheckManager.API.URL = telConfig.CirconusAPIURL
-		cfg.CheckManager.Check.SubmissionURL = telConfig.CirconusCheckSubmissionURL
-		cfg.CheckManager.Check.ID = telConfig.CirconusCheckID
-		cfg.CheckManager.Check.ForceMetricActivation = telConfig.CirconusCheckForceMetricActivation
-		cfg.CheckManager.Check.InstanceID = telConfig.CirconusCheckInstanceID
-		cfg.CheckManager.Check.SearchTag = telConfig.CirconusCheckSearchTag
-		cfg.CheckManager.Check.Tags = telConfig.CirconusCheckTags
-		cfg.CheckManager.Check.DisplayName = telConfig.CirconusCheckDisplayName
-		cfg.CheckManager.Broker.ID = telConfig.CirconusBrokerID
-		cfg.CheckManager.Broker.SelectTag = telConfig.CirconusBrokerSelectTag
-
-		if cfg.CheckManager.Check.DisplayName == "" {
-			cfg.CheckManager.Check.DisplayName = "Nomad"
-		}
-
-		if cfg.CheckManager.API.TokenApp == "" {
-			cfg.CheckManager.API.TokenApp = "nomad"
-		}
-
-		if cfg.CheckManager.Check.SearchTag == "" {
-			cfg.CheckManager.Check.SearchTag = "service:nomad"
-		}
-
-		sink, err := circonus.NewCirconusSink(cfg)
-		if err != nil {
-			return inm, err
-		}
-		sink.Start()
-		fanout = append(fanout, sink)
 	}
 
 	// Initialize the global sink
