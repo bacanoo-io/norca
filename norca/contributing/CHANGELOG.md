@@ -12,7 +12,7 @@ go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
 
 PRs with code changes should include a `.changelog/<PR Number>.txt` file highlighting the user visible change.
 
-The changelog entry should include the affected component (e.g. `driver/docker`, `api`), and a user-centric summary of the change. If an issue warrants more elaborate description, also update the [Upgrade Guide](../website/content/docs/upgrade/upgrade-specific.mdx).
+The changelog entry should include the affected component (e.g. `driver/docker`, `api`), and a user-centric summary of the change. If an issue warrants more elaborate description, also update the upgrade notes in the norca-doc repository (`content/docs/operations/upgrades.md`).
 
 Use the PR number as the file name. Enterprise private changes should have an entry in the OSS repository referencing a public GitHub issues detailing the change and impact.
 

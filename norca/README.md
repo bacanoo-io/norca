@@ -19,8 +19,6 @@ Layout
 * `controller/`: the controller SDK of the operator framework (a separate Go module)
 * `tools/`: build tools, such as the third-party notice generator (a separate Go module)
 * `ui/`: the web UI
-* `website/`: the documentation sources of Nomad v1.6.5, kept as reference;
-  they do not describe the Norca extensions
 
 Building
 ---

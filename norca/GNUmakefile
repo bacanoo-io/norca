@@ -144,7 +144,6 @@ deps:  ## Install build and development dependencies
 lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
-	go install github.com/client9/misspell/cmd/misspell@v0.3.4
 
 .PHONY: git-hooks
 git-dir = $(shell git rev-parse --git-dir)
@@ -159,9 +158,6 @@ check: ## Lint the source code
 	@golangci-lint run --new-from-merge-base=main
 
 	@$(MAKE) logcheck
-
-	@echo "==> Spell checking website..."
-	@misspell -error -source=text website/content/
 
 	@echo "==> Checking for breaking changes in protos..."
 	@buf breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
@@ -238,9 +234,7 @@ hclfmt: ## Format HCL files with hclfmt
 	        -o -name 'upstart.nomad' -prune \
 	        -o -name '.git' -prune \
 	        -o -name 'node_modules' -prune \
-	        -o -name '.next' -prune \
 	        -o -path './ui/dist' -prune \
-	        -o -path './website/out' -prune \
 	        -o -path './command/testdata' -prune \
 	        -o \( -name '*.nomad' -o -name '*.hcl' -o -name '*.tf' \) \
 	      -print0 | xargs -0 hclfmt -w

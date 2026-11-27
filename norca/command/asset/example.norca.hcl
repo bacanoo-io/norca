@@ -9,7 +9,7 @@
 # For more information and examples on the "job" block, please see
 # the reference documentation at:
 #
-#     norca/website/content/docs/job-specification/job.mdx (Norca repository)
+#     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/job.md
 #
 job "example" {
   # The "region" parameter specifies the region in which to execute the job.
@@ -28,7 +28,7 @@ job "example" {
   #
   # For more information, please see the reference documentation at:
   #
-  #     norca/website/content/docs/schedulers.mdx (Norca repository)
+  #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/concepts/schedulers.md
   #
   type = "service"
 
@@ -39,7 +39,7 @@ job "example" {
   # For more information and examples on the "constraint" block, please see
   # the reference documentation at:
   #
-  #     norca/website/content/docs/job-specification/constraint.mdx (Norca repository)
+  #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/constraint.md
   #
   # constraint {
   #   attribute = "${attr.kernel.name}"
@@ -56,7 +56,7 @@ job "example" {
   # For more information and examples on the "update" block, please see
   # the reference documentation at:
   #
-  #     norca/website/content/docs/job-specification/update.mdx (Norca repository)
+  #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/update.md
   #
   update {
     # The "max_parallel" parameter specifies the maximum number of updates to
@@ -106,7 +106,7 @@ job "example" {
   # For more information on the "migrate" block, please see
   # the reference documentation at:
   #
-  #     norca/website/content/docs/job-specification/migrate.mdx (Norca repository)
+  #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/migrate.md
   #
   migrate {
     # Specifies the number of task groups that can be migrated at the same
@@ -135,7 +135,7 @@ job "example" {
   # For more information and examples on the "group" block, please see
   # the reference documentation at:
   #
-  #     norca/website/content/docs/job-specification/group.mdx (Norca repository)
+  #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/group.md
   #
   group "cache" {
     # The "count" parameter specifies the number of the task groups that should
@@ -149,7 +149,7 @@ job "example" {
     # For more information and examples on the "network" block, please see
     # the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/network.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/network.md
     #
     network {
       port "db" {
@@ -165,7 +165,7 @@ job "example" {
     # For more information and examples on the "service" block, please see
     # the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/service.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/service.md
     #
     service {
       name     = "redis-cache"
@@ -193,7 +193,7 @@ job "example" {
     # For more information and examples on the "restart" block, please see
     # the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/restart.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/restart.md
     #
     restart {
       # The number of attempts to run the job within the specified interval.
@@ -219,7 +219,7 @@ job "example" {
     # For more information and examples on the "ephemeral_disk" block, please
     # see the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/ephemeral_disk.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/ephemeral_disk.md
     #
     ephemeral_disk {
       # When sticky is true and the task group is updated, the scheduler
@@ -243,7 +243,7 @@ job "example" {
     # For more information and examples on the "affinity" block, please
     # see the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/affinity.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/affinity.md
     #
     # affinity {
     # attribute specifies the name of a node attribute or metadata
@@ -268,7 +268,7 @@ job "example" {
     # For more information and examples on the "spread" block, please
     # see the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/spread.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/spread.md
     #
     # spread {
     # attribute specifies the name of a node attribute or metadata
@@ -292,7 +292,7 @@ job "example" {
     # For more information and examples on the "task" block, please see
     # the reference documentation at:
     #
-    #     norca/website/content/docs/job-specification/task.mdx (Norca repository)
+    #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/task.md
     #
     task "redis" {
       # The "driver" parameter specifies the task driver that should be used to
@@ -322,7 +322,7 @@ job "example" {
       # For more information and examples on the "artifact" block, please see
       # the reference documentation at:
       #
-      #     norca/website/content/docs/job-specification/artifact.mdx (Norca repository)
+      #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/artifact.md
       #
       # artifact {
       #   source = "http://foo.com/artifact.tar.gz"
@@ -339,7 +339,7 @@ job "example" {
       # For more information and examples on the "logs" block, please see
       # the reference documentation at:
       #
-      #     norca/website/content/docs/job-specification/logs.mdx (Norca repository)
+      #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/logs.md
       #
       # logs {
       #   max_files     = 10
@@ -362,7 +362,7 @@ job "example" {
       # For more information and examples on the "resources" block, please see
       # the reference documentation at:
       #
-      #     norca/website/content/docs/job-specification/resources.mdx (Norca repository)
+      #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/resources.md
       #
       resources {
         cpu    = 500 # 500 MHz
@@ -377,7 +377,7 @@ job "example" {
       # For more information and examples on the "template" block, please see
       # the reference documentation at:
       #
-      #     norca/website/content/docs/job-specification/template.mdx (Norca repository)
+      #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/template.md
       #
       # template {
       #   data          = "---\nkey: {{ key \"service/my-key\" }}"
@@ -406,7 +406,7 @@ job "example" {
       # For more information and examples on the "vault" block, please see
       # the reference documentation at:
       #
-      #     norca/website/content/docs/job-specification/vault.mdx (Norca repository)
+      #     https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/job-specification/vault.md
       #
       # vault {
       #   policies      = ["cdn", "frontend"]

@@ -39,5 +39,5 @@ CLI (command/) -> API Client (api/) -> HTTP API (command/agent) -> RPC (nomad/)
 * [ ] Changelog
 * [ ] API docs https://www.nomadproject.io/api
 * [ ] CLI docs https://www.nomadproject.io/docs/commands
-* [ ] If adding new docs see [website README](../website/README.md#editing-navigation-sidebars)
+* [ ] If adding new docs, add the page to the norca-doc repository (`content/docs/`)
 * [ ] Consider if it needs a guide https://www.nomadproject.io/guides/index.html

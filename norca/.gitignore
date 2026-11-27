@@ -33,8 +33,6 @@ _testmain.go
 /bin/
 /pkg/
 .vagrant
-website/build/
-website/npm-debug.log
 *.old
 *.attr
 
@@ -52,9 +50,6 @@ ui/dist/
 
 *.swp
 *.iml
-
-website/.bundle
-website/vendor
 
 # Go work files
 go.work

@@ -41,7 +41,7 @@ required in the original `jobspec` package.
 
 * [ ] Changelog
 * [ ] Jobspec entry https://www.nomadproject.io/docs/job-specification/index.html
-* [ ] Jobspec sidebar entry https://github.com/hashicorp/nomad/blob/main/website/data/docs-navigation.js
+* [ ] Jobspec page in the norca-doc repository (`content/docs/job-specification/`)
 * [ ] Job JSON API entry https://www.nomadproject.io/api/json-jobs.html
 * [ ] Sample Response output in API https://www.nomadproject.io/api/jobs.html
 * [ ] Consider if it needs a guide https://www.nomadproject.io/guides/index.html

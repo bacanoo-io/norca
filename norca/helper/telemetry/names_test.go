@@ -75,7 +75,7 @@ func TestMetricFamilies(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case "ui", "website", "node_modules", "testdata", ".git":
+			case "ui", "node_modules", "testdata", ".git":
 				return filepath.SkipDir
 			}
 			return nil

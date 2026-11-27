@@ -27,7 +27,7 @@ An independent, open source workload scheduler and orchestrator built on the Has
 
 The documentation lives in its own repository, [bacanoo-io/norca-doc](https://github.com/bacanoo-io/norca-doc) (a Hugo site): introduction and compatibility, getting started, the Norca features with examples, configuration and diagrams, the job specification, agent configuration, CLI and HTTP API reference, operations, security, and the design documents with their status.
 
-The reference pages adapt the Nomad v1.6.5 documentation text (MPL 2.0, with attribution). That text stays in this repository unchanged, as the upstream reference, in [norca/website/content/](norca/website/README.md).
+The reference pages adapt the Nomad v1.6.5 documentation text (MPL 2.0, with attribution; see the NOTICE file of norca-doc). This repository kept that text as a reference in `norca/website/content/` until 2026-11-27; every relevant page is in norca-doc, and the text remains in the history of this repository.
 
 ## Origin
 
