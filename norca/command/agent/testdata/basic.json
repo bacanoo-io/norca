@@ -337,7 +337,12 @@
     {
       "collection_interval": "3s",
       "disable_hostname": true,
-      "prometheus_metrics": true,
+      "prometheus": [
+        {
+          "enabled": true,
+          "expiration": "30s"
+        }
+      ],
       "publish_allocation_metrics": true,
       "publish_node_metrics": true
     }

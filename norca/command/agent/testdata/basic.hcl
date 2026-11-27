@@ -202,7 +202,11 @@ audit {
 }
 
 telemetry {
-  prometheus_metrics         = true
+  prometheus {
+    enabled    = true
+    expiration = "30s"
+  }
+
   disable_hostname           = true
   collection_interval        = "3s"
   publish_allocation_metrics = true

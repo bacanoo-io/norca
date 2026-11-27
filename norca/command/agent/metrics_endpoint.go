@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -28,7 +29,7 @@ func (s *HTTPServer) MetricsRequest(resp http.ResponseWriter, req *http.Request)
 
 		// Only return Prometheus formatted metrics if the user has enabled
 		// this functionality.
-		if !s.agent.GetConfig().Telemetry.PrometheusMetrics {
+		if !s.agent.GetConfig().Telemetry.PrometheusEnabled() {
 			return nil, CodedError(http.StatusUnsupportedMediaType, "Prometheus is not enabled")
 		}
 		s.prometheusHandler().ServeHTTP(resp, req)

@@ -102,7 +102,12 @@ type ACLConfig struct {
 
 // Telemetry is used to configure the Nomad telemetry setup.
 type Telemetry struct {
-	PrometheusMetrics bool `json:"prometheus_metrics"`
+	Prometheus *Prometheus `json:"prometheus,omitempty"`
+}
+
+// Prometheus is the prometheus block of the telemetry setup.
+type Prometheus struct {
+	Enabled bool `json:"enabled"`
 }
 
 // ServerConfigCallback is a function interface which can be

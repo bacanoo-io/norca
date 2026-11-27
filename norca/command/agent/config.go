@@ -1130,7 +1130,10 @@ func (s *ServerConfig) EncryptBytes() ([]byte, error) {
 
 // Telemetry is the telemetry configuration for the server
 type Telemetry struct {
-	PrometheusMetrics        bool          `hcl:"prometheus_metrics"`
+	// Prometheus is the optional Prometheus output of the metrics, served at
+	// /v1/metrics?format=prometheus.
+	Prometheus *PrometheusConfig `hcl:"prometheus"`
+
 	DisableHostname          bool          `hcl:"disable_hostname"`
 	UseNodeName              bool          `hcl:"use_node_name"`
 	CollectionInterval       string        `hcl:"collection_interval"`
@@ -1167,10 +1170,16 @@ func (t *Telemetry) Copy() *Telemetry {
 	}
 
 	nt := *t
+	nt.Prometheus = t.Prometheus.Copy()
 	nt.PrefixFilter = slices.Clone(t.PrefixFilter)
 	nt.FilterDefault = pointer.Copy(t.FilterDefault)
 	nt.ExtraKeysHCL = slices.Clone(t.ExtraKeysHCL)
 	return &nt
+}
+
+// PrometheusEnabled reports whether the Prometheus sink is on.
+func (t *Telemetry) PrometheusEnabled() bool {
+	return t != nil && t.Prometheus.IsEnabled()
 }
 
 // PrefixFilters parses the PrefixFilter field and returns a list of allowed and blocked filters
@@ -1411,7 +1420,7 @@ func DevConfig(mode *devModeConfig) *Config {
 	conf.Client.Options[fingerprint.TightenNetworkTimeoutsConfig] = "true"
 	conf.Client.BindWildcardDefaultHostNetwork = true
 	conf.Client.NomadServiceDiscovery = pointer.Of(true)
-	conf.Telemetry.PrometheusMetrics = true
+	conf.Telemetry.Prometheus = &PrometheusConfig{Enabled: pointer.Of(true)}
 	conf.Telemetry.PublishAllocationMetrics = true
 	conf.Telemetry.PublishNodeMetrics = true
 
@@ -1606,8 +1615,7 @@ func (c *Config) Merge(b *Config) *Config {
 
 	// Apply the telemetry config
 	if result.Telemetry == nil && b.Telemetry != nil {
-		telemetry := *b.Telemetry
-		result.Telemetry = &telemetry
+		result.Telemetry = b.Telemetry.Copy()
 	} else if b.Telemetry != nil {
 		result.Telemetry = result.Telemetry.Merge(b.Telemetry)
 	}
@@ -2516,9 +2524,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 func (a *Telemetry) Merge(b *Telemetry) *Telemetry {
 	result := *a
 
-	if b.PrometheusMetrics {
-		result.PrometheusMetrics = b.PrometheusMetrics
-	}
+	result.Prometheus = a.Prometheus.Merge(b.Prometheus)
 	if b.DisableHostname {
 		result.DisableHostname = true
 	}

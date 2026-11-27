@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 bind_addr    = "0.0.0.0"
@@ -23,7 +24,10 @@ acl {
 telemetry {
   collection_interval        = "1s"
   disable_hostname           = true
-  prometheus_metrics         = true
   publish_allocation_metrics = true
   publish_node_metrics       = true
+
+  prometheus {
+    enabled = true
+  }
 }

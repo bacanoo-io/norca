@@ -1100,8 +1100,14 @@ func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
 	var fanout metrics.FanoutSink
 
 	// Configure the prometheus sink
-	if telConfig.PrometheusMetrics {
-		promSink, err := prometheus.NewPrometheusSink()
+	if telConfig.PrometheusEnabled() {
+		expiration, err := telConfig.Prometheus.ExpirationDuration()
+		if err != nil {
+			return inm, err
+		}
+		promSink, err := prometheus.NewPrometheusSinkFrom(prometheus.PrometheusOpts{
+			Expiration: expiration,
+		})
 		if err != nil {
 			return inm, err
 		}

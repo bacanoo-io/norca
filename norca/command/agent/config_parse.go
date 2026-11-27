@@ -166,6 +166,9 @@ func ParseConfigFile(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := c.Telemetry.Prometheus.ExpirationDuration(); err != nil {
+		return nil, err
+	}
 
 	// report unexpected keys
 	err = extraKeys(c)
@@ -356,6 +359,7 @@ func extraKeys(c *Config) error {
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, k)
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, "telemetry")
 	}
+	c.Telemetry.removeJSONKeys(&c.ExtraKeysHCL)
 
 	return helper.UnusedKeys(c)
 }

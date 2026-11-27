@@ -38,7 +38,7 @@ func TestHTTP_MetricsPrometheusDisabled(t *testing.T) {
 	ci.Parallel(t)
 	assert := assert.New(t)
 
-	httpTest(t, func(c *Config) { c.Telemetry.PrometheusMetrics = false }, func(s *TestAgent) {
+	httpTest(t, func(c *Config) { c.Telemetry.Prometheus = nil }, func(s *TestAgent) {
 		req, err := http.NewRequest(http.MethodGet, "/v1/metrics?format=prometheus", nil)
 		assert.Nil(err)
 

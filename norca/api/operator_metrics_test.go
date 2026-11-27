@@ -64,7 +64,7 @@ func TestOperator_Metrics_Prometheus(t *testing.T) {
 
 	c, s := makeClient(t, nil, func(c *testutil.TestServerConfig) {
 		c.DevMode = true
-		c.Telemetry = &testutil.Telemetry{PrometheusMetrics: true}
+		c.Telemetry = &testutil.Telemetry{Prometheus: &testutil.Prometheus{Enabled: true}}
 	})
 	defer s.Stop()
 

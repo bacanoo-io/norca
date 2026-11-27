@@ -129,7 +129,10 @@ consul {
 }
 
 telemetry {
-  prometheus_metrics         = true
   publish_allocation_metrics = true
   publish_node_metrics       = true
+
+  prometheus {
+    enabled = true
+  }
 }

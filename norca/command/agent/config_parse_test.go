@@ -200,7 +200,10 @@ var basicConfig = &Config{
 		},
 	},
 	Telemetry: &Telemetry{
-		PrometheusMetrics:        true,
+		Prometheus: &PrometheusConfig{
+			Enabled:    pointer.Of(true),
+			Expiration: "30s",
+		},
 		DisableHostname:          true,
 		UseNodeName:              false,
 		CollectionInterval:       "3s",
@@ -671,7 +674,7 @@ var sample0 = &Config{
 		},
 	},
 	Telemetry: &Telemetry{
-		PrometheusMetrics:        true,
+		Prometheus:               &PrometheusConfig{Enabled: pointer.Of(true)},
 		DisableHostname:          true,
 		CollectionInterval:       "60s",
 		collectionInterval:       60 * time.Second,
@@ -766,7 +769,7 @@ var sample1 = &Config{
 		},
 	},
 	Telemetry: &Telemetry{
-		PrometheusMetrics:        true,
+		Prometheus:               &PrometheusConfig{Enabled: pointer.Of(true)},
 		DisableHostname:          true,
 		CollectionInterval:       "60s",
 		collectionInterval:       60 * time.Second,

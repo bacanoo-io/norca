@@ -227,7 +227,7 @@ Secrets, catalogs and workload certificates are regional: run step 11 of
 [03](../03-three-node/README.md#11-observability) in every region (`-region`
 with every command), so each region has its own
 OpenObserve and the collectors of a region export to it. The agent
-configuration of 03 already has the `telemetry` block (`prometheus_metrics`)
+configuration of 03 already has the `telemetry` block (`prometheus { enabled = true }`)
 the collectors scrape; the mTLS gateways have metrics with
 `envoy_task_enabled` and `metrics_enabled` of the mtls-gateway module.
 

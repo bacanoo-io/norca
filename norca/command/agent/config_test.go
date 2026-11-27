@@ -69,9 +69,9 @@ func TestConfig_Merge(t *testing.T) {
 		DisableAnonymousSignature: false,
 		BindAddr:                  "127.0.0.1",
 		Telemetry: &Telemetry{
-			PrometheusMetrics: true,
-			DisableHostname:   false,
-			PrefixFilter:      []string{"filter1", "filter2"},
+			Prometheus:      &PrometheusConfig{Enabled: pointer.Of(false), Expiration: "10s"},
+			DisableHostname: false,
+			PrefixFilter:    []string{"filter1", "filter2"},
 		},
 		Audit: &config.AuditConfig{
 			Enabled: pointer.Of(true),
@@ -263,7 +263,7 @@ func TestConfig_Merge(t *testing.T) {
 			},
 		},
 		Telemetry: &Telemetry{
-			PrometheusMetrics:                  true,
+			Prometheus:                         &PrometheusConfig{Enabled: pointer.Of(true), Expiration: "30s"},
 			DisableHostname:                    true,
 			PublishNodeMetrics:                 true,
 			PublishAllocationMetrics:           true,
