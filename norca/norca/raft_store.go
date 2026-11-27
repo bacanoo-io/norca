@@ -96,8 +96,10 @@ func (s *Server) openRaftStore(raftDir string) (raftLogStore, error) {
 		}
 		s.logger.Info("setting up raft bolt store", "path", boltPath,
 			"no_freelist_sync", s.config.RaftBoltNoFreelistSync)
-		// publish the bbolt metrics (norca.raft.boltdb.*)
-		go store.RunMetrics(s.shutdownCtx, 0)
+		// No RunMetrics: raft-boltdb v2.2 emits its metrics
+		// (raft.boltdb.*) through the global of armon/go-metrics, which the
+		// agent never sets up (it uses hashicorp/go-metrics), so they would
+		// go nowhere.
 		return &boltRaftStore{BoltStore: store, path: boltPath}, nil
 
 	default:

@@ -337,23 +337,17 @@ var (
 		0, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000}}
 	ratioSpec = sampleSpec{unit: "1", bounds: []float64{
 		0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1}}
-	rateSpec = sampleSpec{unit: "1/s", bounds: []float64{
-		0, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7}}
 )
 
 // sampleSpecs are the samples that are not times in milliseconds, by
 // instrument name: the go-metrics API has one call for every distribution,
-// and the Go runtime, Raft, raft-boltdb, memberlist and Serf use it for
-// sizes, counts and ratios too. The module's own samples are all times.
+// and the Go runtime, Raft, memberlist and Serf use it for sizes, counts and
+// ratios too. The module's own samples are all times.
 var sampleSpecs = map[string]sampleSpec{
 	MetricsServiceName + ".runtime.gc_pause_ns":         nanosSpec,
 	MetricsServiceName + ".raft.fsm.applyBatchNum":      countSpec,
 	MetricsServiceName + ".raft.thread.main.saturation": ratioSpec,
 	MetricsServiceName + ".raft.thread.fsm.saturation":  ratioSpec,
-	MetricsServiceName + ".raft.boltdb.logSize":         bytesSpec,
-	MetricsServiceName + ".raft.boltdb.logsPerBatch":    countSpec,
-	MetricsServiceName + ".raft.boltdb.logBatchSize":    bytesSpec,
-	MetricsServiceName + ".raft.boltdb.writeCapacity":   rateSpec,
 	MetricsServiceName + ".memberlist.queue.broadcasts": countSpec,
 	MetricsServiceName + ".memberlist.size.remote":      bytesSpec,
 	MetricsServiceName + ".serf.msgs.received":          bytesSpec,
