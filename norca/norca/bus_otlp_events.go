@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -33,6 +34,11 @@ import (
 // While the receiver is down the leader keeps the one batch it fetched,
 // retries it with a backoff and fetches nothing more: the events wait in the
 // stream (72 hours by default), not in memory.
+//
+// A leader with the export off deletes the consumers, so they neither count
+// toward bus.events.max_consumers nor send the events of the pause when the
+// export is turned on again; a leader that exports other topics than the
+// consumer was made for deletes it too and starts with the new events.
 
 // EventExporter is the export of the event stream: telemetry.EventExporter.
 type EventExporter interface {
@@ -88,6 +94,9 @@ func (s *Server) otlpEventStreams(topics []string) []otlpEventStream {
 // exportBusEventsOTLP exports the events of one stream with exp until ctx
 // ends (the leadership is lost) or the bus fails.
 func (s *Server) exportBusEventsOTLP(ctx context.Context, js jetstream.JetStream, st otlpEventStream, exp EventExporter) error {
+	if err := s.dropChangedOTLPConsumer(ctx, js, st); err != nil {
+		return err
+	}
 	cons, err := js.CreateOrUpdateConsumer(ctx, st.name, jetstream.ConsumerConfig{
 		Durable:        otlpEventsConsumer,
 		Description:    "Norca: the export of the events as OTLP log records",
@@ -114,6 +123,59 @@ func (s *Server) exportBusEventsOTLP(ctx context.Context, js jetstream.JetStream
 		s.exportOTLPEvents(ctx, exp, msgs)
 	}
 	return nil
+}
+
+// dropChangedOTLPConsumer deletes the consumer of the export of a stream
+// when it was made for other topics. Updated in place it would go on from
+// its position and deliver the events of an added topic since then in one
+// burst; the new consumer starts with the new events, as a first export
+// does (the events of the other topics not exported yet are skipped too).
+func (s *Server) dropChangedOTLPConsumer(ctx context.Context, js jetstream.JetStream, st otlpEventStream) error {
+	cons, err := js.Consumer(ctx, st.name, otlpEventsConsumer)
+	if errors.Is(err, jetstream.ErrConsumerNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("the consumer of %s: %w", st.name, err)
+	}
+	cfg := cons.CachedInfo().Config
+	filters := cfg.FilterSubjects
+	if len(filters) == 0 && cfg.FilterSubject != "" {
+		filters = []string{cfg.FilterSubject}
+	}
+	if sameStrings(filters, st.filters) {
+		return nil
+	}
+	err = js.DeleteConsumer(ctx, st.name, otlpEventsConsumer)
+	if err != nil && !errors.Is(err, jetstream.ErrConsumerNotFound) {
+		return fmt.Errorf("deleting the consumer of %s: %w", st.name, err)
+	}
+	s.logger.Info("the exported event topics changed: the OTLP export starts with the new events",
+		"stream", st.name, "subjects", st.filters)
+	return nil
+}
+
+// removeOTLPEventConsumers deletes the consumers of the export from both
+// event streams of the region, on a leader with the export off, and waits
+// for the end of the leadership, as the other bus loops do.
+func (s *Server) removeOTLPEventConsumers(ctx context.Context, js jetstream.JetStream) error {
+	for _, name := range []string{bus.EventStreamName(s.config.Region), bus.AdminEventStreamName(s.config.Region)} {
+		err := js.DeleteConsumer(ctx, name, otlpEventsConsumer)
+		switch {
+		case err == nil:
+			s.logger.Info("removed the consumer of the OTLP event export, which is off", "stream", name)
+		case errors.Is(err, jetstream.ErrConsumerNotFound), errors.Is(err, jetstream.ErrStreamNotFound):
+		default:
+			return fmt.Errorf("removing the consumer of %s: %w", name, err)
+		}
+	}
+	<-ctx.Done()
+	return nil
+}
+
+// sameStrings reports whether a and b hold the same strings, in any order.
+func sameStrings(a, b []string) bool {
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
 
 // fetchOTLPEvents waits for the next event, up to otlpEventsFetchWait, and

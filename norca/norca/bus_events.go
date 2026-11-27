@@ -65,15 +65,19 @@ func (s *Server) busEventsLeader(stopCh chan struct{}) {
 	run("keeping the telemetry stream", s.keepTelemetryStream)
 	run("keeping the stream of the Rigger operation logs", s.keepRiggerLogStream)
 	run("keeping the object store of the Rigger bundles", s.keepRiggerBundleStore)
+	exp := s.config.EventExport
 	if s.config.Bus.Events.Enabled {
 		run("publishing the events", s.publishBusEvents)
-		if exp := s.config.EventExport; exp != nil {
+		if exp != nil {
 			for _, st := range s.otlpEventStreams(exp.Topics()) {
 				run("exporting the events of "+st.name+" over OTLP", func(ctx context.Context, js jetstream.JetStream) error {
 					return s.exportBusEventsOTLP(ctx, js, st, exp)
 				})
 			}
 		}
+	}
+	if exp == nil {
+		run("removing the consumers of the OTLP event export", s.removeOTLPEventConsumers)
 	}
 	wg.Wait()
 }

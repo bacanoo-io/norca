@@ -233,6 +233,91 @@ func TestBusEventsOTLP_BackpressureAndResume(t *testing.T) {
 	must.SliceEmpty(t, failing.keys("Job"))
 }
 
+// A leader with the export off deletes the consumers of the export, and an
+// export of other topics than its consumer was made for starts with a new
+// consumer at the new events: the events of the pause are not sent.
+func TestBusEventsOTLP_Consumers(t *testing.T) {
+	ci.Parallel(t)
+
+	// the server runs no export of its own: the test runs the loops
+	s1, cleanup := TestServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	js := busJS(t, s1)
+	waitBus(t, func() (bool, error) {
+		for _, name := range []string{bus.EventStreamName("global"), bus.AdminEventStreamName("global")} {
+			if _, err := js.Stream(t.Context(), name); err != nil {
+				return false, err
+			}
+		}
+		return true, nil
+	})
+	run := func(fn func(context.Context) error) (stop func()) {
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- fn(ctx) }()
+		return func() {
+			cancel()
+			select {
+			case err := <-done:
+				must.NoError(t, err)
+			case <-time.After(30 * time.Second):
+				t.Fatal("the loop did not stop")
+			}
+		}
+	}
+	consumerFilters := func() ([]string, error) {
+		cons, err := js.Consumer(t.Context(), bus.EventStreamName("global"), otlpEventsConsumer)
+		if err != nil {
+			return nil, err
+		}
+		cfg := cons.CachedInfo().Config
+		if len(cfg.FilterSubjects) == 0 {
+			return []string{cfg.FilterSubject}, nil
+		}
+		return cfg.FilterSubjects, nil
+	}
+	st := s1.fsm.State()
+
+	// an export of Job, then a pause with a Job and an Evaluation event
+	jobs := &fakeEventExporter{topics: []string{"Job"}}
+	jobStream := s1.otlpEventStreams(jobs.topics)[0]
+	stop := run(func(ctx context.Context) error { return s1.exportBusEventsOTLP(ctx, js, jobStream, jobs) })
+	waitBus(t, func() (bool, error) { _, err := consumerFilters(); return err == nil, err })
+	stop()
+	paused := mock.Job()
+	must.NoError(t, st.UpsertJob(structs.JobRegisterRequestType, 3000, nil, paused))
+	pausedEval := mock.Eval()
+	must.NoError(t, st.UpsertEvals(structs.EvalUpdateRequestType, 3001, []*structs.Evaluation{pausedEval}))
+
+	// the topics change: a new consumer, from the new events on
+	both := &fakeEventExporter{topics: []string{"Job", "Evaluation"}}
+	bothStream := s1.otlpEventStreams(both.topics)[0]
+	stop = run(func(ctx context.Context) error { return s1.exportBusEventsOTLP(ctx, js, bothStream, both) })
+	waitBus(t, func() (bool, error) {
+		filters, err := consumerFilters()
+		return err == nil && sameStrings(filters, bothStream.filters), err
+	})
+	eval := mock.Eval()
+	must.NoError(t, st.UpsertEvals(structs.EvalUpdateRequestType, 3002, []*structs.Evaluation{eval}))
+	waitBus(t, func() (bool, error) { return slices.Contains(both.keys("Evaluation"), eval.ID), nil })
+	stop()
+	must.SliceNotContains(t, both.keys("Evaluation"), pausedEval.ID)
+	must.SliceNotContains(t, both.keys("Job"), paused.ID)
+
+	// the export is off: the leader deletes the consumers of both streams
+	stop = run(func(ctx context.Context) error { return s1.removeOTLPEventConsumers(ctx, js) })
+	waitBus(t, func() (bool, error) {
+		for _, name := range []string{bus.EventStreamName("global"), bus.AdminEventStreamName("global")} {
+			if _, err := js.Consumer(t.Context(), name, otlpEventsConsumer); !errors.Is(err, jetstream.ErrConsumerNotFound) {
+				return false, err
+			}
+		}
+		return true, nil
+	})
+	stop()
+}
+
 func TestOTLPEventChunk(t *testing.T) {
 	ci.Parallel(t)
 
