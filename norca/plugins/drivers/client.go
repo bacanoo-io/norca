@@ -20,6 +20,7 @@ import (
 	pstructs "github.com/bacanoo-io/norca/norca/plugins/shared/structs"
 	sproto "github.com/bacanoo-io/norca/norca/plugins/shared/structs/proto"
 	hclog "github.com/hashicorp/go-hclog"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -156,11 +157,21 @@ func (d *driverPluginClient) RecoverTask(h *TaskHandle) error {
 // is returned to the caller that can be used to recover state of the task,
 // should the driver crash or exit prematurely.
 func (d *driverPluginClient) StartTask(c *TaskConfig) (*TaskHandle, *DriverNetwork, error) {
+	return d.StartTaskContext(context.Background(), c)
+}
+
+// StartTaskContext is StartTask within the span of ctx (TaskStarterContext):
+// the call is still canceled by the plugin's shutdown only.
+func (d *driverPluginClient) StartTaskContext(ctx context.Context, c *TaskConfig) (*TaskHandle, *DriverNetwork, error) {
 	req := &proto.StartTaskRequest{
 		Task: taskConfigToProto(c),
 	}
 
-	resp, err := d.client.StartTask(d.doneCtx, req)
+	callCtx := d.doneCtx
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		callCtx = trace.ContextWithSpanContext(callCtx, sc)
+	}
+	resp, err := d.client.StartTask(callCtx, req)
 	if err != nil {
 		st := status.Convert(err)
 		if len(st.Details()) > 0 {

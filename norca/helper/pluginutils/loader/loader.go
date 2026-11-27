@@ -18,6 +18,7 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
 	version "github.com/hashicorp/go-version"
+	"google.golang.org/grpc"
 )
 
 // PluginCatalog is used to retrieve plugins, either external or internal
@@ -76,6 +77,11 @@ type PluginLoaderConfig struct {
 
 	// SupportedVersions is a mapping of plugin type to the supported versions
 	SupportedVersions map[string][]string
+
+	// GRPCDialOptions are added to the gRPC connections of the external
+	// plugins it launches or reattaches to (Norca: the trace
+	// instrumentation of the plugin clients).
+	GRPCDialOptions []grpc.DialOption
 }
 
 // PluginLoader is used to retrieve plugins either externally or from internal
@@ -92,6 +98,9 @@ type PluginLoader struct {
 
 	// plugins maps a plugin to information required to launch it
 	plugins map[PluginID]*pluginInfo
+
+	// grpcDialOptions are the extra dial options of the plugin clients
+	grpcDialOptions []grpc.DialOption
 }
 
 // pluginInfo captures the necessary information to launch and configure a
@@ -134,6 +143,7 @@ func NewPluginLoader(config *PluginLoaderConfig) (*PluginLoader, error) {
 		supportedVersions: supportedVersions,
 		pluginDir:         config.PluginDir,
 		plugins:           make(map[PluginID]*pluginInfo),
+		grpcDialOptions:   config.GRPCDialOptions,
 	}
 
 	if err := l.init(config); err != nil {
@@ -218,6 +228,7 @@ func (l *PluginLoader) dispensePlugin(
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger:           logger,
 		Reattach:         reattach,
+		GRPCDialOptions:  l.grpcDialOptions,
 	})
 
 	// Connect via RPC

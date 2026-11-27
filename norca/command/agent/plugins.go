@@ -27,6 +27,7 @@ func (a *Agent) setupPlugins() error {
 		Configs:           a.config.Plugins,
 		InternalPlugins:   internal,
 		SupportedVersions: loader.AgentSupportedApiVersions,
+		GRPCDialOptions:   a.tracing.PluginDialOptions(),
 	}
 	l, err := loader.NewPluginLoader(config)
 	if err != nil {

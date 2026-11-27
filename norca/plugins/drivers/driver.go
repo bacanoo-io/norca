@@ -49,6 +49,8 @@ const (
 // implemented by a plugin client which proxies the calls to go-plugin. See
 // the proto/driver.proto file for detailed information about each RPC and
 // message structure.
+//
+// A driver may also implement TaskStarterContext.
 type DriverPlugin interface {
 	base.BasePlugin
 
@@ -67,6 +69,14 @@ type DriverPlugin interface {
 
 	SignalTask(taskID string, signal string) error
 	ExecTask(taskID string, cmd []string, timeout time.Duration) (*ExecTaskResult, error)
+}
+
+// TaskStarterContext is a driver that starts a task within a context: the
+// gRPC client of an external driver plugin, whose StartTask call joins the
+// trace of the context's span (Norca). The context does not cancel the
+// start; the plugin's own lifetime does, as for StartTask.
+type TaskStarterContext interface {
+	StartTaskContext(ctx context.Context, config *TaskConfig) (*TaskHandle, *DriverNetwork, error)
 }
 
 // ExecTaskStreamingDriver marks that a driver supports streaming exec task.  This represents a user friendly
