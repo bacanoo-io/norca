@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -59,6 +60,82 @@ func TestAllocRunner_AllocState_Initialized(t *testing.T) {
 
 	require.NotNil(t, allocState)
 	require.NotNil(t, allocState.TaskStates[conf.Alloc.Job.TaskGroups[0].Tasks[0].Name])
+}
+
+// TestAllocRunner_AllocState_Copy asserts that AllocState does not write the
+// runner's state and returns a value that shares nothing with it (Norca). The
+// concurrent part is checked by the race detector: AllocState used to write
+// ar.state.TaskStates without holding the state lock.
+func TestAllocRunner_AllocState_Copy(t *testing.T) {
+	ci.Parallel(t)
+
+	// newRunner returns a runner that has not run, so no task state update
+	// has stored task states yet.
+	newRunner := func(t *testing.T) (*allocRunner, string) {
+		alloc := mock.Alloc()
+		task := alloc.Job.TaskGroups[0].Tasks[0]
+		task.Driver = "mock_driver"
+		conf, cleanup := testAllocRunnerConfig(t, alloc)
+		t.Cleanup(cleanup)
+
+		arIface, err := NewAllocRunner(conf)
+		must.NoError(t, err)
+		return arIface.(*allocRunner), task.Name
+	}
+	storedTaskStates := func(ar *allocRunner) map[string]*structs.TaskState {
+		ar.stateLock.RLock()
+		defer ar.stateLock.RUnlock()
+		return ar.state.TaskStates
+	}
+
+	t.Run("no side effect", func(t *testing.T) {
+		ar, taskName := newRunner(t)
+
+		// Before any task state update AllocState collects the task states
+		// from the task runners without storing them.
+		must.MapContainsKey(t, ar.AllocState().TaskStates, taskName)
+		must.MapEmpty(t, storedTaskStates(ar))
+	})
+
+	t.Run("concurrent update", func(t *testing.T) {
+		ar, taskName := newRunner(t)
+
+		// Readers racing with each other and with the task state update
+		// path; go test -race reports an unlocked write. They start together
+		// so that several of them find no stored task states.
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range 8 {
+			wg.Go(func() {
+				<-start
+				for range 50 {
+					_ = ar.AllocState()
+				}
+			})
+		}
+		wg.Go(func() {
+			<-start
+			for range 50 {
+				states := map[string]*structs.TaskState{taskName: ar.tasks[taskName].TaskState()}
+				_ = ar.clientAlloc(states)
+			}
+		})
+		close(start)
+		wg.Wait()
+	})
+
+	t.Run("returns a copy", func(t *testing.T) {
+		ar, taskName := newRunner(t)
+		ar.clientAlloc(map[string]*structs.TaskState{taskName: ar.tasks[taskName].TaskState()})
+
+		// Changing the returned value must not change the runner's state.
+		st := ar.AllocState()
+		st.TaskStates[taskName].State = "changed"
+		delete(st.TaskStates, taskName)
+		stored := storedTaskStates(ar)
+		must.MapContainsKey(t, stored, taskName)
+		must.NotEq(t, "changed", stored[taskName].State)
+	})
 }
 
 // TestAllocRunner_TaskLeader_KillTG asserts that when a leader task dies the

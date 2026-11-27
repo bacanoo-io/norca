@@ -797,19 +797,27 @@ func (ar *allocRunner) clientAlloc(taskStates map[string]*structs.TaskState) *st
 	// store task states for AllocState to expose
 	ar.state.TaskStates = taskStates
 
+	return ar.clientAllocFrom(ar.state, taskStates)
+}
+
+// clientAllocFrom returns an Allocation populated with the Client specific
+// fields of st and the given task states, without storing anything (Norca).
+// When st is ar.state the caller must hold ar.stateLock; AllocState passes its
+// own copy.
+func (ar *allocRunner) clientAllocFrom(st *state.State, taskStates map[string]*structs.TaskState) *structs.Allocation {
 	a := &structs.Allocation{
 		ID:         ar.id,
 		TaskStates: taskStates,
 	}
 
-	if d := ar.state.DeploymentStatus; d != nil {
+	if d := st.DeploymentStatus; d != nil {
 		a.DeploymentStatus = d.Copy()
 	}
 
 	// Compute the ClientStatus
-	if ar.state.ClientStatus != "" {
+	if st.ClientStatus != "" {
 		// The client status is being forced
-		a.ClientStatus, a.ClientDescription = ar.state.ClientStatus, ar.state.ClientDescription
+		a.ClientStatus, a.ClientDescription = st.ClientStatus, st.ClientDescription
 	} else {
 		a.ClientStatus, a.ClientDescription = getClientStatus(taskStates)
 	}
@@ -845,7 +853,7 @@ func (ar *allocRunner) clientAlloc(taskStates map[string]*structs.TaskState) *st
 	}
 
 	// Set the NetworkStatus and default DNSConfig if one is not returned from the client
-	netStatus := ar.state.NetworkStatus
+	netStatus := st.NetworkStatus
 	if netStatus != nil {
 		a.NetworkStatus = netStatus
 	} else {
@@ -929,27 +937,32 @@ func (ar *allocRunner) setIndexes(update *structs.Allocation) {
 
 // AllocState returns a copy of allocation state including a snapshot of task
 // states.
+//
+// It only reads ar.state, under ar.stateLock, and works on its own copy
+// (Norca): it never stores task states. Storing them is the job of the task
+// state update paths (clientAlloc); a snapshot stored here, taken without the
+// lock held across the task runners, could overwrite a newer one, and the
+// returned value would share its maps with ar.state.
 func (ar *allocRunner) AllocState() *state.State {
 	ar.stateLock.RLock()
-	state := ar.state.Copy()
+	st := ar.state.Copy()
 	ar.stateLock.RUnlock()
 
 	// If TaskStateUpdated has not been called yet, ar.state.TaskStates
 	// won't be set as it is not the canonical source of TaskStates.
-	if len(state.TaskStates) == 0 {
-		ar.state.TaskStates = make(map[string]*structs.TaskState, len(ar.tasks))
+	if len(st.TaskStates) == 0 {
 		for k, tr := range ar.tasks {
-			state.TaskStates[k] = tr.TaskState()
+			st.TaskStates[k] = tr.TaskState()
 		}
 	}
 
 	// Generate alloc to get other state fields
-	alloc := ar.clientAlloc(state.TaskStates)
-	state.ClientStatus = alloc.ClientStatus
-	state.ClientDescription = alloc.ClientDescription
-	state.DeploymentStatus = alloc.DeploymentStatus
+	alloc := ar.clientAllocFrom(st, st.TaskStates)
+	st.ClientStatus = alloc.ClientStatus
+	st.ClientDescription = alloc.ClientDescription
+	st.DeploymentStatus = alloc.DeploymentStatus
 
-	return state
+	return st
 }
 
 // Update asyncronously updates the running allocation with a new version
