@@ -879,7 +879,7 @@ func (tr *TaskRunner) runDriver() error {
 
 	taskConfig := tr.buildTaskConfig()
 	if tr.cpusetCgroupPathGetter != nil {
-		tr.logger.Trace("waiting for cgroup to exist for", "allocID", tr.allocID, "task", tr.task)
+		tr.logger.Trace("waiting for cgroup to exist for", "alloc_id", tr.allocID, "task", tr.task.Name)
 		cpusetCgroupPath, err := tr.cpusetCgroupPathGetter(tr.killCtx)
 		if err != nil {
 			return err
@@ -1410,7 +1410,7 @@ func (tr *TaskRunner) appendEvent(event *structs.TaskEvent) error {
 		tr.state.LastRestart = time.Unix(0, event.Time)
 	}
 
-	tr.logger.Info("Task event", "type", event.Type, "msg", event.DisplayMessage, "failed", event.FailsTask)
+	tr.logger.Info("task event", "type", event.Type, "message", event.DisplayMessage, "failed", event.FailsTask)
 
 	// Append event to slice
 	appendTaskEvent(tr.state, event, tr.maxEvents)
@@ -1434,7 +1434,7 @@ func (tr *TaskRunner) Update(update *structs.Allocation) {
 		// This should not happen and likely indicates a bug in the
 		// server or client.
 		tr.logger.Error("allocation update is missing task; killing",
-			"group", update.TaskGroup)
+			"task_group", update.TaskGroup)
 		te := structs.NewTaskEvent(structs.TaskKilled).
 			SetKillReason("update missing task").
 			SetFailsTask()
@@ -1589,13 +1589,13 @@ func (tr *TaskRunner) emitStats(ru *cstructs.TaskResourceUsage) {
 	if ru.ResourceUsage.MemoryStats != nil {
 		tr.setGaugeForMemory(ru)
 	} else {
-		tr.logger.Debug("Skipping memory stats for allocation", "reason", "MemoryStats is nil")
+		tr.logger.Debug("skipping memory stats for allocation", "reason", "MemoryStats is nil")
 	}
 
 	if ru.ResourceUsage.CpuStats != nil {
 		tr.setGaugeForCPU(ru)
 	} else {
-		tr.logger.Debug("Skipping cpu stats for allocation", "reason", "CpuStats is nil")
+		tr.logger.Debug("skipping cpu stats for allocation", "reason", "CpuStats is nil")
 	}
 }
 

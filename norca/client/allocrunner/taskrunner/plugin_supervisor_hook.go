@@ -262,8 +262,8 @@ func (h *csiPluginSupervisorHook) Poststart(_ context.Context, _ *interfaces.Tas
 // Deeper fingerprinting of the plugin is implemented by the csimanager.
 func (h *csiPluginSupervisorHook) ensureSupervisorLoop(ctx context.Context) {
 	client := csi.NewClient(h.socketPath, h.logger.Named("csi_client").With(
-		"plugin.name", h.task.CSIPluginConfig.ID,
-		"plugin.type", h.task.CSIPluginConfig.Type))
+		"plugin", h.task.CSIPluginConfig.ID,
+		"plugin_type", h.task.CSIPluginConfig.Type))
 	defer client.Close()
 
 	t := time.NewTimer(0)
@@ -422,7 +422,7 @@ func (h *csiPluginSupervisorHook) registerPlugin(client csi.CSIPlugin, socketPat
 		deregistrationFns = append(deregistrationFns, func() {
 			err := h.runner.dynamicRegistry.DeregisterPlugin(rtype, rname, allocID)
 			if err != nil {
-				h.logger.Error("failed to deregister csi plugin", "name", rname, "type", rtype, "error", err)
+				h.logger.Error("failed to deregister csi plugin", "plugin", rname, "plugin_type", rtype, "error", err)
 			}
 		})
 	}
@@ -474,7 +474,7 @@ func (h *csiPluginSupervisorHook) kill(ctx context.Context, reason error) {
 			SetFailsTask().
 			SetDisplayMessage(fmt.Sprintf("CSI plugin did not become healthy before configured %v health timeout", h.task.CSIPluginConfig.HealthTimeout.String())),
 	); err != nil {
-		h.logger.Error("failed to kill task", "kill_reason", reason, "error", err)
+		h.logger.Error("failed to kill task", "kill_reason", reason.Error(), "error", err)
 	}
 }
 

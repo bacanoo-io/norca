@@ -220,7 +220,7 @@ func (r *Runner) loop() {
 			if err != nil {
 				r.logger.Error("failed to update the Envoy configuration", "error", err)
 			} else {
-				r.logger.Info("Envoy configuration updated again")
+				r.logger.Info("envoy configuration updated again")
 			}
 			r.lastErr = msg
 		}

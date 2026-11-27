@@ -441,10 +441,10 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	c.dynamicRegistry =
 		dynamicplugins.NewRegistry(c.stateDB, map[string]dynamicplugins.PluginDispenser{
 			dynamicplugins.PluginTypeCSIController: func(info *dynamicplugins.PluginInfo) (interface{}, error) {
-				return csi.NewClient(info.ConnectionInfo.SocketPath, logger.Named("csi_client").With("plugin.name", info.Name, "plugin.type", "controller")), nil
+				return csi.NewClient(info.ConnectionInfo.SocketPath, logger.Named("csi_client").With("plugin", info.Name, "plugin_type", "controller")), nil
 			},
 			dynamicplugins.PluginTypeCSINode: func(info *dynamicplugins.PluginInfo) (interface{}, error) {
-				return csi.NewClient(info.ConnectionInfo.SocketPath, logger.Named("csi_client").With("plugin.name", info.Name, "plugin.type", "client")), nil
+				return csi.NewClient(info.ConnectionInfo.SocketPath, logger.Named("csi_client").With("plugin", info.Name, "plugin_type", "client")), nil
 			},
 		})
 
@@ -599,14 +599,12 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	// Restore the state
 	if err := c.restoreState(); err != nil {
 		logger.Error("failed to restore state", "error", err)
-		logger.Error("Nomad is unable to start due to corrupt state. "+
-			"The safest way to proceed is to manually stop running task processes "+
-			"and remove Nomad's state and alloc directories before "+
-			"restarting. Lost allocations will be rescheduled.",
+		logger.Error("the client is unable to start due to corrupt state: "+
+			"the safest way to proceed is to stop the running task processes "+
+			"and remove the state and alloc directories before "+
+			"restarting; lost allocations will be rescheduled",
 			"state_dir", cfg.StateDir, "alloc_dir", cfg.AllocDir)
-		logger.Error("Corrupt state is often caused by a bug. Please " +
-			"report as much information as possible to " +
-			"https://github.com/hashicorp/nomad/issues")
+		logger.Error("corrupt state is often caused by a bug: please report it with as much information as possible")
 		return nil, fmt.Errorf("failed to restore state")
 	}
 
@@ -1304,7 +1302,7 @@ func (c *Client) restoreState() error {
 		allocState, err := c.stateDB.GetAcknowledgedState(alloc.ID)
 		if err != nil {
 			c.logger.Error("error restoring last acknowledged alloc state, will update again",
-				err, "alloc_id", alloc.ID)
+				"error", err, "alloc_id", alloc.ID)
 		} else {
 			ar.AcknowledgeState(allocState)
 		}
@@ -2933,7 +2931,7 @@ func (c *Client) deriveToken(alloc *structs.Allocation, taskNames []string, vcli
 		// Get the wrapped token
 		wrappedToken, ok := resp.Tasks[taskName]
 		if !ok {
-			vlogger.Error("wrapped token missing for task", "task_name", taskName)
+			vlogger.Error("wrapped token missing for task", "task", taskName)
 			return nil, fmt.Errorf("wrapped token missing for task %q", taskName)
 		}
 
@@ -3039,7 +3037,7 @@ func verifiedTasks(logger hclog.Logger, alloc *structs.Allocation, taskNames []s
 	// confirm the requested task names actually exist in the allocation
 	for _, taskName := range taskNames {
 		if !taskIsPresent(taskName, group.Tasks) {
-			logger.Error("task not found in the allocation", "task_name", taskName)
+			logger.Error("task not found in the allocation", "task", taskName)
 			return nil, fmt.Errorf("task %q not found in allocation", taskName)
 		}
 		verifiedTasks = append(verifiedTasks, taskName)

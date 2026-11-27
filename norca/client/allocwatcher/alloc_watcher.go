@@ -76,7 +76,7 @@ type Config struct {
 }
 
 func newMigratorForAlloc(c Config, tg *structs.TaskGroup, watchedAllocID string, m AllocRunnerMeta) config.PrevAllocMigrator {
-	logger := c.Logger.Named("alloc_migrator").With("alloc_id", c.Alloc.ID).With("previous_alloc", watchedAllocID)
+	logger := c.Logger.Named("alloc_migrator").With("alloc_id", c.Alloc.ID).With("previous_alloc_id", watchedAllocID)
 
 	tasks := tg.Tasks
 	migrate := tg.EphemeralDisk != nil && tg.EphemeralDisk.Migrate
@@ -115,7 +115,7 @@ func newMigratorForAlloc(c Config, tg *structs.TaskGroup, watchedAllocID string,
 // used for preemption which has a distinct field. The caller is responsible
 // for passing the allocation to be watched as watchedAllocID.
 func newWatcherForAlloc(c Config, watchedAllocID string, m AllocRunnerMeta) config.PrevAllocWatcher {
-	logger := c.Logger.Named("alloc_watcher").With("alloc_id", c.Alloc.ID).With("previous_alloc", watchedAllocID)
+	logger := c.Logger.Named("alloc_watcher").With("alloc_id", c.Alloc.ID).With("previous_alloc_id", watchedAllocID)
 
 	if m != nil {
 		// Local Allocation because there's an alloc runner
@@ -487,7 +487,7 @@ func (p *remotePrevAlloc) getNodeAddr(ctx context.Context, nodeID string) (strin
 	for {
 		err := p.rpc.RPC("Node.GetNode", &req, &resp)
 		if err != nil {
-			p.logger.Error("failed to query node", "error", err, "node", nodeID)
+			p.logger.Error("failed to query node", "error", err, "node_id", nodeID)
 			retry := getRemoteRetryIntv + helper.RandomStagger(getRemoteRetryIntv)
 			select {
 			case <-time.After(retry):

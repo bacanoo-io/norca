@@ -158,11 +158,11 @@ TRY:
 		}
 
 		// Move off to another server, and see if we can retry.
-		c.rpcLogger.Error("error performing RPC to server", "error", rpcErr, "rpc", method, "server", server.Addr)
+		c.rpcLogger.Error("error performing RPC to server", "error", rpcErr, "rpc_method", method, "server", server.Addr)
 		c.servers.NotifyFailedServer(server)
 
 		if !canRetry(args, rpcErr) {
-			c.rpcLogger.Error("error performing RPC to server which is not safe to automatically retry", "error", rpcErr, "rpc", method, "server", server.Addr)
+			c.rpcLogger.Error("error performing RPC to server which is not safe to automatically retry", "error", rpcErr, "rpc_method", method, "server", server.Addr)
 			return rpcErr
 		}
 	}
@@ -175,7 +175,7 @@ TRY:
 			info.SetTimeToBlock(0)
 			return c.RPC(method, args, reply)
 		}
-		c.rpcLogger.Error("error performing RPC to server, deadline exceeded, cannot retry", "error", rpcErr, "rpc", method)
+		c.rpcLogger.Error("error performing RPC to server, deadline exceeded, cannot retry", "error", rpcErr, "rpc_method", method)
 		return rpcErr
 	}
 
@@ -231,7 +231,7 @@ func (c *Client) RemoteStreamingRpcHandler(method string) (structs.StreamingRpcH
 	conn, err := c.streamingRpcConn(server, method)
 	if err != nil {
 		// Move off to another server
-		c.rpcLogger.Error("error performing RPC to server", "error", err, "rpc", method, "server", server.Addr)
+		c.rpcLogger.Error("error performing RPC to server", "error", err, "rpc_method", method, "server", server.Addr)
 		c.servers.NotifyFailedServer(server)
 		return nil, err
 	}
@@ -434,7 +434,7 @@ func (c *Client) handleNomadConn(conn net.Conn) {
 
 		if err := c.rpcServer.ServeRequest(rpcCodec); err != nil {
 			if err != io.EOF && !strings.Contains(err.Error(), "closed") {
-				c.rpcLogger.Error("error performing RPC", "error", err, "addr", conn.RemoteAddr())
+				c.rpcLogger.Error("error performing RPC", "error", err, "address", conn.RemoteAddr())
 				metrics.IncrCounter([]string{"client", "rpc", "request_error"}, 1)
 			}
 			return
@@ -452,7 +452,7 @@ func (c *Client) handleStreamingConn(conn net.Conn) {
 	decoder := codec.NewDecoder(conn, structs.MsgpackHandle)
 	if err := decoder.Decode(&header); err != nil {
 		if err != io.EOF && !strings.Contains(err.Error(), "closed") {
-			c.rpcLogger.Error("error performing streaming RPC", "error", err, "addr", conn.RemoteAddr())
+			c.rpcLogger.Error("error performing streaming RPC", "error", err, "address", conn.RemoteAddr())
 			metrics.IncrCounter([]string{"client", "streaming_rpc", "request_error"}, 1)
 		}
 
@@ -462,7 +462,7 @@ func (c *Client) handleStreamingConn(conn net.Conn) {
 	ack := structs.StreamingRpcAck{}
 	handler, err := c.streamingRpcs.GetHandler(header.Method)
 	if err != nil {
-		c.rpcLogger.Error("streaming RPC error", "addr", conn.RemoteAddr(), "error", err)
+		c.rpcLogger.Error("streaming RPC error", "address", conn.RemoteAddr(), "error", err)
 		metrics.IncrCounter([]string{"client", "streaming_rpc", "request_error"}, 1)
 		ack.Error = err.Error()
 	}

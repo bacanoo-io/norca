@@ -253,7 +253,7 @@ func (h *envoyBootstrapHook) Prestart(ctx context.Context, req *ifs.TaskPrestart
 
 	grpcAddr := h.grpcAddress(req.TaskEnv.EnvMap)
 
-	h.logger.Debug("bootstrapping Consul "+serviceKind, "task", req.Task.Name, "service", serviceName)
+	h.logger.Debug("bootstrapping Consul", "service_kind", serviceKind, "task", req.Task.Name, "service", serviceName)
 
 	// Envoy runs an administrative listener. There is no way to turn this feature off.
 	// https://github.com/envoyproxy/envoy/issues/1297

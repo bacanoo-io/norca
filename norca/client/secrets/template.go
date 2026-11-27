@@ -247,7 +247,7 @@ func (s *TemplateSource) runVault(ref string, e *templateEntry) {
 		var vl *VaultLookup
 		vl, err = s.vault.Resolve(s.lookup("", path), version)
 		if err == nil {
-			s.logger.Debug("Vault secret provider resolved", "path", path,
+			s.logger.Debug("vault secret provider resolved", "path", path,
 				"provider", vl.Resolution.Provider.Name(), "source", vl.Resolution.Source)
 			s.run(e, &templateFetch{
 				res:     vl.Resolution,

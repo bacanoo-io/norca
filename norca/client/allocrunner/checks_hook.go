@@ -218,7 +218,7 @@ func (h *checksHook) observe(alloc *structs.Allocation, services []checkedServic
 			result := checks.Stub(id, structs.GetCheckMode(check), now, alloc.Name, service.TaskName, service.Name, check.Name)
 			result.Role = check.Role
 			if err := h.shim.Set(h.allocID, result); err != nil {
-				h.logger.Error("failed to set initial check status", "id", h.allocID, "error", err)
+				h.logger.Error("failed to set initial check status", "alloc_id", h.allocID, "error", err)
 				continue
 			}
 

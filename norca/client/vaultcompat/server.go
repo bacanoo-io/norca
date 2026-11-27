@@ -157,7 +157,7 @@ func (s *Server) Start() error {
 	s.ln = ln
 	s.port = ln.Addr().(*net.TCPAddr).Port
 	s.serve(ln)
-	s.logger.Info("Vault-compatible endpoint of the built-in secret store started", "address", ln.Addr())
+	s.logger.Info("vault-compatible endpoint of the built-in secret store started", "address", ln.Addr())
 	return nil
 }
 
@@ -167,7 +167,7 @@ func (s *Server) serve(ln net.Listener) {
 	s.servers = append(s.servers, srv)
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Error("Vault-compatible endpoint stopped", "address", ln.Addr(), "error", err)
+			s.logger.Error("vault-compatible endpoint stopped", "address", ln.Addr(), "error", err)
 		}
 	}()
 }
@@ -232,7 +232,7 @@ func (s *Server) ensureBridge() error {
 	}
 	s.bridgeLn = ln
 	s.serve(ln)
-	s.logger.Info("Vault-compatible endpoint listens on the bridge network", "address", ln.Addr())
+	s.logger.Info("vault-compatible endpoint listens on the bridge network", "address", ln.Addr())
 	return nil
 }
 

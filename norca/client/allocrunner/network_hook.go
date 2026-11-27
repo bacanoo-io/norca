@@ -223,7 +223,7 @@ func (h *networkHook) Postrun() error {
 	// we need the spec for network teardown
 	if h.spec != nil {
 		if err := h.networkConfigurator.Teardown(context.TODO(), h.alloc, h.spec); err != nil {
-			h.logger.Error("failed to cleanup network for allocation, resources may have leaked", "alloc", h.alloc.ID, "error", err)
+			h.logger.Error("failed to cleanup network for allocation, resources may have leaked", "alloc_id", h.alloc.ID, "error", err)
 		}
 	}
 

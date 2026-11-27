@@ -59,7 +59,7 @@ type TaskDir struct {
 func newTaskDir(logger hclog.Logger, clientAllocDir, allocDir, taskName string) *TaskDir {
 	taskDir := filepath.Join(allocDir, taskName)
 
-	logger = logger.Named("task_dir").With("task_name", taskName)
+	logger = logger.Named("task_dir").With("task", taskName)
 
 	// skip embedding client.alloc_dir in chroots
 	skip := map[string]struct{}{clientAllocDir: {}}

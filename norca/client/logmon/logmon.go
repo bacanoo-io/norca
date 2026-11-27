@@ -214,7 +214,7 @@ func newLogRotatorWrapper(path string, logger hclog.Logger, rotator io.WriteClos
 	}
 
 	if err != nil {
-		logger.Error("failed to create FIFO", "stat_error", serr, "create_err", err)
+		logger.Error("failed to create FIFO", "stat_error", serr, "create_error", err)
 		return nil, fmt.Errorf("failed to create fifo for extracting logs: %v", err)
 	}
 

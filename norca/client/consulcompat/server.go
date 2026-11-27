@@ -223,7 +223,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	h, arg, ok := s.route(req.URL.Path)
 	if !ok {
-		s.logger.Debug("unsupported endpoint", "method", req.Method, "path", req.URL.Path)
+		s.logger.Debug("unsupported endpoint", "http_method", req.Method, "http_path", req.URL.Path)
 		http.Error(w, fmt.Sprintf(
 			"Not Implemented: %s %s is not supported by the Consul-compatible API of Norca; "+
 				"it serves the catalog, health, status and KV endpoints and the agent service endpoints only",

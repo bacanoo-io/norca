@@ -14,7 +14,7 @@ import (
 // task is not running. Blocks until existing task exits or passed-in context
 // is canceled.
 func (tr *TaskRunner) Restart(ctx context.Context, event *structs.TaskEvent, failure bool) error {
-	tr.logger.Trace("Restart requested", "failure", failure, "event", event.GoString())
+	tr.logger.Trace("restart requested", "failure", failure, "event", event.GoString())
 
 	taskState := tr.TaskState()
 	if taskState == nil {
@@ -36,7 +36,7 @@ func (tr *TaskRunner) Restart(ctx context.Context, event *structs.TaskEvent, fai
 // Callers must restart the AllocRuner taskCoordinator beforehand to make sure
 // the task will be able to run again.
 func (tr *TaskRunner) ForceRestart(ctx context.Context, event *structs.TaskEvent, failure bool) error {
-	tr.logger.Trace("Force restart requested", "failure", failure, "event", event.GoString())
+	tr.logger.Trace("force restart requested", "failure", failure, "event", event.GoString())
 
 	taskState := tr.TaskState()
 	if taskState == nil {
@@ -128,7 +128,7 @@ func (tr *TaskRunner) restartImpl(ctx context.Context, event *structs.TaskEvent,
 }
 
 func (tr *TaskRunner) Signal(event *structs.TaskEvent, s string) error {
-	tr.logger.Trace("Signal requested", "signal", s)
+	tr.logger.Trace("signal requested", "signal", s)
 
 	// Grab the handle
 	handle := tr.getDriverHandle()
@@ -148,7 +148,7 @@ func (tr *TaskRunner) Signal(event *structs.TaskEvent, s string) error {
 // Kill a task. Blocks until task exits or context is canceled. State is set to
 // dead.
 func (tr *TaskRunner) Kill(ctx context.Context, event *structs.TaskEvent) error {
-	tr.logger.Trace("Kill requested")
+	tr.logger.Trace("kill requested")
 
 	// Cancel the task runner to break out of restart delay or the main run
 	// loop.
@@ -156,7 +156,7 @@ func (tr *TaskRunner) Kill(ctx context.Context, event *structs.TaskEvent) error 
 
 	// Emit kill event
 	if event != nil {
-		tr.logger.Trace("Kill event", "event_type", event.Type, "event_reason", event.KillReason)
+		tr.logger.Trace("kill event", "event_type", event.Type, "event_reason", event.KillReason)
 		tr.EmitEvent(event)
 	}
 

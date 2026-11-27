@@ -90,7 +90,7 @@ func (i *instanceManager) run() {
 
 func (i *instanceManager) setupVolumeManager() {
 	if i.info.Type != dynamicplugins.PluginTypeCSINode {
-		i.logger.Debug("not a node plugin, skipping volume manager setup", "type", i.info.Type)
+		i.logger.Debug("not a node plugin, skipping volume manager setup", "plugin_type", i.info.Type)
 		return
 	}
 

@@ -170,7 +170,7 @@ func (ar *allocRunner) prerun() error {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running pre-run hook", "name", name, "start", start)
+			ar.logger.Trace("running pre-run hook", "hook", name, "start", start)
 		}
 
 		if err := pre.Prerun(); err != nil {
@@ -179,7 +179,7 @@ func (ar *allocRunner) prerun() error {
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished pre-run hook", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished pre-run hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -213,7 +213,7 @@ func (ar *allocRunner) update(update *structs.Allocation) error {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running update hook", "name", name, "start", start)
+			ar.logger.Trace("running update hook", "hook", name, "start", start)
 		}
 
 		if err := h.Update(req); err != nil {
@@ -222,7 +222,7 @@ func (ar *allocRunner) update(update *structs.Allocation) error {
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished update hooks", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished update hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -250,7 +250,7 @@ func (ar *allocRunner) postrun() error {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running post-run hook", "name", name, "start", start)
+			ar.logger.Trace("running post-run hook", "hook", name, "start", start)
 		}
 
 		if err := post.Postrun(); err != nil {
@@ -259,7 +259,7 @@ func (ar *allocRunner) postrun() error {
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished post-run hooks", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished post-run hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -289,7 +289,7 @@ func (ar *allocRunner) destroy() error {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running destroy hook", "name", name, "start", start)
+			ar.logger.Trace("running destroy hook", "hook", name, "start", start)
 		}
 
 		if err := h.Destroy(); err != nil {
@@ -298,7 +298,7 @@ func (ar *allocRunner) destroy() error {
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished destroy hooks", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished destroy hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -317,14 +317,14 @@ func (ar *allocRunner) preKillHooks() {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running alloc pre shutdown hook", "name", name, "start", start)
+			ar.logger.Trace("running alloc pre shutdown hook", "hook", name, "start", start)
 		}
 
 		pre.PreKill()
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished alloc pre shutdown hook", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished alloc pre shutdown hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }
@@ -341,14 +341,14 @@ func (ar *allocRunner) shutdownHooks() {
 		var start time.Time
 		if ar.logger.IsTrace() {
 			start = time.Now()
-			ar.logger.Trace("running shutdown hook", "name", name, "start", start)
+			ar.logger.Trace("running shutdown hook", "hook", name, "start", start)
 		}
 
 		sh.Shutdown()
 
 		if ar.logger.IsTrace() {
 			end := time.Now()
-			ar.logger.Trace("finished shutdown hooks", "name", name, "end", end, "duration", end.Sub(start))
+			ar.logger.Trace("finished shutdown hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }
@@ -365,7 +365,7 @@ func (ar *allocRunner) taskRestartHooks() {
 		if ar.logger.IsTrace() {
 			start = time.Now()
 			ar.logger.Trace("running alloc task restart hook",
-				"name", name, "start", start)
+				"hook", name, "start", start)
 		}
 
 		re.PreTaskRestart()
@@ -373,7 +373,7 @@ func (ar *allocRunner) taskRestartHooks() {
 		if ar.logger.IsTrace() {
 			end := time.Now()
 			ar.logger.Trace("finished alloc task restart hook",
-				"name", name, "end", end, "duration", end.Sub(start))
+				"hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }

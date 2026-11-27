@@ -249,10 +249,10 @@ func (c *cpusetManagerV1) reconcileCpusets() {
 	}
 
 	if err := c.setCgroupCpusetCPUs(c.sharedCpusetPath(), sharedCpuset.String()); err != nil {
-		c.logger.Error("could not write shared cpuset.cpus", "path", c.sharedCpusetPath(), "cpuset.cpus", sharedCpuset.String(), "error", err)
+		c.logger.Error("could not write shared cpuset.cpus", "path", c.sharedCpusetPath(), "cpuset_cpus", sharedCpuset.String(), "error", err)
 	}
 	if err := c.setCgroupCpusetCPUs(c.reservedCpusetPath(), reservedCpuset.String()); err != nil {
-		c.logger.Error("could not write reserved cpuset.cpus", "path", c.reservedCpusetPath(), "cpuset.cpus", reservedCpuset.String(), "error", err)
+		c.logger.Error("could not write reserved cpuset.cpus", "path", c.reservedCpusetPath(), "cpuset_cpus", reservedCpuset.String(), "error", err)
 	}
 	for _, info := range taskCpusets {
 		if err := os.Mkdir(info.CgroupPath, 0755); err != nil && !os.IsExist(err) {

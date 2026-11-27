@@ -398,7 +398,7 @@ func (c *vaultClient) renew(req *vaultClientRenewalRequest) error {
 			strings.Contains(renewalErr.Error(), "permission denied")) {
 		fatal = true
 	} else if renewalErr != nil {
-		c.logger.Debug("renewal error details", "req.increment", req.increment, "lease_duration", leaseDuration, "renewal_duration", renewalDuration)
+		c.logger.Debug("renewal error details", "req_increment", req.increment, "lease_duration", leaseDuration, "renewal_duration", renewalDuration)
 		c.logger.Error("error during renewal of lease or token failed due to a non-fatal error; retrying",
 			"error", renewalErr, "period", next)
 	}

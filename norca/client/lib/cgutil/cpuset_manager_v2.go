@@ -134,7 +134,7 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 	if alloc == nil || alloc.AllocatedResources == nil {
 		return
 	}
-	c.logger.Trace("add allocation", "name", alloc.Name, "id", alloc.ID)
+	c.logger.Trace("add allocation", "alloc_name", alloc.Name, "alloc_id", alloc.ID)
 
 	// grab write lock while we recompute and apply changes
 	c.lock.Lock()
@@ -160,7 +160,7 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 }
 
 func (c *cpusetManagerV2) RemoveAlloc(allocID string) {
-	c.logger.Trace("remove allocation", "id", allocID)
+	c.logger.Trace("remove allocation", "alloc_id", allocID)
 
 	// grab write lock while we recompute and apply changes.
 	c.lock.Lock()

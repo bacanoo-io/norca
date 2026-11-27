@@ -678,7 +678,7 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 		taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
 		err := tr.Kill(context.TODO(), taskEvent)
 		if err != nil && err != taskrunner.ErrTaskNotRunning {
-			ar.logger.Warn("error stopping leader task", "error", err, "task_name", name)
+			ar.logger.Warn("error stopping leader task", "error", err, "task", name)
 		}
 
 		taskState := tr.TaskState()
@@ -701,7 +701,7 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 			taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
 			err := tr.Kill(context.TODO(), taskEvent)
 			if err != nil && err != taskrunner.ErrTaskNotRunning {
-				ar.logger.Warn("error stopping task", "error", err, "task_name", name)
+				ar.logger.Warn("error stopping task", "error", err, "task", name)
 			}
 
 			taskState := tr.TaskState()
@@ -725,7 +725,7 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 			taskEvent.SetKillTimeout(tr.Task().KillTimeout, ar.clientConfig.MaxKillTimeout)
 			err := tr.Kill(context.TODO(), taskEvent)
 			if err != nil && err != taskrunner.ErrTaskNotRunning {
-				ar.logger.Warn("error stopping sidecar task", "error", err, "task_name", name)
+				ar.logger.Warn("error stopping sidecar task", "error", err, "task", name)
 			}
 
 			taskState := tr.TaskState()
@@ -930,13 +930,13 @@ func (ar *allocRunner) Update(update *structs.Allocation) {
 		// and return. This case shouldn't happen, but may in the case of a bug
 		// elsewhere inside the system.
 		if oldUpdate.AllocModifyIndex > update.AllocModifyIndex {
-			ar.logger.Debug("Discarding allocation update due to newer alloc revision in queue",
+			ar.logger.Debug("discarding allocation update due to newer alloc revision in queue",
 				"old_modify_index", oldUpdate.AllocModifyIndex,
 				"new_modify_index", update.AllocModifyIndex)
 			ar.allocUpdatedCh <- oldUpdate
 			return
 		} else {
-			ar.logger.Debug("Discarding allocation update",
+			ar.logger.Debug("discarding allocation update",
 				"skipped_modify_index", oldUpdate.AllocModifyIndex,
 				"new_modify_index", update.AllocModifyIndex)
 		}
@@ -1098,7 +1098,7 @@ func (ar *allocRunner) Destroy() {
 	// Synchronize calls to shutdown/destroy
 	if ar.shutdownLaunched {
 		go func() {
-			ar.logger.Debug("Waiting for shutdown before destroying runner")
+			ar.logger.Debug("waiting for shutdown before destroying runner")
 			<-ar.shutdownCh
 			ar.destroyImpl()
 		}()

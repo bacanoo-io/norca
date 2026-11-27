@@ -216,7 +216,7 @@ func (h *groupServiceHook) preKillLocked() {
 		return
 	}
 
-	h.logger.Debug("delay before killing tasks", "group", h.group, "shutdown_delay", h.delay)
+	h.logger.Debug("delay before killing tasks", "task_group", h.group, "shutdown_delay", h.delay)
 
 	timer, cancel := helper.NewSafeTimer(h.delay)
 	defer cancel()

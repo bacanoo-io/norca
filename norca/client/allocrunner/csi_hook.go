@@ -259,7 +259,7 @@ func (c *csiHook) restoreMounts(results map[string]*volumePublishResult) error {
 			if err := c.csimanager.WaitForPlugin(c.shutdownCtx, pType, plugin); err != nil {
 				return err
 			}
-			c.logger.Debug("found CSI plugin", "type", pType, "name", plugin)
+			c.logger.Debug("found CSI plugin", "plugin_type", pType, "plugin", plugin)
 
 			manager, err := c.csimanager.ManagerForPlugin(c.shutdownCtx, plugin)
 			if err != nil {
@@ -349,7 +349,7 @@ func (c *csiHook) mountVolumes(results map[string]*volumePublishResult) error {
 		if err := c.csimanager.WaitForPlugin(c.shutdownCtx, pType, plugin); err != nil {
 			return err
 		}
-		c.logger.Debug("found CSI plugin", "type", pType, "name", plugin)
+		c.logger.Debug("found CSI plugin", "plugin_type", pType, "plugin", plugin)
 
 		manager, err := c.csimanager.ManagerForPlugin(c.shutdownCtx, plugin)
 		if err != nil {

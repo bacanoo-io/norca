@@ -108,7 +108,7 @@ func (f *CPUFingerprint) setCoreCount(response *FingerprintResponse) {
 		f.logger.Debug("detected CPU power core count", "cores", power)
 	case power > 0:
 		response.AddAttribute("cpu.numcores", f.cores(power))
-		f.logger.Debug("detected CPU core count", power)
+		f.logger.Debug("detected CPU core count", "cores", power)
 	}
 	f.nodeResources.Cpu.TotalCpuCores = uint16(power + efficiency)
 }

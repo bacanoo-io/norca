@@ -215,7 +215,7 @@ func (h *sidsHook) kill(ctx context.Context, reason error) {
 			SetFailsTask().
 			SetDisplayMessage(reason.Error()),
 	); err != nil {
-		h.logger.Error("failed to kill task", "kill_reason", reason, "error", err)
+		h.logger.Error("failed to kill task", "kill_reason", reason.Error(), "error", err)
 	}
 }
 

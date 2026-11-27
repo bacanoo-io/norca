@@ -341,7 +341,7 @@ func proxyConn(ctx context.Context, logger hclog.Logger, destAddr string, conn n
 		if ctx.Err() == nil && err != nil {
 			// expect disconnects when proxying http
 			logger.Trace("error message received proxying to Consul",
-				"msg", err, "dest", destAddr, "src_local", conn.LocalAddr(),
+				"error", err, "dest", destAddr, "src_local", conn.LocalAddr(),
 				"src_remote", conn.RemoteAddr(), "bytes", n)
 			return
 		}
@@ -359,7 +359,7 @@ func proxyConn(ctx context.Context, logger hclog.Logger, destAddr string, conn n
 		n, err := io.Copy(conn, dest)
 		if ctx.Err() == nil && err != nil {
 			logger.Trace("error message received proxying from Consul",
-				"msg", err, "dest", destAddr, "src_local", conn.LocalAddr(),
+				"error", err, "dest", destAddr, "src_local", conn.LocalAddr(),
 				"src_remote", conn.RemoteAddr(), "bytes", n)
 			return
 		}

@@ -125,13 +125,13 @@ func (h *volumeHook) prepareHostVolumes(req *interfaces.TaskPrestartRequest, vol
 	// Always validate volumes to ensure that we do not allow volumes to be used
 	// if a host is restarted and loses the host volume configuration.
 	if err := validateHostVolumes(volumes, hostVolumes, req.Alloc.Name); err != nil {
-		h.logger.Error("Requested Host Volume does not exist", "existing", hostVolumes, "requested", volumes)
+		h.logger.Error("requested Host Volume does not exist", "existing", hostVolumes, "requested", volumes)
 		return nil, fmt.Errorf("host volume validation error: %v", err)
 	}
 
 	hostVolumeMounts, err := h.hostVolumeMountConfigurations(req.Task.VolumeMounts, volumes, hostVolumes, req.Alloc.Name)
 	if err != nil {
-		h.logger.Error("Failed to generate host volume mounts", "error", err)
+		h.logger.Error("failed to generate host volume mounts", "error", err)
 		return nil, err
 	}
 

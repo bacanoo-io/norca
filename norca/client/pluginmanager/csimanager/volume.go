@@ -163,14 +163,14 @@ func volumeCapability(vol *structs.CSIVolume, usage *UsageOptions) (*csi.VolumeC
 // given usage mode before the volume can be NodePublish-ed.
 func (v *volumeManager) stageVolume(ctx context.Context, vol *structs.CSIVolume, usage *UsageOptions, publishContext map[string]string) error {
 	logger := hclog.FromContext(ctx)
-	logger.Trace("Preparing volume staging environment")
+	logger.Trace("preparing volume staging environment")
 	hostStagingPath, isMount, err := v.ensureStagingDir(vol, usage)
 	if err != nil {
 		return err
 	}
 	pluginStagingPath := v.stagingDirForVolume(v.containerMountPoint, vol.ID, usage)
 
-	logger.Trace("Volume staging environment", "pre-existing_mount", isMount, "host_staging_path", hostStagingPath, "plugin_staging_path", pluginStagingPath)
+	logger.Trace("volume staging environment", "pre_existing_mount", isMount, "host_staging_path", hostStagingPath, "plugin_staging_path", pluginStagingPath)
 
 	if isMount {
 		logger.Debug("re-using existing staging mount for volume", "staging_path", hostStagingPath)
@@ -214,7 +214,7 @@ func (v *volumeManager) publishVolume(ctx context.Context, vol *structs.CSIVolum
 	pluginTargetPath := v.targetForVolume(v.containerMountPoint, vol.ID, alloc.ID, usage)
 
 	if isMount {
-		logger.Debug("Re-using existing published volume for allocation")
+		logger.Debug("re-using existing published volume for allocation")
 		return &MountInfo{Source: hostTargetPath}, nil
 	}
 
@@ -288,7 +288,7 @@ func (v *volumeManager) MountVolume(ctx context.Context, vol *structs.CSIVolume,
 // the volume has been unstaged or was never staged on the node.
 func (v *volumeManager) unstageVolume(ctx context.Context, volID, remoteID string, usage *UsageOptions) error {
 	logger := hclog.FromContext(ctx)
-	logger.Trace("Unstaging volume")
+	logger.Trace("unstaging volume")
 	stagingPath := v.stagingDirForVolume(v.containerMountPoint, volID, usage)
 
 	// CSI NodeUnstageVolume errors for timeout, codes.Unavailable and

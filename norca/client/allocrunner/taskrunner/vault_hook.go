@@ -282,7 +282,7 @@ OUTER:
 			// Write the token to disk
 			if err := h.writeToken(token); err != nil {
 				errorString := "failed to write Vault token to disk"
-				h.logger.Error(errorString, "error", err)
+				h.logger.Error("failed to write Vault token to disk", "error", err)
 				h.lifecycle.Kill(h.ctx,
 					structs.NewTaskEvent(structs.TaskKilling).
 						SetFailsTask().

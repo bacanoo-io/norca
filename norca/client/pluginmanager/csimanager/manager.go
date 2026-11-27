@@ -199,13 +199,13 @@ func (c *csiManager) ensureInstance(plugin *dynamicplugins.PluginInfo) {
 	instances := c.instancesForType(ptype)
 	mgr, ok := instances[name]
 	if !ok {
-		c.logger.Debug("detected new CSI plugin", "name", name, "type", ptype, "alloc", plugin.AllocID)
+		c.logger.Debug("detected new CSI plugin", "plugin", name, "plugin_type", ptype, "alloc_id", plugin.AllocID)
 		mgr := newInstanceManager(c.logger, c.eventer, c.updateNodeCSIInfoFunc, plugin)
 		instances[name] = mgr
 		mgr.run()
 	} else if mgr.allocID != plugin.AllocID {
 		mgr.shutdown()
-		c.logger.Debug("detected update for CSI plugin", "name", name, "type", ptype, "alloc", plugin.AllocID)
+		c.logger.Debug("detected update for CSI plugin", "plugin", name, "plugin_type", ptype, "alloc_id", plugin.AllocID)
 		mgr := newInstanceManager(c.logger, c.eventer, c.updateNodeCSIInfoFunc, plugin)
 		instances[name] = mgr
 		mgr.run()
@@ -222,7 +222,7 @@ func (c *csiManager) ensureNoInstance(plugin *dynamicplugins.PluginInfo) {
 	instances := c.instancesForType(ptype)
 	if mgr, ok := instances[name]; ok {
 		if mgr.allocID == plugin.AllocID {
-			c.logger.Debug("shutting down CSI plugin", "name", name, "type", ptype, "alloc", plugin.AllocID)
+			c.logger.Debug("shutting down CSI plugin", "plugin", name, "plugin_type", ptype, "alloc_id", plugin.AllocID)
 			mgr.shutdown()
 			delete(instances, name)
 		}

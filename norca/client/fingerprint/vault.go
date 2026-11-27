@@ -59,7 +59,7 @@ func (f *VaultFingerprint) Fingerprint(req *FingerprintRequest, resp *Fingerprin
 
 		// Print a message indicating that Vault is not available anymore
 		if f.lastState == vaultAvailable {
-			f.logger.Info("Vault is unavailable")
+			f.logger.Info("vault is unavailable")
 		}
 		f.lastState = vaultUnavailable
 		return nil
@@ -75,7 +75,7 @@ func (f *VaultFingerprint) Fingerprint(req *FingerprintRequest, resp *Fingerprin
 	// If Vault was previously unavailable print a message to indicate the Agent
 	// is available now
 	if f.lastState == vaultUnavailable {
-		f.logger.Info("Vault is available")
+		f.logger.Info("vault is available")
 	}
 	f.lastState = vaultAvailable
 	resp.Detected = true

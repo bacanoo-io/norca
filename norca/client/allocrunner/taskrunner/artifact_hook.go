@@ -44,7 +44,7 @@ func (h *artifactHook) doWork(req *interfaces.TaskPrestartRequest, resp *interfa
 			continue
 		}
 
-		h.logger.Debug("downloading artifact", "artifact", artifact.GetterSource, "aid", aid)
+		h.logger.Debug("downloading artifact", "artifact", artifact.GetterSource, "alloc_id", aid)
 
 		if err := h.getter.Get(req.TaskEnv, artifact); err != nil {
 			wrapped := structs.NewRecoverableError(

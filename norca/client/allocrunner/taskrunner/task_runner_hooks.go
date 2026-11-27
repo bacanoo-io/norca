@@ -297,7 +297,7 @@ func (tr *TaskRunner) prestart() error {
 		origHookState := tr.hookState(name)
 		if origHookState != nil {
 			if origHookState.PrestartDone {
-				tr.logger.Trace("skipping done prestart hook", "name", pre.Name())
+				tr.logger.Trace("skipping done prestart hook", "hook", pre.Name())
 
 				// Always set env vars from hooks
 				if name == HookNameDevices {
@@ -320,7 +320,7 @@ func (tr *TaskRunner) prestart() error {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running prestart hook", "name", name, "start", start)
+			tr.logger.Trace("running prestart hook", "hook", name, "start", start)
 		}
 
 		// Run the prestart hook
@@ -367,7 +367,7 @@ func (tr *TaskRunner) prestart() error {
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished prestart hook", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished prestart hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -403,7 +403,7 @@ func (tr *TaskRunner) poststart() error {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running poststart hook", "name", name, "start", start)
+			tr.logger.Trace("running poststart hook", "hook", name, "start", start)
 		}
 
 		req := interfaces.TaskPoststartRequest{
@@ -422,7 +422,7 @@ func (tr *TaskRunner) poststart() error {
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished poststart hooks", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished poststart hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -451,7 +451,7 @@ func (tr *TaskRunner) exited() error {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running exited hook", "name", name, "start", start)
+			tr.logger.Trace("running exited hook", "hook", name, "start", start)
 		}
 
 		req := interfaces.TaskExitedRequest{}
@@ -465,7 +465,7 @@ func (tr *TaskRunner) exited() error {
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished exited hooks", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished exited hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -495,7 +495,7 @@ func (tr *TaskRunner) stop() error {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running stop hook", "name", name, "start", start)
+			tr.logger.Trace("running stop hook", "hook", name, "start", start)
 		}
 
 		req := interfaces.TaskStopRequest{
@@ -519,7 +519,7 @@ func (tr *TaskRunner) stop() error {
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished stop hook", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished stop hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 
@@ -563,21 +563,21 @@ func (tr *TaskRunner) updateHooks() {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running update hook", "name", name, "start", start)
+			tr.logger.Trace("running update hook", "hook", name, "start", start)
 		}
 
 		// Run the update hook
 		var resp interfaces.TaskUpdateResponse
 		if err := upd.Update(tr.killCtx, &req, &resp); err != nil {
 			tr.emitHookError(err, name)
-			tr.logger.Error("update hook failed", "name", name, "error", err)
+			tr.logger.Error("update hook failed", "hook", name, "error", err)
 		}
 
 		// No need to persist as TaskUpdateResponse is currently empty
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished update hooks", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished update hooks", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }
@@ -607,7 +607,7 @@ func (tr *TaskRunner) preKill() {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running prekill hook", "name", name, "start", start)
+			tr.logger.Trace("running prekill hook", "hook", name, "start", start)
 		}
 
 		// Run the pre kill hook
@@ -615,14 +615,14 @@ func (tr *TaskRunner) preKill() {
 		var resp interfaces.TaskPreKillResponse
 		if err := killHook.PreKilling(context.Background(), &req, &resp); err != nil {
 			tr.emitHookError(err, name)
-			tr.logger.Error("prekill hook failed", "name", name, "error", err)
+			tr.logger.Error("prekill hook failed", "hook", name, "error", err)
 		}
 
 		// No need to persist as TaskKillResponse is currently empty
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished prekill hook", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished prekill hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }
@@ -642,14 +642,14 @@ func (tr *TaskRunner) shutdownHooks() {
 		var start time.Time
 		if tr.logger.IsTrace() {
 			start = time.Now()
-			tr.logger.Trace("running shutdown hook", "name", name, "start", start)
+			tr.logger.Trace("running shutdown hook", "hook", name, "start", start)
 		}
 
 		sh.Shutdown()
 
 		if tr.logger.IsTrace() {
 			end := time.Now()
-			tr.logger.Trace("finished shutdown hook", "name", name, "end", end, "duration", end.Sub(start))
+			tr.logger.Trace("finished shutdown hook", "hook", name, "end", end, "duration", end.Sub(start))
 		}
 	}
 }

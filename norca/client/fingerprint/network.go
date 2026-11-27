@@ -116,7 +116,7 @@ func (f *NetworkFingerprint) Fingerprint(req *FingerprintRequest, resp *Fingerpr
 	}
 
 	for _, nwResource := range nwResources {
-		logger.Debug("detected interface IP", "IP", nwResource.IP)
+		logger.Debug("detected interface IP", "ip", nwResource.IP)
 	}
 
 	// Deprecated, setting the first IP as unique IP for the node
