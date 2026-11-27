@@ -511,7 +511,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		// but that the EvalUpdate does not, before 0.12.1
 		_, evalIndex, err := j.srv.raftApply(structs.EvalUpdateRequestType, update)
 		if err != nil {
-			j.logger.Error("eval create failed", "error", err, "method", "register")
+			j.logger.Error("eval create failed", "error", err, "rpc_method", "Job.Register")
 			return err
 		}
 
@@ -896,7 +896,7 @@ func (j *Job) Evaluate(args *structs.JobEvaluateRequest, reply *structs.JobRegis
 	_, evalIndex, err := j.srv.raftApply(structs.AllocUpdateDesiredTransitionRequestType, updateTransitionReq)
 
 	if err != nil {
-		j.logger.Error("eval create failed", "error", err, "method", "evaluate")
+		j.logger.Error("eval create failed", "error", err, "rpc_method", "Job.Evaluate")
 		return err
 	}
 
@@ -2188,7 +2188,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 		iter, err := snap.JobsByIDPrefix(ws, parameterizedJob.Namespace, parameterizedJob.ID)
 		if err != nil {
 			errMsg := "failed to retrieve jobs for idempotency check"
-			j.logger.Error(errMsg, "error", err)
+			j.logger.Error("failed to retrieve jobs for idempotency check", "error", err)
 			return fmt.Errorf("%s", errMsg)
 		}
 
@@ -2255,7 +2255,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 	// Commit this update via Raft
 	_, jobCreateIndex, err := j.srv.raftApply(structs.JobRegisterRequestType, regReq)
 	if err != nil {
-		j.logger.Error("dispatched job register failed", "error")
+		j.logger.Error("dispatched job register failed", "error", err)
 		return err
 	}
 
@@ -2287,7 +2287,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 		// Commit this evaluation via Raft
 		_, evalIndex, err := j.srv.raftApply(structs.EvalUpdateRequestType, update)
 		if err != nil {
-			j.logger.Error("eval create failed", "error", err, "method", "dispatch")
+			j.logger.Error("eval create failed", "error", err, "rpc_method", "Job.Dispatch")
 			return err
 		}
 

@@ -222,12 +222,12 @@ func (p *PeriodicDispatch) Add(job *structs.Job) error {
 		if err := p.heap.Update(job, next); err != nil {
 			return fmt.Errorf("failed to update job %q (%s) launch time: %v", job.ID, job.Namespace, err)
 		}
-		p.logger.Debug("updated periodic job", "job", job.NamespacedID())
+		p.logger.Debug("updated periodic job", "job_id", job.ID, "namespace", job.Namespace)
 	} else {
 		if err := p.heap.Push(job, next); err != nil {
 			return fmt.Errorf("failed to add job %v: %v", job.ID, err)
 		}
-		p.logger.Debug("registered periodic job", "job", job.NamespacedID())
+		p.logger.Debug("registered periodic job", "job_id", job.ID, "namespace", job.Namespace)
 	}
 
 	// Signal an update.
@@ -274,7 +274,7 @@ func (p *PeriodicDispatch) removeLocked(jobID structs.NamespacedID) error {
 	default:
 	}
 
-	p.logger.Debug("deregistered periodic job", "job", job.NamespacedID())
+	p.logger.Debug("deregistered periodic job", "job_id", job.ID, "namespace", job.Namespace)
 	return nil
 }
 
@@ -321,7 +321,7 @@ func (p *PeriodicDispatch) run(ctx context.Context, updateCh <-chan struct{}) {
 		} else {
 			launchDur := launch.Sub(time.Now().In(job.Periodic.GetLocation()))
 			launchCh = time.After(launchDur)
-			p.logger.Debug("scheduled periodic job launch", "launch_delay", launchDur, "job", job.NamespacedID())
+			p.logger.Debug("scheduled periodic job launch", "launch_delay", launchDur, "job_id", job.ID, "namespace", job.Namespace)
 		}
 
 		select {
@@ -342,9 +342,9 @@ func (p *PeriodicDispatch) dispatch(job *structs.Job, launchTime time.Time) {
 
 	nextLaunch, err := job.Periodic.Next(launchTime)
 	if err != nil {
-		p.logger.Error("failed to parse next periodic launch", "job", job.NamespacedID(), "error", err)
+		p.logger.Error("failed to parse next periodic launch", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 	} else if err := p.heap.Update(job, nextLaunch); err != nil {
-		p.logger.Error("failed to update next launch of periodic job", "job", job.NamespacedID(), "error", err)
+		p.logger.Error("failed to update next launch of periodic job", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 	}
 
 	// If the job prohibits overlapping and there are running children, we skip
@@ -352,19 +352,19 @@ func (p *PeriodicDispatch) dispatch(job *structs.Job, launchTime time.Time) {
 	if job.Periodic.ProhibitOverlap {
 		running, err := p.dispatcher.RunningChildren(job)
 		if err != nil {
-			p.logger.Error("failed to determine if periodic job has running children", "job", job.NamespacedID(), "error", err)
+			p.logger.Error("failed to determine if periodic job has running children", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 			p.l.Unlock()
 			return
 		}
 
 		if running {
-			p.logger.Debug("skipping launch of periodic job because job prohibits overlap", "job", job.NamespacedID())
+			p.logger.Debug("skipping launch of periodic job because job prohibits overlap", "job_id", job.ID, "namespace", job.Namespace)
 			p.l.Unlock()
 			return
 		}
 	}
 
-	p.logger.Debug(" launching job", "job", job.NamespacedID(), "launch_time", launchTime)
+	p.logger.Debug(" launching job", "job_id", job.ID, "namespace", job.Namespace, "launch_time", launchTime)
 	p.l.Unlock()
 	p.createEval(job, launchTime)
 }
@@ -398,7 +398,7 @@ func (p *PeriodicDispatch) createEval(periodicJob *structs.Job, time time.Time) 
 
 	eval, err := p.dispatcher.DispatchJob(derived)
 	if err != nil {
-		p.logger.Error("failed to dispatch job", "job", periodicJob.NamespacedID(), "error", err)
+		p.logger.Error("failed to dispatch job", "job_id", periodicJob.ID, "namespace", periodicJob.Namespace, "error", err)
 		return nil, err
 	}
 
@@ -414,7 +414,7 @@ func (p *PeriodicDispatch) deriveJob(periodicJob *structs.Job, time time.Time) (
 	defer func() {
 		if r := recover(); r != nil {
 			p.logger.Error("deriving child job from periodic job failed; deregistering from periodic runner",
-				"job", periodicJob.NamespacedID(), "error", r)
+				"job_id", periodicJob.ID, "namespace", periodicJob.Namespace, "error", r)
 
 			p.Remove(periodicJob.Namespace, periodicJob.ID)
 			derived = nil

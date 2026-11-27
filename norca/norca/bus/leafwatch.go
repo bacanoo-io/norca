@@ -98,7 +98,7 @@ func (s *Server) checkReaderLoad() {
 			"account", o.account, "waiting", o.pending, "limit", limit, "refused_for", ban)
 		for _, id := range ids {
 			if err := ns.DisconnectClientByID(id); err != nil {
-				s.logger.Debug("failed to close a bus connection", "id", id, "error", err)
+				s.logger.Debug("failed to close a bus connection", "connection_id", id, "error", err)
 			}
 		}
 	}

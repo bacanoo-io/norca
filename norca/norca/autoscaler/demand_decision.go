@@ -101,7 +101,7 @@ func (r *runner) recordDecision(g *demandGroup, replicas int64, check, reason st
 	}
 	doc := decisionDoc(r.now(), g, g.spec, replicas, check, reason)
 	if err := r.writeGroupStatus(obj, doc); err != nil {
-		r.logger.Warn("failed to write the decision of a node group", "group", g.name, "error", err)
+		r.logger.Warn("failed to write the decision of a node group", "node_group", g.name, "error", err)
 	}
 }
 
@@ -120,7 +120,7 @@ func (r *runner) settleDecision(g *demandGroup) {
 		return
 	}
 	if err := r.writeGroupStatus(obj, nil); err != nil {
-		r.logger.Warn("failed to clear the decision of a node group", "group", g.name, "error", err)
+		r.logger.Warn("failed to clear the decision of a node group", "node_group", g.name, "error", err)
 		return
 	}
 	g.decision = nil

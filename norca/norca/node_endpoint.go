@@ -649,7 +649,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 
 			allocsUpdated := node.LastAllocUpdateIndex > node.LastMissedHeartbeatIndex
 			if len(allocs) > 0 && !allocsUpdated {
-				n.logger.Debug(fmt.Sprintf("marking node as %s due to outdated allocation information", structs.NodeStatusInit))
+				n.logger.Debug("marking node as initializing due to outdated allocation information", "node_id", args.NodeID, "status", structs.NodeStatusInit)
 				args.Status = structs.NodeStatusInit
 			}
 
@@ -660,7 +660,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 				return fmt.Errorf("failed to query node pool: %v", err)
 			}
 			if pool == nil {
-				n.logger.Debug(fmt.Sprintf("marking node as %s due to missing node pool", structs.NodeStatusInit))
+				n.logger.Debug("marking node as initializing due to missing node pool", "node_id", args.NodeID, "node_pool", node.NodePool, "status", structs.NodeStatusInit)
 				args.Status = structs.NodeStatusInit
 				if !node.HasEvent(NodeWaitingForNodePool) {
 					args.NodeEvent = structs.NewNodeEvent().
@@ -1487,7 +1487,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 
 		job, err = n.srv.State().JobByID(nil, alloc.Namespace, alloc.JobID)
 		if err != nil {
-			n.logger.Debug("UpdateAlloc unable to find job", "job", alloc.JobID, "error", err)
+			n.logger.Debug("UpdateAlloc unable to find job", "job_id", alloc.JobID, "error", err)
 			continue
 		}
 
@@ -1497,7 +1497,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 			jobPriority = alloc.Job.Priority
 			evalTriggerBy = structs.EvalTriggerJobDeregister
 			allocToUpdate.DesiredStatus = structs.AllocDesiredStatusStop
-			n.logger.Debug("UpdateAlloc unable to find job - shutting down alloc", "job", alloc.JobID)
+			n.logger.Debug("UpdateAlloc unable to find job - shutting down alloc", "job_id", alloc.JobID)
 		}
 
 		var taskGroup *structs.TaskGroup
@@ -1513,7 +1513,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 			alloc.FollowupEvalID == "" {
 
 			if taskGroup == nil {
-				n.logger.Debug("UpdateAlloc unable to find task group for job", "job", alloc.JobID, "alloc", alloc.ID, "task_group", alloc.TaskGroup)
+				n.logger.Debug("UpdateAlloc unable to find task group for job", "job_id", alloc.JobID, "alloc_id", alloc.ID, "task_group", alloc.TaskGroup)
 				continue
 			}
 
@@ -2069,10 +2069,10 @@ func (n *Node) DeriveVaultToken(args *structs.DeriveVaultTokenRequest, reply *st
 
 	// If there was an error revoke the created tokens
 	if createErr != nil {
-		n.logger.Error("Vault token creation for alloc failed", "alloc_id", alloc.ID, "error", createErr)
+		n.logger.Error("vault token creation for alloc failed", "alloc_id", alloc.ID, "error", createErr)
 
 		if revokeErr := n.srv.vault.RevokeTokens(context.Background(), accessors, false); revokeErr != nil {
-			n.logger.Error("Vault token revocation for alloc failed", "alloc_id", alloc.ID, "error", revokeErr)
+			n.logger.Error("vault token revocation for alloc failed", "alloc_id", alloc.ID, "error", revokeErr)
 		}
 
 		if rerr, ok := createErr.(*structs.RecoverableError); ok {
@@ -2294,7 +2294,7 @@ func (n *Node) DeriveSIToken(args *structs.DeriveSITokenRequest, reply *structs.
 	// If there was an error, revoke all created tokens. These tokens have not
 	// yet been committed to the persistent store.
 	if createErr != nil {
-		n.logger.Error("Consul Service Identity token creation for alloc failed", "alloc_id", alloc.ID, "error", createErr)
+		n.logger.Error("consul Service Identity token creation for alloc failed", "alloc_id", alloc.ID, "error", createErr)
 		_ = n.srv.consulACLs.RevokeTokens(context.Background(), accessors, false)
 
 		if recoverable, ok := createErr.(*structs.RecoverableError); ok {

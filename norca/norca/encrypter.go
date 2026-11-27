@@ -655,7 +655,7 @@ func (krr *KeyringReplicator) run(ctx context.Context) {
 					// don't break the loop on an error, as we want to make sure
 					// we've replicated any keys we can. the rate limiter will
 					// prevent this case from sending excessive RPCs
-					krr.logger.Error(err.Error(), "key", keyMeta.KeyID)
+					krr.logger.Error("failed to replicate key", "key_id", keyMeta.KeyID, "error", err)
 				}
 			}
 		}
@@ -668,7 +668,7 @@ func (krr *KeyringReplicator) run(ctx context.Context) {
 // peers have this key.
 func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs.RootKeyMeta) error {
 	keyID := keyMeta.KeyID
-	krr.logger.Debug("replicating new key", "id", keyID)
+	krr.logger.Debug("replicating new key", "key_id", keyID)
 
 	getReq := &structs.KeyringGetRootKeyRequest{
 		KeyID: keyID,
@@ -690,7 +690,7 @@ func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs
 		// leader has not yet replicated the key from the old leader before the
 		// transition. Ask all the other servers if they have it.
 		krr.logger.Warn("failed to fetch key from current leader, trying peers",
-			"key", keyID, "error", err)
+			"key_id", keyID, "error", err)
 		getReq.AllowStale = true
 		for _, peer := range krr.getAllPeers() {
 			getResp = &structs.KeyringGetRootKeyResponse{}
@@ -704,7 +704,7 @@ func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs
 		}
 		if key == nil {
 			krr.logger.Error("failed to fetch key from any peer",
-				"key", keyID, "error", err)
+				"key_id", keyID, "error", err)
 			return fmt.Errorf("failed to fetch key from any peer: %v", err)
 		}
 	}
@@ -714,7 +714,7 @@ func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs
 		return fmt.Errorf("failed to add key to keyring: %v", err)
 	}
 
-	krr.logger.Debug("added key", "key", keyID)
+	krr.logger.Debug("added key", "key_id", keyID)
 	return nil
 }
 

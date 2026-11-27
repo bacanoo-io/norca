@@ -54,13 +54,13 @@ func (j *Job) edgeValidateRegister(args *structs.JobRegisterRequest) error {
 		}
 		if err != nil {
 			// The state of this server may be behind: the leader decides.
-			j.logger.Trace("edge check skipped", "job", job.ID, "mutator", mutator.Name(), "error", err)
+			j.logger.Trace("edge check skipped", "job_id", job.ID, "mutator", mutator.Name(), "error", err)
 			return nil
 		}
 	}
 
 	if _, err := (&jobValidate{srv: j.srv}).Validate(out.Copy()); err != nil {
-		j.logger.Debug("job rejected before the leader", "job", job.ID, "namespace", job.Namespace)
+		j.logger.Debug("job rejected before the leader", "job_id", job.ID, "namespace", job.Namespace)
 		return multierror.Append(nil, err)
 	}
 	return nil

@@ -170,11 +170,11 @@ REMOVE:
 	// pass.
 	future := op.srv.raft.RemoveServer(id, 0, 0)
 	if err := future.Error(); err != nil {
-		op.logger.Warn("failed to remove Raft peer", "peer", args.Address, "peer_id", id, "error", err)
+		op.logger.Warn("failed to remove Raft peer", "server_addr", args.Address, "server_id", id, "error", err)
 		return err
 	}
 
-	op.logger.Warn("removed Raft peer", "peer", args.Address, "peer_id", id)
+	op.logger.Warn("removed Raft peer", "server_addr", args.Address, "server_id", id)
 	return nil
 }
 
@@ -228,11 +228,11 @@ REMOVE:
 	// pass.
 	future := op.srv.raft.RemoveServer(args.ID, 0, 0)
 	if err := future.Error(); err != nil {
-		op.logger.Warn("failed to remove Raft peer", "peer_id", args.ID, "error", err)
+		op.logger.Warn("failed to remove Raft peer", "server_id", args.ID, "error", err)
 		return err
 	}
 
-	op.logger.Warn("removed Raft peer", "peer_id", args.ID)
+	op.logger.Warn("removed Raft peer", "server_id", args.ID)
 	return nil
 }
 

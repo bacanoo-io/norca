@@ -237,7 +237,7 @@ func (a *ClientCSI) sendCSIControllerRPC(pluginID, method, fwdMethod, op string,
 		}
 		if a.isRetryable(err) {
 			a.logger.Debug("failed to reach controller on client",
-				"nodeID", clientID, "error", err)
+				"node_id", clientID, "error", err)
 			continue
 		}
 		return err

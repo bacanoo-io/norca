@@ -2885,7 +2885,7 @@ func (s *StateStore) csiVolumeDenormalizeTxn(txn Txn, ws memdb.WatchSet, vol *st
 				// the now-unused fallbackMode parameter, and return
 				// an error if currentClaim is nil in 1.4.0
 				s.logger.Warn("volume was missing claim for allocation",
-					"volume_id", vol.ID, "alloc", id)
+					"volume_id", vol.ID, "alloc_id", id)
 				currentClaim = &structs.CSIVolumeClaim{
 					AllocationID: a.ID,
 					NodeID:       a.NodeID,

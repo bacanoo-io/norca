@@ -373,7 +373,7 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 			if structs.IsObjectConflictError(err) {
 				level = c.logger.Debug
 			}
-			level("failed to remove deleted object", "object", obj.KindRef()+"/"+obj.Name,
+			level("failed to remove deleted object", "object_kind", obj.KindRef(), "object_name", obj.Name,
 				"namespace", obj.Namespace, "error", err)
 			pending = true
 		}
@@ -476,13 +476,13 @@ func (c *Collector) collectDependents(w *world, o owner) (remaining int, poll bo
 		// its owner: it is not deleted, and no longer waited for.
 		if c.deps.Guarded != nil && c.deps.Guarded(dep) && !slices.Contains(o.approved, dep.ID) {
 			c.logger.Info("dependent object is not deleted with its owner: its deletion was not approved",
-				"owner", o.name, "object", dep.KindRef()+"/"+dep.Name, "namespace", dep.Namespace)
+				"owner", o.name, "object_kind", dep.KindRef(), "object_name", dep.Name, "namespace", dep.Namespace)
 			if err := c.deps.ReleaseObject(dep, structs.ObjectKindRef(o.group, o.kind), o.namespace, o.name); err != nil {
 				level := c.logger.Warn
 				if structs.IsObjectConflictError(err) {
 					level = c.logger.Debug
 				}
-				level("failed to release dependent object", "object", dep.KindRef()+"/"+dep.Name,
+				level("failed to release dependent object", "object_kind", dep.KindRef(), "object_name", dep.Name,
 					"namespace", dep.Namespace, "error", err)
 				remaining++
 			}
@@ -491,10 +491,10 @@ func (c *Collector) collectDependents(w *world, o owner) (remaining int, poll bo
 		}
 		remaining++
 		poll = true
-		c.logger.Debug("deleting dependent object", "owner", o.name, "object", dep.KindRef()+"/"+dep.Name,
+		c.logger.Debug("deleting dependent object", "owner", o.name, "object_kind", dep.KindRef(), "object_name", dep.Name,
 			"namespace", dep.Namespace)
 		if err := c.deps.DeleteObject(dep, o.approved); err != nil {
-			c.logger.Warn("failed to delete dependent object", "object", dep.KindRef()+"/"+dep.Name,
+			c.logger.Warn("failed to delete dependent object", "object_kind", dep.KindRef(), "object_name", dep.Name,
 				"namespace", dep.Namespace, "error", err)
 		}
 	}
@@ -523,9 +523,9 @@ func (c *Collector) collectDependents(w *world, o owner) (remaining int, poll bo
 		}
 		remaining++
 		poll = true
-		c.logger.Debug("stopping dependent job", "owner", o.name, "job", job.ID, "namespace", job.Namespace)
+		c.logger.Debug("stopping dependent job", "owner", o.name, "job_id", job.ID, "namespace", job.Namespace)
 		if err := c.deps.StopJob(job.Namespace, job.ID); err != nil {
-			c.logger.Warn("failed to stop dependent job", "job", job.ID, "namespace", job.Namespace, "error", err)
+			c.logger.Warn("failed to stop dependent job", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 		}
 	}
 	return remaining, poll, nil
@@ -544,7 +544,7 @@ func (c *Collector) keepJob(w *world, o owner, job *structs.Job) {
 	}
 	c.logger.Warn("dependent job is not stopped with its owner: the deletion of the owner was not approved for it",
 		"owner", structs.ObjectKindRef(o.group, o.kind)+"/"+o.name, "owner_namespace", o.namespace,
-		"job", job.ID, "namespace", job.Namespace)
+		"job_id", job.ID, "namespace", job.Namespace)
 	if c.deps.KeepJob != nil {
 		c.deps.KeepJob(job, structs.ObjectKindRef(o.group, o.kind), o.namespace, o.name)
 	}

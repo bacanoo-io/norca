@@ -99,7 +99,7 @@ func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sd
 
 	logger := s.logger.With("check_name", eval.Check.Name, "current_count", count,
 		"lower_bound", config.lowerBound, "upper_bound", config.upperBound,
-		"actionType", config.actionType)
+		"action_type", config.actionType)
 
 	// Check if we have enough data points within bounds.
 	if !withinBounds(logger, eval.Metrics, config) {
@@ -282,7 +282,7 @@ func withinBounds(logger hclog.Logger, metrics sdk.TimestampedMetrics, config *t
 		}
 	}
 
-	logger.Trace(fmt.Sprintf("found %d data points within bounds", withinBoundsCounter))
+	logger.Trace("data points within bounds", "count", withinBoundsCounter)
 	return withinBoundsCounter >= config.withinboundsTrigger
 }
 

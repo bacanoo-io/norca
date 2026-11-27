@@ -209,7 +209,7 @@ func (s *Server) recheckTrust(clientTLS, clusterTLS *tls.Config) error {
 	for id, c := range s.clients {
 		if err := verifyPeerAgain(clientTLS, c.creds.TLS); err != nil {
 			s.logger.Info("closing a bus connection whose certificate the reloaded TLS configuration refuses",
-				"name", c.grant.Kind+":"+c.grant.Name, "remote", addrString(c.creds.Remote), "error", err)
+				"identity", c.grant.Kind+":"+c.grant.Name, "remote", addrString(c.creds.Remote), "error", err)
 			refused = append(refused, id)
 			delete(s.clients, id)
 		}
@@ -217,7 +217,7 @@ func (s *Server) recheckTrust(clientTLS, clusterTLS *tls.Config) error {
 	s.l.Unlock()
 	for _, id := range refused {
 		if err := s.ns.DisconnectClientByID(id); err != nil {
-			s.logger.Debug("failed to close a bus connection", "id", id, "error", err)
+			s.logger.Debug("failed to close a bus connection", "connection_id", id, "error", err)
 		}
 	}
 

@@ -1239,7 +1239,7 @@ func (s *Server) setupBootstrapHandler() error {
 			consulServices, _, err := s.consulCatalog.Service(nomadServerServiceName, consul.ServiceTagSerf, consulOpts)
 			if err != nil {
 				err := fmt.Errorf("failed to query service %q in Consul datacenter %q: %v", nomadServerServiceName, dc, err)
-				s.logger.Warn("failed to query Nomad service in Consul datacenter", "service_name", nomadServerServiceName, "dc", dc, "error", err)
+				s.logger.Warn("failed to query Nomad service in Consul datacenter", "service_name", nomadServerServiceName, "datacenter", dc, "error", err)
 				mErr.Errors = append(mErr.Errors, err)
 				continue
 			}
@@ -1952,7 +1952,7 @@ func (s *Server) setupWorkersLocked(ctx context.Context, poolArgs SchedulerWorke
 		if w, err := NewWorker(ctx, s, poolArgs); err != nil {
 			return err
 		} else {
-			s.logger.Debug("started scheduling worker", "id", w.ID(), "index", i+1, "of", s.config.NumSchedulers)
+			s.logger.Debug("started scheduling worker", "worker_id", w.ID(), "index", i+1, "of", s.config.NumSchedulers)
 
 			s.workers = append(s.workers, w)
 		}
@@ -1968,7 +1968,7 @@ func (s *Server) setupNewWorkersLocked() error {
 	oldWorkers := make([]*Worker, len(s.workers))
 	defer s.stopOldWorkers(oldWorkers)
 	copy(oldWorkers, s.workers)
-	s.logger.Info(fmt.Sprintf("marking %v current schedulers for shutdown", len(oldWorkers)))
+	s.logger.Info("marking current schedulers for shutdown", "count", len(oldWorkers))
 
 	// build a clean backing array and call setupWorkersLocked like setupWorkers
 	// does in the normal startup path
@@ -1990,7 +1990,7 @@ func (s *Server) setupNewWorkersLocked() error {
 func (s *Server) stopOldWorkers(oldWorkers []*Worker) {
 	workerCount := len(oldWorkers)
 	for i, w := range oldWorkers {
-		s.logger.Debug("stopping old scheduling worker", "id", w.ID(), "index", i+1, "of", workerCount)
+		s.logger.Debug("stopping old scheduling worker", "worker_id", w.ID(), "index", i+1, "of", workerCount)
 		go w.Stop()
 	}
 }
@@ -2248,7 +2248,7 @@ func (s *Server) EmitRaftStats(period time.Duration, stopCh <-chan struct{}) {
 			metrics.SetGauge([]string{"raft", "appliedIndex"}, float32(appliedIndex))
 			stateStoreSnapshotIndex, err := s.State().LatestIndex()
 			if err != nil {
-				s.logger.Warn("Unable to read snapshot index from statestore, metric will not be emitted", "error", err)
+				s.logger.Warn("unable to read snapshot index from statestore, metric will not be emitted", "error", err)
 			} else {
 				metrics.SetGauge([]string{"state", "snapshotIndex"}, float32(stateStoreSnapshotIndex))
 			}

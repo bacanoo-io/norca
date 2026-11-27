@@ -133,14 +133,14 @@ func (s *Server) monitorLeadership() {
 				// Raft transitions that haven't been applied to the FSM
 				// yet.
 				// Ensure that that FSM caught up and eval queues are refreshed
-				s.logger.Warn("cluster leadership lost and gained leadership immediately.  Could indicate network issues, memory paging, or high CPU load.")
+				s.logger.Warn("cluster leadership lost and gained leadership immediately.  Could indicate network issues, memory paging, or high CPU load")
 
 				leaderStep(false)
 				leaderStep(true)
 			} else {
 				// Server gained but lost leadership immediately
 				// before it reacted; nothing to do, move on
-				s.logger.Warn("cluster leadership gained and lost leadership immediately.  Could indicate network issues, memory paging, or high CPU load.")
+				s.logger.Warn("cluster leadership gained and lost leadership immediately.  Could indicate network issues, memory paging, or high CPU load")
 			}
 		case <-s.shutdownCh:
 			if weAreLeaderCh != nil {
@@ -1058,7 +1058,7 @@ func (s *Server) restorePeriodicDispatcher() error {
 		// nextLaunch is the next launch that should occur.
 		nextLaunch, err := job.Periodic.Next(launch.Launch.In(job.Periodic.GetLocation()))
 		if err != nil {
-			logger.Error("failed to determine next periodic launch for job", "job", job.NamespacedID(), "error", err)
+			logger.Error("failed to determine next periodic launch for job", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 			continue
 		}
 
@@ -1080,11 +1080,11 @@ func (s *Server) restorePeriodicDispatcher() error {
 		}
 
 		if _, err := s.periodicDispatcher.ForceEval(job.Namespace, job.ID); err != nil {
-			logger.Error("force run of periodic job failed", "job", job.NamespacedID(), "error", err)
+			logger.Error("force run of periodic job failed", "job_id", job.ID, "namespace", job.Namespace, "error", err)
 			return fmt.Errorf("force run of periodic job %q failed: %v", job.NamespacedID(), err)
 		}
 
-		logger.Debug("periodic job force run during leadership establishment", "job", job.NamespacedID())
+		logger.Debug("periodic job force run during leadership establishment", "job_id", job.ID, "namespace", job.Namespace)
 	}
 
 	return nil
@@ -1259,7 +1259,7 @@ func (s *Server) reapFailedEvaluations(stopCh chan struct{}) {
 			updateEval.Status = structs.EvalStatusFailed
 			updateEval.StatusDescription = fmt.Sprintf("evaluation reached delivery limit (%d)", s.config.EvalDeliveryLimit)
 			s.logger.Warn("eval reached delivery limit, marking as failed",
-				"eval", hclog.Fmt("%#v", updateEval))
+				"eval_id", updateEval.ID)
 
 			// Core job evals that fail or span leader elections will never
 			// succeed because the follow-up doesn't have the leader ACL. We
@@ -1283,7 +1283,7 @@ func (s *Server) reapFailedEvaluations(stopCh chan struct{}) {
 				}
 				if _, _, err := s.raftApply(structs.EvalUpdateRequestType, &req); err != nil {
 					s.logger.Error("failed to update failed eval and create a follow-up",
-						"eval", hclog.Fmt("%#v", updateEval), "error", err)
+						"eval_id", updateEval.ID, "error", err)
 					continue
 				}
 			}
@@ -1382,7 +1382,7 @@ func cancelCancelableEvals(srv *Server) error {
 		}
 		_, _, err := srv.raftApply(structs.EvalUpdateRequestType, update)
 		if err != nil {
-			srv.logger.Warn("eval cancel failed", "error", err, "method", "ack")
+			srv.logger.Warn("eval cancel failed", "error", err)
 			return err
 		}
 	}
@@ -1714,7 +1714,7 @@ func (s *Server) addRaftPeer(m serf.Member, parts *serverParts) error {
 
 	if m.Name == s.config.NodeName {
 		if l := len(configFuture.Configuration().Servers); l < 3 {
-			s.logger.Debug("skipping self join check for peer since the cluster is too small", "peer", m.Name)
+			s.logger.Debug("skipping self join check for peer since the cluster is too small", "server", m.Name)
 			return nil
 		}
 	}
@@ -1740,7 +1740,7 @@ func (s *Server) addRaftPeer(m serf.Member, parts *serverParts) error {
 				if err := future.Error(); err != nil {
 					return fmt.Errorf("error removing server with duplicate ID %q: %s", server.ID, err)
 				}
-				s.logger.Info("removed server with duplicate ID", "id", server.ID)
+				s.logger.Info("removed server with duplicate ID", "server_id", server.ID)
 			}
 		}
 	}
@@ -1770,10 +1770,10 @@ func (s *Server) removeRaftPeer(m serf.Member, parts *serverParts) error {
 
 	for _, server := range configFuture.Configuration().Servers {
 		if server.ID == raft.ServerID(parts.ID) || server.Address == raft.ServerAddress(addr) {
-			s.logger.Info("removing server by ID", "id", server.ID)
+			s.logger.Info("removing server by ID", "server_id", server.ID)
 			future := s.raft.RemoveServer(server.ID, 0, 0)
 			if err := future.Error(); err != nil {
-				s.logger.Error("failed to remove raft peer", "id", server.ID, "error", err)
+				s.logger.Error("failed to remove raft peer", "server_id", server.ID, "error", err)
 				return err
 			}
 			break
@@ -2779,7 +2779,7 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 	store := s.fsm.State()
 	keyMeta, err := store.GetActiveRootKeyMeta(nil)
 	if err != nil {
-		logger.Error("failed to get active key: %v", err)
+		logger.Error("failed to get active key", "error", err)
 		return
 	}
 	if keyMeta != nil {
@@ -2815,7 +2815,7 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 	rootKey, err := structs.NewRootKey(structs.EncryptionAlgorithmAES256GCM)
 	rootKey.Meta.SetActive()
 	if err != nil {
-		logger.Error("could not initialize keyring: %v", err)
+		logger.Error("failed to initialize keyring", "error", err)
 		return
 	}
 
@@ -2824,7 +2824,7 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 		return // the server was shut down meanwhile
 	}
 	if err != nil {
-		logger.Error("could not add initial key to keyring: %v", err)
+		logger.Error("failed to add the initial key to the keyring", "error", err)
 		return
 	}
 
@@ -2832,11 +2832,11 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 		structs.KeyringUpdateRootKeyMetaRequest{
 			RootKeyMeta: rootKey.Meta,
 		}); err != nil {
-		logger.Error("could not initialize keyring: %v", err)
+		logger.Error("failed to initialize keyring", "error", err)
 		return
 	}
 
-	logger.Info("initialized keyring", "id", rootKey.Meta.KeyID)
+	logger.Info("initialized keyring", "key_id", rootKey.Meta.KeyID)
 }
 
 func (s *Server) generateClusterID() (string, error) {

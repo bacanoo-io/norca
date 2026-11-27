@@ -248,7 +248,7 @@ func TestMonitor_Monitor_RemoteServer(t *testing.T) {
 					case <-ctx.Done():
 						return
 					default:
-						tc.logger.Warn(tc.expectedLog)
+						tc.logger.Warn(tc.expectedLog) //logcheck:ignore the line the test looks for
 						time.Sleep(10 * time.Millisecond)
 					}
 				}

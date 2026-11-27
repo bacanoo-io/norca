@@ -369,7 +369,7 @@ func (s *Server) writeOperatorObject(obj *structs.CustomObject) (*structs.Custom
 			return nil, err
 		}
 		s.logger.Named("operators").Warn("an object that is being deleted does not pass its kind; its status and finalizers are written all the same",
-			"object", obj.KindRef()+"/"+obj.Name, "namespace", obj.Namespace, "error", err)
+			"object_kind", obj.KindRef(), "object_name", obj.Name, "namespace", obj.Namespace, "error", err)
 	}
 	req := &structs.CustomObjectUpsertStateRequest{
 		Object:              obj,
@@ -452,7 +452,7 @@ func (s *Server) operatorEvent(obj *structs.CustomObject, eventType, reason, mes
 	message = operatorMessage(message)
 	ev := &structs.ObjectEvent{Type: eventType, Reason: reason, Message: message}
 	if _, err := s.recordObjectEvents(obj, []*structs.ObjectEvent{ev}, structs.OperatorsManagedBy); err != nil {
-		s.logger.Named("operators").Debug("failed to record an object event", "object", obj.KindRef()+"/"+obj.Name, "error", err)
+		s.logger.Named("operators").Debug("failed to record an object event", "object_kind", obj.KindRef(), "object_name", obj.Name, "error", err)
 	}
 }
 

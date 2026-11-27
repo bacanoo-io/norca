@@ -460,13 +460,13 @@ func (s *Store) enforceDiskCap(d *database) {
 	for d.db.Stats().DiskBytes > maxDisk {
 		removed, err := d.db.RemoveOldestDiskPartition()
 		if err != nil {
-			s.logger.Warn("removing the oldest partition above "+d.diskName+" failed", "error", err)
+			s.logger.Warn("failed to remove the oldest partition above the disk limit", "setting", d.diskName, "error", err)
 			return
 		}
 		if !removed {
 			return
 		}
-		s.logger.Info("removed the oldest partition above "+d.diskName, d.diskName, maxDisk)
+		s.logger.Info("removed the oldest partition above the disk limit", "setting", d.diskName, "limit", maxDisk)
 	}
 }
 
@@ -646,10 +646,10 @@ func (s *Store) Reload(cfg *Config) error {
 			if err := s.setRetention(l.d, l.retention); err != nil {
 				return err
 			}
-			s.logger.Info("metrics store "+l.d.retentionName+" changed", "from", FormatRetention(old), "to", FormatRetention(l.retention))
+			s.logger.Info("metrics store setting changed", "setting", l.d.retentionName, "from", FormatRetention(old), "to", FormatRetention(l.retention))
 		}
 		if old := l.d.maxDiskSize.Swap(l.maxDiskSize); old != l.maxDiskSize {
-			s.logger.Info("metrics store "+l.d.diskName+" changed", "from", old, "to", l.maxDiskSize)
+			s.logger.Info("metrics store setting changed", "setting", l.d.diskName, "from", old, "to", l.maxDiskSize)
 		}
 	}
 	s.mu.Lock()
@@ -657,7 +657,7 @@ func (s *Store) Reload(cfg *Config) error {
 	s.cfg.MaxSeries = cfg.MaxSeries
 	s.mu.Unlock()
 	if old != cfg.MaxSeries {
-		s.logger.Info("metrics store max_series changed", "from", old, "to", cfg.MaxSeries)
+		s.logger.Info("metrics store setting changed", "setting", "max_series", "from", old, "to", cfg.MaxSeries)
 	}
 	return nil
 }

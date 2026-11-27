@@ -679,7 +679,7 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 			return err
 		}
 		if err := checkJobEnforceIndex(existing, true, req.JobModifyIndex); err != nil {
-			n.logger.Debug("job scaling refused", "job", req.Job.NamespacedID(), "error", err)
+			n.logger.Debug("job scaling refused", "job_id", req.Job.ID, "namespace", req.Job.Namespace, "error", err)
 			return err
 		}
 		// A scaling keeps the job modify index: another scaling since is
@@ -688,7 +688,7 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 			if old := existing.LookupTaskGroup(req.ScaleGroup); old != nil && int64(old.Count) != ev.ScalingEvent.PreviousCount {
 				err := fmt.Errorf("%s %d: the count of the group %q is %d, not %d", RegisterEnforceIndexErrPrefix,
 					req.JobModifyIndex, req.ScaleGroup, old.Count, ev.ScalingEvent.PreviousCount)
-				n.logger.Debug("job scaling refused", "job", req.Job.NamespacedID(), "error", err)
+				n.logger.Debug("job scaling refused", "job_id", req.Job.ID, "namespace", req.Job.Namespace, "error", err)
 				return err
 			}
 		}
@@ -747,7 +747,7 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 		if err := checkJobEnforceIndex(existing, true, req.JobModifyIndex); err != nil {
 			// An answer for the writer, which reads the job again: not an
 			// error of the servers.
-			n.logger.Debug("JobRegister refused", "job", req.Job.NamespacedID(), "error", err)
+			n.logger.Debug("JobRegister refused", "job_id", req.Job.ID, "namespace", req.Job.Namespace, "error", err)
 			return err
 		}
 	}
@@ -810,7 +810,7 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 		if parent.IsPeriodic() && !parent.IsParameterized() {
 			t, err := n.periodicDispatcher.LaunchTime(req.Job.ID)
 			if err != nil {
-				n.logger.Error("LaunchTime failed", "job", req.Job.NamespacedID(), "error", err)
+				n.logger.Error("LaunchTime failed", "job_id", req.Job.ID, "namespace", req.Job.Namespace, "error", err)
 				return err
 			}
 
@@ -881,7 +881,7 @@ func (n *nomadFSM) applyDeregisterJob(msgType structs.MessageType, buf []byte, i
 
 		if err != nil {
 			n.logger.Error("deregistering job failed",
-				"error", err, "job", req.JobID, "namespace", req.Namespace)
+				"error", err, "job_id", req.JobID, "namespace", req.Namespace)
 			return err
 		}
 
@@ -918,7 +918,7 @@ func (n *nomadFSM) applyBatchDeregisterJob(msgType structs.MessageType, buf []by
 	err := n.state.WithWriteTransaction(msgType, index, func(tx state.Txn) error {
 		for jobNS, options := range req.Jobs {
 			if err := n.handleJobDeregister(index, jobNS.ID, jobNS.Namespace, options.Purge, req.SubmitTime, false, tx); err != nil {
-				n.logger.Error("deregistering job failed", "job", jobNS.ID, "error", err)
+				n.logger.Error("deregistering job failed", "job_id", jobNS.ID, "error", err)
 				return err
 			}
 		}
@@ -2610,7 +2610,7 @@ func (n *nomadFSM) applyVariableOperation(msgType structs.MessageType, buf []byt
 		return n.state.VarSetCAS(index, &req)
 	default:
 		err := fmt.Errorf("Invalid variable operation '%s'", req.Op)
-		n.logger.Warn("Invalid variable operation", "operation", req.Op)
+		n.logger.Warn("invalid variable operation", "operation", req.Op)
 		return err
 	}
 }

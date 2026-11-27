@@ -308,7 +308,7 @@ func (o *certificateOperator) reconcileIssuer(p *certificatePass, issuer *struct
 func (o *certificateOperator) writeStatus(obj *structs.CustomObject, status map[string]any, finalizers *[]string) (written *structs.CustomObject, ok bool) {
 	normalized, err := structs.NormalizeObjectMap(status)
 	if err != nil {
-		o.logger.Warn("status of an object can't be encoded", "object", obj.KindRef()+"/"+obj.Name, "error", err)
+		o.logger.Warn("status of an object can't be encoded", "object_kind", obj.KindRef(), "object_name", obj.Name, "error", err)
 		return obj, false
 	}
 	if structs.ObjectMapsEqual(obj.Status, normalized) && (finalizers == nil || slices.Equal(obj.Finalizers, *finalizers)) {
@@ -322,7 +322,7 @@ func (o *certificateOperator) writeStatus(obj *structs.CustomObject, status map[
 	written, err = o.writeObject(changed)
 	if err != nil {
 		if !structs.IsObjectConflictError(err) {
-			o.logger.Warn("failed to write the status of an object", "object", obj.KindRef()+"/"+obj.Name,
+			o.logger.Warn("failed to write the status of an object", "object_kind", obj.KindRef(), "object_name", obj.Name,
 				"namespace", obj.Namespace, "error", err)
 		}
 		return obj, false

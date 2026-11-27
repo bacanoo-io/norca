@@ -95,7 +95,7 @@ func (s *Server) delegateBackup(ctx context.Context, req *backup.DelegateRequest
 			return nil, fmt.Errorf("observer %s did not answer: %w", c.Server.Name, ctx.Err())
 		}
 		if reply.Refused != "" {
-			s.logger.Debug("observer refused a backup", "observer", c.Server.Name, "id", req.ID, "reason", reply.Refused)
+			s.logger.Debug("observer refused a backup", "observer", c.Server.Name, "backup_id", req.ID, "reason", reply.Refused)
 			refusals = append(refusals, c.Server.Name+": "+reply.Refused)
 			continue
 		}

@@ -388,7 +388,7 @@ func (v *CSIVolume) Register(args *structs.CSIVolumeRegisterRequest, reply *stru
 
 	_, index, err := v.srv.raftApply(structs.CSIVolumeRegisterRequestType, args)
 	if err != nil {
-		v.logger.Error("csi raft apply failed", "error", err, "method", "register")
+		v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIVolume.Register")
 		return err
 	}
 
@@ -446,7 +446,7 @@ func (v *CSIVolume) Deregister(args *structs.CSIVolumeDeregisterRequest, reply *
 
 	_, index, err := v.srv.raftApply(structs.CSIVolumeDeregisterRequestType, args)
 	if err != nil {
-		v.logger.Error("csi raft apply failed", "error", err, "method", "deregister")
+		v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIVolume.Deregister")
 		return err
 	}
 
@@ -507,7 +507,7 @@ func (v *CSIVolume) Claim(args *structs.CSIVolumeClaimRequest, reply *structs.CS
 
 	_, index, err := v.srv.raftApply(structs.CSIVolumeClaimRequestType, args)
 	if err != nil {
-		v.logger.Error("csi raft apply failed", "error", err, "method", "claim")
+		v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIVolume.Claim")
 		return err
 	}
 
@@ -775,7 +775,7 @@ NODE_DETACHED:
 	}
 
 RELEASE_CLAIM:
-	v.logger.Trace("releasing claim", "vol", vol.ID)
+	v.logger.Trace("releasing claim", "volume_id", vol.ID)
 	// advance a CSIVolumeClaimStateControllerDetached claim
 	claim.State = structs.CSIVolumeClaimStateReadyToFree
 	err = v.checkpointClaim(vol, claim)
@@ -793,7 +793,7 @@ RELEASE_CLAIM:
 // have this here so that GC can re-send it in case of client-side
 // problems. This function should only be called on a copy of the volume.
 func (v *CSIVolume) nodeUnpublishVolume(vol *structs.CSIVolume, claim *structs.CSIVolumeClaim) error {
-	v.logger.Trace("node unpublish", "vol", vol.ID)
+	v.logger.Trace("node unpublish", "volume_id", vol.ID)
 
 	// We need a new snapshot after each checkpoint
 	snap, err := v.srv.fsm.State().Snapshot()
@@ -892,7 +892,7 @@ func (v *CSIVolume) nodeUnpublishVolumeImpl(vol *structs.CSIVolume, claim *struc
 // to unpublish the volume (detach it from its host). This function should only
 // be called on a copy of the volume.
 func (v *CSIVolume) controllerUnpublishVolume(vol *structs.CSIVolume, claim *structs.CSIVolumeClaim) error {
-	v.logger.Trace("controller unpublish", "vol", vol.ID)
+	v.logger.Trace("controller unpublish", "volume_id", vol.ID)
 
 	if !vol.ControllerRequired {
 		claim.State = structs.CSIVolumeClaimStateReadyToFree
@@ -933,7 +933,7 @@ func (v *CSIVolume) controllerUnpublishVolume(vol *structs.CSIVolume, claim *str
 			claim.State = structs.CSIVolumeClaimStateReadyToFree
 			v.logger.Debug(
 				"controller unpublish canceled: another non-terminal alloc is on this node",
-				"vol", vol.ID, "alloc", alloc.ID)
+				"volume_id", vol.ID, "alloc_id", alloc.ID)
 			return true
 		}
 		return false
@@ -975,7 +975,7 @@ func (v *CSIVolume) controllerUnpublishVolume(vol *structs.CSIVolume, claim *str
 		return fmt.Errorf("could not detach from controller: %v", err)
 	}
 
-	v.logger.Trace("controller detach complete", "vol", vol.ID)
+	v.logger.Trace("controller detach complete", "volume_id", vol.ID)
 	claim.State = structs.CSIVolumeClaimStateReadyToFree
 	return v.checkpointClaim(vol, claim)
 }
@@ -1153,7 +1153,7 @@ func (v *CSIVolume) Create(args *structs.CSIVolumeCreateRequest, reply *structs.
 	if len(regArgs.Volumes) > 0 {
 		_, index, err = v.srv.raftApply(structs.CSIVolumeRegisterRequestType, regArgs)
 		if err != nil {
-			v.logger.Error("csi raft apply failed", "error", err, "method", "register")
+			v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIVolume.Create")
 			mErr.Errors = append(mErr.Errors, err)
 		}
 	}
@@ -1217,7 +1217,7 @@ func (v *CSIVolume) expandVolume(vol *structs.CSIVolume, plugin *structs.CSIPlug
 	newMax := capacity.LimitBytes
 	newMin := capacity.RequiredBytes
 	logger := v.logger.Named("expandVolume").With(
-		"vol", vol.ID,
+		"volume_id", vol.ID,
 		"requested_min", humanize.Bytes(uint64(newMin)),
 		"requested_max", humanize.Bytes(uint64(newMax)),
 	)
@@ -1401,7 +1401,7 @@ func (v *CSIVolume) Delete(args *structs.CSIVolumeDeleteRequest, reply *structs.
 		plugin, vol, err := v.volAndPluginLookup(args.Namespace, volID)
 		if err != nil {
 			if err == fmt.Errorf("volume not found: %s", volID) {
-				v.logger.Warn("volume %q to be deleted was already deregistered")
+				v.logger.Warn("volume to be deleted was already deregistered", "volume_id", volID)
 				continue
 			} else {
 				return err
@@ -1426,7 +1426,7 @@ func (v *CSIVolume) Delete(args *structs.CSIVolumeDeleteRequest, reply *structs.
 	}
 	_, index, err := v.srv.raftApply(structs.CSIVolumeDeregisterRequestType, deregArgs)
 	if err != nil {
-		v.logger.Error("csi raft apply failed", "error", err, "method", "deregister")
+		v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIVolume.Delete")
 		return err
 	}
 
@@ -1937,7 +1937,7 @@ func (v *CSIPlugin) Delete(args *structs.CSIPluginDeleteRequest, reply *structs.
 
 	_, index, err := v.srv.raftApply(structs.CSIPluginDeleteRequestType, args)
 	if err != nil {
-		v.logger.Error("csi raft apply failed", "error", err, "method", "delete")
+		v.logger.Error("csi raft apply failed", "error", err, "rpc_method", "CSIPlugin.Delete")
 		return err
 	}
 

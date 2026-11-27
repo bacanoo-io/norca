@@ -19,7 +19,7 @@ import (
 // logged: it may hold a sensitive value.
 func (s *Server) recoverRigger(op string, out *error) {
 	if r := recover(); r != nil {
-		s.logger.Named("rigger").Error("recovered a panic", "op", op, "stack", string(debug.Stack()))
+		s.logger.Named("rigger").Error("recovered a panic", "op", op, "stack_trace", string(debug.Stack()))
 		*out = structs.NewErrRPCCodedf(http.StatusInternalServerError, "%v", rigger.ErrInternal)
 	}
 }

@@ -333,7 +333,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		switch {
 		case err != nil && r.badWindows[name] != err.Error():
 			r.badWindows[name] = err.Error()
-			r.logger.Warn("node group window left out", "group", name, "error", err)
+			r.logger.Warn("node group window left out", "node_group", name, "error", err)
 		case err == nil:
 			delete(r.badWindows, name)
 		}
@@ -346,7 +346,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		// none does, the ready nodes of the cluster gauges.
 		down, err := scaleDownOf(spec)
 		if err != nil {
-			r.logger.Debug("node group not lowered, its scale_down block can't be read", "group", name, "error", err)
+			r.logger.Debug("node group not lowered, its scale_down block can't be read", "node_group", name, "error", err)
 		}
 		g.down = down
 		g.veto, g.vetoUntil, g.vetoMsg = scaleDownVeto(status)
@@ -357,7 +357,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		} else if n, ok := r.readyNodes(p, now); ok {
 			g.ready = n
 		} else {
-			r.logger.Debug("node group left alone, its ready nodes are not known", "group", name)
+			r.logger.Debug("node group left alone, its ready nodes are not known", "node_group", name)
 			continue
 		}
 		if v, ok := status["joining"]; ok {
@@ -991,7 +991,7 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		reason := strings.Join(reasons, "; ") + fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec)
 		held, err := r.scaleGroupUp(g, desired, reason, check)
 		if err != nil {
-			r.logger.Warn("failed to raise the scale of a node group", "group", g.name, "error", err)
+			r.logger.Warn("failed to raise the scale of a node group", "node_group", g.name, "error", err)
 			continue
 		}
 		if held != "" {
@@ -1135,7 +1135,7 @@ func (r *runner) scaleGroup(g *demandGroup, desired int64, dir sdk.ScaleDirectio
 	}
 	held, err := r.exec.execute(c, t, action, check, r.now())
 	if held != "" {
-		r.logger.Debug("the scaling of a node group was held", "group", g.name, "count", desired, "held", held)
+		r.logger.Debug("the scaling of a node group was held", "node_group", g.name, "count", desired, "held", held)
 	}
 	return held, err
 }

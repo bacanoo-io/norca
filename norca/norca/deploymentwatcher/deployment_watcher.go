@@ -138,7 +138,7 @@ func newDeploymentWatcher(parent context.Context, queryLimiter *rate.Limiter,
 		jobRPC:             jobRPC,
 		multiregionCh:      make(chan struct{}, 1),
 		multiregionPoll:    mrPoll,
-		logger:             logger.With("deployment_id", d.ID, "job", j.NamespacedID()),
+		logger:             logger.With("deployment_id", d.ID, "job_id", j.ID, "namespace", j.Namespace),
 		ctx:                ctx,
 		exitFn:             exitFn,
 		parentCtx:          parent,
@@ -734,7 +734,7 @@ func (w *deploymentWatcher) shouldFailEarly(deployment *structs.Deployment, allo
 
 	// Fail on the first unhealthy allocation if no progress deadline is specified.
 	if dstate.ProgressDeadline == 0 {
-		w.logger.Debug("failing deployment because an allocation failed and the deployment is not progress based", "alloc", alloc.ID)
+		w.logger.Debug("failing deployment because an allocation failed and the deployment is not progress based", "alloc_id", alloc.ID)
 		return true
 	}
 
@@ -744,7 +744,7 @@ func (w *deploymentWatcher) shouldFailEarly(deployment *structs.Deployment, allo
 		if !isRescheduleEligible {
 			// We have run out of reschedule attempts: do not wait for the progress deadline to expire because
 			// we know that we will not be able to try to get another allocation healthy
-			w.logger.Debug("failing deployment because an allocation has failed and the task group has run out of reschedule attempts", "alloc", alloc.ID)
+			w.logger.Debug("failing deployment because an allocation has failed and the task group has run out of reschedule attempts", "alloc_id", alloc.ID)
 			return true
 		}
 	}

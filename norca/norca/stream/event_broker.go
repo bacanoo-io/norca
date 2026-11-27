@@ -191,7 +191,7 @@ func (e *EventBroker) subscribe(req *SubscribeRequest, aclObj *acl.ACL) (*Subscr
 		}
 	} else if offset > 0 {
 		metrics.SetGauge([]string{"server", "event_broker", "subscription", "request_offset"}, float32(offset))
-		e.logger.Debug("requested index no longer in buffer", "requsted", int(req.Index), "closest", int(head.Events.Index))
+		e.logger.Debug("requested index no longer in buffer", "requested", int(req.Index), "closest", int(head.Events.Index))
 	}
 
 	// Empty head so that calling Next on sub

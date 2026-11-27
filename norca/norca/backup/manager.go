@@ -399,7 +399,7 @@ func (m *Manager) checkSharedStorage() {
 			continue
 		}
 		if found, err := d.exists(newest.Path); err == nil && !found {
-			m.logger.Warn("backup missing on a directory destination", "destination", d.name, "id", newest.ID,
+			m.logger.Warn("backup missing on a directory destination", "destination", d.name, "backup_id", newest.ID,
 				"error", sharedStorageHint(d, newest))
 		}
 	}
@@ -488,7 +488,7 @@ func (m *Manager) noteReplacement(superseded, record *structs.BackupRecord) {
 	updated.StatusDescription += fmt.Sprintf("; the leader took backup %s instead (%s)", record.ID, record.Status)
 	if _, err := m.deps.Apply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.BackupUpsertRequest{Backups: []*structs.BackupRecord{updated}}); err != nil {
-		m.logger.Warn("failed to note the replacement of a backup", "id", superseded.ID, "replacement", record.ID, "error", err)
+		m.logger.Warn("failed to note the replacement of a backup", "backup_id", superseded.ID, "replacement", record.ID, "error", err)
 	}
 }
 
@@ -516,24 +516,24 @@ func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination
 	})
 	switch {
 	case errors.Is(err, ErrDelegateRefused):
-		m.logger.Info("no observer takes the backup, the leader takes it", "id", id, "reason", err)
+		m.logger.Info("no observer takes the backup, the leader takes it", "backup_id", id, "reason", err.Error())
 		return nil, false, nil
 	case err != nil:
 		// An observer may still be uploading under this ID: record it as
 		// failed and take the backup under a new one.
-		m.logger.Warn("the observer did not finish the backup, the leader takes a new one", "id", id, "error", err)
+		m.logger.Warn("the observer did not finish the backup, the leader takes a new one", "backup_id", id, "error", err)
 		m.supersede(opts, id, start, dests, fmt.Errorf("the observer did not finish the backup: %w", err))
 		return nil, false, nil
 	}
 	if err := m.checkDelegated(record, id, dests); err != nil {
 		// The observer may have uploaded under this ID.
-		m.logger.Warn("invalid record of an observer backup, the leader takes a new one", "id", id, "error", err)
+		m.logger.Warn("invalid record of an observer backup, the leader takes a new one", "backup_id", id, "error", err)
 		m.supersede(opts, id, start, dests, fmt.Errorf("invalid record of the observer backup: %w", err))
 		return nil, false, nil
 	}
 	if record.Status == structs.BackupStatusFailed {
 		// The observer removed what it uploaded: the leader can use the ID.
-		m.logger.Warn("the backup on the observer failed, the leader takes it", "id", id,
+		m.logger.Warn("the backup on the observer failed, the leader takes it", "backup_id", id,
 			"observer", record.TakenBy, "error", record.StatusDescription)
 		return nil, false, nil
 	}
@@ -622,9 +622,9 @@ func (m *Manager) TakeDelegated(ctx context.Context, req *DelegateRequest) (*str
 	opts := SaveOptions{Trigger: req.Trigger, Labels: req.Labels, Pin: req.Pin, ID: req.ID}
 	record := m.take(tctx, cfg, dests, opts, req.ID)
 	if record.Status == structs.BackupStatusFailed {
-		m.logger.Warn("backup for the leader failed", "id", record.ID, "error", record.StatusDescription)
+		m.logger.Warn("backup for the leader failed", "backup_id", record.ID, "error", record.StatusDescription)
 	} else {
-		m.logger.Info("backup for the leader taken", "id", record.ID, "status", record.Status)
+		m.logger.Info("backup for the leader taken", "backup_id", record.ID, "status", record.Status)
 	}
 	return record, nil
 }
@@ -706,7 +706,7 @@ func (m *Manager) take(ctx context.Context, cfg *Config, dests []Destination, op
 		if err != nil {
 			// The backup stays usable; its secret store can be recovered
 			// with the shares of its seal.
-			m.logger.Warn("the backup does not include the key of the secret store", "id", record.ID, "error", err)
+			m.logger.Warn("the backup does not include the key of the secret store", "backup_id", record.ID, "error", err)
 		}
 	}
 
@@ -800,7 +800,7 @@ func (m *Manager) finish(ctx context.Context, cfg *Config, dests []Destination, 
 		return nil, fmt.Errorf("backup %s was uploaded but could not be recorded: %w", record.ID, err)
 	}
 	metrics.SetGauge([]string{"server", "backup", "last_success_age_seconds"}, 0)
-	m.logger.Info("backup completed", "id", record.ID, "status", record.Status, "taken_by", record.TakenBy,
+	m.logger.Info("backup completed", "backup_id", record.ID, "status", record.Status, "taken_by", record.TakenBy,
 		"destinations", record.VerifiedDestinations(), "duration", record.CompletedAt.Sub(record.StartedAt))
 
 	pctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -831,7 +831,7 @@ func (m *Manager) finishFailed(record *structs.BackupRecord, err error) (*struct
 		[]metrics.Label{{Name: "destination", Value: "all"}})
 	if _, aerr := m.deps.Apply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.BackupUpsertRequest{Backups: []*structs.BackupRecord{record}}); aerr != nil {
-		m.logger.Error("failed to record a failed backup", "id", record.ID, "error", aerr)
+		m.logger.Error("failed to record a failed backup", "backup_id", record.ID, "error", aerr)
 	}
 	return record, fmt.Errorf("backup %s failed: %w", record.ID, err)
 }
@@ -851,7 +851,7 @@ func (m *Manager) upload(ctx context.Context, cfg *Config, dest Destination, rec
 		st.Status = structs.BackupDestinationStatusFailed
 		st.Error = err.Error()
 		st.Duration = time.Since(start)
-		m.logger.Warn("backup upload failed", "id", record.ID, "destination", st.Name, "error", err)
+		m.logger.Warn("backup upload failed", "backup_id", record.ID, "destination", st.Name, "error", err)
 		return st
 	}
 
@@ -1009,11 +1009,11 @@ func (m *Manager) Update(record *structs.BackupRecord) (uint64, error) {
 		}
 		dest, err := m.Destination(st.Name)
 		if err != nil {
-			m.logger.Warn("can't update the manifest of a backup", "id", record.ID, "destination", st.Name, "error", err)
+			m.logger.Warn("can't update the manifest of a backup", "backup_id", record.ID, "destination", st.Name, "error", err)
 			continue
 		}
 		if err := m.writeManifest(ctx, dest, record, st, false); err != nil {
-			m.logger.Warn("failed to update the manifest of a backup", "id", record.ID, "destination", st.Name, "error", err)
+			m.logger.Warn("failed to update the manifest of a backup", "backup_id", record.ID, "destination", st.Name, "error", err)
 		}
 	}
 	return index, nil
@@ -1069,7 +1069,7 @@ func (m *Manager) deleteLocked(ctx context.Context, cfg *Config, dests []Destina
 							sharedStorageHint(dd, record))
 					}
 					m.logger.Warn("deleting the record of a backup missing on a directory destination",
-						"id", record.ID, "destination", st.Name, "error", sharedStorageHint(dd, record))
+						"backup_id", record.ID, "destination", st.Name, "error", sharedStorageHint(dd, record))
 					continue
 				}
 			}
@@ -1102,7 +1102,7 @@ func (m *Manager) prune(ctx context.Context, cfg *Config, dests []Destination) e
 			errs = append(errs, err.Error())
 			continue
 		}
-		m.logger.Info("backup expired by retention", "id", record.ID)
+		m.logger.Info("backup expired by retention", "backup_id", record.ID)
 	}
 	if len(errs) > 0 {
 		return errors.New(joinErrors(errs))

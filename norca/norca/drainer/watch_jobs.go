@@ -105,7 +105,7 @@ func (w *drainingJobWatcher) RegisterJobs(jobs []structs.NamespacedID) {
 		}
 
 		// Add the job and cancel the context
-		w.logger.Trace("registering job", "job", jns)
+		w.logger.Trace("registering job", "job_id", jns.ID, "namespace", jns.Namespace)
 		w.jobs[jns] = struct{}{}
 		updated = true
 	}
@@ -138,7 +138,7 @@ func (w *drainingJobWatcher) deregisterJob(jobID, namespace string) {
 		Namespace: namespace,
 	}
 	delete(w.jobs, jns)
-	w.logger.Trace("deregistering job", "job", jns)
+	w.logger.Trace("deregistering job", "job_id", jns.ID, "namespace", jns.Namespace)
 }
 
 // watch is the long lived watching routine that detects job drain changes.
@@ -195,16 +195,16 @@ func (w *drainingJobWatcher) watch() {
 		for jns, allocs := range jobAllocs {
 			// Check if the job is still registered
 			if _, ok := currentJobs[jns]; !ok {
-				w.logger.Trace("skipping job as it is no longer registered for draining", "job", jns)
+				w.logger.Trace("skipping job as it is no longer registered for draining", "job_id", jns.ID, "namespace", jns.Namespace)
 				continue
 			}
 
-			w.logger.Trace("handling job", "job", jns)
+			w.logger.Trace("handling job", "job_id", jns.ID, "namespace", jns.Namespace)
 
 			// Lookup the job
 			job, err := snap.JobByID(nil, jns.Namespace, jns.ID)
 			if err != nil {
-				w.logger.Warn("failed to lookup job", "job", jns, "error", err)
+				w.logger.Warn("failed to lookup job", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
 				continue
 			}
 
@@ -217,12 +217,12 @@ func (w *drainingJobWatcher) watch() {
 			if job == nil {
 				result, err := handlePurgedJob(snap, allocs, lastHandled)
 				if err != nil {
-					w.logger.Error("handling drain for purged job failed", "job", jns, "error", err)
+					w.logger.Error("handling drain for purged job failed", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
 					continue
 				}
 				allMigrated = append(allMigrated, result.migrated...)
 				if result.done {
-					w.logger.Trace("purged job has no allocation left on a draining node", "job", jns)
+					w.logger.Trace("purged job has no allocation left on a draining node", "job_id", jns.ID, "namespace", jns.Namespace)
 					w.deregisterJob(jns.ID, jns.Namespace)
 				}
 				continue
@@ -236,11 +236,11 @@ func (w *drainingJobWatcher) watch() {
 
 			result, err := handleJob(snap, job, allocs, lastHandled)
 			if err != nil {
-				w.logger.Error("handling drain for job failed", "job", jns, "error", err)
+				w.logger.Error("handling drain for job failed", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
 				continue
 			}
 
-			w.logger.Trace("received result for job", "job", jns, "result", result)
+			w.logger.Trace("received result for job", "job_id", jns.ID, "namespace", jns.Namespace, "result", result)
 
 			allDrain = append(allDrain, result.drain...)
 			allMigrated = append(allMigrated, result.migrated...)

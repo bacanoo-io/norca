@@ -154,7 +154,7 @@ func (s *Server) autopilotServers() map[raft.ServerID]*autopilot.Server {
 	for _, member := range s.serf.Members() {
 		srv, err := s.autopilotServer(member)
 		if err != nil {
-			s.logger.Warn("Error parsing server info", "name", member.Name, "error", err)
+			s.logger.Warn("error parsing server info", "name", member.Name, "error", err)
 			continue
 		} else if srv == nil {
 			// this member was a client or in another region

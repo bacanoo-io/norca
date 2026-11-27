@@ -310,7 +310,7 @@ func (w *secretsWatcher) rotate(sec *structs.Secret, dueAt time.Time, st *secret
 		return st.next
 	}
 	logger := w.logger.With("namespace", sec.Namespace, "path", sec.Path,
-		"version", sec.CurrentVersion, "job", job)
+		"version", sec.CurrentVersion, "job_id", job)
 
 	// A rotation job could not write the new version while the store is
 	// unavailable; wait for it without counting an attempt.

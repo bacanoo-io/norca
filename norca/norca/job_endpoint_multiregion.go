@@ -308,7 +308,7 @@ func (j *Job) multiregionDrop(mr *multiregionRegistration, args *structs.JobRegi
 			err = j.srv.forwardRegion(region, "Job.Deregister", req, &resp)
 		}
 		if err != nil {
-			j.logger.Warn("failed to stop multiregion job in dropped region", "job", args.Job.ID, "region", region, "error", err)
+			j.logger.Warn("failed to stop multiregion job in dropped region", "job_id", args.Job.ID, "region", region, "error", err)
 			warnings = append(warnings, fmt.Errorf("failed to stop job in region %q, which the job no longer lists: %v", region, err))
 		}
 	}

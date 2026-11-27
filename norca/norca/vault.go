@@ -839,12 +839,9 @@ func (v *vaultClient) validateCapabilities(role string, root bool) error {
 		if structs.VaultUnrecoverableError.MatchString(err.Error()) {
 			// Since we can't read permissions, we just log a warning that we
 			// can't tell if the Vault token will work
-			msg := fmt.Sprintf("can not lookup token capabilities. "+
-				"As such certain operations may fail in the future. "+
-				"Please give Nomad a Vault token with one of the following "+
-				"capabilities %q on %q so that the required capabilities can be verified",
-				vaultCapabilitiesCapability, vaultCapabilitiesLookupPath)
-			v.logger.Warn(msg)
+			v.logger.Warn("can not look up the token capabilities: operations may fail later; "+
+				"give the Vault token one of the capabilities on the path so that they can be verified",
+				"capabilities", vaultCapabilitiesCapability, "path", vaultCapabilitiesLookupPath)
 			return nil
 		} else {
 			_ = multierror.Append(&mErr, err)

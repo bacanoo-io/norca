@@ -231,7 +231,7 @@ func (s *Server) finalizeObjectIfReady(obj *structs.CustomObject) (uint64, bool)
 	index, err := s.removeCustomObject(obj, obj.DeletionPropagation)
 	if err != nil {
 		if !structs.IsObjectConflictError(err) {
-			s.logger.Warn("failed to remove finalized object", "object", obj.KindRef()+"/"+obj.Name,
+			s.logger.Warn("failed to remove finalized object", "object_kind", obj.KindRef(), "object_name", obj.Name,
 				"namespace", obj.Namespace, "error", err)
 		}
 		return 0, false
@@ -881,7 +881,7 @@ func (c *CustomObject) Scale(args *structs.CustomObjectScaleRequest, reply *stru
 	event.Meta[structs.ObjectEventMetaCount] = strconv.FormatInt(args.Replicas, 10)
 	event.Meta[structs.ObjectEventMetaPreviousCount] = strconv.FormatInt(previous, 10)
 	if _, err := c.srv.recordObjectEvents(out.Object, []*structs.ObjectEvent{event}, objectReporter(args)); err != nil {
-		c.srv.logger.Warn("failed to record the scaling event", "object", out.Object.KindRef()+"/"+out.Object.Name,
+		c.srv.logger.Warn("failed to record the scaling event", "object_kind", out.Object.KindRef(), "object_name", out.Object.Name,
 			"namespace", out.Object.Namespace, "error", err)
 	}
 	return nil

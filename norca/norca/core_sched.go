@@ -136,7 +136,7 @@ OUTER:
 		ws := memdb.NewWatchSet()
 		evals, err := c.snap.EvalsByJob(ws, job.Namespace, job.ID)
 		if err != nil {
-			c.logger.Error("job GC failed to get evals for job", "job", job.ID, "error", err)
+			c.logger.Error("job GC failed to get evals for job", "job_id", job.ID, "error", err)
 			continue
 		}
 
@@ -700,7 +700,7 @@ func (c *CoreScheduler) csiVolumeClaimGC(eval *structs.Evaluation) error {
 		return err
 	}
 
-	c.logger.Trace("garbage collecting unclaimed CSI volume claims", "eval.JobID", eval.JobID)
+	c.logger.Trace("garbage collecting unclaimed CSI volume claims", "job_id", eval.JobID)
 
 	// Volume ID smuggled in with the eval's own JobID
 	evalVolID := strings.Split(eval.JobID, ":")
@@ -1162,7 +1162,7 @@ func (c *CoreScheduler) getThreshold(eval *structs.Evaluation, objectName, confi
 		// The GC was forced, so set the threshold to its maximum so
 		// everything will GC.
 		oldThreshold = math.MaxUint64
-		c.logger.Debug(fmt.Sprintf("forced %s GC", objectName))
+		c.logger.Debug("forced GC", "kind", objectName)
 	} else {
 		// Compute the old threshold limit for GC using the FSM
 		// time table.  This is a rough mapping of a time to the
@@ -1170,10 +1170,8 @@ func (c *CoreScheduler) getThreshold(eval *structs.Evaluation, objectName, confi
 		tt := c.srv.fsm.TimeTable()
 		cutoff := time.Now().UTC().Add(-1 * configThreshold)
 		oldThreshold = tt.NearestIndex(cutoff)
-		c.logger.Debug(
-			fmt.Sprintf("%s GC scanning before cutoff index", objectName),
-			"index", oldThreshold,
-			configName, configThreshold)
+		c.logger.Debug("GC scanning before cutoff index", "kind", objectName,
+			"index", oldThreshold, "setting", configName, "threshold", configThreshold)
 	}
 	return oldThreshold
 }

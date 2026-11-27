@@ -188,7 +188,7 @@ func (vw *volumeWatcher) volumeReapImpl(vol *structs.CSIVolume) error {
 // CSIVolumeDenormalize, which getVolume calls.
 
 func (vw *volumeWatcher) unpublish(vol *structs.CSIVolume, claim *structs.CSIVolumeClaim) error {
-	vw.logger.Trace("unpublishing volume", "alloc", claim.AllocationID)
+	vw.logger.Trace("unpublishing volume", "alloc_id", claim.AllocationID)
 	req := &structs.CSIVolumeUnpublishRequest{
 		VolumeID: vol.ID,
 		Claim:    claim,

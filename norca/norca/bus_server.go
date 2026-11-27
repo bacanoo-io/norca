@@ -325,7 +325,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		grant.SubscribeDeny = append(grant.SubscribeDeny, s.busNonChangeDeny()...)
 		if dropped > 0 {
 			s.logger.Warn("system bus: subjects of a rule are left out: a bus rule doesn't reach the change streams (that is the cdc rule), JetStream and its buckets, the telemetry of the nodes or the inboxes, and a cdc rule only the change streams",
-				kind, name, "subjects", dropped)
+				"identity", kind+":"+name, "subjects", dropped)
 		}
 	}
 	return grant, nil

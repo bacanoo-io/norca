@@ -175,7 +175,7 @@ func (d *demandRun) scaleDown() {
 		if g.vetoed(now) && g.statusReplicas && g.spec < g.ready {
 			reason := "the operator vetoed the scale down: " + g.vetoMsg
 			if _, err := r.scaleGroup(g, g.ready, sdk.ScaleDirectionUp, reason, checkScaleDownVeto); err != nil {
-				r.logger.Warn("failed to set the scale of a node group back", "group", g.name, "error", err)
+				r.logger.Warn("failed to set the scale of a node group back", "node_group", g.name, "error", err)
 			}
 			continue
 		}
@@ -194,7 +194,7 @@ func (d *demandRun) scaleDown() {
 			reason := fmt.Sprintf("maximum %d (%s) [%d ready, spec %d]", g.max, g.windows, g.ready, g.spec)
 			held, err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkSchedule)
 			if err != nil {
-				r.logger.Warn("failed to lower a node group to the maximum of its window", "group", g.name, "error", err)
+				r.logger.Warn("failed to lower a node group to the maximum of its window", "node_group", g.name, "error", err)
 				continue
 			}
 			if held == "" {
@@ -250,7 +250,7 @@ func (d *demandRun) scaleDown() {
 		}
 		held, err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkScaleDown)
 		if err != nil {
-			r.logger.Warn("failed to lower the scale of a node group", "group", g.name, "error", err)
+			r.logger.Warn("failed to lower the scale of a node group", "node_group", g.name, "error", err)
 			continue
 		}
 		if held != "" {

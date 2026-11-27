@@ -238,7 +238,7 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 		ns.Shutdown()
 		return nil, nil, fmt.Errorf("bus: the NATS server did not start listening on %s within %s", addr, startTimeout)
 	}
-	s.logger.Info("system bus started", "server", config.ServerName, "addr", addr,
+	s.logger.Info("system bus started", "server", config.ServerName, "address", addr,
 		"clustered", clustered, "cluster_port", config.ClusterPort, "tls", config.ClientTLS != nil,
 		"leafnode_port", leafPort(config))
 	return ns, opts, nil
@@ -574,10 +574,10 @@ func (l *natsLogger) Fatalf(format string, v ...any)  { l.logger.Error(fmt.Sprin
 func (l *natsLogger) Errorf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	if strings.Contains(msg, `Unknown account "`+ReaderAccountPrefix) {
-		l.logger.Debug(msg)
+		l.logger.Debug(msg) //logcheck:ignore a message of the embedded server
 		return
 	}
-	l.logger.Error(msg)
+	l.logger.Error(msg) //logcheck:ignore a message of the embedded server
 }
 func (l *natsLogger) Debugf(format string, v ...any) { l.logger.Debug(fmt.Sprintf(format, v...)) }
 func (l *natsLogger) Tracef(format string, v ...any) { l.logger.Trace(fmt.Sprintf(format, v...)) }

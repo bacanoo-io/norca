@@ -151,7 +151,7 @@ func (s *Server) busRetryLoop(ctx context.Context, what string, fn func(context.
 			failures = 0
 		}
 		failures++
-		s.logger.Warn("system bus: "+what+" failed, retrying", "error", err)
+		s.logger.Warn("system bus: an operation failed, retrying", "operation", what, "error", err)
 		wait := min(busRetryMin<<min(failures-1, 5), busRetryMax)
 		select {
 		case <-ctx.Done():

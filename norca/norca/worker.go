@@ -419,7 +419,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		// check the server whether to allow this eval to be processed.
 		if w.srv.IsShutdown() {
 			w.logger.Warn("nacking eval because the server is shutting down",
-				"eval", log.Fmt("%#v", eval))
+				"eval_id", eval.ID)
 			w.sendNack(eval, token)
 			return
 		}
@@ -431,7 +431,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 			var timeoutErr ErrMinIndexDeadlineExceeded
 			if errors.As(err, &timeoutErr) {
 				w.logger.Warn("timeout waiting for Raft index required by eval",
-					"eval", eval.ID, "index", waitIndex, "timeout", raftSyncLimit)
+					"eval_id", eval.ID, "index", waitIndex, "timeout", raftSyncLimit)
 				w.sendNack(eval, token)
 
 				// Timing out above means this server is woefully behind the
@@ -448,7 +448,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 				// If the server has shutdown while we're waiting, we'll get the
 				// Canceled error from the worker's context. We need to nack any
 				// dequeued evals before we exit.
-				w.logger.Warn("nacking eval because the server is shutting down", "eval", eval.ID)
+				w.logger.Warn("nacking eval because the server is shutting down", "eval_id", eval.ID)
 				w.sendNack(eval, token)
 				return
 			} else {
@@ -545,19 +545,18 @@ func (w *Worker) sendAcknowledgement(eval *structs.Evaluation, token string, ack
 	var resp structs.GenericResponse
 
 	// Determine if this is an Ack or Nack
-	verb := "ack"
 	endpoint := "Eval.Ack"
 	if !ack {
-		verb = "nack"
 		endpoint = "Eval.Nack"
 	}
 
 	// Make the RPC call
 	err := w.srv.RPC(endpoint, &req, &resp)
 	if err != nil {
-		w.logger.Error(fmt.Sprintf("failed to %s evaluation", verb), "eval_id", eval.ID, "error", err)
+		w.logger.Error("failed to acknowledge evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "error", err)
 	} else {
-		w.logger.Debug(fmt.Sprintf("%s evaluation", verb), "eval_id", eval.ID, "type", eval.Type, "namespace", eval.Namespace, "job_id", eval.JobID, "node_id", eval.NodeID, "triggered_by", eval.TriggeredBy)
+		w.logger.Debug("acknowledged evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "type", eval.Type,
+			"namespace", eval.Namespace, "job_id", eval.JobID, "node_id", eval.NodeID, "triggered_by", eval.TriggeredBy)
 	}
 }
 
@@ -744,13 +743,13 @@ func (w *Worker) UpdateEval(eval *structs.Evaluation) error {
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Update", &req, &resp); err != nil {
-		w.logger.Error("failed to update evaluation", "eval", log.Fmt("%#v", eval), "error", err)
+		w.logger.Error("failed to update evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("updated evaluation", "eval", log.Fmt("%#v", eval))
+		w.logger.Debug("updated evaluation", "eval_id", eval.ID)
 		w.backoffReset()
 	}
 	return nil
@@ -786,13 +785,13 @@ func (w *Worker) CreateEval(eval *structs.Evaluation) error {
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Create", &req, &resp); err != nil {
-		w.logger.Error("failed to create evaluation", "eval", log.Fmt("%#v", eval), "error", err)
+		w.logger.Error("failed to create evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("created evaluation", "eval", log.Fmt("%#v", eval), "waitUntil", log.Fmt("%#v", eval.WaitUntil.String()))
+		w.logger.Debug("created evaluation", "eval_id", eval.ID, "wait_until", eval.WaitUntil)
 		w.backoffReset()
 	}
 	return nil
@@ -849,13 +848,13 @@ func (w *Worker) ReblockEval(eval *structs.Evaluation) error {
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Reblock", &req, &resp); err != nil {
-		w.logger.Error("failed to reblock evaluation", "eval", log.Fmt("%#v", eval), "error", err)
+		w.logger.Error("failed to reblock evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("reblocked evaluation", "eval", log.Fmt("%#v", eval))
+		w.logger.Debug("reblocked evaluation", "eval_id", eval.ID)
 		w.backoffReset()
 	}
 	return nil

@@ -161,7 +161,7 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	}
 	if creds.Leaf != (grant.Kind == KindLeaf) {
 		s.logger.Warn("bus connection refused: a leaf node connection needs a leaf grant, and only a leaf node gets one",
-			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
+			"identity", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
 		return false
 	}
 
@@ -171,13 +171,13 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	}
 	if until := s.readerBanned(accName); !until.IsZero() {
 		s.logger.Debug("bus connection refused: the account is cut off for its waiting fetches", "account", accName,
-			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "until", until)
+			"identity", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "until", until)
 		return false
 	}
 	acc, err := a.ns.LookupAccount(accName)
 	if err != nil {
 		s.logger.Warn("bus connection refused: unknown account", "account", accName,
-			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "error", err)
+			"identity", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "error", err)
 		return false
 	}
 	// The limits of the account are checked here: when RegisterUser fails on
@@ -197,7 +197,7 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	s.registerLock.Unlock()
 	if full {
 		s.logger.Warn("bus connection refused: the account has its maximum of connections", "account", accName,
-			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
+			"identity", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
 		return false
 	}
 	s.l.Lock()
@@ -292,9 +292,9 @@ func (s *Server) Revalidate() {
 			continue
 		}
 		s.logger.Info("closing a bus connection whose rights changed",
-			"name", e.c.grant.Kind+":"+e.c.grant.Name, "remote", addrString(e.c.creds.Remote), "error", err)
+			"identity", e.c.grant.Kind+":"+e.c.grant.Name, "remote", addrString(e.c.creds.Remote), "error", err)
 		if err := s.server().DisconnectClientByID(e.id); err != nil {
-			s.logger.Debug("failed to close a bus connection", "id", e.id, "error", err)
+			s.logger.Debug("failed to close a bus connection", "connection_id", e.id, "error", err)
 			if !present && recent {
 				// Not known to the server yet (or closed a moment ago):
 				// kept, and looked at again when it must be listed.

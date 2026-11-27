@@ -160,7 +160,7 @@ func (ch *checkRunner) ensureCompiledSchedule() error {
 // scaling action, applying check-level and policy-level error handling.
 func (ch *checkRunner) getNewCountFromStrategy(ctx context.Context, count int64,
 	metrics sdk.TimestampedMetrics) (sdk.ScalingAction, error) {
-	ch.log.Debug("calculating new count", "desired count", count)
+	ch.log.Debug("calculating new count", "desired_count", count)
 
 	a, err := ch.runStrategy(ctx, count, metrics)
 	if err != nil {

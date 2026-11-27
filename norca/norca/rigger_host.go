@@ -560,7 +560,7 @@ func (h *hclogHandler) Handle(_ context.Context, r slog.Record) error {
 		return true
 	})
 
-	h.logger.Log(hclogLevel(r.Level), r.Message, args...)
+	h.logger.Log(hclogLevel(r.Level), r.Message, args...) //logcheck:ignore an slog record forwarded
 
 	return nil
 }

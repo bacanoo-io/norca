@@ -454,7 +454,7 @@ func (a *ACL) GetClaimPolicies(args *structs.GenericRequest, reply *structs.ACLP
 	if claims == nil {
 		// Calling this RPC without a workload identity is either a bug or an
 		// attacker as this RPC is not exposed to users directly.
-		a.logger.Debug("ACL.GetClaimPolicies called without a workload identity", "id", args.GetIdentity())
+		a.logger.Debug("ACL.GetClaimPolicies called without a workload identity", "identity", args.GetIdentity().String())
 		return structs.ErrPermissionDenied
 	}
 
@@ -463,7 +463,7 @@ func (a *ACL) GetClaimPolicies(args *structs.GenericRequest, reply *structs.ACLP
 		// Likely only hit if a job/alloc has been GC'd on the server but the
 		// client hasn't stopped it yet. Return Permission Denied as there's no way
 		// this call should error that leaves the claims valid.
-		a.logger.Warn("Policies could not be resolved for claims", "error", err, "id", args.GetIdentity())
+		a.logger.Warn("policies could not be resolved for claims", "error", err, "identity", args.GetIdentity().String())
 		return structs.ErrPermissionDenied
 	}
 

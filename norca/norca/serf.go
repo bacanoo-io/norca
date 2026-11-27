@@ -175,7 +175,7 @@ func (s *Server) maybeBootstrap() {
 			if err := s.connPool.RPC(s.config.Region, server.Addr,
 				"Status.Peers", req, &peers); err != nil {
 				nextRetry := (1 << attempt) * peerRetryBase
-				s.logger.Error("failed to confirm peer status", "peer", server.Name, "error", err, "retry", nextRetry)
+				s.logger.Error("failed to confirm peer status", "server", server.Name, "error", err, "retry", nextRetry)
 				time.Sleep(nextRetry)
 			} else {
 				break
@@ -195,7 +195,7 @@ func (s *Server) maybeBootstrap() {
 		// for this server, but it makes things much more stable.
 		if len(peers) > 0 {
 			s.logger.Info("disabling bootstrap mode because existing Raft peers being reported by peer",
-				"peer_name", server.Name, "peer_address", server.Addr)
+				"server", server.Name, "server_addr", server.Addr)
 			s.bootstrapped.Store(true)
 			return
 		}

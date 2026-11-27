@@ -311,7 +311,7 @@ func (s *Server) keepOwnTaskGroups(report *structs.TaskGroupUsageReport) {
 	if last := s.busTelemetryForeignLogged.Load(); now-last > int64(telemetryForeignLogInterval) &&
 		s.busTelemetryForeignLogged.CompareAndSwap(last, now) {
 		s.logger.Warn("system bus: a usage report named task groups its node has no allocation of; they are left out",
-			"node", report.NodeID, "groups", foreign, "total", total)
+			"node_id", report.NodeID, "groups", foreign, "total", total)
 	}
 }
 

@@ -354,7 +354,8 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	var t *targetState
 	var err error
 	if c.object != nil {
-		logger = logger.With("object", c.object.String())
+		logger = logger.With("namespace", c.object.namespace,
+			"object_kind", structs.ObjectKindRef(c.object.group, c.object.kind), "object_name", c.object.name)
 		t, err = readObjectTarget(store, c.key, c.object)
 	} else {
 		t, err = readTarget(store, c.key)
@@ -366,7 +367,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	// A nil target indicates the job doesn't exist; the policy goes away
 	// with it.
 	if t == nil {
-		logger.Debug("skipping evaluation", "reason", errTargetNotFound)
+		logger.Debug("skipping evaluation", "reason", errTargetNotFound.Error())
 		eval.Outcome = outcomeTargetGone
 		return nil
 	}
