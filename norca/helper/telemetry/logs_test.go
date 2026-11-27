@@ -105,6 +105,7 @@ func TestProviders_LogsExport(t *testing.T) {
 	p, logger := newAgentProviders(t, c, &out)
 	logger.Info("before the start", "phase", "setup")
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 
 	ctx, span := p.TracerProvider().Tracer("test").Start(t.Context(), "Job.Register")
 	LogWith(logger.Named("worker"), ctx).Debug("eval processed", "eval_id", "e1", "count", 2,
@@ -176,6 +177,7 @@ func TestProviders_LogsLoopGuard(t *testing.T) {
 	var out syncBuffer
 	p, logger := newAgentProviders(t, logsOnly(srv.Addr, "trace"), &out)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 
 	const lines = 20
 	for i := range lines {
@@ -236,6 +238,7 @@ func TestProviders_LogsShutdownCollectorDown(t *testing.T) {
 		Logs:         &LogsConfig{Enabled: pointer.Of(true), Events: &EventsConfig{Enabled: pointer.Of(true)}},
 	}, &out)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	for i := range 100 {
 		logger.Info("pending", "i", i)
 		_, span := p.TracerProvider().Tracer("test").Start(t.Context(), "pending")
@@ -272,6 +275,7 @@ func TestProviders_LogsIgnoreOTELEnvironment(t *testing.T) {
 	var out syncBuffer
 	p, logger := newAgentProviders(t, logsOnly(srv.Addr, "info"), &out)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	logger.Info("one", "key", "value")
 	logger.Info("two")
 	must.NoError(t, flush(t, p))
@@ -306,6 +310,7 @@ func TestProviders_EventExport(t *testing.T) {
 	must.Eq(t, []string{"Job", "Secret"}, exp.Topics())
 	must.ErrorIs(t, exp.Export(t.Context(), []Event{{Topic: "Job"}}), errNotRunning)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 
 	stored := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
 	big := `{"Job":{"ID":"` + strings.Repeat("é", MaxEventBody) + `"}}`

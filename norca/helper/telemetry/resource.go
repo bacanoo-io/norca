@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -22,8 +24,11 @@ const (
 	RoleClient = "client"
 )
 
-// Identity describes the agent for the resource attributes. It is known only
-// once the agent runs: the client loads or creates its node ID at start.
+// Identity describes the agent for the resource attributes. It is complete
+// only once the agent runs: the client loads or creates its node ID at
+// start, and the server its Raft ID. Before that, Start gets what is known
+// from the configuration (version, host, region, datacenter); Identify
+// completes it.
 type Identity struct {
 	// Version is the agent version (service.version).
 	Version string
@@ -109,4 +114,62 @@ func newResource(ctx context.Context, id Identity, user map[string]string) (*res
 		return nil, fmt.Errorf("building the telemetry resource: %w", err)
 	}
 	return res, nil
+}
+
+// agentResource is the resource the exporters put on what they export, read
+// at export time.
+//
+// The providers start before the agent (Start), so the setup of the server
+// and the client and their first work (a new leader's evaluations) are
+// traced and measured, while the resource is complete only once the agent
+// runs (Identify). Until then the exports are held: the spans in the span
+// queue, the metrics in the export of the periodic reader (up to its
+// timeout), the log lines in the log sink. Nothing goes out with an
+// incomplete resource, which would show the agent as another instance for
+// a while; what ended before Identify goes out with the complete one. Only
+// a shutdown before Identify (a failed startup) lets them go, with the
+// resource known then.
+type agentResource struct {
+	current atomic.Pointer[resource.Resource]
+
+	// complete is closed by Identify, or by a shutdown before it.
+	complete  chan struct{}
+	closeOnce sync.Once
+}
+
+func newAgentResource() *agentResource {
+	return &agentResource{complete: make(chan struct{})}
+}
+
+// set makes res the resource of the exports from now on.
+func (r *agentResource) set(res *resource.Resource) {
+	r.current.Store(res)
+}
+
+// load returns the resource of the exports: nil before Start, or when r is
+// nil (an exporter built without one, in tests).
+func (r *agentResource) load() *resource.Resource {
+	if r == nil {
+		return nil
+	}
+	return r.current.Load()
+}
+
+// release lets the held exports go on, with the resource set by then.
+func (r *agentResource) release() {
+	r.closeOnce.Do(func() { close(r.complete) })
+}
+
+// wait blocks until release or the end of ctx, and returns the resource. A
+// nil r does not wait.
+func (r *agentResource) wait(ctx context.Context) (*resource.Resource, error) {
+	if r == nil {
+		return nil, nil
+	}
+	select {
+	case <-r.complete:
+		return r.load(), nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("waiting for the identity of the agent: %w", context.Cause(ctx))
+	}
 }

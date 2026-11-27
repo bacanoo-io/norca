@@ -191,13 +191,14 @@ func aggregationSelector(histograms string) sdkmetric.AggregationSelector {
 
 // spanExporter pins the agent's resource on every exported span (the SDK
 // would add the attributes of OTEL_RESOURCE_ATTRIBUTES to it) and reports
-// the export errors of the traces signal.
+// the export errors of the traces signal. The resource is read at export
+// time: the spans that ended before Identify, which the span queue holds
+// until then, get the complete one.
 type spanExporter struct {
 	next sdktrace.SpanExporter
 	errs *errorReporter
 
-	// resource is set by Start, before any span exists.
-	resource *resource.Resource
+	resource *agentResource
 
 	// done, set by Start, is told the size of every batch once the export
 	// is over, and whether it failed (spanQueue).
@@ -215,9 +216,10 @@ type pinnedSpan struct {
 func (s pinnedSpan) Resource() *resource.Resource { return s.resource }
 
 func (e *spanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	res := e.resource.load()
 	pinned := make([]sdktrace.ReadOnlySpan, len(spans))
 	for i, s := range spans {
-		pinned[i] = pinnedSpan{ReadOnlySpan: s, resource: e.resource}
+		pinned[i] = pinnedSpan{ReadOnlySpan: s, resource: res}
 	}
 	err := e.next.ExportSpans(ctx, pinned)
 	if e.done != nil {
@@ -235,20 +237,30 @@ func (e *spanExporter) Shutdown(ctx context.Context) error {
 }
 
 // metricExporter pins the agent's resource on every export and reports the
-// export errors of the metrics signal.
+// export errors of the metrics signal. An export before Identify waits for
+// it, within the export's timeout: the reader collected the data already,
+// and the SDK reuses its memory after the export, so the data cannot be
+// kept for later. The first export comes one interval (30s by default)
+// after Start, so it waits only for a setup longer than that; past the
+// timeout the export fails and the next one carries the cumulative values
+// (delta values of that interval are lost).
 type metricExporter struct {
 	sdkmetric.Exporter
 	errs *errorReporter
 
-	// resource is set by Start, before the reader runs.
-	resource *resource.Resource
+	resource *agentResource
 }
 
 var _ sdkmetric.Exporter = (*metricExporter)(nil)
 
 func (e *metricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
+	res, err := e.resource.wait(ctx)
+	if err != nil {
+		e.errs.export(SignalMetrics, err)
+		return &exportError{signal: SignalMetrics, err: err}
+	}
 	pinned := *rm
-	pinned.Resource = e.resource
+	pinned.Resource = res
 	if err := e.Exporter.Export(ctx, &pinned); err != nil {
 		e.errs.export(SignalMetrics, err)
 		return &exportError{signal: SignalMetrics, err: err}

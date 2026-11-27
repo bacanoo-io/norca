@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	metrics "github.com/hashicorp/go-metrics"
@@ -44,12 +45,23 @@ var (
 // The limit (traces.max_queue_size) thus covers the queue, the batch being
 // assembled and the batch being exported, which the SDK's own limit does
 // not; the difference is at most two batches.
+//
+// Until release (Identify, or a shutdown before it) the queue holds the
+// spans itself instead of handing them on, so that none is exported before
+// the agent's resource is complete (agentResource); the held spans count
+// toward the limit too.
 type spanQueue struct {
 	next  sdktrace.SpanProcessor
 	limit int64
 
-	// pending counts the spans handed to next and not yet done.
+	// pending counts the spans held or handed to next and not yet done.
 	pending atomic.Int64
+
+	// released is set once the held spans went to next; from then on
+	// OnEnd hands every span on without taking mu.
+	released atomic.Bool
+	mu       sync.Mutex
+	held     []sdktrace.ReadOnlySpan
 }
 
 var _ sdktrace.SpanProcessor = (*spanQueue)(nil)
@@ -77,7 +89,37 @@ func (q *spanQueue) OnEnd(s sdktrace.ReadOnlySpan) {
 		metrics.IncrCounterWithLabels(droppedKey, 1, droppedSpansQueueFull)
 		return
 	}
+	if !q.released.Load() && q.hold(s) {
+		return
+	}
 	q.next.OnEnd(s)
+}
+
+// hold keeps s until release; it reports false when the release came first.
+func (q *spanQueue) hold(s sdktrace.ReadOnlySpan) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.released.Load() {
+		return false
+	}
+	q.held = append(q.held, s)
+	return true
+}
+
+// release hands the held spans to the batch processor, in the order they
+// ended, and every later span directly. Its queue is as large as the limit,
+// which the held spans count toward, so it takes them all.
+func (q *spanQueue) release() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.released.Load() {
+		return
+	}
+	for _, s := range q.held {
+		q.next.OnEnd(s)
+	}
+	q.held = nil
+	q.released.Store(true)
 }
 
 // done is called by the exporter once it is done with a batch of n spans;
@@ -93,6 +135,9 @@ func (q *spanQueue) ForceFlush(ctx context.Context) error {
 	return q.next.ForceFlush(ctx)
 }
 
+// Shutdown releases the held spans (a shutdown before Identify exports them
+// with the resource known then) and shuts the batch processor down.
 func (q *spanQueue) Shutdown(ctx context.Context) error {
+	q.release()
 	return q.next.Shutdown(ctx)
 }

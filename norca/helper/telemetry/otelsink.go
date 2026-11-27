@@ -79,9 +79,9 @@ type OTelSinkOptions struct {
 // dropped. The prefix filters of go-metrics apply before any sink.
 //
 // The sink can exist before its meter provider: it is created with the
-// fanout and bound once the providers start, which need the IDs of the
-// running agent. Until then it keeps the gauge and counter series, so the
-// counts since the agent started are not lost, and drops the samples.
+// fanout and bound once the providers start, just before the agent. Until
+// then it keeps the gauge and counter series, so the counts since the
+// telemetry was set up are not lost, and drops the samples.
 type OTelSink struct {
 	logger hclog.Logger
 	expiry time.Duration

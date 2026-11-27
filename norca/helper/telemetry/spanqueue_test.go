@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/ci"
 	metrics "github.com/hashicorp/go-metrics"
 	"github.com/shoenig/test/must"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -74,6 +75,7 @@ func TestSpanQueue_Dropped(t *testing.T) {
 		sdktrace.WithMaxExportBatchSize(2),
 		sdktrace.WithBatchTimeout(time.Millisecond),
 	)
+	queue.release()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithSpanProcessor(queue))
 	tracer := tp.Tracer("test")
 
@@ -101,4 +103,51 @@ func TestSpanQueue_Dropped(t *testing.T) {
 	must.Eq(t, map[string]float64{dropQueueFull: 6, dropExportFailed: 3}, droppedSpans(sink))
 	must.Eq(t, int64(0), queue.pending.Load())
 	must.NoError(t, tp.Shutdown(t.Context()))
+}
+
+// Until release the queue holds the spans, within its limit, and hands them
+// on in order at release; a shutdown releases them too.
+func TestSpanQueue_HoldsUntilRelease(t *testing.T) {
+	ci.Parallel(t)
+
+	newQueue := func() (*spanQueue, *sdktrace.TracerProvider, *gateExporter) {
+		gate := &gateExporter{release: make(chan struct{})}
+		close(gate.release)
+		exp := &spanExporter{next: gate, errs: newErrorReporter(testLogger(&syncBuffer{}))}
+		queue := newSpanQueue(exp, 3, sdktrace.WithBatchTimeout(time.Millisecond))
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithSpanProcessor(queue))
+		return queue, tp, gate
+	}
+	exported := func(g *gateExporter) int {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return g.exported
+	}
+
+	queue, tp, gate := newQueue()
+	tracer := tp.Tracer("test")
+	for range 5 {
+		_, span := tracer.Start(t.Context(), "s")
+		span.End()
+	}
+	must.NoError(t, tp.ForceFlush(t.Context()))
+	must.Eq(t, 0, exported(gate), must.Sprint("held"))
+	must.Eq(t, int64(3), queue.pending.Load(), must.Sprint("the held spans count toward the limit"))
+
+	queue.release()
+	must.NoError(t, tp.ForceFlush(t.Context()))
+	must.Eq(t, 3, exported(gate))
+	_, span := tracer.Start(t.Context(), "after")
+	span.End()
+	must.NoError(t, tp.ForceFlush(t.Context()))
+	must.Eq(t, 4, exported(gate), must.Sprint("handed on directly"))
+	must.Eq(t, int64(0), queue.pending.Load())
+	must.NoError(t, tp.Shutdown(t.Context()))
+
+	queue, tp, gate = newQueue()
+	_, span = tp.Tracer("test").Start(t.Context(), "s")
+	span.End()
+	must.NoError(t, tp.Shutdown(t.Context()))
+	must.Eq(t, 1, exported(gate), must.Sprint("a shutdown releases"))
+	must.True(t, queue.released.Load())
 }

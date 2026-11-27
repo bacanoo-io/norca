@@ -67,12 +67,17 @@ type EventExporter struct {
 	topics []string
 	exp    sdklog.Exporter
 
+	// resource tells when the agent's identity is complete: an export
+	// waits for it, as the providers start before the agent and a new
+	// leader may export before the agent runs.
+	resource *agentResource
+
 	// logger is bound when the providers start and cleared when they stop.
 	logger atomic.Pointer[otelLoggerRef]
 }
 
-func newEventExporter(exp sdklog.Exporter, topics []string) *EventExporter {
-	return &EventExporter{exp: exp, topics: slices.Clone(topics)}
+func newEventExporter(exp sdklog.Exporter, topics []string, res *agentResource) *EventExporter {
+	return &EventExporter{exp: exp, topics: slices.Clone(topics), resource: res}
 }
 
 // Topics returns the exported topics.
@@ -93,8 +98,16 @@ func (e *EventExporter) close() {
 }
 
 // Export sends the events as one batch of log records: the payload as the
-// body, the topic, type, key, namespace and index as attributes.
+// body, the topic, type, key, namespace and index as attributes. Before the
+// agent's identity is complete (Identify) it waits for it, until ctx ends.
 func (e *EventExporter) Export(ctx context.Context, events []Event) error {
+	if e.logger.Load() == nil {
+		return errNotRunning
+	}
+	if _, err := e.resource.wait(ctx); err != nil {
+		return err
+	}
+	// the providers may have stopped meanwhile
 	ref := e.logger.Load()
 	if ref == nil {
 		return errNotRunning

@@ -35,8 +35,9 @@ const (
 // itself; they still go to the agent's other log outputs.
 const LogKeyOTLPInternal = "otlp_internal"
 
-// earlyLogRecords bounds the log records the sink keeps until the providers
-// start (the agent's setup); the ones beyond it are dropped.
+// earlyLogRecords bounds the log records the sink keeps until it is bound,
+// once the agent's identity is complete (the agent's setup); the ones
+// beyond it are dropped.
 const earlyLogRecords = 1024
 
 // The severities of the hclog levels, as the OpenTelemetry log data model
@@ -58,14 +59,15 @@ var logSeverities = [...]struct {
 // the agent, under the intercept logger's lock, so a line below its level
 // costs one atomic load.
 //
-// Until the providers start it keeps up to earlyLogRecords records, which
-// it emits at start; the lines of the agent's setup are exported too.
+// Until it is bound (Providers.Identify, once the agent runs) it keeps up
+// to earlyLogRecords records, which it emits then; the lines of the agent's
+// setup are exported too, with the agent's complete resource.
 type LogSink struct {
 	level  atomic.Int32
 	closed atomic.Bool
 	now    func() time.Time
 
-	// logger is set once, when the providers start.
+	// logger is set once, when the agent's identity is complete.
 	logger atomic.Pointer[otelLoggerRef]
 
 	mu           sync.Mutex
@@ -77,7 +79,7 @@ var _ hclog.SinkAdapter = (*LogSink)(nil)
 
 type otelLoggerRef struct{ otellog.Logger }
 
-// earlyLogRecord is a record made before the providers started.
+// earlyLogRecord is a record made before the sink was bound.
 type earlyLogRecord struct {
 	record otellog.Record
 	span   trace.SpanContext
@@ -118,8 +120,8 @@ func (s *LogSink) close() {
 	s.closed.Store(true)
 }
 
-// EarlyDropped returns the number of records dropped before the providers
-// started because the sink kept earlyLogRecords already.
+// EarlyDropped returns the number of records dropped before the sink was
+// bound because it kept earlyLogRecords already.
 func (s *LogSink) EarlyDropped() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

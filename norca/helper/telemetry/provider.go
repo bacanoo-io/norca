@@ -61,17 +61,23 @@ var spanLimits = sdktrace.SpanLimits{
 // instrumentation keeps its no-op default; only the W3C Trace Context and
 // Baggage propagator is set globally.
 //
-// The lifecycle has two steps because the resource needs the IDs of the
-// running agent while a bad file must fail the startup before the agent
-// runs: New (before the agent) reads the files and creates the exporters,
-// Start (after the agent) creates the providers. Shutdown works after
-// either step.
+// The lifecycle has three steps, because a bad file must fail the startup
+// before the agent runs, the setup of the agent is to be traced, and the
+// resource needs the IDs of the running agent: New (before the agent) reads
+// the files and creates the exporters, Start (still before the agent)
+// creates the providers with what is known of the agent then, and Identify
+// (once the agent runs) completes the resource and lets the exports go out
+// (agentResource). Shutdown works after any step.
 type Providers struct {
 	logger   hclog.Logger
 	settings *Settings
 	errs     *errorReporter
 	conns    *connections
 	sampler  *ratioSampler
+
+	// resource is the resource of the exports, set by Start and completed
+	// by Identify, which releases the exports held until then.
+	resource *agentResource
 
 	// tracing is the trace instrumentation handed to the server, the
 	// client and the HTTP API; it exists from New and is bound in Start.
@@ -80,22 +86,26 @@ type Providers struct {
 	spans   *spanExporter
 	metrics *metricExporter
 
+	// queue holds the spans until Identify; set by Start.
+	queue *spanQueue
+
 	// sink bridges go-metrics to the meter provider (metrics signal on);
 	// it exists from New and is bound in Start.
 	sink *OTelSink
 
 	// logs exports the agent's log lines, which logSink takes from the
 	// intercept logger (logs signal on); both exist from New, and the sink
-	// is bound in Start.
+	// is bound in Identify: it keeps the lines until then.
 	logs    *logExporter
 	logSink *LogSink
 
 	// events exports the event stream (logs.events on); it exists from New
-	// and is bound in Start.
+	// and is bound in Start; its exports wait for Identify.
 	events *EventExporter
 
 	mu             sync.Mutex
 	started        bool
+	identified     bool
 	stopped        bool
 	tracer         *sdktrace.TracerProvider
 	meter          *sdkmetric.MeterProvider
@@ -117,6 +127,7 @@ func New(s *Settings, logger hclog.Logger, userAgent string) (*Providers, error)
 		errs:     newErrorReporter(logger),
 		conns:    &connections{settings: s, userAgent: userAgent},
 		sampler:  newRatioSampler(s.Traces.SampleRatio),
+		resource: newAgentResource(),
 		tracing:  newTracing(s.Traces),
 	}
 	if err := p.newExporters(); err != nil {
@@ -146,7 +157,7 @@ func (p *Providers) newExporters() error {
 		if err != nil {
 			return fmt.Errorf("telemetry.otlp.traces: creating the exporter: %w", err)
 		}
-		p.spans = &spanExporter{next: exp, errs: p.errs}
+		p.spans = &spanExporter{next: exp, errs: p.errs, resource: p.resource}
 	}
 	if s.Metrics.Enabled {
 		c, err := p.conns.get(s.Metrics.Target)
@@ -157,7 +168,7 @@ func (p *Providers) newExporters() error {
 		if err != nil {
 			return fmt.Errorf("telemetry.otlp.metrics: creating the exporter: %w", err)
 		}
-		p.metrics = &metricExporter{Exporter: exp, errs: p.errs}
+		p.metrics = &metricExporter{Exporter: exp, errs: p.errs, resource: p.resource}
 		p.sink = NewOTelSink(nil, OTelSinkOptions{Logger: p.logger})
 	}
 	if s.Logs.Enabled {
@@ -179,15 +190,17 @@ func (p *Providers) newExporters() error {
 				return fmt.Errorf("telemetry.otlp.logs.events: creating the exporter: %w", err)
 			}
 			p.events = newEventExporter(&logExporter{Exporter: exp, errs: p.errs, signal: SignalEvents},
-				s.Logs.Events.Topics)
+				s.Logs.Events.Topics, p.resource)
 		}
 	}
 	return nil
 }
 
-// Start creates the providers with the resource of the running agent,
-// installs the error handler and the global propagator, and starts the
-// periodic metric export. It is called once.
+// Start creates the providers, installs the error handler and the global
+// propagator, and starts the periodic metric export. It is called once,
+// before the agent, with what is known of it then (id without the IDs of
+// the client and the server): from now on the agent's work is traced and
+// measured, while the exports wait for Identify.
 func (p *Providers) Start(id Identity) error {
 	if p == nil {
 		return nil
@@ -201,6 +214,8 @@ func (p *Providers) Start(id Identity) error {
 	if err != nil {
 		return err
 	}
+	p.resource.set(res)
+	p.conns.pinResource(res)
 	installErrorHandler(p.errs)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, propagation.Baggage{}))
@@ -218,19 +233,18 @@ func (p *Providers) Start(id Identity) error {
 		sdktrace.WithRawSpanLimits(spanLimits),
 	}
 	if p.spans != nil {
-		p.spans.resource = res
 		t := p.settings.Traces
-		topts = append(topts, sdktrace.WithSpanProcessor(newSpanQueue(p.spans, t.MaxQueueSize,
+		p.queue = newSpanQueue(p.spans, t.MaxQueueSize,
 			sdktrace.WithMaxExportBatchSize(t.MaxExportBatch),
 			sdktrace.WithBatchTimeout(batchTimeout),
 			sdktrace.WithExportTimeout(p.settings.Timeout),
-		)))
+		)
+		topts = append(topts, sdktrace.WithSpanProcessor(p.queue))
 	}
 	p.tracer = sdktrace.NewTracerProvider(topts...)
 	p.tracing.bind(p.tracer)
 
 	if p.metrics != nil {
-		p.metrics.resource = res
 		p.meter = sdkmetric.NewMeterProvider(
 			sdkmetric.WithResource(res),
 			sdkmetric.WithExemplarFilter(exemplar.AlwaysOffFilter),
@@ -244,7 +258,6 @@ func (p *Providers) Start(id Identity) error {
 	}
 
 	if p.logs != nil {
-		p.conns.pinResource(res)
 		p.logProvider = sdklog.NewLoggerProvider(
 			sdklog.WithResource(res),
 			sdklog.WithAttributeCountLimit(logAttributeCountMax),
@@ -256,8 +269,6 @@ func (p *Providers) Start(id Identity) error {
 				sdklog.WithExportTimeout(p.settings.Timeout),
 			)),
 		)
-		p.logSink.Bind(p.logProvider.Logger(InstrumentationName,
-			otellog.WithInstrumentationVersion(version.GetVersion().VersionNumber())))
 	}
 	if p.events != nil {
 		// the events cut their bodies themselves (MaxEventBody)
@@ -271,6 +282,46 @@ func (p *Providers) Start(id Identity) error {
 	}
 	p.started = true
 	return nil
+}
+
+// Identify completes the resource with the IDs of the running agent and
+// lets the exports held since Start go out with it: the spans that ended
+// meanwhile, a metric export waiting, the log lines of the setup, the
+// events. It is called once, after Start.
+func (p *Providers) Identify(id Identity) error {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.started || p.stopped || p.identified {
+		return errors.New("telemetry: the providers are not started, are identified already or stopped")
+	}
+	res, err := newResource(context.Background(), id, p.settings.ResourceAttributes)
+	if err != nil {
+		return err
+	}
+	// the resource first, so whatever the release lets go carries it
+	p.resource.set(res)
+	p.conns.pinResource(res)
+	p.release()
+	p.identified = true
+	return nil
+}
+
+// release lets the held exports go: the spans to the batch processor, the
+// waiting metric and event exports, and the log lines the sink kept to the
+// log provider. Called with p.mu held, by Identify or by a shutdown before
+// it.
+func (p *Providers) release() {
+	p.resource.release()
+	if p.queue != nil {
+		p.queue.release()
+	}
+	if p.logSink != nil && p.logProvider != nil {
+		p.logSink.Bind(p.logProvider.Logger(InstrumentationName,
+			otellog.WithInstrumentationVersion(version.GetVersion().VersionNumber())))
+	}
 }
 
 // TracerProvider returns the agent's tracer provider, or a no-op one when
@@ -323,7 +374,7 @@ func (p *Providers) MetricSink() *OTelSink {
 // LogSink returns the hclog sink of the logs signal, to register on the
 // agent's intercept logger; nil when the logs export is off, so no sink is
 // registered. It exists before Start and keeps the lines of the agent's
-// setup until then.
+// setup until Identify.
 func (p *Providers) LogSink() *LogSink {
 	if p == nil {
 		return nil
@@ -340,7 +391,8 @@ func (p *Providers) EventExporter() *EventExporter {
 	return p.events
 }
 
-// ForceFlush exports what the providers hold.
+// ForceFlush exports what the providers hold. Before Identify the held
+// spans stay held and the metrics wait for it within the deadline of ctx.
 func (p *Providers) ForceFlush(ctx context.Context) error {
 	if p == nil {
 		return nil
@@ -403,7 +455,9 @@ func sameExceptReloadable(a, b *Settings) bool {
 // Shutdown flushes and stops the traces first, then the metrics, then the
 // logs (so the lines of the shutdown go out), within the deadline of ctx,
 // and closes the connections. The export errors of the final flush are not
-// logged; the caller reports the returned error.
+// logged; the caller reports the returned error. A shutdown between Start
+// and Identify (the agent failed to start) exports what was held, with the
+// resource known at Start.
 func (p *Providers) Shutdown(ctx context.Context) error {
 	if p == nil {
 		return nil
@@ -414,6 +468,9 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	p.stopped = true
+	if !p.identified {
+		p.release()
+	}
 	tracer, meter, logProvider, eventsProvider := p.tracer, p.meter, p.logProvider, p.eventsProvider
 	p.mu.Unlock()
 	p.errs.quiet.Store(true)

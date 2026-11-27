@@ -62,6 +62,10 @@ type Command struct {
 
 	// otlp is the OTLP export of telemetry.otlp, nil without the block.
 	otlp *telemetry.Providers
+
+	// agentSetUp, set by tests only, runs once the agent is set up, before
+	// the OTLP export gets the agent's identity.
+	agentSetUp func(*Agent)
 }
 
 func (c *Command) readConfig() *Config {
@@ -742,7 +746,8 @@ func (c *Command) Run(args []string) int {
 	}
 
 	// Create the OTLP exporters before the agent, so a bad file fails the
-	// startup; the providers start once the agent has its IDs.
+	// startup; the providers start before the agent too, and get its IDs
+	// once it runs.
 	var err error
 	c.otlp, err = c.setupOTLP(config, logger)
 	if err != nil {
@@ -757,6 +762,14 @@ func (c *Command) Run(args []string) int {
 	if err != nil {
 		c.shutdownOTLP(os.Stderr)
 		c.Ui.Error(fmt.Sprintf("Error initializing telemetry: %s", err))
+		return 1
+	}
+
+	// Start the OTLP providers, so the setup of the agent and its first
+	// work are traced; the exports wait for the agent's identity
+	if err := c.startOTLP(config); err != nil {
+		c.shutdownOTLP(os.Stderr)
+		c.Ui.Error(fmt.Sprintf("Error starting OTLP telemetry: %s", err))
 		return 1
 	}
 
@@ -782,7 +795,10 @@ func (c *Command) Run(args []string) int {
 		c.shutdownOTLP(os.Stderr)
 	}()
 
-	if err := c.startOTLP(config); err != nil {
+	if c.agentSetUp != nil {
+		c.agentSetUp(c.agent)
+	}
+	if err := c.identifyOTLP(config); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error starting OTLP telemetry: %s", err))
 		return 1
 	}

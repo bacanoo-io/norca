@@ -41,16 +41,29 @@ func registerOTLPLogSink(logger hclog.InterceptLogger, otlp *telemetry.Providers
 	}
 }
 
-// startOTLP starts the providers once the agent runs, because the resource
-// carries the client's node ID, which the client loads or creates at start.
+// startOTLP starts the providers before the agent, so the setup of the
+// server and the client and their first work (a new leader's evaluations)
+// are traced and measured. The resource lacks the IDs of the client and the
+// server until identifyOTLP; the exports wait for it.
 func (c *Command) startOTLP(config *Config) error {
 	if c.otlp == nil {
 		return nil
 	}
-	return c.otlp.Start(otlpIdentity(config, c.agent))
+	return c.otlp.Start(otlpIdentity(config, nil))
 }
 
-// otlpIdentity describes the running agent for the resource attributes.
+// identifyOTLP completes the resource once the agent runs, with the
+// client's node ID, which the client loads or creates at start, and the
+// server's ID, and lets the held exports go out.
+func (c *Command) identifyOTLP(config *Config) error {
+	if c.otlp == nil {
+		return nil
+	}
+	return c.otlp.Identify(otlpIdentity(config, c.agent))
+}
+
+// otlpIdentity describes the agent for the resource attributes; without a
+// running agent (nil) only what the configuration tells.
 func otlpIdentity(config *Config, agent *Agent) telemetry.Identity {
 	id := telemetry.Identity{
 		Version:    version.NorcaVersion,
@@ -62,6 +75,9 @@ func otlpIdentity(config *Config, agent *Agent) telemetry.Identity {
 		id.HostName = config.NodeName
 	} else if hostname, err := os.Hostname(); err == nil {
 		id.HostName = hostname
+	}
+	if agent == nil {
+		return id
 	}
 	if client := agent.Client(); client != nil {
 		id.NodeID = client.NodeID()

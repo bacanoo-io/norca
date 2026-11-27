@@ -42,6 +42,7 @@ func startProviders(t *testing.T, c *OTLPConfig) (*Providers, *syncBuffer) {
 	p, err := New(s, testLogger(&out), "norca-test/1")
 	must.NoError(t, err)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
 		defer cancel()
@@ -162,6 +163,7 @@ func TestProviders_MetricSink(t *testing.T) {
 
 	sink.SetGauge([]string{"norca", "runtime", "num_goroutines"}, 42)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	sink.AddSample([]string{"norca", "raft", "apply"}, 3)
 	must.NoError(t, p.ForceFlush(t.Context()))
 
@@ -425,6 +427,7 @@ func TestProviders_ClosedPort(t *testing.T) {
 	p, err := New(s, testLogger(&out), "norca-test/1")
 	must.NoError(t, err)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	must.Less(t, time.Second, time.Since(start), must.Sprint("no dial at startup"))
 
 	for range 3 {
@@ -466,6 +469,7 @@ func TestProviders_ShutdownCollectorDown(t *testing.T) {
 	p, err := New(s, testLogger(&out), "norca-test/1")
 	must.NoError(t, err)
 	must.NoError(t, p.Start(testIdentity))
+	must.NoError(t, p.Identify(testIdentity))
 	for i := range 10 {
 		_, span := p.TracerProvider().Tracer("test").Start(t.Context(), "pending")
 		span.End()
@@ -492,6 +496,7 @@ func TestProviders_Lifecycle(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		var p *Providers
 		must.NoError(t, p.Start(testIdentity))
+		must.NoError(t, p.Identify(testIdentity))
 		must.NoError(t, p.ForceFlush(t.Context()))
 		must.NoError(t, p.Reload(nil))
 		must.ErrorContains(t, p.Reload(&OTLPConfig{}), "restart")
@@ -509,6 +514,7 @@ func TestProviders_Lifecycle(t *testing.T) {
 		must.NoError(t, err)
 		p, err := New(s, testLogger(&syncBuffer{}), "ua")
 		must.NoError(t, err)
+		must.Error(t, p.Identify(testIdentity), must.Sprint("not started"))
 		must.NoError(t, p.Shutdown(t.Context()))
 		must.Error(t, p.Start(testIdentity))
 	})
@@ -521,6 +527,7 @@ func TestProviders_Lifecycle(t *testing.T) {
 			Traces:       &TracesConfig{Enabled: pointer.Of(false), SampleRatio: pointer.Of(1.0)},
 		})
 		must.Error(t, p.Start(testIdentity), must.Sprint("started once"))
+		must.Error(t, p.Identify(testIdentity), must.Sprint("identified once"))
 		_, span := p.TracerProvider().Tracer("t").Start(t.Context(), "s")
 		must.True(t, span.SpanContext().IsValid(), must.Sprint("a trace ID exists without the traces export"))
 		span.End()
@@ -555,6 +562,118 @@ func TestProviders_Lifecycle(t *testing.T) {
 		must.NoError(t, p.Shutdown(t.Context()))
 		must.Len(t, 2, out.lines("without TLS"), must.Sprint("traces and metrics; logs are off"))
 	})
+}
+
+// The providers start before the agent with a part of its identity: what is
+// traced, measured, logged or exported as events from then on waits for
+// Identify and goes out with the complete resource, the spans that ended
+// before it included (decision 24 of the plan).
+func TestProviders_StartWindow(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := otlptest.Start(t, otlptest.Options{})
+	c := &OTLPConfig{
+		TargetConfig: TargetConfig{Endpoint: srv.Addr},
+		Traces:       sampled(),
+		Logs: &LogsConfig{
+			Enabled: pointer.Of(true),
+			Events:  &EventsConfig{Enabled: pointer.Of(true), Topics: []string{"Job"}},
+		},
+	}
+	p, logger := newAgentProviders(t, c, &syncBuffer{})
+	must.NoError(t, p.Start(Identity{Version: "0.3.0", HostName: "host-a", Region: "global"}))
+
+	// the agent's setup: a span, a metric, a log line, an event
+	_, span := p.TracerProvider().Tracer("test").Start(t.Context(), "eval.process")
+	span.End()
+	counter, err := p.MeterProvider().Meter("test").Int64Counter("test.counter")
+	must.NoError(t, err)
+	counter.Add(t.Context(), 1)
+	logger.Info("leadership established")
+	exported := make(chan error, 1)
+	go func() {
+		exported <- p.EventExporter().Export(t.Context(), []Event{{Topic: "Job", Payload: []byte(`{}`)}})
+	}()
+
+	// nothing goes out before Identify: the spans and the log lines are
+	// held, a metric or event export waits until its deadline
+	short, cancelShort := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancelShort()
+	must.ErrorIs(t, p.ForceFlush(short), context.DeadlineExceeded)
+	waitCtx, cancelWait := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancelWait()
+	must.ErrorIs(t, p.EventExporter().Export(waitCtx, []Event{{Topic: "Job"}}), context.DeadlineExceeded)
+	must.SliceEmpty(t, srv.Traces())
+	must.SliceEmpty(t, srv.Metrics())
+	must.SliceEmpty(t, srv.Logs())
+
+	must.NoError(t, p.Identify(testIdentity))
+	must.NoError(t, <-exported)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	must.NoError(t, p.ForceFlush(ctx))
+
+	complete := func(attrs map[string]*commonpb.AnyValue) {
+		t.Helper()
+		must.Eq(t, "node-1", attrs["norca.node.id"].GetStringValue())
+		must.Eq(t, "server-1", attrs["norca.server.id"].GetStringValue())
+		must.Eq(t, "node-1", attrs["service.instance.id"].GetStringValue())
+	}
+	traces := srv.Traces()
+	must.Len(t, 1, traces)
+	rs := traces[0].Request.GetResourceSpans()[0]
+	must.Eq(t, "eval.process", rs.GetScopeSpans()[0].GetSpans()[0].GetName())
+	complete(resourceAttrs(rs.GetResource()))
+	ms := srv.Metrics()
+	must.SliceNotEmpty(t, ms)
+	for _, m := range ms {
+		complete(resourceAttrs(m.Request.GetResourceMetrics()[0].GetResource()))
+	}
+	var bodies []string
+	for _, l := range receivedLogs(srv) {
+		complete(l.resource)
+		bodies = append(bodies, l.record.GetBody().GetStringValue())
+	}
+	must.SliceContains(t, bodies, "leadership established")
+	must.SliceContains(t, bodies, "{}")
+}
+
+// A shutdown between Start and Identify (the agent failed to start)
+// exports what was held, with the resource known at Start, within its
+// deadline.
+func TestProviders_ShutdownBeforeIdentify(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := otlptest.Start(t, otlptest.Options{})
+	c := &OTLPConfig{
+		TargetConfig: TargetConfig{Endpoint: srv.Addr},
+		Traces:       sampled(),
+		Logs:         &LogsConfig{Enabled: pointer.Of(true)},
+	}
+	p, logger := newAgentProviders(t, c, &syncBuffer{})
+	must.NoError(t, p.Start(Identity{Version: "0.3.0", HostName: "host-a", Region: "global"}))
+	_, span := p.TracerProvider().Tracer("test").Start(t.Context(), "setup")
+	span.End()
+	logger.Error("error starting agent")
+
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
+	defer cancel()
+	must.NoError(t, p.Shutdown(ctx))
+	must.Less(t, ShutdownTimeout, time.Since(start))
+
+	traces := srv.Traces()
+	must.Len(t, 1, traces)
+	attrs := resourceAttrs(traces[0].Request.GetResourceSpans()[0].GetResource())
+	must.Eq(t, "global", attrs["norca.region"].GetStringValue())
+	_, hasNode := attrs["norca.node.id"]
+	must.False(t, hasNode)
+	must.SliceNotEmpty(t, srv.Metrics(), must.Sprint("the final metric export does not wait"))
+	var bodies []string
+	for _, l := range receivedLogs(srv) {
+		bodies = append(bodies, l.record.GetBody().GetStringValue())
+	}
+	must.SliceContains(t, bodies, "error starting agent")
 }
 
 // The signals with the same target share one connection.

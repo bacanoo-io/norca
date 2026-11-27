@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -21,6 +22,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/telemetry/otlptest"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/version"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
@@ -48,6 +51,15 @@ func TestOTLPIdentity(t *testing.T) {
 
 	s.Config.Telemetry.UseNodeName = true
 	must.Eq(t, s.Config.NodeName, otlpIdentity(s.Config, s.Agent).HostName)
+
+	// before the agent runs: what the configuration tells
+	before := otlpIdentity(s.Config, nil)
+	must.Eq(t, telemetry.Identity{
+		Version:    version.NorcaVersion,
+		Region:     s.Config.Region,
+		Datacenter: s.Config.Datacenter,
+		HostName:   s.Config.NodeName,
+	}, before)
 }
 
 // otlpAgentFile writes the configuration of a -dev agent on free ports with
@@ -182,6 +194,118 @@ func TestCommand_OTLP_Export(t *testing.T) {
 		must.StrHasPrefix(t, "norca.", name)
 	}
 	must.Eq(t, "ms", names["norca.memberlist.gossip"], must.Sprint("timers are histograms in milliseconds"))
+}
+
+// What the agent does before it has its identity (the providers get it once
+// the agent is set up) is traced and exported with the complete resource:
+// the hook holds the identity back until the leader processed the
+// evaluation of a job registered meanwhile, as a restarted server does with
+// the evaluations it enqueues again (decision 24 of the plan). Not
+// parallel: Command.Run sets process-wide state.
+func TestCommand_OTLP_StartWindow(t *testing.T) {
+	srv := otlptest.Start(t, otlptest.Options{})
+	file := otlpAgentFile(t, fmt.Sprintf(`otlp {
+    endpoint = %q
+    metrics { enabled = false }
+    traces  { sample_ratio = 1.0 }
+  }`, srv.Addr))
+
+	type hookResult struct {
+		evalID string
+		err    error
+	}
+	hooked := make(chan hookResult, 1)
+	ui := cli.NewMockUi()
+	stop := make(chan struct{})
+	cmd := &Command{Version: version.GetVersion(), Ui: ui, ShutdownCh: stop}
+	cmd.agentSetUp = func(a *Agent) {
+		id, err := processEval(a)
+		hooked <- hookResult{evalID: id, err: err}
+	}
+	done := make(chan int, 1)
+	go func() { done <- cmd.Run([]string{"-dev", "-config=" + file}) }()
+	exited := false
+	defer func() {
+		if !exited {
+			close(stop)
+			waitExit(t, done, 30*time.Second)
+		}
+	}()
+
+	var res hookResult
+	select {
+	case res = <-hooked:
+	case code := <-done:
+		exited = true
+		t.Fatalf("the agent exited with %d before its setup was done:\n%s", code, ui.ErrorWriter.String())
+	case <-time.After(90 * time.Second):
+		t.Fatal("the agent's setup did not end")
+	}
+	must.NoError(t, res.err)
+
+	// the eval.process span of the evaluation, with the agent's IDs
+	evalSpan := func(s *otlptest.Server) *resourcepb.Resource {
+		for _, req := range s.Traces() {
+			for _, rs := range req.Request.GetResourceSpans() {
+				for _, ss := range rs.GetScopeSpans() {
+					for _, span := range ss.GetSpans() {
+						if span.GetName() != telemetry.SpanEvalProcess {
+							continue
+						}
+						for _, kv := range span.GetAttributes() {
+							if kv.GetKey() == string(telemetry.AttrEvalID) && kv.GetValue().GetStringValue() == res.evalID {
+								return rs.GetResource()
+							}
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}
+	ok := srv.Wait(30*time.Second, func(s *otlptest.Server) bool { return evalSpan(s) != nil })
+	must.True(t, ok, must.Sprintf("no eval.process span of evaluation %s", res.evalID))
+	attrs := protoAttrs(evalSpan(srv))
+	nodeID := attrs["norca.node.id"].GetStringValue()
+	must.NotEq(t, "", nodeID)
+	must.Eq(t, nodeID, attrs["service.instance.id"].GetStringValue())
+	must.NotEq(t, "", attrs["norca.server.id"].GetStringValue())
+	must.Eq(t, "global", attrs["norca.region"].GetStringValue())
+}
+
+// processEval registers a job on the agent's server once it leads and waits
+// until a worker processed its evaluation, whose ID it returns.
+func processEval(a *Agent) (string, error) {
+	server := a.Server()
+	deadline := time.Now().Add(60 * time.Second)
+	for !server.IsLeader() {
+		if time.Now().After(deadline) {
+			return "", errors.New("the server did not become the leader")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	job := mock.Job()
+	req := &structs.JobRegisterRequest{
+		Job:          job,
+		WriteRequest: structs.WriteRequest{Region: a.config.Region, Namespace: job.Namespace},
+	}
+	var resp structs.JobRegisterResponse
+	if err := a.RPC("Job.Register", req, &resp); err != nil {
+		return "", fmt.Errorf("registering the job: %w", err)
+	}
+	for {
+		eval, err := server.State().EvalByID(nil, resp.EvalID)
+		if err != nil {
+			return resp.EvalID, err
+		}
+		if eval != nil && eval.Status != structs.EvalStatusPending {
+			return resp.EvalID, nil
+		}
+		if time.Now().After(deadline) {
+			return resp.EvalID, errors.New("the evaluation was not processed")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // exportedMetrics returns the names of the metrics the receiver got, with
