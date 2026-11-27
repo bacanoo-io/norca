@@ -5,8 +5,10 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +25,13 @@ const (
 
 	// attrExceptionStacktrace holds a stack trace hclog captured.
 	attrExceptionStacktrace = "exception.stacktrace"
+
+	// attrExceptionMessage and attrExceptionType describe the error of a
+	// line; the log SDK sets them from the record's error, except on a
+	// record with an exception.* attribute already (a stack trace), where
+	// the sink sets them itself.
+	attrExceptionMessage = "exception.message"
+	attrExceptionType    = "exception.type"
 
 	// logKeyError is the key of the error of a log line; its value becomes
 	// the error of the record (exception.message and exception.type).
@@ -190,6 +199,7 @@ func (s *LogSink) record(name string, level hclog.Level, msg string, args []any)
 	}
 
 	var span trace.SpanContextConfig
+	var hasStack bool
 	n := len(args)
 	if n%2 != 0 {
 		// hclog logs an odd last value as a stack trace or under its
@@ -198,6 +208,7 @@ func (s *LogSink) record(name string, level hclog.Level, msg string, args []any)
 		n--
 		if st, ok := last.(hclog.CapturedStacktrace); ok {
 			r.AddAttributes(otellog.String(attrExceptionStacktrace, string(st)))
+			hasStack = true
 		} else {
 			r.AddAttributes(otellog.KeyValue{Key: hclog.MissingKey, Value: logValue(last)})
 		}
@@ -219,12 +230,57 @@ func (s *LogSink) record(name string, level hclog.Level, msg string, args []any)
 		case logKeyError:
 			if err, ok := value.(error); ok && err != nil {
 				r.SetErr(err)
+				if hasStack {
+					// the SDK skips its exception attributes next to
+					// exception.stacktrace
+					r.AddAttributes(exceptionAttrs(err)...)
+				}
 				continue
 			}
 		}
 		r.AddAttributes(otellog.KeyValue{Key: key, Value: logValue(value)})
 	}
 	return r, trace.NewSpanContext(span)
+}
+
+// exceptionAttrs returns exception.message and exception.type of err as the
+// log SDK makes them: the type is the ErrorType() of err, or the package
+// and name of its type, looking through fmt.Errorf wrappers.
+func exceptionAttrs(err error) []otellog.KeyValue {
+	var attrs []otellog.KeyValue
+	if msg := err.Error(); msg != "" {
+		attrs = append(attrs, otellog.String(attrExceptionMessage, msg))
+	}
+	if typ := errorType(err); typ != "" {
+		attrs = append(attrs, otellog.String(attrExceptionType, typ))
+	}
+	return attrs
+}
+
+// fmtWrapErrorType is the type of an error made by fmt.Errorf with one %w.
+var fmtWrapErrorType = reflect.TypeOf(fmt.Errorf("w: %w", errors.New("e")))
+
+func errorType(err error) string {
+	if et, ok := err.(interface{ ErrorType() string }); ok {
+		if s := et.ErrorType(); s != "" {
+			return s
+		}
+	}
+	for reflect.TypeOf(err) == fmtWrapErrorType {
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			break
+		}
+		err = inner
+	}
+	t := reflect.TypeOf(err)
+	if t == nil {
+		return ""
+	}
+	if pkg, name := t.PkgPath(), t.Name(); pkg != "" && name != "" {
+		return pkg + "." + name
+	}
+	return t.String()
 }
 
 func logKey(k any) string {

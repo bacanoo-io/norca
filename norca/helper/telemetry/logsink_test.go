@@ -216,6 +216,37 @@ func TestLogSink_Error(t *testing.T) {
 	must.False(t, set)
 }
 
+type typedError struct{}
+
+func (typedError) Error() string     { return "typed" }
+func (typedError) ErrorType() string { return "norca.typed" }
+
+// A line with an error and a captured stack trace keeps both: the SDK skips
+// exception.message and exception.type on a record with an exception.*
+// attribute, so the sink sets them the way the SDK would.
+func TestLogSink_ErrorWithStacktrace(t *testing.T) {
+	ci.Parallel(t)
+
+	sink, mem := boundSink(t, hclog.Trace)
+	err := fmt.Errorf("wrapped: %w", io.EOF)
+	sink.Accept("agent", hclog.Error, "failed", "error", err)
+	sink.Accept("agent", hclog.Error, "failed", "error", err, hclog.CapturedStacktrace("goroutine 1 [running]"))
+	sink.Accept("agent", hclog.Error, "failed", "error", typedError{}, hclog.CapturedStacktrace("stack"))
+
+	records := mem.all()
+	must.Len(t, 3, records)
+	bySDK, withStack := recordAttrs(records[0]), recordAttrs(records[1])
+	must.Eq(t, "goroutine 1 [running]", withStack["exception.stacktrace"].AsString())
+	must.Eq(t, bySDK["exception.message"].AsString(), withStack["exception.message"].AsString())
+	must.Eq(t, bySDK["exception.type"].AsString(), withStack["exception.type"].AsString())
+	// norca.logger, the stack trace, the message and the type
+	must.Eq(t, 4, records[1].AttributesLen(), must.Sprintf("%v", withStack))
+
+	typed := recordAttrs(records[2])
+	must.Eq(t, "typed", typed["exception.message"].AsString())
+	must.Eq(t, "norca.typed", typed["exception.type"].AsString())
+}
+
 func TestLogSink_TraceContext(t *testing.T) {
 	ci.Parallel(t)
 
