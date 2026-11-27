@@ -413,13 +413,13 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		if shutdown {
 			return
 		}
+		logger := w.logger.With("eval_id", eval.ID, "job_id", eval.JobID, "namespace", eval.Namespace)
 
 		// since dequeue takes time, we could have shutdown the server after
 		// getting an eval that needs to be nacked before we exit. Explicitly
 		// check the server whether to allow this eval to be processed.
 		if w.srv.IsShutdown() {
-			w.logger.Warn("nacking eval because the server is shutting down",
-				"eval_id", eval.ID)
+			logger.Warn("nacking eval because the server is shutting down")
 			w.sendNack(eval, token)
 			return
 		}
@@ -430,8 +430,8 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		if err != nil {
 			var timeoutErr ErrMinIndexDeadlineExceeded
 			if errors.As(err, &timeoutErr) {
-				w.logger.Warn("timeout waiting for Raft index required by eval",
-					"eval_id", eval.ID, "index", waitIndex, "timeout", raftSyncLimit)
+				logger.Warn("timeout waiting for Raft index required by eval",
+					"index", waitIndex, "timeout", raftSyncLimit)
 				w.sendNack(eval, token)
 
 				// Timing out above means this server is woefully behind the
@@ -441,18 +441,18 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 				// this server would be up to date enough to process it.
 				slowServerSyncLimit := 10 * raftSyncLimit
 				if _, err := w.snapshotMinIndex(waitIndex, slowServerSyncLimit); err != nil {
-					w.logger.Warn("server is unable to catch up to last eval's index", "error", err)
+					logger.Warn("server is unable to catch up to last eval's index", "error", err)
 				}
 
 			} else if errors.Is(err, context.Canceled) {
 				// If the server has shutdown while we're waiting, we'll get the
 				// Canceled error from the worker's context. We need to nack any
 				// dequeued evals before we exit.
-				w.logger.Warn("nacking eval because the server is shutting down", "eval_id", eval.ID)
+				logger.Warn("nacking eval because the server is shutting down")
 				w.sendNack(eval, token)
 				return
 			} else {
-				w.logger.Error("error waiting for Raft index", "error", err, "index", waitIndex)
+				logger.Error("error waiting for Raft index", "error", err, "index", waitIndex)
 				w.sendNack(eval, token)
 			}
 
@@ -462,7 +462,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		// Invoke the scheduler to determine placements
 		w.setWorkloadStatus(WorkloadScheduling)
 		if err := w.invokeScheduler(snap, eval, token); err != nil {
-			w.logger.Error("error invoking scheduler", "error", err)
+			logger.Error("error invoking scheduler", "error", err)
 			w.sendNack(eval, token)
 			continue
 		}

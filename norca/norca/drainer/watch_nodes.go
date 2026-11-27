@@ -51,6 +51,7 @@ func (n *NodeDrainer) Update(node *structs.Node) {
 	if node == nil {
 		return
 	}
+	logger := n.logger.With("node_id", node.ID)
 
 	draining, ok := n.nodes[node.ID]
 	if !ok {
@@ -72,17 +73,17 @@ func (n *NodeDrainer) Update(node *structs.Node) {
 	// Register interest in the draining jobs.
 	jobs, err := draining.DrainingJobs()
 	if err != nil {
-		n.logger.Error("error retrieving draining jobs on node", "node_id", node.ID, "error", err)
+		logger.Error("error retrieving draining jobs on node", "error", err)
 		return
 	}
-	n.logger.Trace("node has draining jobs on it", "node_id", node.ID, "num_jobs", len(jobs))
+	logger.Trace("node has draining jobs on it", "num_jobs", len(jobs))
 	n.jobWatcher.RegisterJobs(jobs)
 
 	// Check if the node is done such that if an operator drains a node with
 	// nothing on it we unset drain
 	done, err := draining.IsDone()
 	if err != nil {
-		n.logger.Error("failed to check if node is done draining", "node_id", node.ID, "error", err)
+		logger.Error("failed to check if node is done draining", "error", err)
 		return
 	}
 
@@ -91,12 +92,12 @@ func (n *NodeDrainer) Update(node *structs.Node) {
 		// node as complete.
 		remaining, err := draining.RemainingAllocs()
 		if err != nil {
-			n.logger.Error("error getting remaining allocs on drained node", "node_id", node.ID, "error", err)
+			logger.Error("error getting remaining allocs on drained node", "error", err)
 		} else if len(remaining) > 0 {
 			future := structs.NewBatchFuture()
 			n.drainAllocs(future, remaining)
 			if err := future.Wait(); err != nil {
-				n.logger.Error("failed to drain remaining allocs from done node", "num_allocs", len(remaining), "node_id", node.ID, "error", err)
+				logger.Error("failed to drain remaining allocs from done node", "num_allocs", len(remaining), "error", err)
 			}
 		}
 
@@ -107,9 +108,9 @@ func (n *NodeDrainer) Update(node *structs.Node) {
 
 		index, err := n.raft.NodesDrainComplete([]string{node.ID}, event)
 		if err != nil {
-			n.logger.Error("failed to unset drain for node", "node_id", node.ID, "error", err)
+			logger.Error("failed to unset drain for node", "error", err)
 		} else {
-			n.logger.Info("node completed draining at index", "node_id", node.ID, "index", index)
+			logger.Info("node completed draining at index", "index", index)
 		}
 	}
 }

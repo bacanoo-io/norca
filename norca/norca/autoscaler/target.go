@@ -58,6 +58,15 @@ func (k targetKey) String() string {
 	return fmt.Sprintf("%s/%s/%s", k.namespace, k.job, k.group)
 }
 
+// logFields returns the key/value pairs a log line names the target with:
+// the node group, or the namespace, job and task group.
+func (k targetKey) logFields() []any {
+	if k.kind == targetKindNodeGroup {
+		return []any{"node_group", k.job}
+	}
+	return []any{"namespace", k.namespace, "job_id", k.job, "task_group", k.group}
+}
+
 // targetKeyFromPolicy returns the task group targeted by a policy.
 func targetKeyFromPolicy(p *structs.ScalingPolicy) (targetKey, bool) {
 	if name := p.Target[structs.ScalingTargetNodeGroup]; name != "" {

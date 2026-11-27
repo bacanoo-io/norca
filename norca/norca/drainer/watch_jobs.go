@@ -193,18 +193,20 @@ func (w *drainingJobWatcher) watch() {
 		currentJobs := w.drainingJobs()
 		var allDrain, allMigrated []*structs.Allocation
 		for jns, allocs := range jobAllocs {
+			logger := w.logger.With("job_id", jns.ID, "namespace", jns.Namespace)
+
 			// Check if the job is still registered
 			if _, ok := currentJobs[jns]; !ok {
-				w.logger.Trace("skipping job as it is no longer registered for draining", "job_id", jns.ID, "namespace", jns.Namespace)
+				logger.Trace("skipping job as it is no longer registered for draining")
 				continue
 			}
 
-			w.logger.Trace("handling job", "job_id", jns.ID, "namespace", jns.Namespace)
+			logger.Trace("handling job")
 
 			// Lookup the job
 			job, err := snap.JobByID(nil, jns.Namespace, jns.ID)
 			if err != nil {
-				w.logger.Warn("failed to lookup job", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
+				logger.Warn("failed to lookup job", "error", err)
 				continue
 			}
 
@@ -217,12 +219,12 @@ func (w *drainingJobWatcher) watch() {
 			if job == nil {
 				result, err := handlePurgedJob(snap, allocs, lastHandled)
 				if err != nil {
-					w.logger.Error("handling drain for purged job failed", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
+					logger.Error("handling drain for purged job failed", "error", err)
 					continue
 				}
 				allMigrated = append(allMigrated, result.migrated...)
 				if result.done {
-					w.logger.Trace("purged job has no allocation left on a draining node", "job_id", jns.ID, "namespace", jns.Namespace)
+					logger.Trace("purged job has no allocation left on a draining node")
 					w.deregisterJob(jns.ID, jns.Namespace)
 				}
 				continue
@@ -236,11 +238,11 @@ func (w *drainingJobWatcher) watch() {
 
 			result, err := handleJob(snap, job, allocs, lastHandled)
 			if err != nil {
-				w.logger.Error("handling drain for job failed", "job_id", jns.ID, "namespace", jns.Namespace, "error", err)
+				logger.Error("handling drain for job failed", "error", err)
 				continue
 			}
 
-			w.logger.Trace("received result for job", "job_id", jns.ID, "namespace", jns.Namespace, "result", result)
+			logger.Trace("received result for job", "result", result)
 
 			allDrain = append(allDrain, result.drain...)
 			allMigrated = append(allMigrated, result.migrated...)

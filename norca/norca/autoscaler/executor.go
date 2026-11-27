@@ -123,7 +123,7 @@ func (e *executor) forget(key targetKey) {
 // the Hold constants, and "" for an action that was made.
 func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.ScalingAction, check string, now time.Time) (string, error) {
 	key := c.key
-	logger := e.logger.With("policy_id", c.policy.ID, "target", key.String())
+	logger := e.logger.With(append([]any{"policy_id", c.policy.ID}, key.logFields()...)...)
 
 	// If the policy is configured with dry-run:true then we set the action
 	// count to nil so its no-nop. This allows us to still register a scaling

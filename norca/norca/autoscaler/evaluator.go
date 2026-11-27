@@ -329,7 +329,7 @@ const outcomeTargetGone = "target gone"
 // evaluatePolicy is the evaluation itself; it fills in eval as it goes. An
 // outcome it leaves empty is OutcomeNone.
 func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Evaluation) error {
-	logger := r.logger.With("policy_id", c.policy.ID, "target", c.key.String())
+	logger := r.logger.With(append([]any{"policy_id", c.policy.ID}, c.key.logFields()...)...)
 	now := eval.Time
 
 	if c.schedule != nil && !c.schedule.activeAt(now) {
@@ -354,8 +354,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	var t *targetState
 	var err error
 	if c.object != nil {
-		logger = logger.With("namespace", c.object.namespace,
-			"object_kind", structs.ObjectKindRef(c.object.group, c.object.kind), "object_name", c.object.name)
+		logger = logger.With("object_kind", structs.ObjectKindRef(c.object.group, c.object.kind), "object_name", c.object.name)
 		t, err = readObjectTarget(store, c.key, c.object)
 	} else {
 		t, err = readTarget(store, c.key)

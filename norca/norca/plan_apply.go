@@ -139,6 +139,8 @@ func (p *planner) planApply() {
 		default:
 		}
 
+		logger := planLogger(p.srv.logger, pending.plan)
+
 		if snap != nil {
 			// If snapshot doesn't contain the previous plan
 			// result's index and the current plan's snapshot it,
@@ -157,16 +159,16 @@ func (p *planner) planApply() {
 		if planIndexCh == nil || snap == nil {
 			snap, err = p.snapshotMinIndex(prevPlanResultIndex, pending.plan.SnapshotIndex)
 			if err != nil {
-				p.srv.logger.Error("failed to snapshot state", "error", err)
+				logger.Error("failed to snapshot state", "error", err)
 				pending.respond(nil, err)
 				continue
 			}
 		}
 
 		// Evaluate the plan
-		result, err := evaluatePlan(pool, snap, pending.plan, p.srv.logger)
+		result, err := evaluatePlan(pool, snap, pending.plan, logger)
 		if err != nil {
-			p.srv.logger.Error("failed to evaluate plan", "error", err)
+			logger.Error("failed to evaluate plan", "error", err)
 			pending.respond(nil, err)
 			continue
 		}
@@ -192,7 +194,7 @@ func (p *planner) planApply() {
 			prevPlanResultIndex = max(prevPlanResultIndex, idx)
 			snap, err = p.snapshotMinIndex(prevPlanResultIndex, pending.plan.SnapshotIndex)
 			if err != nil {
-				p.srv.logger.Error("failed to update snapshot state", "error", err)
+				logger.Error("failed to update snapshot state", "error", err)
 				pending.respond(nil, err)
 				continue
 			}
@@ -201,7 +203,7 @@ func (p *planner) planApply() {
 		// Dispatch the Raft transaction for the plan
 		future, err := p.applyPlan(pending.plan, result, snap)
 		if err != nil {
-			p.srv.logger.Error("failed to submit plan", "error", err)
+			logger.Error("failed to submit plan", "error", err)
 			pending.respond(nil, err)
 			continue
 		}
@@ -476,7 +478,7 @@ func (p *planner) asyncPlanWait(indexCh chan<- uint64, future raft.ApplyFuture,
 
 	// Wait for the plan to apply
 	if err := future.Error(); err != nil {
-		p.srv.logger.Error("failed to apply plan", "error", err)
+		planLogger(p.srv.logger, pending.plan).Error("failed to apply plan", "error", err)
 		pending.respond(nil, err)
 		return
 	}
@@ -494,6 +496,16 @@ func (p *planner) asyncPlanWait(indexCh chan<- uint64, future raft.ApplyFuture,
 	}
 	pending.respond(result, nil)
 	indexCh <- index
+}
+
+// planLogger returns the logger of the application of a plan: with the IDs
+// of its evaluation and job.
+func planLogger(logger log.Logger, plan *structs.Plan) log.Logger {
+	kv := []any{"eval_id", plan.EvalID}
+	if plan.Job != nil {
+		kv = append(kv, "job_id", plan.Job.ID, "namespace", plan.Job.Namespace)
+	}
+	return logger.With(kv...)
 }
 
 // evaluatePlan is used to determine what portions of a plan
@@ -528,7 +540,7 @@ func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.P
 			return nil, err
 		}
 
-		logger.Debug("plan for evaluation exceeds quota limit. Forcing state refresh", "eval_id", plan.EvalID, "refresh_index", index)
+		logger.Debug("plan for evaluation exceeds quota limit. Forcing state refresh", "refresh_index", index)
 		return &structs.PlanResult{RefreshIndex: index}, nil
 	}
 
@@ -546,7 +558,7 @@ func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.P
 			return nil, err
 		}
 		logger.Debug("plan for evaluation breaks a required colocate or separate rule. Forcing state refresh",
-			"eval_id", plan.EvalID, "refresh_index", index, "placements", violations)
+			"refresh_index", index, "placements", violations)
 		return &structs.PlanResult{RefreshIndex: index}, nil
 	}
 
@@ -573,7 +585,7 @@ func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.P
 	}
 	if overQuota {
 		logger.Debug("the part of the plan that can be applied exceeds quota limit. Forcing state refresh",
-			"eval_id", plan.EvalID, "refresh_index", result.RefreshIndex)
+			"refresh_index", result.RefreshIndex)
 		return &structs.PlanResult{RefreshIndex: result.RefreshIndex}, nil
 	}
 	return result, nil
@@ -633,8 +645,7 @@ func evaluatePlanPlacements(pool *EvaluatePool, snap *state.StateSnapshot, plan 
 				//monitor the disagreement between workers and
 				//the plan applier.
 				logger.Info("plan for node rejected because of a resource conflict on the node (see upstream Nomad issue #9506)",
-					"node_id", nodeID, "reason", reason, "eval_id", plan.EvalID,
-					"namespace", plan.Job.Namespace)
+					"node_id", nodeID, "reason", reason)
 			}
 			// Set that this is a partial commit and store the node that was
 			// rejected so the plan applier can detect repeated plan rejections
