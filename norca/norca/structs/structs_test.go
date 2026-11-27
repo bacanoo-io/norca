@@ -7882,3 +7882,34 @@ func TestSpread_Equal(t *testing.T) {
 		Apply: func(s *Spread) { s.SpreadTarget = nil },
 	}})
 }
+
+// The traceparent of a request travels in its arguments: over msgpack RPC
+// and in the Raft log entry, with the generated codec as well
+// (-tags codegen_generated).
+func TestInternalRpcInfo_TraceParent(t *testing.T) {
+	ci.Parallel(t)
+
+	const tp = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+	write := &JobRegisterRequest{Job: &Job{ID: "web"}}
+	var info RPCInfo = write
+	info.SetTraceParent(tp)
+	must.Eq(t, tp, info.GetTraceParent())
+
+	buf, err := Encode(JobRegisterRequestType, write)
+	must.NoError(t, err)
+	var outWrite JobRegisterRequest
+	must.NoError(t, Decode(buf[1:], &outWrite))
+	must.Eq(t, tp, outWrite.TraceParent)
+
+	query := &JobListRequest{}
+	query.SetTraceParent(tp)
+	buf, err = Encode(JobRegisterRequestType, query)
+	must.NoError(t, err)
+	var outQuery JobListRequest
+	must.NoError(t, Decode(buf[1:], &outQuery))
+	must.Eq(t, tp, outQuery.GetTraceParent())
+
+	// the names of the Raft message types (stringer)
+	must.Eq(t, "JobRegisterRequestType", JobRegisterRequestType.String())
+}

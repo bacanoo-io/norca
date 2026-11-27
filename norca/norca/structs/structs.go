@@ -315,6 +315,10 @@ type RPCInfo interface {
 	// so Callers should readback TimeToBlock. E.g. you cannot set time to block at all on WriteRequests
 	// and it cannot exceed MaxBlockingRPCQueryTime
 	SetTimeToBlock(t time.Duration)
+	// GetTraceParent and SetTraceParent read and write the W3C traceparent
+	// of the request's trace (Norca).
+	GetTraceParent() string
+	SetTraceParent(string)
 }
 
 // InternalRpcInfo allows adding internal RPC metadata to an RPC. This struct
@@ -322,6 +326,23 @@ type RPCInfo interface {
 type InternalRpcInfo struct {
 	// Forwarded marks whether the RPC has been forwarded.
 	Forwarded bool
+
+	// TraceParent is the W3C traceparent of the span the request belongs
+	// to, empty without one (Norca). Msgpack RPC has no headers, so the
+	// trace context travels in the arguments: the HTTP API sets it, the
+	// RPC server replaces it with its own span, and forwarding and the
+	// Raft log entry carry it on. Never a trace state or baggage.
+	TraceParent string
+}
+
+// GetTraceParent returns the W3C traceparent of the request's span.
+func (i *InternalRpcInfo) GetTraceParent() string {
+	return i.TraceParent
+}
+
+// SetTraceParent sets the W3C traceparent of the request's span.
+func (i *InternalRpcInfo) SetTraceParent(traceParent string) {
+	i.TraceParent = traceParent
 }
 
 // IsForwarded returns whether the RPC is forwarded from another server.
