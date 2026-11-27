@@ -254,7 +254,7 @@ func (r *auditRecord) fields(err error) []any {
 
 // auditIdentity returns the key/value pairs of who made a call.
 func auditIdentity(ai *structs.AuthenticatedIdentity) []any {
-	kv := []any{"identity", ai.String()}
+	kv := []any{"identity", auditIdentityName(ai)}
 	if ai == nil {
 		return kv
 	}
@@ -268,4 +268,25 @@ func auditIdentity(ai *structs.AuthenticatedIdentity) []any {
 		kv = append(kv, "remote_ip", ai.RemoteIP.String())
 	}
 	return kv
+}
+
+// auditIdentityName names the caller as AuthenticatedIdentity.String does,
+// except for an identity with neither a token, claims, a client ID, a TLS
+// name nor a remote address (an in-process call with ACLs disabled), which
+// String would render as ":<nil>": that caller is "anonymous", and one with
+// only part of the TLS name and address gets the part it has.
+func auditIdentityName(ai *structs.AuthenticatedIdentity) string {
+	if ai == nil || ai.ACLToken != nil || ai.Claims != nil || ai.ClientID != "" {
+		return ai.String()
+	}
+	switch {
+	case ai.TLSName != "" && ai.RemoteIP != nil:
+		return ai.String()
+	case ai.TLSName != "":
+		return "tls:" + ai.TLSName
+	case ai.RemoteIP != nil:
+		return "ip:" + ai.RemoteIP.String()
+	default:
+		return "anonymous"
+	}
 }

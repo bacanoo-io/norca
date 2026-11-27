@@ -6,6 +6,7 @@ package norca
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"reflect"
 	"regexp"
@@ -260,6 +261,21 @@ func TestAuditRecord_fields(t *testing.T) {
 		{
 			name:     "unauthenticated",
 			expected: map[string]any{"identity": "unauthenticated"},
+		},
+		{
+			name:     "in-process without ACLs",
+			identity: &structs.AuthenticatedIdentity{},
+			expected: map[string]any{"identity": "anonymous"},
+		},
+		{
+			name:     "remote address only",
+			identity: &structs.AuthenticatedIdentity{RemoteIP: net.ParseIP("10.0.0.7")},
+			expected: map[string]any{"identity": "ip:10.0.0.7", "remote_ip": "10.0.0.7"},
+		},
+		{
+			name:     "TLS name and address",
+			identity: &structs.AuthenticatedIdentity{TLSName: "server.global.nomad", RemoteIP: net.ParseIP("10.0.0.8")},
+			expected: map[string]any{"identity": "server.global.nomad:10.0.0.8"},
 		},
 	}
 	for _, tc := range tests {
