@@ -99,6 +99,9 @@ type Providers struct {
 	logs    *logExporter
 	logSink *LogSink
 
+	// logQueue bounds and counts the log records; set by Start.
+	logQueue *logQueue
+
 	// events exports the event stream (logs.events on); it exists from New
 	// and is bound in Start; its exports wait for Identify.
 	events *EventExporter
@@ -258,16 +261,16 @@ func (p *Providers) Start(id Identity) error {
 	}
 
 	if p.logs != nil {
+		p.logQueue = newLogQueue(p.logs, logMaxQueueSize,
+			sdklog.WithExportMaxBatchSize(logMaxExportBatch),
+			sdklog.WithExportInterval(logExportInterval),
+			sdklog.WithExportTimeout(p.settings.Timeout),
+		)
 		p.logProvider = sdklog.NewLoggerProvider(
 			sdklog.WithResource(res),
 			sdklog.WithAttributeCountLimit(logAttributeCountMax),
 			sdklog.WithAttributeValueLengthLimit(logValueLengthMax),
-			sdklog.WithProcessor(sdklog.NewBatchProcessor(p.logs,
-				sdklog.WithMaxQueueSize(logMaxQueueSize),
-				sdklog.WithExportMaxBatchSize(logMaxExportBatch),
-				sdklog.WithExportInterval(logExportInterval),
-				sdklog.WithExportTimeout(p.settings.Timeout),
-			)),
+			sdklog.WithProcessor(p.logQueue),
 		)
 	}
 	if p.events != nil {
@@ -321,6 +324,11 @@ func (p *Providers) release() {
 	if p.logSink != nil && p.logProvider != nil {
 		p.logSink.Bind(p.logProvider.Logger(InstrumentationName,
 			otellog.WithInstrumentationVersion(version.GetVersion().VersionNumber())))
+		if n := p.logSink.EarlyDropped(); n > 0 {
+			countDropped(float32(n), droppedLogsSetupQueueFull)
+			p.logger.Warn("log lines of the agent's setup were not exported: the export keeps a limited number until it starts",
+				"dropped", n, "kept", earlyLogRecords)
+		}
 	}
 }
 
@@ -500,7 +508,8 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 	}
 	switch {
 	case logProvider != nil:
-		errs = append(errs, logProvider.Shutdown(ctx))
+		failures := p.logQueue.failures.Load()
+		errs = append(errs, logProvider.Shutdown(ctx), p.logQueue.errSince(failures))
 	case p.logs != nil:
 		errs = append(errs, p.logs.Shutdown(ctx))
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,8 +16,11 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/telemetry/otlptest"
 	"github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/shoenig/test/must"
 	"go.opentelemetry.io/otel/attribute"
+	otellog "go.opentelemetry.io/otel/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
@@ -377,4 +381,126 @@ func TestProtoResource(t *testing.T) {
 	must.True(t, attrs["bs"].GetArrayValue().GetValues()[0].GetBoolValue())
 	must.Eq(t, int64(2), attrs["is"].GetArrayValue().GetValues()[1].GetIntValue())
 	must.Eq(t, 0.5, attrs["fs"].GetArrayValue().GetValues()[0].GetDoubleValue())
+}
+
+// gateLogExporter holds every export until released, and fails it on
+// demand.
+type gateLogExporter struct {
+	release chan struct{}
+	fail    bool
+
+	mu       sync.Mutex
+	exported int
+}
+
+func (e *gateLogExporter) Export(ctx context.Context, records []sdklog.Record) error {
+	select {
+	case <-e.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if e.fail {
+		return errors.New("collector down")
+	}
+	e.mu.Lock()
+	e.exported += len(records)
+	e.mu.Unlock()
+	return nil
+}
+
+func (*gateLogExporter) Shutdown(context.Context) error   { return nil }
+func (*gateLogExporter) ForceFlush(context.Context) error { return nil }
+
+// droppedBy returns the dropped counters of one signal, by reason.
+func droppedBy(sink *metrics.InmemSink, signal string) map[string]float64 {
+	out := map[string]float64{}
+	for _, interval := range sink.Data() {
+		for _, c := range interval.Counters {
+			if c.Name != "norca.agent.otlp.dropped" {
+				continue
+			}
+			labels := map[string]string{}
+			for _, l := range c.Labels {
+				labels[l.Name] = l.Value
+			}
+			if labels["signal"] == signal {
+				out[labels["reason"]] += c.Sum
+			}
+		}
+	}
+	return out
+}
+
+// globalInmem makes an in-memory sink the go-metrics global for the test.
+func globalInmem(t *testing.T) *metrics.InmemSink {
+	t.Helper()
+	sink := metrics.NewInmemSink(time.Hour, time.Hour)
+	conf := metrics.DefaultConfig(MetricsServiceName)
+	conf.EnableHostname, conf.EnableRuntimeMetrics, conf.EnableHostnameLabel = false, false, false
+	_, err := metrics.NewGlobal(conf, sink)
+	must.NoError(t, err)
+	t.Cleanup(func() { _, _ = metrics.NewGlobal(metrics.DefaultConfig(""), &metrics.BlackholeSink{}) })
+	return sink
+}
+
+// The log records the queue can't keep and those of a failed export are
+// counted as dropped, like the spans. Not parallel: it replaces the global
+// go-metrics sink.
+func TestLogQueue_Dropped(t *testing.T) {
+	sink := globalInmem(t)
+
+	gate := &gateLogExporter{release: make(chan struct{})}
+	exp := &logExporter{Exporter: gate, errs: newErrorReporter(testLogger(&syncBuffer{})), signal: SignalLogs}
+	queue := newLogQueue(exp, 4,
+		sdklog.WithExportMaxBatchSize(2),
+		sdklog.WithExportInterval(time.Millisecond),
+	)
+	lp := sdklog.NewLoggerProvider(sdklog.WithProcessor(queue))
+	logger := lp.Logger("test")
+	emit := func(n int) {
+		for range n {
+			var r otellog.Record
+			r.SetBody(otellog.StringValue("line"))
+			logger.Emit(t.Context(), r)
+		}
+	}
+
+	// the exporter holds the first batch: 4 records fit, the other 6 drop
+	emit(10)
+	must.Eq(t, map[string]float64{dropQueueFull: 6}, droppedBy(sink, SignalLogs))
+
+	close(gate.release)
+	must.NoError(t, lp.ForceFlush(t.Context()))
+	gate.mu.Lock()
+	must.Eq(t, 4, gate.exported)
+	gate.mu.Unlock()
+	must.Eq(t, int64(0), queue.pending.Load())
+
+	// a failed export counts its records as dropped
+	gate.fail = true
+	emit(3)
+	must.NoError(t, lp.ForceFlush(t.Context()), must.Sprint("the error is the exporter's to report"))
+	must.Eq(t, int64(0), queue.pending.Load(), must.Sprint("both chunks were tried"))
+	must.Eq(t, map[string]float64{dropQueueFull: 6, dropExportFailed: 3}, droppedBy(sink, SignalLogs))
+	must.ErrorContains(t, queue.errSince(0), "collector down")
+	must.NoError(t, queue.errSince(2))
+	must.NoError(t, lp.Shutdown(t.Context()))
+}
+
+// The lines of the setup beyond the ones the sink keeps are counted at
+// Identify, with one warning. Not parallel: it replaces the global
+// go-metrics sink.
+func TestProviders_LogsSetupDropped(t *testing.T) {
+	sink := globalInmem(t)
+
+	srv := otlptest.Start(t, otlptest.Options{})
+	var out syncBuffer
+	p, logger := newAgentProviders(t, logsOnly(srv.Addr, "info"), &out)
+	must.NoError(t, p.Start(testIdentity))
+	for range earlyLogRecords + 6 {
+		logger.Info("setup")
+	}
+	must.NoError(t, p.Identify(testIdentity))
+	must.Eq(t, map[string]float64{dropSetupQueueFull: 6}, droppedBy(sink, SignalLogs))
+	must.Len(t, 1, out.lines("log lines of the agent's setup were not exported"))
 }

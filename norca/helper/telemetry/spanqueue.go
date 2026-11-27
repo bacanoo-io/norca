@@ -24,7 +24,17 @@ const (
 
 	// dropExportFailed: the export of a batch failed after its retries.
 	dropExportFailed = "export_failed"
+
+	// dropSetupQueueFull: the log sink kept earlyLogRecords lines of the
+	// agent's setup already, before the export started.
+	dropSetupQueueFull = "setup_queue_full"
 )
+
+// countDropped counts n records of telemetry the agent dropped; labels
+// name the signal and the reason.
+func countDropped(n float32, labels []metrics.Label) {
+	metrics.IncrCounterWithLabels(droppedKey, n, labels)
+}
 
 var (
 	droppedSpansQueueFull = []metrics.Label{
