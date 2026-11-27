@@ -545,6 +545,11 @@ type Config struct {
 	// nil without the otlp block, and then the server traces nothing.
 	Tracing *telemetry.Tracing
 
+	// EventExport sends the events of the event stream of the region as
+	// OTLP log records (telemetry.otlp.logs.events); the leader runs it.
+	// nil leaves the events unexported.
+	EventExport EventExporter
+
 	// SecretsAudit configures the append-only audit file of the built-in
 	// secret store on this server; nil disables the file (the SecretAccess
 	// event topic is always published).
