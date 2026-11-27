@@ -557,7 +557,7 @@ func TestIsValidConfig(t *testing.T) {
 // setupTelemetry replaces the go-metrics global.
 func TestCommand_SetupTelemetry_ServiceName(t *testing.T) {
 	cmd := &Command{Ui: cli.NewMockUi()}
-	inm, err := cmd.setupTelemetry(DefaultConfig())
+	inm, err := cmd.setupTelemetry(DefaultConfig(), nil)
 	require.NoError(t, err)
 
 	metrics.IncrCounter([]string{"server", "rpc", "request"}, 1)

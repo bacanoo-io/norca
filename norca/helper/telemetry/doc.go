@@ -3,9 +3,10 @@
 
 // Package telemetry is the OpenTelemetry part of the agent's telemetry: the
 // otlp block of the configuration, the resource, the OTLP/gRPC exporters,
-// the providers with their lifecycle, and the error reporting of the
-// export. The go-metrics setup (in-memory and Prometheus sinks) stays in
-// command/agent.
+// the providers with their lifecycle, the error reporting of the export,
+// the names of the agent's metrics and the go-metrics sink that bridges
+// them to the OTLP export. The go-metrics setup (in-memory and Prometheus
+// sinks, the fanout) stays in command/agent.
 //
 // The agent configuration is the only source of the settings: every option
 // that the exporters or the SDK would read from an OTEL_* environment

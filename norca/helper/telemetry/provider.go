@@ -72,6 +72,10 @@ type Providers struct {
 	spans   *spanExporter
 	metrics *metricExporter
 
+	// sink bridges go-metrics to the meter provider (metrics signal on);
+	// it exists from New and is bound in Start.
+	sink *OTelSink
+
 	mu      sync.Mutex
 	started bool
 	stopped bool
@@ -130,6 +134,7 @@ func (p *Providers) newExporters() error {
 			return fmt.Errorf("telemetry.otlp.metrics: creating the exporter: %w", err)
 		}
 		p.metrics = &metricExporter{Exporter: exp, errs: p.errs}
+		p.sink = NewOTelSink(nil, OTelSinkOptions{Logger: p.logger})
 	}
 	// The logs signal (phase 5 of the plan) gets its exporter here from
 	// s.Logs.Target, in the same way, once the log SDK is linked.
@@ -186,6 +191,7 @@ func (p *Providers) Start(id Identity) error {
 				sdkmetric.WithTimeout(p.settings.Timeout),
 			)),
 		)
+		p.sink.Bind(p.meter)
 	}
 	p.started = true
 	return nil
@@ -215,6 +221,17 @@ func (p *Providers) MeterProvider() metric.MeterProvider {
 		}
 	}
 	return metricnoop.NewMeterProvider()
+}
+
+// MetricSink returns the go-metrics sink that bridges the agent's metrics
+// to the OTLP export, for the go-metrics fanout; nil when the metrics
+// export is off. It exists before Start, which binds it to the meter
+// provider, so it can join the fanout when the telemetry is set up.
+func (p *Providers) MetricSink() *OTelSink {
+	if p == nil {
+		return nil
+	}
+	return p.sink
 }
 
 // ForceFlush exports what the providers hold.

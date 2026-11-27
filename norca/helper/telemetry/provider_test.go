@@ -130,6 +130,51 @@ func TestProviders_EmptyMetricsExport(t *testing.T) {
 	must.Eq(t, "global", resourceAttrs(rm.GetResource())["norca.region"].GetStringValue())
 }
 
+// The go-metrics bridge exists with the metrics export only; it keeps what
+// it gets before Start and exports through the providers after it.
+func TestProviders_MetricSink(t *testing.T) {
+	ci.Parallel(t)
+
+	var none *Providers
+	must.Nil(t, none.MetricSink())
+
+	s, err := Resolve(&OTLPConfig{
+		TargetConfig: TargetConfig{Endpoint: otlptest.ClosedAddr(t)},
+		Metrics:      &MetricsConfig{Enabled: pointer.Of(false)},
+	})
+	must.NoError(t, err)
+	off, err := New(s, testLogger(&syncBuffer{}), "ua")
+	must.NoError(t, err)
+	must.Nil(t, off.MetricSink())
+	must.NoError(t, off.Shutdown(t.Context()))
+
+	srv := otlptest.Start(t, otlptest.Options{})
+	s, err = Resolve(&OTLPConfig{TargetConfig: TargetConfig{Endpoint: srv.Addr}})
+	must.NoError(t, err)
+	p, err := New(s, testLogger(&syncBuffer{}), "ua")
+	must.NoError(t, err)
+	t.Cleanup(func() { _ = p.Shutdown(context.Background()) })
+	sink := p.MetricSink()
+	must.NotNil(t, sink)
+
+	sink.SetGauge([]string{"norca", "runtime", "num_goroutines"}, 42)
+	must.NoError(t, p.Start(testIdentity))
+	sink.AddSample([]string{"norca", "raft", "apply"}, 3)
+	must.NoError(t, p.ForceFlush(t.Context()))
+
+	units := map[string]string{}
+	for _, m := range srv.Metrics() {
+		for _, rm := range m.Request.GetResourceMetrics() {
+			for _, sm := range rm.GetScopeMetrics() {
+				for _, metric := range sm.GetMetrics() {
+					units[metric.GetName()] = metric.GetUnit()
+				}
+			}
+		}
+	}
+	must.Eq(t, map[string]string{"norca.runtime.num_goroutines": "", "norca.raft.apply": "ms"}, units)
+}
+
 func TestProviders_TLS(t *testing.T) {
 	ci.Parallel(t)
 

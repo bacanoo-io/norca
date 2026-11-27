@@ -5,8 +5,10 @@ package agent
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -95,7 +97,8 @@ func protoAttrs(res *resourcepb.Resource) map[string]*commonpb.AnyValue {
 }
 
 // A running agent exports to the receiver of its otlp block, with the IDs of
-// the client and the server in the resource. Not parallel: Command.Run sets
+// the client and the server in the resource, its metrics named norca.*,
+// Prometheus off. Not parallel: Command.Run sets
 // process-wide state (the standard logger, the go-metrics global).
 func TestCommand_OTLP_Export(t *testing.T) {
 	srv := otlptest.Start(t, otlptest.Options{})
@@ -142,8 +145,44 @@ func TestCommand_OTLP_Export(t *testing.T) {
 	}
 	must.Eq(t, []string{"server", "client"}, roles)
 
+	// The go-metrics of the agent arrive through the bridge with their
+	// norca.* names: the server's RPCs, Raft and the Go runtime.
+	families := []string{"norca.server.rpc.", "norca.raft.", "norca.runtime.", "norca.client.", "norca.memberlist.gossip"}
+	allFamilies := func(s *otlptest.Server) bool {
+		names := exportedMetrics(s)
+		for _, family := range families {
+			if !slices.ContainsFunc(slices.Collect(maps.Keys(names)), func(n string) bool { return strings.HasPrefix(n, family) }) {
+				return false
+			}
+		}
+		return true
+	}
+	ok = srv.Wait(60*time.Second, allFamilies)
+	names := exportedMetrics(srv)
 	close(stop)
 	waitExit(t, done, 30*time.Second)
+	must.True(t, ok, must.Sprintf("not every family of %v was exported: %v", families, slices.Sorted(maps.Keys(names))))
+	t.Logf("%d metrics exported: %v", len(names), slices.Sorted(maps.Keys(names)))
+	for name := range names {
+		must.StrHasPrefix(t, "norca.", name)
+	}
+	must.Eq(t, "ms", names["norca.memberlist.gossip"], must.Sprint("timers are histograms in milliseconds"))
+}
+
+// exportedMetrics returns the names of the metrics the receiver got, with
+// their units.
+func exportedMetrics(s *otlptest.Server) map[string]string {
+	out := map[string]string{}
+	for _, m := range s.Metrics() {
+		for _, rm := range m.Request.GetResourceMetrics() {
+			for _, sm := range rm.GetScopeMetrics() {
+				for _, metric := range sm.GetMetrics() {
+					out[metric.GetName()] = metric.GetUnit()
+				}
+			}
+		}
+	}
+	return out
 }
 
 // With the receiver absent the agent starts as usual, logs one warning per

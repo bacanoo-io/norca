@@ -738,18 +738,21 @@ func (c *Command) Run(args []string) int {
 		c.Ui.Output("No configuration files loaded")
 	}
 
-	// Initialize the telemetry
-	inmem, err := c.setupTelemetry(config)
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error initializing telemetry: %s", err))
-		return 1
-	}
-
 	// Create the OTLP exporters before the agent, so a bad file fails the
 	// startup; the providers start once the agent has its IDs.
+	var err error
 	c.otlp, err = c.setupOTLP(config, logger)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error initializing OTLP telemetry: %s", err))
+		return 1
+	}
+
+	// Initialize the telemetry, with the bridge to the OTLP export in the
+	// fanout when the metrics export is on
+	inmem, err := c.setupTelemetry(config, c.otlp.MetricSink())
+	if err != nil {
+		c.shutdownOTLP(os.Stderr)
+		c.Ui.Error(fmt.Sprintf("Error initializing telemetry: %s", err))
 		return 1
 	}
 
@@ -1081,8 +1084,10 @@ func (c *Command) handleReload() {
 	}
 }
 
-// setupTelemetry is used ot setup the telemetry sub-systems
-func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
+// setupTelemetry is used ot setup the telemetry sub-systems. otelSink, when
+// not nil, bridges the metrics to the OTLP export; it joins the fanout like
+// the Prometheus sink.
+func (c *Command) setupTelemetry(config *Config, otelSink *telemetry.OTelSink) (*metrics.InmemSink, error) {
 	/* Setup telemetry
 	Aggregate on 10 second intervals for 1 minute. Expose the
 	metrics over stderr when there is a SIGUSR1 received.
@@ -1135,6 +1140,11 @@ func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
 			return inm, err
 		}
 		fanout = append(fanout, promSink)
+	}
+
+	// Configure the OTLP export of the metrics
+	if otelSink != nil {
+		fanout = append(fanout, otelSink)
 	}
 
 	// Initialize the global sink
