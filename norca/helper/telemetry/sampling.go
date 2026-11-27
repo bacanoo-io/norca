@@ -5,7 +5,9 @@ package telemetry
 
 import (
 	"context"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -333,6 +335,18 @@ func (s *rootSampler) Description() string {
 // sdktrace.TraceIDRatioBased).
 func NewSampler(ratio sdktrace.Sampler) sdktrace.Sampler {
 	return sdktrace.ParentBased(&rootSampler{ratio: ratio})
+}
+
+// AlwaysSampledHTTPRoutes returns the mux patterns of the HTTP API routes
+// whose writes (or, for some, all requests) are always sampled, sorted.
+func AlwaysSampledHTTPRoutes() []string {
+	return slices.Sorted(maps.Keys(alwaysSampledHTTP))
+}
+
+// ExcludedHTTPRoutes returns the mux patterns of the HTTP API routes that
+// never get a span, sorted.
+func ExcludedHTTPRoutes() []string {
+	return slices.Sorted(maps.Keys(excludedHTTP))
 }
 
 // AlwaysSampledRPC reports whether new root traces of an RPC method are

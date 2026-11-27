@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -162,4 +163,21 @@ func TestHTTP_Tracing(t *testing.T) {
 	must.NoError(t, err)
 	must.True(t, tid.IsValid())
 	must.Len(t, before, exp.GetSpans())
+}
+
+// The routes the tracing names (always sampled, excluded) are routes of the
+// agent's mux, so a renamed route cannot silently fall out of the lists.
+func TestHTTP_TracingRoutesRegistered(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		routes := append(telemetry.AlwaysSampledHTTPRoutes(), telemetry.ExcludedHTTPRoutes()...)
+		for _, route := range routes {
+			if strings.HasPrefix(route, "/debug/") || route == "/ui/" {
+				continue // registered only with enable_debug, or a UI build
+			}
+			_, pattern := s.Server.mux.Handler(httptest.NewRequest(http.MethodPut, route, nil))
+			must.Eq(t, route, pattern, must.Sprintf("route %q", route))
+		}
+	})
 }
