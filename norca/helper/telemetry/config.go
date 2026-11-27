@@ -28,6 +28,12 @@ const (
 	DefaultLogsLevel            = "info"
 )
 
+// DefaultEventTopics are the event topics the event export sends when its
+// topics are not set. The topics that may carry secrets or identities (the
+// ACL topics, Variables, Secret, SecretAccess) are exported only when they
+// are listed.
+var DefaultEventTopics = []string{"Job", "Allocation", "Deployment", "Node", "Scaling", "Backup", "Server"}
+
 // Values of the enumerated keys.
 const (
 	CompressionGzip = "gzip"
@@ -55,7 +61,7 @@ const (
 //	  resource_attributes = { "deployment.environment.name" = "production" }
 //	  metrics { interval = "30s" }
 //	  traces  { sample_ratio = 0.1 }
-//	  logs    { enabled = false }
+//	  logs    { enabled = false, events { enabled = false } }
 //	}
 //
 // The durations are strings, parsed by Validate.
@@ -199,6 +205,30 @@ type LogsConfig struct {
 	// Level is the minimum level exported (default "info"), independent of
 	// log_level.
 	Level string `hcl:"level"`
+
+	// Events is the export of the event stream of the region as log
+	// records, by the leader.
+	Events *EventsConfig `hcl:"events"`
+
+	// ExtraKeysHCL is used by hcl to surface unexpected keys
+	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+// EventsConfig is the events block of the logs block: the leader of the
+// region sends the events of the event stream as OTLP log records. It runs
+// on servers only and needs the logs signal.
+//
+//	events {
+//	  enabled = true
+//	  topics  = ["Job", "Allocation", "Deployment", "Node", "Scaling", "Backup", "Server"]
+//	}
+type EventsConfig struct {
+	// Enabled defaults to false.
+	Enabled *bool `hcl:"enabled"`
+
+	// Topics are the exported topics (default DefaultEventTopics). A topic
+	// is exported only when it is listed: there is no wildcard.
+	Topics []string `hcl:"topics"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -443,6 +473,7 @@ func (l *LogsConfig) Copy() *LogsConfig {
 	nl := *l
 	nl.TargetConfig = l.TargetConfig.copy()
 	nl.Enabled = pointer.Copy(l.Enabled)
+	nl.Events = l.Events.Copy()
 	nl.ExtraKeysHCL = slices.Clone(l.ExtraKeysHCL)
 	return &nl
 }
@@ -462,6 +493,38 @@ func (l *LogsConfig) Merge(b *LogsConfig) *LogsConfig {
 	}
 	if b.Level != "" {
 		result.Level = b.Level
+	}
+	result.Events = result.Events.Merge(b.Events)
+	return result
+}
+
+// Copy returns a deep copy.
+func (e *EventsConfig) Copy() *EventsConfig {
+	if e == nil {
+		return nil
+	}
+	ne := *e
+	ne.Enabled = pointer.Copy(e.Enabled)
+	ne.Topics = slices.Clone(e.Topics)
+	ne.ExtraKeysHCL = slices.Clone(e.ExtraKeysHCL)
+	return &ne
+}
+
+// Merge merges b into a copy of e, key by key; the topics are replaced as a
+// whole.
+func (e *EventsConfig) Merge(b *EventsConfig) *EventsConfig {
+	if e == nil {
+		return b.Copy()
+	}
+	result := e.Copy()
+	if b == nil {
+		return result
+	}
+	if b.Enabled != nil {
+		result.Enabled = pointer.Copy(b.Enabled)
+	}
+	if b.Topics != nil {
+		result.Topics = slices.Clone(b.Topics)
 	}
 	return result
 }

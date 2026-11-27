@@ -22,6 +22,10 @@ const (
 	SignalTraces  = "traces"
 	SignalMetrics = "metrics"
 	SignalLogs    = "logs"
+
+	// SignalEvents is the event export, which sends through the logs
+	// signal's target.
+	SignalEvents = "events"
 )
 
 // dnsScheme is the only target scheme an endpoint may carry.
@@ -103,6 +107,15 @@ type LogsSettings struct {
 	Enabled bool
 	Target  Target
 	Level   hclog.Level
+	Events  EventsSettings
+}
+
+// EventsSettings is the validated events block of the logs block.
+type EventsSettings struct {
+	Enabled bool
+
+	// Topics are the exported topics, without duplicates.
+	Topics []string
 }
 
 // Resolve validates the otlp block and applies the defaults; it reads no
@@ -176,6 +189,10 @@ func Resolve(c *OTLPConfig) (*Settings, error) {
 		Enabled: boolOr(l.Enabled, false),
 		Target:  v.target("logs", c.TargetConfig.merge(l.TargetConfig), boolOr(l.Enabled, false)),
 		Level:   v.level("logs.level", l.Level),
+		Events:  v.events(l.Events),
+	}
+	if s.Logs.Events.Enabled && !s.Logs.Enabled {
+		v.fail("logs.events.enabled", errors.New("the event export sends log records: it needs logs.enabled = true"))
 	}
 
 	if err := v.err(); err != nil {
@@ -253,6 +270,46 @@ func (v *validator) level(key, value string) hclog.Level {
 		return hclog.Info
 	}
 	return level
+}
+
+// events validates the events block: the topics are names of event topics
+// (letters and digits), listed explicitly.
+func (v *validator) events(e *EventsConfig) EventsSettings {
+	if e == nil {
+		e = &EventsConfig{}
+	}
+	es := EventsSettings{Enabled: boolOr(e.Enabled, false)}
+	topics := e.Topics
+	if topics == nil {
+		topics = DefaultEventTopics
+	}
+	if len(topics) == 0 {
+		v.fail("logs.events.topics", errors.New("must name at least one topic"))
+	}
+	for _, topic := range topics {
+		switch {
+		case topic == "*":
+			v.fail("logs.events.topics", errors.New(`"*" is not allowed: list the topics to export`))
+		case !isTopicName(topic):
+			v.fail("logs.events.topics", fmt.Errorf("%q is not a topic name", topic))
+		case !slices.Contains(es.Topics, topic):
+			es.Topics = append(es.Topics, topic)
+		}
+	}
+	return es
+}
+
+// isTopicName reports whether s is a name of an event topic: an ASCII
+// letter followed by letters and digits.
+func isTopicName(s string) bool {
+	for i, r := range s {
+		isLetter := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
+		isDigit := r >= '0' && r <= '9'
+		if !isLetter && (i == 0 || !isDigit) {
+			return false
+		}
+	}
+	return s != ""
 }
 
 func (v *validator) retry(r *RetryConfig) RetrySettings {

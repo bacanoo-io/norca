@@ -61,6 +61,9 @@ func TestResolve_Defaults(t *testing.T) {
 			Enabled: false,
 			Target:  local,
 			Level:   hclog.Info,
+			Events: EventsSettings{
+				Topics: []string{"Job", "Allocation", "Deployment", "Node", "Scaling", "Backup", "Server"},
+			},
 		},
 	}, s)
 }
@@ -106,6 +109,10 @@ func TestResolve_Keys(t *testing.T) {
 		Logs: &LogsConfig{
 			Enabled: pointer.Of(true),
 			Level:   "warn",
+			Events: &EventsConfig{
+				Enabled: pointer.Of(true),
+				Topics:  []string{"Job", "Secret", "Job", "ACLToken"},
+			},
 		},
 	}
 	s, err := Resolve(c)
@@ -131,6 +138,7 @@ func TestResolve_Keys(t *testing.T) {
 	}, s.Traces)
 	must.True(t, s.Logs.Enabled)
 	must.Eq(t, hclog.Warn, s.Logs.Level)
+	must.Eq(t, EventsSettings{Enabled: true, Topics: []string{"Job", "Secret", "ACLToken"}}, s.Logs.Events)
 
 	target := s.Traces.Target
 	must.Eq(t, "dns:///otlp.example.com:4317", target.Endpoint)
@@ -251,6 +259,26 @@ func TestResolve_Errors(t *testing.T) {
 		{name: "exclude rpc", config: &OTLPConfig{Traces: &TracesConfig{ExcludeRPC: []string{"Ping"}}}, wantErr: "traces.exclude_rpc"},
 		{name: "logs level", config: &OTLPConfig{Logs: &LogsConfig{Level: "loud"}}, wantErr: "logs.level"},
 		{name: "logs level off", config: &OTLPConfig{Logs: &LogsConfig{Level: "off"}}, wantErr: "logs.level"},
+		{
+			name:    "events without logs",
+			config:  &OTLPConfig{Logs: &LogsConfig{Events: &EventsConfig{Enabled: pointer.Of(true)}}},
+			wantErr: "logs.events.enabled: the event export sends log records: it needs logs.enabled = true",
+		},
+		{
+			name:    "events wildcard",
+			config:  &OTLPConfig{Logs: &LogsConfig{Events: &EventsConfig{Topics: []string{"*"}}}},
+			wantErr: "logs.events.topics",
+		},
+		{
+			name:    "events topic name",
+			config:  &OTLPConfig{Logs: &LogsConfig{Events: &EventsConfig{Topics: []string{"Job.x"}}}},
+			wantErr: `"Job.x" is not a topic name`,
+		},
+		{
+			name:    "events no topics",
+			config:  &OTLPConfig{Logs: &LogsConfig{Events: &EventsConfig{Topics: []string{}}}},
+			wantErr: "must name at least one topic",
+		},
 		{name: "header reserved", config: &OTLPConfig{TargetConfig: TargetConfig{Headers: map[string]string{"grpc-timeout": "1"}}}, wantErr: "reserved"},
 		{name: "header binary", config: &OTLPConfig{TargetConfig: TargetConfig{Headers: map[string]string{"x-bin": "1"}}}, wantErr: "binary"},
 		{name: "header name", config: &OTLPConfig{TargetConfig: TargetConfig{Headers: map[string]string{"bad name": "1"}}}, wantErr: "character"},

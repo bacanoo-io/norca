@@ -37,7 +37,12 @@ func fullConfig() *OTLPConfig {
 			MaxQueueSize:    10,
 			MaxExportBatch:  5,
 		},
-		Logs: &LogsConfig{TargetConfig: target("l:1"), Enabled: pointer.Of(true), Level: "warn"},
+		Logs: &LogsConfig{
+			TargetConfig: target("l:1"),
+			Enabled:      pointer.Of(true),
+			Level:        "warn",
+			Events:       &EventsConfig{Enabled: pointer.Of(true), Topics: []string{"Job", "Node"}},
+		},
 	}
 }
 
@@ -62,6 +67,8 @@ func TestOTLPConfig_Copy(t *testing.T) {
 	*b.Traces.SampleRatio = 1
 	b.Traces.ExcludeRPC[0] = "x"
 	*b.Logs.Enabled = false
+	*b.Logs.Events.Enabled = false
+	b.Logs.Events.Topics[0] = "x"
 	must.Eq(t, fullConfig(), a)
 }
 
@@ -88,7 +95,7 @@ func TestOTLPConfig_Merge(t *testing.T) {
 			ResourceAttributes: map[string]string{"n": "m"},
 			Metrics:            &MetricsConfig{Interval: "9s"},
 			Traces:             &TracesConfig{SampleRatio: pointer.Of(0.0), ExcludeRPC: []string{}},
-			Logs:               &LogsConfig{Enabled: pointer.Of(false)},
+			Logs:               &LogsConfig{Enabled: pointer.Of(false), Events: &EventsConfig{Topics: []string{"Secret"}}},
 		})
 		must.Eq(t, "b:2", got.Endpoint)
 		must.Eq(t, map[string]string{"x": "y"}, got.Headers)
@@ -105,6 +112,8 @@ func TestOTLPConfig_Merge(t *testing.T) {
 		must.Eq(t, 10, got.Traces.MaxQueueSize)
 		must.False(t, *got.Logs.Enabled)
 		must.Eq(t, "warn", got.Logs.Level)
+		must.True(t, *got.Logs.Events.Enabled)
+		must.Eq(t, []string{"Secret"}, got.Logs.Events.Topics)
 
 		must.Eq(t, fullConfig(), a, must.Sprint("the base is not changed"))
 	})
