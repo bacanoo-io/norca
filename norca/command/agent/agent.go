@@ -1463,12 +1463,6 @@ func (a *Agent) Reload(newConfig *Config) error {
 		a.logger.SetLevel(log.LevelFromString(current.LogLevel))
 	}
 
-	// Update eventer config
-	if newConfig.Audit != nil {
-		if err := a.entReloadEventer(newConfig.Audit); err != nil {
-			return err
-		}
-	}
 	// Allow auditor to call reopen regardless of config changes
 	// This is primarily for enterprise audit logging to allow the underlying
 	// file to be reopened if necessary

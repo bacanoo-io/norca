@@ -53,7 +53,6 @@ func ParseConfigFile(path string) (*Config, error) {
 			ServerJoin:           &ServerJoin{},
 		},
 		ACL:       &ACLConfig{},
-		Audit:     &config.AuditConfig{},
 		Consul:    &config.ConsulConfig{},
 		Autopilot: &config.AutopilotConfig{},
 		Telemetry: &Telemetry{},
@@ -145,12 +144,6 @@ func ParseConfigFile(path string) (*Config, error) {
 				c.Client.TemplateConfig.NomadRetry.MaxBackoff = d
 			},
 		},
-	}
-
-	// Add enterprise audit sinks for time.Duration parsing
-	for i, sink := range c.Audit.Sinks {
-		tds = append(tds, durationConversionMap{
-			fmt.Sprintf("audit.sink.%d", i), &sink.RotateDuration, &sink.RotateDurationHCL, nil})
 	}
 
 	// Add admission webhooks for time.Duration parsing
@@ -268,17 +261,6 @@ func extraKeys(c *Config) error {
 				return fmt.Errorf("client.secrets.vault_kv.%s: %w", r.Prefix, err)
 			}
 		}
-	}
-
-	// Remove AuditConfig extra keys
-	for _, f := range c.Audit.Filters {
-		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, f.Name)
-		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, "filter")
-	}
-
-	for _, s := range c.Audit.Sinks {
-		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, s.Name)
-		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, "sink")
 	}
 
 	for _, k := range []string{"enabled_schedulers", "start_join", "retry_join", "server_join"} {

@@ -14,10 +14,6 @@ type UnsupportedBlock struct{}
 func (c *Config) unsupportedOptions() []string {
 	var msgs []string
 
-	if c.Audit != nil && c.Audit.Enabled != nil && *c.Audit.Enabled {
-		msgs = append(msgs, "audit logging is not supported: remove audit.enabled = true")
-	}
-
 	if c.Sentinel != nil {
 		msgs = append(msgs, "sentinel is not supported: remove the sentinel block")
 	}

@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 "advertise" = {
@@ -19,25 +20,4 @@
 
 vault = {
   enabled = true
-}
-
-audit {
-  enabled = true
-
-  sink "file" {
-    type               = "file"
-    format             = "json"
-    delivery_guarantee = "enforced"
-    path               = "/opt/nomad/audit.log"
-    rotate_bytes       = 100
-    rotate_duration    = "24h"
-    rotate_max_files   = 10
-  }
-
-  filter "default" {
-    type       = "HTTPEvent"
-    endpoints  = ["/v1/metrics"]
-    stages     = ["*"]
-    operations = ["*"]
-  }
 }

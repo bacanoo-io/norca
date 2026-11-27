@@ -282,22 +282,6 @@ func TestIsValidConfig(t *testing.T) {
 			err: "Must specify either",
 		},
 		{
-			name: "AuditEnabledUnsupported",
-			conf: Config{
-				Client: &ClientConfig{Enabled: true},
-				Audit:  &config.AuditConfig{Enabled: pointer.Of(true)},
-			},
-			err: "audit logging is not supported",
-		},
-		{
-			name: "AuditDisabled",
-			conf: Config{
-				DataDir: "/tmp",
-				Client:  &ClientConfig{Enabled: true},
-				Audit:   &config.AuditConfig{Enabled: pointer.Of(false)},
-			},
-		},
-		{
 			name: "RedundancyZoneUnsupported",
 			conf: Config{
 				Server: &ServerConfig{Enabled: true, RedundancyZone: "a"},

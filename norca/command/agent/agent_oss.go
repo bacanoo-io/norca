@@ -8,7 +8,6 @@
 package agent
 
 import (
-	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	hclog "github.com/hashicorp/go-hclog"
 )
 
@@ -20,9 +19,5 @@ func (a *Agent) setupEnterpriseAgent(log hclog.Logger) error {
 	// configure eventer
 	a.auditor = &noOpAuditor{}
 
-	return nil
-}
-
-func (a *Agent) entReloadEventer(cfg *config.AuditConfig) error {
 	return nil
 }

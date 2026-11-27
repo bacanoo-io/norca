@@ -42,7 +42,6 @@ func TestConfig_Merge(t *testing.T) {
 		Client:         &ClientConfig{},
 		Server:         &ServerConfig{},
 		ACL:            &ACLConfig{},
-		Audit:          &config.AuditConfig{},
 		Ports:          &Ports{},
 		Addresses:      &Addresses{},
 		AdvertiseAddrs: &AdvertiseAddrs{},
@@ -72,22 +71,6 @@ func TestConfig_Merge(t *testing.T) {
 			Prometheus:      &PrometheusConfig{Enabled: pointer.Of(false), Expiration: "10s"},
 			DisableHostname: false,
 			PrefixFilter:    []string{"filter1", "filter2"},
-		},
-		Audit: &config.AuditConfig{
-			Enabled: pointer.Of(true),
-			Sinks: []*config.AuditSink{
-				{
-					DeliveryGuarantee: "enforced",
-					Name:              "file",
-					Type:              "file",
-					Format:            "json",
-					Path:              "/opt/nomad/audit.log",
-					RotateDuration:    24 * time.Hour,
-					RotateDurationHCL: "24h",
-					RotateBytes:       100,
-					RotateMaxFiles:    10,
-				},
-			},
 		},
 		Client: &ClientConfig{
 			Enabled:   false,
@@ -246,22 +229,6 @@ func TestConfig_Merge(t *testing.T) {
 		DisableUpdateCheck:        pointer.Of(true),
 		DisableAnonymousSignature: true,
 		BindAddr:                  "127.0.0.2",
-		Audit: &config.AuditConfig{
-			Enabled: pointer.Of(true),
-			Sinks: []*config.AuditSink{
-				{
-					DeliveryGuarantee: "enforced",
-					Name:              "file",
-					Type:              "file",
-					Format:            "json",
-					Path:              "/opt/nomad/audit.log",
-					RotateDuration:    24 * time.Hour,
-					RotateDurationHCL: "24h",
-					RotateBytes:       100,
-					RotateMaxFiles:    10,
-				},
-			},
-		},
 		Telemetry: &Telemetry{
 			Prometheus:                         &PrometheusConfig{Enabled: pointer.Of(true), Expiration: "30s"},
 			DisableHostname:                    true,

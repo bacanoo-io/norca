@@ -190,9 +190,6 @@ type Config struct {
 	// Limits contains the configuration for timeouts.
 	Limits config.Limits `hcl:"limits"`
 
-	// Audit contains the configuration for audit logging.
-	Audit *config.AuditConfig `hcl:"audit"`
-
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -1523,7 +1520,6 @@ func DefaultConfig() *Config {
 		TLSConfig:          &config.TLSConfig{},
 		Version:            version.GetVersion(),
 		Autopilot:          config.DefaultAutopilotConfig(),
-		Audit:              &config.AuditConfig{},
 		DisableUpdateCheck: pointer.Of(false),
 		Limits:             config.DefaultLimits(),
 	}
@@ -1657,14 +1653,6 @@ func (c *Config) Merge(b *Config) *Config {
 		result.ACL = result.ACL.Merge(b.ACL)
 	}
 
-	// Apply the Audit config
-	if result.Audit == nil && b.Audit != nil {
-		audit := *b.Audit
-		result.Audit = &audit
-	} else if b.Audit != nil {
-		result.Audit = result.Audit.Merge(b.Audit)
-	}
-
 	// Apply the ports config
 	if result.Ports == nil && b.Ports != nil {
 		ports := *b.Ports
@@ -1783,7 +1771,6 @@ func (c *Config) Copy() *Config {
 	nc.Autopilot = c.Autopilot.Copy()
 	nc.Plugins = helper.CopySlice(c.Plugins)
 	nc.Limits = c.Limits.Copy()
-	nc.Audit = c.Audit.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
 	return &nc
 }

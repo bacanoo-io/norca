@@ -175,31 +175,6 @@ var basicConfig = &Config{
 		TokenMaxExpirationTTL:    100 * time.Hour,
 		ReplicationToken:         "foobar",
 	},
-	Audit: &config.AuditConfig{
-		Enabled: pointer.Of(true),
-		Sinks: []*config.AuditSink{
-			{
-				DeliveryGuarantee: "enforced",
-				Name:              "file",
-				Type:              "file",
-				Format:            "json",
-				Path:              "/opt/nomad/audit.log",
-				RotateDuration:    24 * time.Hour,
-				RotateDurationHCL: "24h",
-				RotateBytes:       100,
-				RotateMaxFiles:    10,
-			},
-		},
-		Filters: []*config.AuditFilter{
-			{
-				Name:       "default",
-				Type:       "HTTPEvent",
-				Endpoints:  []string{"/v1/metrics"},
-				Stages:     []string{"*"},
-				Operations: []string{"*"},
-			},
-		},
-	},
 	Telemetry: &Telemetry{
 		Prometheus: &PrometheusConfig{
 			Enabled:    pointer.Of(true),
@@ -504,7 +479,6 @@ func TestConfig_ParseMerge(t *testing.T) {
 		Autopilot: config.DefaultAutopilotConfig(),
 		Client:    &ClientConfig{},
 		Server:    &ServerConfig{},
-		Audit:     &config.AuditConfig{},
 	}
 	merged := oldDefault.Merge(actual)
 	require.Equal(t, basicConfig, merged)
@@ -593,9 +567,6 @@ func (c *Config) addDefaults() {
 	}
 	if c.ACL == nil {
 		c.ACL = &ACLConfig{}
-	}
-	if c.Audit == nil {
-		c.Audit = &config.AuditConfig{}
 	}
 	if c.Consul == nil {
 		c.Consul = config.DefaultConsulConfig()
@@ -704,31 +675,6 @@ var sample0 = &Config{
 	ACL: &ACLConfig{
 		Enabled: true,
 	},
-	Audit: &config.AuditConfig{
-		Enabled: pointer.Of(true),
-		Sinks: []*config.AuditSink{
-			{
-				DeliveryGuarantee: "enforced",
-				Name:              "file",
-				Type:              "file",
-				Format:            "json",
-				Path:              "/opt/nomad/audit.log",
-				RotateDuration:    24 * time.Hour,
-				RotateDurationHCL: "24h",
-				RotateBytes:       100,
-				RotateMaxFiles:    10,
-			},
-		},
-		Filters: []*config.AuditFilter{
-			{
-				Name:       "default",
-				Type:       "HTTPEvent",
-				Endpoints:  []string{"/v1/metrics"},
-				Stages:     []string{"*"},
-				Operations: []string{"*"},
-			},
-		},
-	},
 	Telemetry: &Telemetry{
 		Prometheus:               &PrometheusConfig{Enabled: pointer.Of(true)},
 		DisableHostname:          true,
@@ -809,31 +755,6 @@ var sample1 = &Config{
 	},
 	ACL: &ACLConfig{
 		Enabled: true,
-	},
-	Audit: &config.AuditConfig{
-		Enabled: pointer.Of(true),
-		Sinks: []*config.AuditSink{
-			{
-				Name:              "file",
-				Type:              "file",
-				DeliveryGuarantee: "enforced",
-				Format:            "json",
-				Path:              "/opt/nomad/audit.log",
-				RotateDuration:    24 * time.Hour,
-				RotateDurationHCL: "24h",
-				RotateBytes:       100,
-				RotateMaxFiles:    10,
-			},
-		},
-		Filters: []*config.AuditFilter{
-			{
-				Name:       "default",
-				Type:       "HTTPEvent",
-				Endpoints:  []string{"/v1/metrics"},
-				Stages:     []string{"*"},
-				Operations: []string{"*"},
-			},
-		},
 	},
 	Telemetry: &Telemetry{
 		Prometheus:               &PrometheusConfig{Enabled: pointer.Of(true)},
