@@ -260,6 +260,10 @@ var basicConfig = &Config{
 				},
 				Enabled: pointer.Of(true),
 				Level:   "warn",
+				Events: &telemetry.EventsConfig{
+					Enabled: pointer.Of(true),
+					Topics:  []string{"Job", "Allocation", "Secret"},
+				},
 			},
 		},
 	},

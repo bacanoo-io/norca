@@ -272,6 +272,11 @@ telemetry {
       headers = {
         "x-scope" = "logs"
       }
+
+      events {
+        enabled = true
+        topics  = ["Job", "Allocation", "Secret"]
+      }
     }
   }
 }

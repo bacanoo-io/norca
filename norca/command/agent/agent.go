@@ -130,18 +130,33 @@ type Agent struct {
 	// tracing is the trace instrumentation of telemetry.otlp, nil without
 	// the block.
 	tracing *telemetry.Tracing
+
+	// eventExport is the export of the event stream of
+	// telemetry.otlp.logs.events, nil without it.
+	eventExport *telemetry.EventExporter
 }
 
-// NewAgent is used to create a new agent with the given configuration.
-// tracing, nil without an otlp block, is the trace instrumentation that the
-// server, the client and the HTTP API get.
-func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink, tracing *telemetry.Tracing) (*Agent, error) {
+// OTLPHandles are the parts of the OTLP export (telemetry.otlp) that the
+// agent hands to the server, the client and the HTTP API. Both are nil
+// without the otlp block.
+type OTLPHandles struct {
+	// Tracing is the trace instrumentation.
+	Tracing *telemetry.Tracing
+
+	// Events exports the event stream on the leader (logs.events).
+	Events *telemetry.EventExporter
+}
+
+// NewAgent is used to create a new agent with the given configuration and
+// the handles of its OTLP export.
+func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink, otlp OTLPHandles) (*Agent, error) {
 	a := &Agent{
-		config:     config,
-		logOutput:  logOutput,
-		shutdownCh: make(chan struct{}),
-		inmemSink:  inmem,
-		tracing:    tracing,
+		config:      config,
+		logOutput:   logOutput,
+		shutdownCh:  make(chan struct{}),
+		inmemSink:   inmem,
+		tracing:     otlp.Tracing,
+		eventExport: otlp.Events,
 	}
 
 	// Create the loggers
@@ -706,6 +721,9 @@ func (a *Agent) warnUnusedStoreBlocks(server bool) {
 	if c := a.config.Client; !server && c != nil && c.StateStore == state.StoreBoltDB && c.Badger != nil {
 		a.logger.Warn("client badger block has no effect with state_store = \"boltdb\"")
 	}
+	if !server && !a.config.Server.Enabled && a.eventExport != nil {
+		a.logger.Warn("telemetry.otlp.logs.events has no effect on an agent without a server")
+	}
 }
 
 // finalizeServerConfig sets configuration fields on the server config that are
@@ -717,6 +735,9 @@ func (a *Agent) finalizeServerConfig(c *norca.Config) {
 	c.AgentShutdown = func() error { return a.Shutdown() }
 	c.TelemetrySink = a.inmemSink
 	c.Tracing = a.tracing
+	if a.eventExport != nil {
+		c.EventExport = a.eventExport
+	}
 }
 
 // clientConfig is used to generate a new client configuration struct for

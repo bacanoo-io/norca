@@ -248,7 +248,7 @@ func (a *TestAgent) start() (*Agent, error) {
 		return nil, fmt.Errorf("unable to set up in memory metrics needed for agent initialization")
 	}
 
-	agent, err := NewAgent(a.Config, a.logger, testlog.NewWriter(a.T), inm, a.Tracing)
+	agent, err := NewAgent(a.Config, a.logger, testlog.NewWriter(a.T), inm, OTLPHandles{Tracing: a.Tracing})
 	if err != nil {
 		return nil, err
 	}

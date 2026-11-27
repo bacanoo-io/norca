@@ -584,7 +584,10 @@ func SetupLoggers(ui cli.Ui, config *Config) (*logutils.LevelFilter, *gatedwrite
 func (c *Command) setupAgent(config *Config, logger hclog.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink) error {
 	c.Ui.Output("Starting Norca agent...")
 
-	agent, err := NewAgent(config, logger, logOutput, inmem, c.otlp.Tracing())
+	agent, err := NewAgent(config, logger, logOutput, inmem, OTLPHandles{
+		Tracing: c.otlp.Tracing(),
+		Events:  c.otlp.EventExporter(),
+	})
 	if err != nil {
 		// log the error as well, so it appears at the end
 		logger.Error("error starting agent", "error", err)
@@ -746,6 +749,7 @@ func (c *Command) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error initializing OTLP telemetry: %s", err))
 		return 1
 	}
+	registerOTLPLogSink(logger, c.otlp)
 
 	// Initialize the telemetry, with the bridge to the OTLP export in the
 	// fanout when the metrics export is on

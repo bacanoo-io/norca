@@ -323,6 +323,51 @@ func TestValidateNorcaBlocks_OTLP(t *testing.T) {
 	must.NoError(t, validateNorcaBlocks(c))
 }
 
+// The event export of a server needs the events of the system bus, with
+// its topics among the published ones; on a client it is only warned about.
+func TestValidateNorcaBlocks_EventExport(t *testing.T) {
+	ci.Parallel(t)
+
+	exportConfig := func(topics ...string) *Config {
+		c := DefaultConfig()
+		c.Server.Enabled = true
+		c.Telemetry.OTLP = &telemetry.OTLPConfig{Logs: &telemetry.LogsConfig{
+			Enabled: pointer.Of(true),
+			Events:  &telemetry.EventsConfig{Enabled: pointer.Of(true), Topics: topics},
+		}}
+		return c
+	}
+
+	must.NoError(t, validateNorcaBlocks(exportConfig()), must.Sprint("the bus publishes every topic by default"))
+
+	c := exportConfig()
+	c.Server.Bus = &BusConfig{Enabled: pointer.Of(false)}
+	must.ErrorContains(t, validateNorcaBlocks(c), "telemetry.otlp.logs.events: the export reads the event stream of the system bus")
+
+	c = exportConfig()
+	c.Server.Bus = &BusConfig{Events: &BusEventsConfig{Enabled: pointer.Of(false)}}
+	must.ErrorContains(t, validateNorcaBlocks(c), "needs server.bus and its events enabled")
+
+	c = exportConfig("Job", "Secret")
+	c.Server.Bus = &BusConfig{Events: &BusEventsConfig{Topics: []string{"Job", "Allocation"}}}
+	must.ErrorContains(t, validateNorcaBlocks(c), `the topics ["Secret"] are not in server.bus.events.topics`)
+
+	c = exportConfig("Job", "Allocation")
+	c.Server.Bus = &BusConfig{Events: &BusEventsConfig{Topics: []string{"Job", "Allocation"}}}
+	must.NoError(t, validateNorcaBlocks(c))
+
+	// a client has no event stream
+	c = exportConfig()
+	c.Server.Enabled = false
+	c.Server.Bus = &BusConfig{Enabled: pointer.Of(false)}
+	must.NoError(t, validateNorcaBlocks(c))
+
+	// the logs signal is needed in any case
+	c = exportConfig()
+	c.Telemetry.OTLP.Logs.Enabled = pointer.Of(false)
+	must.ErrorContains(t, validateNorcaBlocks(c), "needs logs.enabled = true")
+}
+
 func TestTelemetry_DevConfig_NoOTLP(t *testing.T) {
 	ci.Parallel(t)
 

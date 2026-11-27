@@ -4,7 +4,9 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	clientconfig "github.com/bacanoo-io/norca/norca/client/config"
@@ -152,10 +154,13 @@ func convertNorcaClientBlocks(c *ClientConfig, vault *config.VaultConfig) (*clie
 // validateNorcaBlocks runs the value checks of the Norca blocks the agent
 // runs when it starts, for the enabled server and client.
 func validateNorcaBlocks(c *Config) error {
+	var serverBus *bus.Config
 	if c.Server != nil && c.Server.Enabled {
-		if _, err := convertNorcaServerBlocks(c.Server, c.Ports); err != nil {
+		blocks, err := convertNorcaServerBlocks(c.Server, c.Ports)
+		if err != nil {
 			return err
 		}
+		serverBus = blocks.bus
 	}
 	if c.Client != nil && c.Client.Enabled {
 		if _, err := convertNorcaClientBlocks(c.Client, c.Vault); err != nil {
@@ -164,9 +169,37 @@ func validateNorcaBlocks(c *Config) error {
 	}
 	// the otlp block of telemetry; its files are read when the agent starts
 	if c.Telemetry != nil {
-		if _, err := telemetry.Resolve(c.Telemetry.OTLP); err != nil {
+		s, err := telemetry.Resolve(c.Telemetry.OTLP)
+		if err != nil {
 			return err
 		}
+		if s != nil && s.Logs.Events.Enabled && serverBus != nil {
+			if err := validateEventExport(s.Logs.Events.Topics, serverBus); err != nil {
+				return fmt.Errorf("telemetry.otlp.logs.events: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// validateEventExport checks that a server publishes what its event export
+// reads: the events of the system bus, of every exported topic. A client
+// has no event stream; the agent warns that the export does nothing there.
+func validateEventExport(topics []string, b *bus.Config) error {
+	if !b.Enabled || !b.Events.Enabled {
+		return errors.New("the export reads the event stream of the system bus: it needs server.bus and its events enabled")
+	}
+	if slices.Contains(b.Events.Topics, string(structs.TopicAll)) {
+		return nil
+	}
+	var missing []string
+	for _, t := range topics {
+		if !slices.Contains(b.Events.Topics, t) {
+			missing = append(missing, t)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("the topics %q are not in server.bus.events.topics, so they are never exported", missing)
 	}
 	return nil
 }

@@ -30,6 +30,17 @@ func (c *Command) setupOTLP(config *Config, logger hclog.Logger) (*telemetry.Pro
 	return telemetry.New(settings, logger, useragent.String())
 }
 
+// registerOTLPLogSink registers the sink of the logs signal on the agent's
+// intercept logger, before the agent is created, so the lines of its setup
+// are exported too. Without the logs signal (no otlp block, or
+// logs.enabled = false) no sink is registered and logging costs nothing
+// more.
+func registerOTLPLogSink(logger hclog.InterceptLogger, otlp *telemetry.Providers) {
+	if sink := otlp.LogSink(); sink != nil {
+		logger.RegisterSink(sink)
+	}
+}
+
 // startOTLP starts the providers once the agent runs, because the resource
 // carries the client's node ID, which the client loads or creates at start.
 func (c *Command) startOTLP(config *Config) error {
@@ -82,7 +93,8 @@ func (c *Command) shutdownOTLP(stderr io.Writer) {
 }
 
 // reloadOTLP applies a reloaded otlp block: the headers files are read
-// again and traces.sample_ratio changes; the rest needs a restart.
+// again, and traces.sample_ratio and logs.level change; the rest needs a
+// restart.
 func (c *Command) reloadOTLP(newConf *Config) {
 	var otlp *telemetry.OTLPConfig
 	if newConf.Telemetry != nil {

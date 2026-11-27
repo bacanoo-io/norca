@@ -4,8 +4,12 @@
 package agent
 
 import (
+	"context"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,11 +18,15 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/telemetry/otlptest"
 	"github.com/bacanoo-io/norca/norca/version"
+	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 )
 
@@ -47,6 +55,13 @@ func TestOTLPIdentity(t *testing.T) {
 // test binary.
 func otlpAgentFile(t *testing.T, otlp string) string {
 	t.Helper()
+	path, _ := otlpAgentFileHTTP(t, otlp)
+	return path
+}
+
+// otlpAgentFileHTTP is otlpAgentFile that also returns the HTTP port.
+func otlpAgentFileHTTP(t *testing.T, otlp string) (string, int) {
+	t.Helper()
 	ports := ci.PortAllocator.Grab(5)
 	content := fmt.Sprintf(`
 ports {
@@ -66,7 +81,7 @@ telemetry {
 `, ports[0], ports[1], ports[2], ports[3], ports[4], otlp)
 	path := filepath.Join(t.TempDir(), "agent.hcl")
 	must.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	return path
+	return path, ports[0]
 }
 
 // runAgent runs a -dev agent through Command.Run until stop is closed.
@@ -217,4 +232,151 @@ func TestCommand_OTLP_ClosedPort(t *testing.T) {
 	out := ui.OutputWriter.String()
 	must.Eq(t, 1, strings.Count(out, "OTLP export failed"), must.Sprint(out))
 	must.StrContains(t, out, "signal=metrics")
+}
+
+// The log lines of a running agent arrive as log records: severity, the
+// logger, typed attributes, and the trace context of the HTTP request they
+// were written under, the same as of its spans. Not parallel: Command.Run
+// sets process-wide state.
+func TestCommand_OTLP_Logs(t *testing.T) {
+	srv := otlptest.Start(t, otlptest.Options{})
+	file, httpPort := otlpAgentFileHTTP(t, fmt.Sprintf(`otlp {
+    endpoint = %q
+    metrics { enabled = false }
+    traces  { sample_ratio = 1.0 }
+    logs    {
+      enabled = true
+      level   = "debug"
+    }
+  }`, srv.Addr))
+	stop := make(chan struct{})
+	ui, done := runAgent(t, file, stop)
+	stopped := false
+	stopAgent := func() {
+		if !stopped {
+			stopped = true
+			close(stop)
+			waitExit(t, done, 30*time.Second)
+		}
+	}
+	defer stopAgent()
+
+	// a request through the HTTP API; the response names its trace
+	url := fmt.Sprintf("http://127.0.0.1:%d/v1/jobs", httpPort)
+	var traceID string
+	deadline := time.Now().Add(60 * time.Second)
+	for traceID == "" && time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				traceID = resp.Header.Get(telemetry.TraceIDHeader)
+			}
+		}
+		if traceID == "" {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	must.NotEq(t, "", traceID, must.Sprintf("no traced response from %s:\n%s", url, ui.ErrorWriter.String()))
+
+	requestLog := func(s *otlptest.Server) *logspb.LogRecord {
+		for _, req := range s.Logs() {
+			for _, rl := range req.Request.GetResourceLogs() {
+				for _, sl := range rl.GetScopeLogs() {
+					for _, lr := range sl.GetLogRecords() {
+						if lr.GetBody().GetStringValue() == "request complete" && hex.EncodeToString(lr.GetTraceId()) == traceID {
+							return lr
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}
+	ok := srv.Wait(30*time.Second, func(s *otlptest.Server) bool { return requestLog(s) != nil })
+	must.True(t, ok, must.Sprint("the log line of the request was not exported"))
+	lr := requestLog(srv)
+	must.Eq(t, logspb.SeverityNumber_SEVERITY_NUMBER_DEBUG, lr.GetSeverityNumber())
+	attrs := map[string]*commonpb.AnyValue{}
+	for _, kv := range lr.GetAttributes() {
+		attrs[kv.GetKey()] = kv.GetValue()
+	}
+	must.Eq(t, "http", attrs[telemetry.AttrLogger].GetStringValue())
+	must.Eq(t, "GET", attrs["http_method"].GetStringValue())
+	must.StrHasPrefix(t, "/v1/jobs", attrs["http_path"].GetStringValue())
+	_, isFloat := attrs["duration"].GetValue().(*commonpb.AnyValue_DoubleValue)
+	must.True(t, isFloat, must.Sprint("the duration is a number of milliseconds"))
+
+	// the span of the request has the same trace ID
+	ok = srv.Wait(30*time.Second, func(s *otlptest.Server) bool {
+		for _, req := range s.Traces() {
+			for _, rs := range req.Request.GetResourceSpans() {
+				for _, ss := range rs.GetScopeSpans() {
+					for _, span := range ss.GetSpans() {
+						if hex.EncodeToString(span.GetTraceId()) == traceID {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	})
+	must.True(t, ok, must.Sprint("no span of the request's trace"))
+	stopAgent()
+
+	// the shutdown lines went out too: the logs are flushed last
+	var shutdown bool
+	for _, req := range srv.Logs() {
+		for _, rl := range req.Request.GetResourceLogs() {
+			for _, sl := range rl.GetScopeLogs() {
+				for _, lr := range sl.GetLogRecords() {
+					shutdown = shutdown || strings.Contains(lr.GetBody().GetStringValue(), "shutdown")
+				}
+			}
+		}
+	}
+	must.True(t, shutdown, must.Sprint("no line of the shutdown was exported"))
+}
+
+// recordingLogger counts the sinks registered on it.
+type recordingLogger struct {
+	hclog.InterceptLogger
+	sinks []hclog.SinkAdapter
+}
+
+func (r *recordingLogger) RegisterSink(sink hclog.SinkAdapter) {
+	r.sinks = append(r.sinks, sink)
+}
+
+// Without the logs signal no sink is registered on the agent's logger.
+func TestRegisterOTLPLogSink(t *testing.T) {
+	ci.Parallel(t)
+
+	newProviders := func(c *telemetry.OTLPConfig) *telemetry.Providers {
+		s, err := telemetry.Resolve(c)
+		must.NoError(t, err)
+		p, err := telemetry.New(s, hclog.NewNullLogger(), "norca-test/1")
+		must.NoError(t, err)
+		t.Cleanup(func() { _ = p.Shutdown(context.Background()) })
+		return p
+	}
+	base := hclog.NewInterceptLogger(&hclog.LoggerOptions{Output: io.Discard})
+
+	logger := &recordingLogger{InterceptLogger: base}
+	registerOTLPLogSink(logger, nil)
+	must.SliceEmpty(t, logger.sinks, must.Sprint("no otlp block"))
+
+	registerOTLPLogSink(logger, newProviders(&telemetry.OTLPConfig{}))
+	must.SliceEmpty(t, logger.sinks, must.Sprint("logs.enabled defaults to false"))
+
+	registerOTLPLogSink(logger, newProviders(&telemetry.OTLPConfig{
+		Logs: &telemetry.LogsConfig{Enabled: pointer.Of(false)},
+	}))
+	must.SliceEmpty(t, logger.sinks, must.Sprint("logs.enabled = false"))
+
+	p := newProviders(&telemetry.OTLPConfig{Logs: &telemetry.LogsConfig{Enabled: pointer.Of(true)}})
+	registerOTLPLogSink(logger, p)
+	must.Len(t, 1, logger.sinks)
+	must.Eq(t, hclog.SinkAdapter(p.LogSink()), logger.sinks[0])
 }
