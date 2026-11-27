@@ -1565,6 +1565,8 @@ func (s *Server) setupRaft() error {
 		EnableEventBroker:  s.config.EnableEventBroker,
 		EventBufferSize:    s.config.EventBufferSize,
 		JobTrackedVersions: s.config.JobTrackedVersions,
+		Tracing:            s.config.Tracing,
+		IsLeader:           s.IsLeader,
 	}
 	var err error
 	s.fsm, err = NewFSM(fsmConfig)
@@ -2187,7 +2189,7 @@ func (s *Server) RPC(method string, args interface{}, reply interface{}) error {
 		Args:   args,
 		Reply:  reply,
 	}
-	err := s.rpcServer.ServeRequest(codec)
+	err := s.rpcServer.ServeRequest(s.config.Tracing.WrapServerCodec(codec))
 	if err == nil {
 		err = codec.Err
 	}

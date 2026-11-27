@@ -231,6 +231,14 @@ func (s *Server) serverWithNodeConn(nodeID, region string) (*serverParts, error)
 // This is a wrapper method for getNodeForRpc, getNodeConn, etc that Client
 // RPCs which only need Servers to forward requests can use.
 func (s *Server) forwardClientRPC(method, nodeID string, args, reply any) error {
+	span := s.startForward(forwardClient, method, args)
+	err := s.forwardClientRPCImpl(method, nodeID, args, reply)
+	span.end(err)
+	return err
+}
+
+// forwardClientRPCImpl is forwardClientRPC without the trace span.
+func (s *Server) forwardClientRPCImpl(method, nodeID string, args, reply any) error {
 	if nodeID == "" {
 		return errors.New("missing NodeID")
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/backup"
@@ -539,6 +540,10 @@ type Config struct {
 	// /v1/metrics shows). The metrics store reads the Raft commit and
 	// AppendEntries times from it; nil leaves them out.
 	TelemetrySink *metrics.InmemSink
+
+	// Tracing is the trace instrumentation of the agent (telemetry.otlp);
+	// nil without the otlp block, and then the server traces nothing.
+	Tracing *telemetry.Tracing
 
 	// SecretsAudit configures the append-only audit file of the built-in
 	// secret store on this server; nil disables the file (the SecretAccess

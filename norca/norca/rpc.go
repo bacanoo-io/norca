@@ -445,7 +445,7 @@ func (r *rpcHandler) handleMultiplex(ctx context.Context, conn net.Conn, rpcCtx 
 // handleNomadConn is used to service a single Nomad RPC connection
 func (r *rpcHandler) handleNomadConn(ctx context.Context, conn net.Conn, server *rpc.Server) {
 	defer conn.Close()
-	rpcCodec := &errorNotingCodec{ServerCodec: pool.NewServerCodec(conn)}
+	rpcCodec := &errorNotingCodec{ServerCodec: r.srv.config.Tracing.WrapServerCodec(pool.NewServerCodec(conn))}
 	for {
 		select {
 		case <-ctx.Done():
@@ -729,7 +729,10 @@ func (r *rpcHandler) forwardLeader(server *serverParts, method string, args inte
 	if server == nil {
 		return structs.ErrNoLeader
 	}
-	return r.srv.connPool.RPC(r.srv.config.Region, server.Addr, method, args, reply)
+	span := r.srv.startForward(forwardLeader, method, args)
+	err := r.srv.connPool.RPC(r.srv.config.Region, server.Addr, method, args, reply)
+	span.end(err)
+	return err
 }
 
 // forwardServer is used to forward an RPC call to a particular server
@@ -738,7 +741,10 @@ func (r *rpcHandler) forwardServer(server *serverParts, method string, args inte
 	if server == nil {
 		return errors.New("must be given a valid server address")
 	}
-	return r.srv.connPool.RPC(r.srv.config.Region, server.Addr, method, args, reply)
+	span := r.srv.startForward(forwardServer, method, args)
+	err := r.srv.connPool.RPC(r.srv.config.Region, server.Addr, method, args, reply)
+	span.end(err)
+	return err
 }
 
 func (r *rpcHandler) findRegionServer(region string) (*serverParts, error) {
@@ -765,7 +771,10 @@ func (r *rpcHandler) forwardRegion(region, method string, args interface{}, repl
 
 	// Forward to remote Nomad
 	metrics.IncrCounter([]string{"server", "rpc", "cross-region", region}, 1)
-	return r.srv.connPool.RPC(region, server.Addr, method, args, reply)
+	span := r.srv.startForward(forwardRegion, method, args)
+	err = r.srv.connPool.RPC(region, server.Addr, method, args, reply)
+	span.end(err)
+	return err
 }
 
 func (r *rpcHandler) getServer(region, serverID string) (*serverParts, error) {
@@ -835,6 +844,13 @@ func (r *rpcHandler) streamingRpcImpl(conn net.Conn, method string) (net.Conn, e
 
 // raftApplyFuture is used to encode a message, run it through raft, and return the Raft future.
 func (s *Server) raftApplyFuture(t structs.MessageType, msg interface{}) (raft.ApplyFuture, error) {
+	return s.raftApplyFutureSpan(t, msg, nil)
+}
+
+// raftApplyFutureSpan is raftApplyFuture with the span of a raftApply,
+// which the log entry carries to the leader's FSM span (nil: the traceparent
+// of msg).
+func (s *Server) raftApplyFutureSpan(t structs.MessageType, msg any, span *raftApplySpan) (raft.ApplyFuture, error) {
 	buf, err := structs.Encode(t, msg)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode request: %v", err)
@@ -845,7 +861,8 @@ func (s *Server) raftApplyFuture(t structs.MessageType, msg interface{}) (raft.A
 		s.logger.Warn("attempting to apply large raft entry", "raft_type", t, "bytes", n)
 	}
 
-	future := s.raft.Apply(buf, enqueueLimit)
+	log := raft.Log{Data: buf, Extensions: s.raftLogExtensions(msg, span, len(buf))}
+	future := s.raft.ApplyLog(log, enqueueLimit)
 	return future, nil
 }
 
@@ -855,15 +872,17 @@ type raftApplyFn func(t structs.MessageType, msg interface{}) (interface{}, uint
 // raftApply is used to encode a message, run it through raft, and return the
 // FSM response along with any errors. If the FSM.Apply response is an error it
 // will be returned as the error return value with a nil response.
-func (s *Server) raftApply(t structs.MessageType, msg any) (any, uint64, error) {
-	future, err := s.raftApplyFuture(t, msg)
+func (s *Server) raftApply(t structs.MessageType, msg any) (resp any, index uint64, err error) {
+	span := s.startRaftApply(t, msg)
+	defer func() { span.end(index, err) }()
+	future, err := s.raftApplyFutureSpan(t, msg, &span)
 	if err != nil {
 		return nil, 0, err
 	}
 	if err := future.Error(); err != nil {
 		return nil, 0, err
 	}
-	resp := future.Response()
+	resp = future.Response()
 	if err, ok := resp.(error); ok && err != nil {
 		return nil, future.Index(), err
 	}

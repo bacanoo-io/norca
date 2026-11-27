@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -162,6 +163,12 @@ type FSMConfig struct {
 
 	// JobTrackedVersions is the number of historic job versions that are kept.
 	JobTrackedVersions int
+
+	// Tracing is the trace instrumentation of the agent, nil without an
+	// otlp block; IsLeader tells whether the server is the leader, which
+	// alone traces its FSM applies (Norca).
+	Tracing  *telemetry.Tracing
+	IsLeader func() bool
 }
 
 // NewFSM is used to construct a new FSM with a blank state.
@@ -218,7 +225,17 @@ func (n *nomadFSM) TimeTable() *TimeTable {
 	return n.timetable
 }
 
+// Apply applies a log entry to the FSM. On the leader, an entry that
+// carries a sampled traceparent gets an fsm.apply span.
 func (n *nomadFSM) Apply(log *raft.Log) interface{} {
+	span := n.fsmApplySpan(log)
+	resp := n.apply(log)
+	endFSMApplySpan(span, resp)
+	return resp
+}
+
+// apply applies a log entry to the FSM (Apply without the trace span).
+func (n *nomadFSM) apply(log *raft.Log) interface{} {
 	buf := log.Data
 	msgType := structs.MessageType(buf[0])
 
