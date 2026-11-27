@@ -948,8 +948,12 @@ func (tr *TaskRunner) runDriver() error {
 	if tr.getDriverHandle() != nil {
 		// Ensure running state is persisted but do *not* append a new
 		// task event as restoring is a client event and not relevant
-		// to a task's lifecycle.
-		if err := tr.updateStateImpl(structs.TaskStateRunning); err != nil {
+		// to a task's lifecycle. updateStateImpl needs the state lock,
+		// like in UpdateState (Norca).
+		tr.stateLock.Lock()
+		err := tr.updateStateImpl(structs.TaskStateRunning)
+		tr.stateLock.Unlock()
+		if err != nil {
 			//TODO return error and destroy task to avoid an orphaned task?
 			tr.logger.Warn("error persisting task state", "error", err)
 		}
@@ -1342,6 +1346,7 @@ func (tr *TaskRunner) UpdateState(state string, event *structs.TaskEvent) {
 }
 
 // updateStateImpl updates the in-memory task state and persists to disk.
+// Caller must acquire stateLock.
 func (tr *TaskRunner) updateStateImpl(state string) error {
 
 	// Update the task state
