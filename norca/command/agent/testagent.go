@@ -21,6 +21,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/fingerprint"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/norca"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
@@ -65,6 +66,10 @@ type TestAgent struct {
 
 	// Key is the optional encryption key for the keyring.
 	Key string
+
+	// Tracing is the optional trace instrumentation of the agent, as an
+	// otlp block would give it.
+	Tracing *telemetry.Tracing
 
 	// All HTTP servers started. Used to prevent server leaks and preserve
 	// backwards compatibility.
@@ -243,7 +248,7 @@ func (a *TestAgent) start() (*Agent, error) {
 		return nil, fmt.Errorf("unable to set up in memory metrics needed for agent initialization")
 	}
 
-	agent, err := NewAgent(a.Config, a.logger, testlog.NewWriter(a.T), inm)
+	agent, err := NewAgent(a.Config, a.logger, testlog.NewWriter(a.T), inm, a.Tracing)
 	if err != nil {
 		return nil, err
 	}

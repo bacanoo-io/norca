@@ -36,6 +36,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/command/agent/event"
 	"github.com/bacanoo-io/norca/norca/helper/connprefix"
 	"github.com/bacanoo-io/norca/norca/helper/noxssrw"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/tlsutil"
 	"github.com/bacanoo-io/norca/norca/norca"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -225,7 +226,7 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 		// Create HTTP server with timeouts
 		httpServer := http.Server{
 			Addr:      srv.Addr,
-			Handler:   handlers.CompressHandler(srv.mux),
+			Handler:   handlers.CompressHandler(agent.tracing.HTTPHandler(srv.mux)),
 			ConnState: makeConnState(config.TLSConfig.EnableHTTP, handshakeTimeout, maxConns, listenerTLS, srv.logger),
 			ErrorLog:  newHTTPServerLogger(srv.logger),
 		}
@@ -268,7 +269,7 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 		// builtinServer adds a wrapper to always authenticate requests
 		httpServer := http.Server{
 			Addr:     srv.Addr,
-			Handler:  newAuthMiddleware(srv, srv.mux),
+			Handler:  newAuthMiddleware(srv, agent.tracing.HTTPHandler(srv.mux)),
 			ErrorLog: newHTTPServerLogger(srv.logger),
 		}
 
@@ -867,8 +868,9 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 		// Invoke the handler
 		reqURL := req.URL.String()
 		start := time.Now()
+		logger := telemetry.LogWith(s.logger, req.Context())
 		defer func() {
-			s.logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
+			logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
 		}()
 		obj, err := s.auditHandler(handler)(resp, req)
 
@@ -904,9 +906,9 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 			resp.WriteHeader(code)
 			resp.Write([]byte(errMsg))
 			if isAPIClientError(code) {
-				s.logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
 			} else {
-				s.logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
 			}
 			return
 		}
@@ -954,8 +956,9 @@ func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *htt
 		// Invoke the handler
 		reqURL := req.URL.String()
 		start := time.Now()
+		logger := telemetry.LogWith(s.logger, req.Context())
 		defer func() {
-			s.logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
+			logger.Debug("request complete", "method", req.Method, "path", reqURL, "duration", time.Since(start))
 		}()
 		obj, err := s.auditNonJSONHandler(handler)(resp, req)
 
@@ -965,9 +968,9 @@ func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *htt
 			resp.WriteHeader(code)
 			resp.Write([]byte(errMsg))
 			if isAPIClientError(code) {
-				s.logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Debug("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
 			} else {
-				s.logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
+				logger.Error("request failed", "method", req.Method, "path", reqURL, "error", err, "code", code)
 			}
 			return
 		}
@@ -1199,6 +1202,7 @@ func (s *HTTPServer) parse(resp http.ResponseWriter, req *http.Request, r *strin
 	parsePagination(req, b)
 	parseFilter(req, b)
 	parseReverse(req, b)
+	parseTraceParent(req, &b.InternalRpcInfo)
 	return parseWait(resp, req, b)
 }
 
@@ -1270,6 +1274,7 @@ func (s *HTTPServer) parseWriteRequest(req *http.Request, w *structs.WriteReques
 	s.parseToken(req, &w.AuthToken)
 	s.parseRegion(req, &w.Region)
 	parseIdempotencyToken(req, &w.IdempotencyToken)
+	parseTraceParent(req, &w.InternalRpcInfo)
 }
 
 // wrapUntrustedContent wraps handlers in a http.ResponseWriter that prevents

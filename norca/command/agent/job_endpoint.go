@@ -871,6 +871,7 @@ func (s *HTTPServer) apiJobAndRequestToStructs(job *api.Job, req *http.Request, 
 	}
 
 	s.parseToken(req, &writeReq.AuthToken)
+	parseTraceParent(req, &writeReq.InternalRpcInfo)
 
 	queryRegion := req.URL.Query().Get("region")
 	requestRegion, jobRegion := regionForJob(

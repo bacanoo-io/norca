@@ -27,6 +27,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/escapingfs"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/lib/cpuset"
@@ -125,15 +126,22 @@ type Agent struct {
 	taskAPIServer *builtinAPI
 
 	inmemSink *metrics.InmemSink
+
+	// tracing is the trace instrumentation of telemetry.otlp, nil without
+	// the block.
+	tracing *telemetry.Tracing
 }
 
-// NewAgent is used to create a new agent with the given configuration
-func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink) (*Agent, error) {
+// NewAgent is used to create a new agent with the given configuration.
+// tracing, nil without an otlp block, is the trace instrumentation that the
+// server, the client and the HTTP API get.
+func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink, tracing *telemetry.Tracing) (*Agent, error) {
 	a := &Agent{
 		config:     config,
 		logOutput:  logOutput,
 		shutdownCh: make(chan struct{}),
 		inmemSink:  inmem,
+		tracing:    tracing,
 	}
 
 	// Create the loggers
@@ -708,6 +716,7 @@ func (a *Agent) finalizeServerConfig(c *norca.Config) {
 	c.LogOutput = a.logOutput
 	c.AgentShutdown = func() error { return a.Shutdown() }
 	c.TelemetrySink = a.inmemSink
+	c.Tracing = a.tracing
 }
 
 // clientConfig is used to generate a new client configuration struct for
@@ -730,6 +739,7 @@ func (a *Agent) clientConfig() (*clientconfig.Config, error) {
 func (a *Agent) finalizeClientConfig(c *clientconfig.Config) error {
 	// Setup the logging
 	c.Logger = a.logger
+	c.Tracing = a.tracing
 
 	// If we are running a server, append both its bind and advertise address so
 	// we are able to at least talk to the local server even if that isn't
