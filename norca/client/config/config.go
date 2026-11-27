@@ -28,6 +28,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/bufconndialer"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	structsc "github.com/bacanoo-io/norca/norca/norca/structs/config"
@@ -198,6 +199,10 @@ type Config struct {
 	// PublishAllocationMetrics determines whether nomad is going to publish
 	// allocation metrics to remote Telemetry sinks
 	PublishAllocationMetrics bool
+
+	// Tracing is the trace instrumentation of the agent (telemetry.otlp);
+	// nil without the otlp block, and then the client traces nothing.
+	Tracing *telemetry.Tracing
 
 	// TLSConfig holds various TLS related configurations
 	TLSConfig *structsc.TLSConfig

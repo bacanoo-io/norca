@@ -39,7 +39,7 @@ func (c *Client) ClientRPC(method string, args interface{}, reply interface{}) e
 		Args:   args,
 		Reply:  reply,
 	}
-	if err := c.rpcServer.ServeRequest(codec); err != nil {
+	if err := c.rpcServer.ServeRequest(c.GetConfig().Tracing.WrapServerCodec(codec)); err != nil {
 		return err
 	}
 	return codec.Err
@@ -424,7 +424,7 @@ func (c *Client) handleConn(conn net.Conn) {
 // handleNomadConn is used to handle a single Nomad RPC connection.
 func (c *Client) handleNomadConn(conn net.Conn) {
 	defer conn.Close()
-	rpcCodec := pool.NewServerCodec(conn)
+	rpcCodec := c.GetConfig().Tracing.WrapServerCodec(pool.NewServerCodec(conn))
 	for {
 		select {
 		case <-c.shutdownCh:
