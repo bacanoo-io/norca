@@ -49,7 +49,7 @@ func (db *DB) gcLoop() {
 		}
 		db.MeasureSince("vlog_gc", start)
 		if files > 0 {
-			db.Logger.Debug("value log garbage collection", "rewritten_files", files, "took", time.Since(start))
+			db.Logger.Debug("value log garbage collection", "rewritten_files", files, "duration", time.Since(start))
 		}
 	}
 }
@@ -100,10 +100,11 @@ func (db *DB) MeasureSince(name string, start time.Time) {
 // compaction and flush) are logged at debug level.
 type badgerLogger struct{ l hclog.Logger }
 
-func (b badgerLogger) Errorf(f string, a ...any)   { b.l.Error(trim(fmt.Sprintf(f, a...))) }
-func (b badgerLogger) Warningf(f string, a ...any) { b.l.Warn(trim(fmt.Sprintf(f, a...))) }
-func (b badgerLogger) Infof(f string, a ...any)    { b.l.Debug(trim(fmt.Sprintf(f, a...))) }
-func (b badgerLogger) Debugf(f string, a ...any)   { b.l.Trace(trim(fmt.Sprintf(f, a...))) }
+// The lines are Badger's own messages: logcheck lets them through.
+func (b badgerLogger) Errorf(f string, a ...any)   { b.l.Error(trim(fmt.Sprintf(f, a...))) } //logcheck:ignore
+func (b badgerLogger) Warningf(f string, a ...any) { b.l.Warn(trim(fmt.Sprintf(f, a...))) }  //logcheck:ignore
+func (b badgerLogger) Infof(f string, a ...any)    { b.l.Debug(trim(fmt.Sprintf(f, a...))) } //logcheck:ignore
+func (b badgerLogger) Debugf(f string, a ...any)   { b.l.Trace(trim(fmt.Sprintf(f, a...))) } //logcheck:ignore
 
 func trim(s string) string {
 	for len(s) > 0 && (s[len(s)-1] == '\n' || s[len(s)-1] == ' ') {

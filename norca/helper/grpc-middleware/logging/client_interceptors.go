@@ -41,5 +41,5 @@ func emitClientLog(logger hclog.Logger, o *options, fullMethodString string, sta
 	reqDuration := time.Since(startTime)
 	service := path.Dir(fullMethodString)[1:]
 	method := path.Base(fullMethodString)
-	logger.Log(logLevel, msg, "grpc.code", code, "duration", reqDuration, "grpc.service", service, "grpc.method", method)
+	logger.Log(logLevel, msg, "grpc_code", code, "duration", reqDuration, "grpc_service", service, "grpc_method", method)
 }

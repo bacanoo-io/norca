@@ -95,7 +95,7 @@ func (p *propertySet) setConstraint(constraint *structs.Constraint, taskGroup st
 		c, err := strconv.ParseUint(v, 10, 64)
 		if err != nil {
 			p.errorBuilding = fmt.Errorf("failed to convert RTarget %q to uint64: %v", v, err)
-			p.logger.Error("failed to convert RTarget to uint64", "RTarget", v, "error", err)
+			p.logger.Error("failed to convert RTarget to uint64", "rtarget", v, "error", err)
 			return
 		}
 
@@ -148,7 +148,7 @@ func (p *propertySet) populateExisting() {
 	allocs, err := p.ctx.State().AllocsByJob(ws, p.namespace, p.jobID, false)
 	if err != nil {
 		p.errorBuilding = fmt.Errorf("failed to get job's allocations: %v", err)
-		p.logger.Error("failed to get job's allocations", "job", p.jobID, "namespace", p.namespace, "error", err)
+		p.logger.Error("failed to get job's allocations", "job_id", p.jobID, "namespace", p.namespace, "error", err)
 		return
 	}
 

@@ -45,7 +45,7 @@ func New(logger hclog.Logger, r *raft.Raft) (*Snapshot, error) {
 	}
 	defer func() {
 		if err := snap.Close(); err != nil {
-			logger.Error("Failed to close Raft snapshot", "error", err)
+			logger.Error("failed to close Raft snapshot", "error", err)
 		}
 	}()
 
@@ -66,7 +66,7 @@ func New(logger hclog.Logger, r *raft.Raft) (*Snapshot, error) {
 		}
 
 		if err := os.Remove(archive.Name()); err != nil {
-			logger.Error("Failed to clean up temp snapshot", "error", err)
+			logger.Error("failed to clean up temp snapshot", "error", err)
 		}
 	}()
 
@@ -215,7 +215,7 @@ func Restore(logger hclog.Logger, in io.Reader, r *raft.Raft) error {
 	}
 	defer func() {
 		if err := decomp.Close(); err != nil {
-			logger.Error("Failed to close snapshot decompressor", "error", err)
+			logger.Error("failed to close snapshot decompressor", "error", err)
 		}
 	}()
 
@@ -227,10 +227,10 @@ func Restore(logger hclog.Logger, in io.Reader, r *raft.Raft) error {
 	}
 	defer func() {
 		if err := snap.Close(); err != nil {
-			logger.Error("Failed to close temp snapshot", "error", err)
+			logger.Error("failed to close temp snapshot", "error", err)
 		}
 		if err := os.Remove(snap.Name()); err != nil {
-			logger.Error("Failed to clean up temp snapshot", "error", err)
+			logger.Error("failed to clean up temp snapshot", "error", err)
 		}
 	}()
 

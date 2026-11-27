@@ -85,7 +85,7 @@ func NewDriverHarness(t testing.TB, d drivers.DriverPlugin) *DriverHarness {
 func (h *DriverHarness) setupCgroupV2(allocID, task string) {
 	if cgutil.UseV2 {
 		h.cgroup = filepath.Join(cgutil.CgroupRoot, "testing.slice", cgutil.CgroupScope(allocID, task))
-		h.logger.Trace("create cgroup for test", "parent", "testing.slice", "id", allocID, "task", task, "path", h.cgroup)
+		h.logger.Trace("create cgroup for test", "parent", "testing.slice", "alloc_id", allocID, "task", task, "path", h.cgroup)
 		if err := os.MkdirAll(h.cgroup, 0755); err != nil {
 			panic(err)
 		}

@@ -763,7 +763,7 @@ func inplaceUpdate(ctx Context, eval *structs.Evaluation, job *structs.Job,
 	}
 
 	if len(updates) > 0 {
-		ctx.Logger().Debug("made in-place updates", "in-place", inplaceCount, "total_updates", len(updates))
+		ctx.Logger().Debug("made in-place updates", "in_place", inplaceCount, "total_updates", len(updates))
 	}
 	return updates[:n], updates[n:]
 }

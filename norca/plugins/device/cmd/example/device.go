@@ -208,7 +208,7 @@ func (d *FsDevice) diffFiles(files []os.FileInfo) []*device.Device {
 		// Determine the health
 		perms := f.Mode().Perm().String()
 		healthy := perms != d.unhealthyPerm
-		d.logger.Trace("checking health", "file perm", perms, "unhealthy perms", d.unhealthyPerm, "healthy", healthy)
+		d.logger.Trace("checking health", "file_perm", perms, "unhealthy_perms", d.unhealthyPerm, "healthy", healthy)
 
 		// See if we alreay have the device
 		oldHealth, ok := d.devices[name]

@@ -412,7 +412,7 @@ func (c *client) ControllerValidateCapabilities(ctx context.Context, req *Contro
 	if resp.Message != "" {
 		// this should only ever be set if Confirmed isn't set, but
 		// it's not a validation failure.
-		c.logger.Debug(resp.Message)
+		c.logger.Debug("volume capabilities not confirmed", "message", resp.Message)
 	}
 
 	// The protobuf accessors below safely handle nil pointers.

@@ -288,7 +288,7 @@ OUTER:
 					if hostNetworkValue, hostNetworkOk := resolveTarget(port.HostNetwork, option.Node); hostNetworkOk {
 						ask.DynamicPorts[i].HostNetwork = hostNetworkValue
 					} else {
-						iter.ctx.Logger().Named("binpack").Error(fmt.Sprintf("Invalid template for %s host network in port %s", port.HostNetwork, port.Label))
+						iter.ctx.Logger().Named("binpack").Error("invalid template for host network in port", "host_network", port.HostNetwork, "port", port.Label)
 						netIdx.Release()
 						continue OUTER
 					}
@@ -299,7 +299,7 @@ OUTER:
 					if hostNetworkValue, hostNetworkOk := resolveTarget(port.HostNetwork, option.Node); hostNetworkOk {
 						ask.ReservedPorts[i].HostNetwork = hostNetworkValue
 					} else {
-						iter.ctx.Logger().Named("binpack").Error(fmt.Sprintf("Invalid template for %s host network in port %s", port.HostNetwork, port.Label))
+						iter.ctx.Logger().Named("binpack").Error("invalid template for host network in port", "host_network", port.HostNetwork, "port", port.Label)
 						netIdx.Release()
 						continue OUTER
 					}
