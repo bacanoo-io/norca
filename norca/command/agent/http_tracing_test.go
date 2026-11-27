@@ -141,13 +141,24 @@ func TestHTTP_Tracing(t *testing.T) {
 	must.StrContains(t, matching[0], `"trace_id":"`+traceID+`"`)
 	must.StrContains(t, matching[0], `"span_id":"`+httpSpan.SpanContext.SpanID().String()+`"`)
 
-	// excluded: no span, no trace ID, no trace in the log line
-	before := len(exp.GetSpans())
+	// excluded: no span, no trace ID, no trace in the log line. The spans
+	// of the job's trace are left out of the count: its scheduling goes on
+	// in the background (eval.process, the plan).
+	otherSpans := func() int {
+		n := 0
+		for _, s := range exp.GetSpans() {
+			if s.SpanContext.TraceID().String() != traceID {
+				n++
+			}
+		}
+		return n
+	}
+	before := otherSpans()
 	resp, err = http.Get(s.HTTPAddr() + "/v1/agent/health")
 	must.NoError(t, err)
 	must.NoError(t, resp.Body.Close())
 	must.Eq(t, "", resp.Header.Get(telemetry.TraceIDHeader))
-	must.Len(t, before, exp.GetSpans())
+	must.Eq(t, before, otherSpans())
 	for _, l := range logs.lines(`"http_path":"/v1/agent/health"`) {
 		must.StrNotContains(t, l, "trace_id")
 	}
@@ -162,7 +173,7 @@ func TestHTTP_Tracing(t *testing.T) {
 	tid, err := trace.TraceIDFromHex(readID)
 	must.NoError(t, err)
 	must.True(t, tid.IsValid())
-	must.Len(t, before, exp.GetSpans())
+	must.Eq(t, before, otherSpans())
 }
 
 // The routes the tracing names (always sampled, excluded) are routes of the
