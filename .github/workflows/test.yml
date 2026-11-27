@@ -98,6 +98,13 @@ jobs:
             go -C "$m" vet ./...
             echo "::endgroup::"
           done
+      - name: logcheck
+        # The hclog calls of the norca module follow the log convention
+        # (norca/tools/logcheck); for Linux and Windows, as the build job.
+        run: |
+          go -C norca/tools build -o "$RUNNER_TEMP/logcheck" ./logcheck/cmd/logcheck
+          go -C norca vet -vettool="$RUNNER_TEMP/logcheck" ./...
+          GOOS=windows go -C norca vet -vettool="$RUNNER_TEMP/logcheck" ./...
 
   unit:
     name: Unit tests

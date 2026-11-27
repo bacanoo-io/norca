@@ -145,7 +145,6 @@ lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 	go install github.com/client9/misspell/cmd/misspell@v0.3.4
-	go install github.com/hashicorp/go-hclog/hclogvet@v0.1.6
 
 .PHONY: git-hooks
 git-dir = $(shell git rev-parse --git-dir)
@@ -159,8 +158,7 @@ check: ## Lint the source code
 	@echo "==> Linting source code (what changed since main; all of it: golangci-lint run)..."
 	@golangci-lint run --new-from-merge-base=main
 
-	@echo "==> Linting hclog statements..."
-	@hclogvet .
+	@$(MAKE) logcheck
 
 	@echo "==> Spell checking website..."
 	@misspell -error -source=text website/content/
@@ -193,6 +191,16 @@ check: ## Lint the source code
 	@echo "==> Check raft util msg type mapping are in-sync..."
 	@go generate ./helper/raftutil/
 	@if (git status -s ./helper/raftutil| grep -q .go); then echo "raftutil helper message type mapping is out of sync. Run go generate ./... and push."; exit 1; fi
+
+# logcheck, the analyzer of the hclog calls (tools/logcheck): the log key
+# convention, constant messages, key/value pairs. Built into bin/.
+LOGCHECK = $(PROJECT_ROOT)/bin/logcheck
+
+.PHONY: logcheck
+logcheck: ## Check the hclog calls against the log convention (tools/logcheck)
+	@echo "==> Checking hclog calls (logcheck)..."
+	@go -C $(PROJECT_ROOT)/tools build -o $(LOGCHECK) ./logcheck/cmd/logcheck
+	@go vet -vettool=$(LOGCHECK) ./...
 
 .PHONY: checkscripts
 checkscripts: ## Lint shell scripts
