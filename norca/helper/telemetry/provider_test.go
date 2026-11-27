@@ -5,6 +5,8 @@ package telemetry
 
 import (
 	"context"
+	"encoding/hex"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +21,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
 var testIdentity = Identity{
@@ -577,4 +580,65 @@ func TestSelectors(t *testing.T) {
 	must.True(t, isExp)
 	_, isExplicit := aggregationSelector(HistogramsExplicit)(sdkmetric.InstrumentKindHistogram).(sdkmetric.AggregationExplicitBucketHistogram)
 	must.True(t, isExplicit)
+}
+
+// The spans of the agent's instrumentation (the HTTP API and the RPC
+// server) reach the receiver with the agent's resource, parent and child
+// in one trace; without the traces export they are not exported, but the
+// trace IDs exist.
+func TestProviders_TracingExport(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := otlptest.Start(t, otlptest.Options{})
+	p, _ := startProviders(t, &OTLPConfig{
+		TargetConfig: TargetConfig{Endpoint: srv.Addr},
+		Traces:       &TracesConfig{SampleRatio: pointer.Of(0.0)},
+	})
+	tracing := p.Tracing()
+	must.NotNil(t, tracing)
+
+	// the HTTP API calls an RPC with the request's traceparent
+	rpcSrv := newTestRPCServer(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/jobs", func(w http.ResponseWriter, r *http.Request) {
+		args := &RPCTestArgs{TraceParent: TraceParentFromContext(r.Context())}
+		c := &memCodec{method: "Test.Call", args: args, reply: &RPCTestReply{}}
+		must.NoError(t, rpcSrv.ServeRequest(tracing.WrapServerCodec(c)))
+	})
+	w := request(tracing.HTTPHandler(mux), "PUT", "/v1/jobs", nil)
+	traceID := w.Header().Get(TraceIDHeader)
+	must.NotEq(t, "", traceID)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	must.NoError(t, p.ForceFlush(ctx))
+
+	names := map[string]*tracepb.Span{}
+	for _, tr := range srv.Traces() {
+		for _, rs := range tr.Request.GetResourceSpans() {
+			attrs := resourceAttrs(rs.GetResource())
+			must.Eq(t, "norca", attrs["service.name"].GetStringValue())
+			must.Eq(t, "server-1", attrs["norca.server.id"].GetStringValue())
+			for _, ss := range rs.GetScopeSpans() {
+				must.Eq(t, InstrumentationName, ss.GetScope().GetName())
+				for _, s := range ss.GetSpans() {
+					names[s.GetName()] = s
+				}
+			}
+		}
+	}
+	httpSpan, rpcSpan := names["PUT /v1/jobs"], names["Test.Call"]
+	must.NotNil(t, httpSpan, must.Sprint("an always-sampled route at ratio 0"))
+	must.NotNil(t, rpcSpan)
+	must.Eq(t, traceID, hex.EncodeToString(httpSpan.GetTraceId()))
+	must.Eq(t, httpSpan.GetTraceId(), rpcSpan.GetTraceId())
+	must.Eq(t, httpSpan.GetSpanId(), rpcSpan.GetParentSpanId())
+
+	// traces export off: IDs for the logs, nothing sampled or exported
+	off, _ := startProviders(t, &OTLPConfig{
+		TargetConfig: TargetConfig{Endpoint: srv.Addr},
+		Traces:       &TracesConfig{Enabled: pointer.Of(false)},
+	})
+	w = request(off.Tracing().HTTPHandler(mux), "PUT", "/v1/jobs", nil)
+	must.NotEq(t, "", w.Header().Get(TraceIDHeader))
 }

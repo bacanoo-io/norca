@@ -185,6 +185,10 @@ type spanExporter struct {
 
 	// resource is set by Start, before any span exists.
 	resource *resource.Resource
+
+	// done, set by Start, is told the size of every batch once the export
+	// is over, and whether it failed (spanQueue).
+	done func(n int, failed bool)
 }
 
 var _ sdktrace.SpanExporter = (*spanExporter)(nil)
@@ -202,7 +206,11 @@ func (e *spanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnl
 	for i, s := range spans {
 		pinned[i] = pinnedSpan{ReadOnlySpan: s, resource: e.resource}
 	}
-	if err := e.next.ExportSpans(ctx, pinned); err != nil {
+	err := e.next.ExportSpans(ctx, pinned)
+	if e.done != nil {
+		e.done(len(spans), err != nil)
+	}
+	if err != nil {
 		e.errs.export(SignalTraces, err)
 		return &exportError{signal: SignalTraces, err: err}
 	}

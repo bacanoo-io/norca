@@ -8,6 +8,11 @@
 // them to the OTLP export. The go-metrics setup (in-memory and Prometheus
 // sinks, the fanout) stays in command/agent.
 //
+// The trace instrumentation (Tracing) is here too: the sampler with the
+// always-sampled operations and the exclusions, the W3C traceparent that
+// RPC arguments carry, the server span wrapper of the msgpack RPC codec,
+// the HTTP API handler, and the trace fields of the logs (LogWith).
+//
 // The agent configuration is the only source of the settings: every option
 // that the exporters or the SDK would read from an OTEL_* environment
 // variable is set explicitly, and the resource is pinned on the exported

@@ -69,6 +69,10 @@ type Providers struct {
 	conns    *connections
 	sampler  *ratioSampler
 
+	// tracing is the trace instrumentation handed to the server, the
+	// client and the HTTP API; it exists from New and is bound in Start.
+	tracing *Tracing
+
 	spans   *spanExporter
 	metrics *metricExporter
 
@@ -97,6 +101,7 @@ func New(s *Settings, logger hclog.Logger, userAgent string) (*Providers, error)
 		errs:     newErrorReporter(logger),
 		conns:    &connections{settings: s, userAgent: userAgent},
 		sampler:  newRatioSampler(s.Traces.SampleRatio),
+		tracing:  newTracing(s.Traces),
 	}
 	if err := p.newExporters(); err != nil {
 		if p.spans != nil {
@@ -162,23 +167,28 @@ func (p *Providers) Start(id Identity) error {
 		propagation.TraceContext{}, propagation.Baggage{}))
 
 	// A TracerProvider exists with every otlp block, so trace IDs exist
-	// (for the logs) even with the traces export off.
+	// (for the logs) even with the traces export off. Without the export
+	// nothing is sampled: the spans are non-recording and cost little.
+	sampler := sdktrace.NeverSample()
+	if p.spans != nil {
+		sampler = NewSampler(p.sampler)
+	}
 	topts := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.ParentBased(p.sampler)),
+		sdktrace.WithSampler(sampler),
 		sdktrace.WithRawSpanLimits(spanLimits),
 	}
 	if p.spans != nil {
 		p.spans.resource = res
 		t := p.settings.Traces
-		topts = append(topts, sdktrace.WithBatcher(p.spans,
-			sdktrace.WithMaxQueueSize(t.MaxQueueSize),
+		topts = append(topts, sdktrace.WithSpanProcessor(newSpanQueue(p.spans, t.MaxQueueSize,
 			sdktrace.WithMaxExportBatchSize(t.MaxExportBatch),
 			sdktrace.WithBatchTimeout(batchTimeout),
 			sdktrace.WithExportTimeout(p.settings.Timeout),
-		))
+		)))
 	}
 	p.tracer = sdktrace.NewTracerProvider(topts...)
+	p.tracing.bind(p.tracer)
 
 	if p.metrics != nil {
 		p.metrics.resource = res
@@ -208,6 +218,16 @@ func (p *Providers) TracerProvider() trace.TracerProvider {
 		}
 	}
 	return tracenoop.NewTracerProvider()
+}
+
+// Tracing returns the trace instrumentation of the agent, for the server,
+// the client and the HTTP API; nil without an otlp block, so they install
+// no wrapper. It exists before Start and traces from Start on.
+func (p *Providers) Tracing() *Tracing {
+	if p == nil {
+		return nil
+	}
+	return p.tracing
 }
 
 // MeterProvider returns the agent's meter provider, or a no-op one when the

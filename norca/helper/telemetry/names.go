@@ -18,7 +18,7 @@ package telemetry
 //	scheduler   the schedulers: norca.scheduler.allocs.reschedule.*
 //	autoscaler  the built-in autoscaler on the leader: norca.autoscaler.*
 //	badger      the Badger databases of the Raft log and the client state: norca.badger.<db>.*
-//	agent       the agent itself: norca.agent.http.exceeded, norca.agent.otlp.export_errors
+//	agent       the agent itself: norca.agent.http.exceeded, norca.agent.otlp.export_errors, norca.agent.otlp.dropped
 //	http        the HTTP API rate limit of the agent: norca.http.rate_limited
 //	runtime     the Go runtime, emitted by go-metrics: norca.runtime.*
 //	memberlist  the gossip of the servers: norca.memberlist.*
