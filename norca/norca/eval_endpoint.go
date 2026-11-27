@@ -196,7 +196,9 @@ func (e *Eval) Dequeue(args *structs.EvalDequeueRequest,
 		reply.Eval = eval
 		reply.Token = token
 		reply.WaitIndex = waitIndex
-		reply.TraceParent = e.srv.evalBroker.TraceParent(eval.ID, token)
+		if e.srv.config.Tracing != nil {
+			reply.TraceParent = e.srv.evalBroker.TraceParent(eval.ID, token)
+		}
 	}
 
 	// Set the query response
