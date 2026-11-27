@@ -1789,6 +1789,10 @@ func shouldReloadSchedulers(s *Server, newPoolArgs *SchedulerWorkerPoolArgs) (bo
 	copy(oldSchedulers, s.config.EnabledSchedulers)
 	sort.Strings(oldSchedulers)
 
+	// a list of another length differs (and would index past the old one)
+	if len(oldSchedulers) != len(newSchedulers) {
+		return true, newPoolArgs
+	}
 	for i, v := range newSchedulers {
 		if oldSchedulers[i] != v {
 			return true, newPoolArgs
