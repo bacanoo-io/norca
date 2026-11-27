@@ -139,7 +139,10 @@ func TestJobEndpoint_Register_TypedScalingPolicy(t *testing.T) {
 func TestJobEndpoint_Register_BuiltinEngineDisabled(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, cleanupS1 := TestServer(t, nil)
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		c.Autoscaler = autoscaler.DefaultConfig()
+		c.Autoscaler.Enabled = false
+	})
 	defer cleanupS1()
 	codec := rpcClient(t, s1)
 	testutil.WaitForLeader(t, s1.RPC)

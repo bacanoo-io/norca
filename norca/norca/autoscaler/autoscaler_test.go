@@ -710,14 +710,20 @@ func TestAutoscaler_Lifecycle(t *testing.T) {
 		},
 	})
 
-	// Disabled by default, with the builtin engine as the default engine.
+	// Enabled by default, with the builtin engine as the default engine.
 	a.SetLeader(true)
-	must.False(t, a.Running())
+	must.True(t, a.Running())
 	must.Eq(t, structs.ScalingPolicyEngineBuiltin, a.DefaultEngine())
 
-	// Enabled on reload, and the default engine follows the configuration.
+	// Disabled on reload.
 	cfg := DefaultConfig()
-	cfg.Enabled = true
+	cfg.Enabled = false
+	a.SetConfig(cfg)
+	must.False(t, a.Running())
+
+	// Enabled again on reload, and the default engine follows the
+	// configuration.
+	cfg = DefaultConfig()
 	cfg.DefaultEngine = structs.ScalingPolicyEngineExternal
 	a.SetConfig(cfg)
 	must.True(t, a.Running())

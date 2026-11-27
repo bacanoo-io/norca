@@ -275,6 +275,7 @@ func TestBusTelemetry_TaskGroupUsage(t *testing.T) {
 
 	// With the autoscaler disabled clients are not asked for usage.
 	cfg := autoscaler.DefaultConfig()
+	cfg.Enabled = false
 	s.autoscaler.SetConfig(cfg)
 	hb := &structs.NodeUpdateStatusRequest{
 		NodeID:       node.ID,

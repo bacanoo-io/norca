@@ -75,9 +75,14 @@ func TestDemand_NotesUnhelpedWork(t *testing.T) {
 		},
 	}
 
+	// The policy of the harness is made a builtin one: without node groups
+	// the blocked work is only looked at for the policies.
+	builtin := func(p *structs.ScalingPolicy) { p.Engine = structs.ScalingPolicyEngineBuiltin }
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, _, _ := demandHarness(t, tt.groups, tt.work)
+			h.updatePolicy(builtin)
 			must.NoError(t, h.runner.scaleForDemand(ctx))
 			must.Eq(t, tt.expected, h.runner.capacity.unhelped(web))
 		})
@@ -86,6 +91,7 @@ func TestDemand_NotesUnhelpedWork(t *testing.T) {
 	t.Run("work that is helped later is no longer noted", func(t *testing.T) {
 		work := bigWork(2, "dc-a")
 		h, _, _ := demandHarness(t, nil, work)
+		h.updatePolicy(builtin)
 		must.NoError(t, h.runner.scaleForDemand(ctx))
 		must.NotEq(t, "", h.runner.capacity.unhelped(web))
 
@@ -93,6 +99,25 @@ func TestDemand_NotesUnhelpedWork(t *testing.T) {
 		must.NoError(t, h.runner.scaleForDemand(ctx))
 		must.Eq(t, "", h.runner.capacity.unhelped(web))
 	})
+}
+
+// Without node groups and without policies of the builtin engine the blocked
+// work trigger does no work: it does not read the blocked evaluations.
+func TestDemand_IdleWithoutGroupsOrPolicies(t *testing.T) {
+	ci.Parallel(t)
+
+	h, _, _ := demandHarness(t, nil, bigWork(2, "dc-a"))
+	reads := 0
+	h.deps.BlockedDemand = func() map[[2]string][]Unplaced {
+		reads++
+		return bigWork(2, "dc-a")
+	}
+	h.newRunner()
+	must.MapLen(t, 0, h.runner.handles)
+
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, 0, reads)
+	must.Eq(t, "", h.runner.capacity.unhelped(targetKey{namespace: "default", job: "web", group: "g"}))
 }
 
 // A group whose allocations have waited for capacity for the settle timeout,

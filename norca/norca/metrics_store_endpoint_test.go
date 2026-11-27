@@ -40,7 +40,11 @@ func enableMetricsStore(t *testing.T) func(*Config) {
 func TestMetricsStore_History(t *testing.T) {
 	ci.Parallel(t)
 
-	s, root, cleanup := TestACLServer(t, enableMetricsStore(t))
+	s, root, cleanup := TestACLServer(t, func(c *Config) {
+		enableMetricsStore(t)(c)
+		c.Autoscaler = autoscaler.DefaultConfig()
+		c.Autoscaler.Enabled = false
+	})
 	defer cleanup()
 	testutil.WaitForLeader(t, s.RPC)
 	codec := rpcClient(t, s)

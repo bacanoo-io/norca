@@ -16,8 +16,8 @@ import (
 // AutoscalerConfig is the server's autoscaler block. It configures the
 // built-in autoscaler that runs on the leader.
 type AutoscalerConfig struct {
-	// Enabled starts the built-in autoscaler on the leader. It can be
-	// changed with a configuration reload.
+	// Enabled starts the built-in autoscaler on the leader; on when not
+	// set. It can be changed with a configuration reload.
 	Enabled *bool `hcl:"enabled"`
 
 	// DefaultEngine is the engine of scaling policies that do not set one:

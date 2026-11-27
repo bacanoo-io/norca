@@ -102,7 +102,7 @@ func (p *PluginConfig) equal(o *PluginConfig) bool {
 // Config is the configuration of the built-in autoscaler. It is set from the
 // server's autoscaler block.
 type Config struct {
-	// Enabled starts the built-in autoscaler on the leader.
+	// Enabled starts the built-in autoscaler on the leader (default).
 	Enabled bool
 
 	// DefaultEngine is the engine of policies that do not set one: "builtin"
@@ -170,11 +170,11 @@ type Config struct {
 }
 
 // DefaultConfig returns the default configuration. The built-in autoscaler
-// is disabled, and policies that do not set an engine belong to the builtin
+// is enabled, and policies that do not set an engine belong to the builtin
 // engine: the external engine is used only when it is set explicitly.
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:                   false,
+		Enabled:                   true,
 		DefaultEngine:             structs.ScalingPolicyEngineBuiltin,
 		MinEvalInterval:           DefaultMinEvalInterval,
 		MinCooldown:               DefaultMinCooldown,

@@ -136,7 +136,7 @@ func TestConfig_Autoscaler_Defaults(t *testing.T) {
 	cfg, err := a.toServerConfig()
 	must.NoError(t, err)
 	must.Eq(t, autoscaler.DefaultConfig(), cfg)
-	must.False(t, cfg.Enabled)
+	must.True(t, cfg.Enabled)
 	must.Eq(t, "builtin", cfg.DefaultEngine)
 }
 

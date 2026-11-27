@@ -708,6 +708,12 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Without node groups and without policies nothing uses what the
+	// blocked work needs: the blocked evaluations are not even read.
+	if len(groups) == 0 && r.policyCount.Load() == 0 {
+		r.capacity.replace(map[targetKey]string{})
+		return nil
+	}
 	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling, unhelped: map[targetKey]string{},
 		seenWork: map[string]bool{}}
 	d.setReserves()
