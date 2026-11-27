@@ -603,6 +603,15 @@ func TestAutoscaler_EngineSelection(t *testing.T) {
 	}
 }
 
+// A policy without a check only bounds the count: the built-in autoscaler
+// does not track it, whatever its engine.
+func TestAutoscaler_BoundsOnlyPolicyIsNotTracked(t *testing.T) {
+	ci.Parallel(t)
+
+	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, nil, nil)
+	must.MapLen(t, 0, h.runner.handles)
+}
+
 func TestAutoscaler_PolicyUpdates(t *testing.T) {
 	ci.Parallel(t)
 	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(nil), nil)

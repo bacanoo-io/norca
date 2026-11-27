@@ -109,7 +109,7 @@ func (r *runner) builtinPolicies(ws memdb.WatchSet, store *state.StateStore) (*p
 // isBuiltinPolicy reports whether the built-in autoscaler is responsible for
 // the policy.
 func (r *runner) isBuiltinPolicy(p *structs.ScalingPolicy) bool {
-	if p == nil || !p.Enabled {
+	if p == nil || !p.Enabled || BoundsOnly(p) {
 		return false
 	}
 	if p.Type != "" && p.Type != structs.ScalingPolicyTypeHorizontal {

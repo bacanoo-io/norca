@@ -24,12 +24,10 @@ func TestScalingPolicies_ListPolicies(t *testing.T) {
 	must.NoError(t, err)
 	must.SliceEmpty(t, policies)
 
-	// Register a job with a scaling policy. It has no check, which the
-	// builtin engine, the default one, would refuse.
+	// Register a job with a scaling policy
 	job := testJob()
 	job.TaskGroups[0].Scaling = &ScalingPolicy{
-		Max:    pointerOf(int64(100)),
-		Engine: "external",
+		Max: pointerOf(int64(100)),
 	}
 	_, _, err = jobs.Register(job, nil)
 	must.NoError(t, err)
@@ -74,8 +72,7 @@ func TestScalingPolicies_GetPolicy(t *testing.T) {
 	_, _, err = scaling.GetPolicy("i-do-not-exist", nil)
 	must.ErrorContains(t, err, "404")
 
-	// Register a job with a scaling policy of the external engine: the
-	// builtin engine, the default one, would refuse a policy without a check.
+	// Register a job with a scaling policy
 	job := testJob()
 	policy := &ScalingPolicy{
 		Enabled: pointerOf(true),
@@ -84,7 +81,6 @@ func TestScalingPolicies_GetPolicy(t *testing.T) {
 		Policy: map[string]interface{}{
 			"key": "value",
 		},
-		Engine: "external",
 	}
 	job.TaskGroups[0].Scaling = policy
 	_, _, err = jobs.Register(job, nil)

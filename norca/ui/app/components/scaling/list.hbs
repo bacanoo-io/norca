@@ -46,7 +46,7 @@
             @noun="policies"
             @viewState={{this.list.viewState}}
             @onApplyView={{this.list.applyView}}
-            @emptyMessage={{if (or this.list.searchTerm this.engineFilter) "No scaling policy matches the filters." "No scaling policy. Add a scaling block to a task group of a job: the built-in autoscaler evaluates it unless it sets engine = &quot;external&quot;."}}
+            @emptyMessage={{if (or this.list.searchTerm this.engineFilter) "No scaling policy matches the filters." "No scaling policy. Add a scaling block with a check to a task group of a job: the built-in autoscaler evaluates it unless it sets engine = &quot;external&quot;."}}
             data-test-scaling-policies
           >
             <:filters>
@@ -69,7 +69,7 @@
                   {{#if (not-eq this.namespace row.namespace)}}<div class="small text-secondary">{{row.namespace}}</div>{{/if}}
                 </r.Cell>
                 <r.Cell @key="region"><span class="norca-region">{{row.region}}</span></r.Cell>
-                <r.Cell @key="engine" data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" "external"}}</r.Cell>
+                <r.Cell @key="engine" data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" (if (eq row.engine "bounds") "bounds only" "external")}}</r.Cell>
                 <r.Cell @key="Min" data-test-policy-bounds>{{row.bounds}}</r.Cell>
                 <r.Cell @key="current" data-test-policy-current>{{row.current}}</r.Cell>
                 <r.Cell @key="lastTime" data-test-policy-last>

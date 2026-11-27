@@ -38,14 +38,17 @@ func (jobScalingHook) Mutate(job *structs.Job) (*structs.Job, []error, error) {
 	return job, nil, nil
 }
 
-// Validate validates the scaling policies of the builtin engine.
+// Validate validates the scaling policies of the builtin engine. A policy
+// without a check only bounds the count (autoscaler.BoundsOnly): it is not a
+// policy of an engine and needs no enabled autoscaler.
 func (h jobScalingHook) Validate(job *structs.Job) ([]error, error) {
 	cfg := h.srv.autoscalerConfig()
 	var mErr *multierror.Error
 
 	for _, tg := range job.TaskGroups {
 		p := tg.Scaling
-		if p == nil || autoscaler.PolicyEngine(p, cfg.DefaultEngine) != structs.ScalingPolicyEngineBuiltin {
+		if p == nil || autoscaler.BoundsOnly(p) ||
+			autoscaler.PolicyEngine(p, cfg.DefaultEngine) != structs.ScalingPolicyEngineBuiltin {
 			continue
 		}
 		if p.Enabled && !cfg.Enabled {
@@ -178,7 +181,7 @@ const scaledByPolicyWarning = "the count of this task group is decided by an ena
 // group is scaled by an enabled policy of the built-in engine; "" otherwise.
 // byAutoscaler is whether the autoscaler's identity sent the request.
 func handMadeScalingWarning(group *structs.TaskGroup, args *structs.JobScaleRequest, byAutoscaler bool, defaultEngine string) string {
-	if args.Count == nil || !isScaledGroup(group) || byAutoscaler {
+	if args.Count == nil || !isScaledGroup(group) || byAutoscaler || autoscaler.BoundsOnly(group.Scaling) {
 		return ""
 	}
 	if autoscaler.PolicyEngine(group.Scaling, defaultEngine) != structs.ScalingPolicyEngineBuiltin {

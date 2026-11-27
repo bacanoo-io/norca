@@ -119,7 +119,10 @@ export function seedScaling(server) {
     ID: 'policy-worker-queue',
     Type: 'horizontal',
     Target: { Namespace: 'default', Job: 'worker', Group: 'queue' },
-    Policy: { evaluation_interval: '1m' },
+    Policy: {
+      evaluation_interval: '1m',
+      check: { backlog: { source: 'prometheus', query: 'queue_depth' } },
+    },
     Min: 2,
     Max: 12,
     Enabled: false,

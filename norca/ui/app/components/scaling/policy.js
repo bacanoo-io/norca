@@ -18,6 +18,7 @@ import {
   eventItem,
   decisionItem,
   formatNs,
+  engineOf,
 } from 'nomad-ui/utils/scaling';
 
 /**
@@ -104,10 +105,11 @@ export default class ScalingPolicy extends Component {
     return [
       {
         title: 'Engine',
-        value:
-          this.engine === 'builtin'
-            ? 'built-in (on the leader)'
-            : 'external autoscaler',
+        value: {
+          builtin: 'built-in (on the leader)',
+          external: 'external autoscaler',
+          bounds: 'none: the policy has no check and only bounds the count',
+        }[this.engine],
       },
       { title: 'Enabled', value: p.Enabled ? 'yes' : 'no' },
       { title: 'Min / max', value: `${p.Min} / ${p.Max}` },
@@ -236,9 +238,10 @@ export default class ScalingPolicy extends Component {
           .catch(() => []),
       ]);
       this.group = scale?.TaskGroups?.[t.Group] || null;
-      this.engine = builtin.some((p) => p.ID === body.ID)
-        ? 'builtin'
-        : 'external';
+      this.engine = engineOf(
+        body,
+        builtin.some((p) => p.ID === body.ID)
+      );
       this.loadError = null;
     } catch (e) {
       this.loadError =

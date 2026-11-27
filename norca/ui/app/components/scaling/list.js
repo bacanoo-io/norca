@@ -16,6 +16,7 @@ import {
   jobScale,
   eventItem,
   decisionItem,
+  engineOf,
 } from 'nomad-ui/utils/scaling';
 import LocalList from 'nomad-ui/utils/local-list';
 
@@ -64,6 +65,7 @@ export default class ScalingList extends Component {
       { value: '', label: 'All engines' },
       { value: 'builtin', label: 'Built-in' },
       { value: 'external', label: 'External' },
+      { value: 'bounds', label: 'Bounds only' },
     ];
   }
 
@@ -194,7 +196,7 @@ export default class ScalingList extends Component {
         region,
         namespace: ns,
         jobRouteId: `${t.Job}@${ns}`,
-        engine: builtin.has(p.ID) ? 'builtin' : 'external',
+        engine: engineOf(p, builtin.has(p.ID)),
         bounds: p.Min !== undefined ? `${p.Min}–${p.Max}` : '–',
         current: group ? `${group.Running} of ${group.Desired}` : '–',
         last,

@@ -29,6 +29,23 @@ export function jobScale(token, region, job, namespace) {
   });
 }
 
+// A policy without a check, typed or in its policy document, and without a
+// target block only bounds the count of its group: no engine evaluates it.
+export function isBoundsOnly(policy) {
+  if (!policy) return false;
+  if (policy.Target?.NodeGroup) return false;
+  if ((policy.Checks || []).length) return false;
+  const doc = policy.Policy || {};
+  return !('check' in doc) && !('target' in doc);
+}
+
+// The engine of a policy as the UI shows it: 'bounds' for a policy that
+// only bounds the count, otherwise the engine the servers list it under.
+export function engineOf(policy, isBuiltin) {
+  if (isBoundsOnly(policy)) return 'bounds';
+  return isBuiltin ? 'builtin' : 'external';
+}
+
 export function formatNs(ns) {
   if (!ns) return '–';
   const seconds = Math.round(ns / 1e9);

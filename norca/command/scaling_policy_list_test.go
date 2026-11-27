@@ -32,14 +32,12 @@ func TestScalingPolicyListCommand_Run(t *testing.T) {
 	// Generate two test jobs.
 	jobs := []*api.Job{testJob("scaling_policy_list_1"), testJob("scaling_policy_list_2")}
 
-	// Generate an example scaling policy. It has no check, which the
-	// builtin engine, the default one, would refuse.
+	// Generate an example scaling policy.
 	scalingPolicy := api.ScalingPolicy{
 		Type:    api.ScalingPolicyTypeHorizontal,
 		Enabled: pointer.Of(true),
 		Min:     pointer.Of(int64(1)),
 		Max:     pointer.Of(int64(1)),
-		Engine:  "external",
 	}
 
 	// Iterate the jobs, add the scaling policy and register.

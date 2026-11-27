@@ -410,3 +410,18 @@ func PolicyEngine(p *structs.ScalingPolicy, defaultEngine string) string {
 	}
 	return defaultEngine
 }
+
+// BoundsOnly reports whether a task group scaling policy only bounds the
+// count of its group: it has no check, neither typed nor in its policy
+// document, and no target block. No engine evaluates such a policy and it is
+// not validated as a policy of the builtin engine; its min and max still
+// bound norca job scale and job updates. The policy of a NodeGroup is never
+// bounds-only: node scaling also acts on the blocked demand of its pool.
+func BoundsOnly(p *structs.ScalingPolicy) bool {
+	if p == nil || p.Target[structs.ScalingTargetNodeGroup] != "" || len(p.Checks) != 0 {
+		return false
+	}
+	_, hasChecks := p.Policy[keyChecks]
+	_, hasTarget := p.Policy[keyTarget]
+	return !hasChecks && !hasTarget
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -155,6 +156,61 @@ func TestJobEndpoint_Register_BuiltinEngineDisabled(t *testing.T) {
 	var resp structs.JobRegisterResponse
 	err := msgpackrpc.CallWithCodec(codec, "Job.Register", req, &resp)
 	must.ErrorContains(t, err, "built-in autoscaler is not enabled")
+}
+
+// A scaling policy without a check only bounds the count of its group: no
+// engine evaluates it, so it is accepted without the built-in autoscaler and
+// without the rules of the builtin engine. Its bounds are still checked, and
+// a policy with a target block but no check is still a builtin policy.
+func TestJobEndpoint_Register_BoundsOnlyScalingPolicy(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		c.Autoscaler = autoscaler.DefaultConfig()
+		c.Autoscaler.Enabled = false
+	})
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	register := func(job *structs.Job) error {
+		req := &structs.JobRegisterRequest{
+			Job:          job,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+		}
+		return msgpackrpc.CallWithCodec(codec, "Job.Register", req, &structs.JobRegisterResponse{})
+	}
+
+	cases := []struct {
+		name string
+		doc  map[string]interface{}
+		min  int64
+		err  string
+	}{
+		{name: "no policy document", min: 1},
+		{name: "a policy document without a check", doc: map[string]interface{}{"cooldown": "1s"}, min: 1},
+		{name: "min above max", min: 20, err: "maximum count must not be less than minimum count"},
+		{
+			name: "a target block without a check",
+			doc: map[string]interface{}{"target": []interface{}{map[string]interface{}{
+				"custom-object": []interface{}{map[string]interface{}{"kind": "db.example.com/Cluster", "name": "pg"}},
+			}}},
+			min: 1,
+			err: "policy must have at least one check",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			job := scalingJob("", tc.doc)
+			job.TaskGroups[0].Scaling.Min = tc.min
+			err := register(job)
+			if tc.err != "" {
+				must.ErrorContains(t, err, tc.err)
+				return
+			}
+			must.NoError(t, err)
+		})
+	}
 }
 
 func TestScaleBlockedByDeployment(t *testing.T) {
@@ -346,6 +402,8 @@ func TestHandMadeScalingWarning(t *testing.T) {
 	scaled := func(engine string, enabled bool) *structs.TaskGroup {
 		return &structs.TaskGroup{Name: "web", Count: 2, Scaling: &structs.ScalingPolicy{
 			Type: structs.ScalingPolicyTypeHorizontal, Min: 1, Max: 10, Enabled: enabled, Engine: engine,
+			Checks: []*structs.ScalingCheck{{Name: "cpu", Metric: "norca.cpu", Strategy: "target-value",
+				StrategyConfig: map[string]string{"target": "70"}}},
 		}}
 	}
 	count := func(meta map[string]interface{}) *structs.JobScaleRequest {
@@ -402,6 +460,14 @@ func TestHandMadeScalingWarning(t *testing.T) {
 			name:  "a disabled policy",
 			group: scaled(structs.ScalingPolicyEngineBuiltin, false),
 			args:  count(nil),
+		},
+		{
+			name: "a policy without a check only bounds the count",
+			group: &structs.TaskGroup{Name: "web", Count: 2, Scaling: &structs.ScalingPolicy{
+				Type: structs.ScalingPolicyTypeHorizontal, Min: 1, Max: 10, Enabled: true,
+			}},
+			args:          count(nil),
+			defaultEngine: structs.ScalingPolicyEngineBuiltin,
 		},
 		{
 			name:  "a group without a policy",

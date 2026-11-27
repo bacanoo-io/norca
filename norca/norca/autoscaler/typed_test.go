@@ -362,12 +362,22 @@ func TestValidatePolicy(t *testing.T) {
 	}
 	must.NoError(t, ValidatePolicy(valid(), cfg))
 
+	// A policy without a check only bounds the count: it is not validated
+	// as a policy of the builtin engine.
+	boundsOnly := valid()
+	boundsOnly.Checks = nil
+	boundsOnly.OnCheckError = "maybe"
+	must.NoError(t, ValidatePolicy(boundsOnly, cfg))
+
 	cases := []struct {
 		name string
 		fn   func(p *structs.ScalingPolicy)
 		err  string
 	}{
-		{"no checks", func(p *structs.ScalingPolicy) { p.Checks = nil }, "at least one check"},
+		{"no checks on a node group", func(p *structs.ScalingPolicy) {
+			p.Checks = nil
+			p.Target = map[string]string{structs.ScalingTargetNodeGroup: "workers"}
+		}, "at least one check"},
 		{"interval too low", func(p *structs.ScalingPolicy) { p.EvaluationInterval = time.Second },
 			"evaluation_interval must be at least 10s"},
 		{"cooldown too low", func(p *structs.ScalingPolicy) { p.CooldownOnScaleUp = time.Second },
@@ -401,7 +411,12 @@ func TestValidatePolicy(t *testing.T) {
 			p.Target = map[string]string{structs.ScalingTargetTask: "t"}
 		}, "task scaling policies"},
 		{"document error", func(p *structs.ScalingPolicy) {
-			*p = structs.ScalingPolicy{Policy: map[string]interface{}{"cooldown": "soon"}}
+			*p = structs.ScalingPolicy{Policy: map[string]interface{}{
+				"cooldown": "soon",
+				"check": []interface{}{map[string]interface{}{"cpu": []interface{}{map[string]interface{}{
+					"metric": "norca.cpu", "strategy": "target-value", "target": 70,
+				}}}},
+			}}
 			_ = p.FillTypedPolicy()
 		}, "policy.cooldown"},
 		{"bad schedule", func(p *structs.ScalingPolicy) {

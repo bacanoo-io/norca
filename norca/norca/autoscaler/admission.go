@@ -117,7 +117,7 @@ func ValidatePolicy(p *structs.ScalingPolicy, cfg *Config) error {
 // plugins.
 func validatePolicy(p *structs.ScalingPolicy, cfg *Config, admission bool) error {
 	var mErr *multierror.Error
-	if p == nil {
+	if p == nil || BoundsOnly(p) {
 		return nil
 	}
 	if cfg == nil {
