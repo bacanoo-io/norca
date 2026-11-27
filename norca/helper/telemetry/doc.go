@@ -11,7 +11,11 @@
 // The trace instrumentation (Tracing) is here too: the sampler with the
 // always-sampled operations and the exclusions, the W3C traceparent that
 // RPC arguments carry, the server span wrapper of the msgpack RPC codec,
-// the HTTP API handler, and the trace fields of the logs (LogWith).
+// the HTTP API handler, and the trace fields of the logs (LogWith); the
+// names and attributes of the scheduling and allocation spans (spans.go);
+// and on the clients the phase tracking of the runners (SpanTracker), the
+// client spans of the RPCs made within a phase (TraceRPCs) and the gRPC
+// instrumentation of the plugin clients (PluginDialOptions).
 //
 // The agent configuration is the only source of the settings: every option
 // that the exporters or the SDK would read from an OTEL_* environment

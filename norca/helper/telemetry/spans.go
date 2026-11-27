@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"context"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -131,4 +132,31 @@ func EndSpan(span trace.Span, err error) {
 		span.SetStatus(codes.Error, err.Error())
 	}
 	span.End()
+}
+
+// SpanTracker holds the span of the phase in progress of a runner on a
+// client (an allocation or a task), which the runner's hooks and RPCs
+// join. When phases overlap the latest one wins. The zero SpanTracker has
+// no phase. It is safe for concurrent use.
+type SpanTracker struct {
+	current atomic.Pointer[trackedSpan]
+}
+
+type trackedSpan struct {
+	ctx  context.Context
+	span trace.Span
+}
+
+// Set makes span, whose context is ctx, the phase in progress.
+func (p *SpanTracker) Set(ctx context.Context, span trace.Span) {
+	p.current.Store(&trackedSpan{ctx: ctx, span: span})
+}
+
+// Context returns the context of the phase in progress, or a context
+// without a span when no phase is in progress (or the last one ended).
+func (p *SpanTracker) Context() context.Context {
+	if cur := p.current.Load(); cur != nil && cur.span.IsRecording() {
+		return cur.ctx
+	}
+	return context.Background()
 }
