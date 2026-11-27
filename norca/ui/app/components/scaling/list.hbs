@@ -46,7 +46,7 @@
             @noun="policies"
             @viewState={{this.list.viewState}}
             @onApplyView={{this.list.applyView}}
-            @emptyMessage={{if (or this.list.searchTerm this.engineFilter) "No scaling policy matches the filters." "No scaling policy. Add a scaling block to a task group of a job, with engine = &quot;builtin&quot; for the built-in autoscaler."}}
+            @emptyMessage={{if (or this.list.searchTerm this.engineFilter) "No scaling policy matches the filters." "No scaling policy. Add a scaling block to a task group of a job: the built-in autoscaler evaluates it unless it sets engine = &quot;external&quot;."}}
             data-test-scaling-policies
           >
             <:filters>

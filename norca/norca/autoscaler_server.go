@@ -125,7 +125,7 @@ func checkAutoscalerMeta[V any](own bool, meta map[string]V) error {
 // set one.
 func (s *Server) autoscalerDefaultEngine() string {
 	if s.autoscaler == nil {
-		return structs.ScalingPolicyEngineExternal
+		return s.autoscalerConfig().DefaultEngine
 	}
 	return s.autoscaler.DefaultEngine()
 }

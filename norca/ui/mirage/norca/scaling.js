@@ -11,7 +11,7 @@ import { collection, plain, error, json } from './util';
 // in norcaJobScales ({ JobID, Namespace, TaskGroups }) takes precedence over
 // the job-scale models of the inherited Mirage setup.
 
-const DEFAULT_ENGINE = 'external';
+const DEFAULT_ENGINE = 'builtin';
 
 function stub(p) {
   return {
@@ -123,7 +123,7 @@ export function seedScaling(server) {
     Min: 2,
     Max: 12,
     Enabled: false,
-    Engine: '',
+    Engine: 'external',
     EvaluationInterval: 60e9,
     Cooldown: 0,
     Checks: null,

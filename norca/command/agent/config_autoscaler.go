@@ -21,7 +21,7 @@ type AutoscalerConfig struct {
 	Enabled *bool `hcl:"enabled"`
 
 	// DefaultEngine is the engine of scaling policies that do not set one:
-	// "external" (default) or "builtin".
+	// "builtin" (default) or "external".
 	DefaultEngine string `hcl:"default_engine"`
 
 	// MinEvalInterval is the lower bound of a policy's evaluation_interval.

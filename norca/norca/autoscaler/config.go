@@ -106,7 +106,7 @@ type Config struct {
 	Enabled bool
 
 	// DefaultEngine is the engine of policies that do not set one: "builtin"
-	// or "external".
+	// (default) or "external".
 	DefaultEngine string
 
 	// MinEvalInterval is the lower bound of a policy's evaluation interval.
@@ -170,12 +170,12 @@ type Config struct {
 }
 
 // DefaultConfig returns the default configuration. The built-in autoscaler
-// is disabled and policies default to the external engine, so the behavior
-// of existing clusters does not change.
+// is disabled, and policies that do not set an engine belong to the builtin
+// engine: the external engine is used only when it is set explicitly.
 func DefaultConfig() *Config {
 	return &Config{
 		Enabled:                   false,
-		DefaultEngine:             structs.ScalingPolicyEngineExternal,
+		DefaultEngine:             structs.ScalingPolicyEngineBuiltin,
 		MinEvalInterval:           DefaultMinEvalInterval,
 		MinCooldown:               DefaultMinCooldown,
 		DefaultEvaluationInterval: DefaultEvaluationInterval,
@@ -406,7 +406,7 @@ func PolicyEngine(p *structs.ScalingPolicy, defaultEngine string) string {
 		return p.Engine
 	}
 	if defaultEngine == "" {
-		return structs.ScalingPolicyEngineExternal
+		return structs.ScalingPolicyEngineBuiltin
 	}
 	return defaultEngine
 }

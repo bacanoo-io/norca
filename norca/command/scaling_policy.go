@@ -25,8 +25,8 @@ func (s *ScalingPolicyCommand) Help() string {
 Usage: norca scaling policy <subcommand> [options]
 
   This command groups subcommands for interacting with scaling policies. Scaling
-  policies can be used by an external autoscaler to perform scaling actions on
-  Norca targets.
+  policies are evaluated by the built-in autoscaler on the leader, or by an
+  external autoscaler when their engine is "external".
 
   List policies:
 

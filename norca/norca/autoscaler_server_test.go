@@ -253,27 +253,27 @@ func TestScalingEndpoint_ListPolicies_EngineFilter(t *testing.T) {
 		must.NoError(t, err)
 		must.SliceContainsAll(t, []string{pBuiltin.ID, pExternal.ID, pDefault.ID}, ids)
 
-		// The default engine is "external".
-		ids, err = list(structs.ScalingPolicyEngineExternal, ns)
-		must.NoError(t, err)
-		must.SliceContainsAll(t, []string{pExternal.ID, pDefault.ID}, ids)
-
+		// The default engine is "builtin".
 		ids, err = list(structs.ScalingPolicyEngineBuiltin, ns)
 		must.NoError(t, err)
-		must.Eq(t, []string{pBuiltin.ID}, ids)
+		must.SliceContainsAll(t, []string{pBuiltin.ID, pDefault.ID}, ids)
+
+		ids, err = list(structs.ScalingPolicyEngineExternal, ns)
+		must.NoError(t, err)
+		must.Eq(t, []string{pExternal.ID}, ids)
 
 		_, err = list("other", ns)
 		must.ErrorContains(t, err, "engine must be")
 	}
 
-	// With default_engine = "builtin", policies without an engine move.
+	// With default_engine = "external", policies without an engine move.
 	cfg := autoscaler.DefaultConfig()
-	cfg.DefaultEngine = structs.ScalingPolicyEngineBuiltin
+	cfg.DefaultEngine = structs.ScalingPolicyEngineExternal
 	s1.autoscaler.SetConfig(cfg)
 
-	ids, err := list(structs.ScalingPolicyEngineBuiltin, structs.DefaultNamespace)
+	ids, err := list(structs.ScalingPolicyEngineExternal, structs.DefaultNamespace)
 	must.NoError(t, err)
-	must.SliceContainsAll(t, []string{pBuiltin.ID, pDefault.ID}, ids)
+	must.SliceContainsAll(t, []string{pExternal.ID, pDefault.ID}, ids)
 }
 
 // TestAutoscaler_WritesTheStatusOfNodeGroups checks that the system identity

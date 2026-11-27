@@ -590,6 +590,7 @@ func TestAutoscaler_EngineSelection(t *testing.T) {
 		{"external policy", "external", "builtin", false},
 		{"default external", "", "external", false},
 		{"default builtin", "", "builtin", true},
+		{"unset default is builtin", "", "", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -700,18 +701,18 @@ func TestAutoscaler_Lifecycle(t *testing.T) {
 		},
 	})
 
-	// Disabled by default.
+	// Disabled by default, with the builtin engine as the default engine.
 	a.SetLeader(true)
 	must.False(t, a.Running())
-	must.Eq(t, structs.ScalingPolicyEngineExternal, a.DefaultEngine())
+	must.Eq(t, structs.ScalingPolicyEngineBuiltin, a.DefaultEngine())
 
-	// Enabled on reload.
+	// Enabled on reload, and the default engine follows the configuration.
 	cfg := DefaultConfig()
 	cfg.Enabled = true
-	cfg.DefaultEngine = structs.ScalingPolicyEngineBuiltin
+	cfg.DefaultEngine = structs.ScalingPolicyEngineExternal
 	a.SetConfig(cfg)
 	must.True(t, a.Running())
-	must.Eq(t, structs.ScalingPolicyEngineBuiltin, a.DefaultEngine())
+	must.Eq(t, structs.ScalingPolicyEngineExternal, a.DefaultEngine())
 
 	// Stopped when losing leadership.
 	a.SetLeader(false)

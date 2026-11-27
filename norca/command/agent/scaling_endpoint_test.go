@@ -15,13 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// externalScalingJob returns a job with a scaling policy of the external
+// engine: the policy has no check, which the builtin engine, the default one,
+// would refuse.
+func externalScalingJob() (*structs.Job, *structs.ScalingPolicy) {
+	job, policy := mock.JobWithScalingPolicy()
+	policy.Engine = structs.ScalingPolicyEngineExternal
+	return job, policy
+}
+
 func TestHTTP_ScalingPoliciesList(t *testing.T) {
 	ci.Parallel(t)
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		for i := 0; i < 3; i++ {
 			// Create the job
-			job, _ := mock.JobWithScalingPolicy()
+			job, _ := externalScalingJob()
 
 			args := structs.JobRegisterRequest{
 				Job: job,
@@ -62,7 +71,7 @@ func TestHTTP_ScalingPoliciesList_Filter(t *testing.T) {
 		var job *structs.Job
 		for i := 0; i < 3; i++ {
 			// Create the job
-			job, _ = mock.JobWithScalingPolicy()
+			job, _ = externalScalingJob()
 
 			args := structs.JobRegisterRequest{
 				Job: job,
@@ -108,7 +117,7 @@ func TestHTTP_ScalingPolicyGet(t *testing.T) {
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		// Create the job
-		job, p := mock.JobWithScalingPolicy()
+		job, p := externalScalingJob()
 		args := structs.JobRegisterRequest{
 			Job: job,
 			WriteRequest: structs.WriteRequest{
@@ -144,7 +153,7 @@ func TestHTTP_ScalingPolicyGet(t *testing.T) {
 func TestHTTP_ScalingPolicyStatus(t *testing.T) {
 	ci.Parallel(t)
 	httpTest(t, nil, func(s *TestAgent) {
-		job, _ := mock.JobWithScalingPolicy()
+		job, _ := externalScalingJob()
 		args := structs.JobRegisterRequest{
 			Job:          job,
 			WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace},

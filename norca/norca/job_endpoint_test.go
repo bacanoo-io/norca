@@ -387,6 +387,9 @@ func TestJobEndpoint_Register_KeepsScaledCounts(t *testing.T) {
 				var policy *structs.ScalingPolicy
 				job, policy = mock.JobWithScalingPolicy()
 				policy.Min, policy.Max = 1, 10
+				// The policy has no check: the builtin engine, the
+				// default one, would refuse it.
+				policy.Engine = structs.ScalingPolicyEngineExternal
 			}
 			job.TaskGroups[0].Count = 2
 			write := structs.WriteRequest{Region: "global", Namespace: job.Namespace}
@@ -440,6 +443,9 @@ func TestJobEndpoint_Plan_KeepsScaledCounts(t *testing.T) {
 
 	job, policy := mock.JobWithScalingPolicy()
 	policy.Min, policy.Max = 1, 10
+	// The policy has no check: the builtin engine, the default one, would
+	// refuse it.
+	policy.Engine = structs.ScalingPolicyEngineExternal
 	job.TaskGroups[0].Count = 2
 	write := structs.WriteRequest{Region: "global", Namespace: job.Namespace}
 
@@ -6540,7 +6546,10 @@ func TestJobEndpoint_Plan_Scaling(t *testing.T) {
 	job := mock.Job()
 	tg := job.TaskGroups[0]
 	tg.Tasks[0].Resources.MemoryMB = 999999999
-	scaling := &structs.ScalingPolicy{Min: 1, Max: 100, Type: structs.ScalingPolicyTypeHorizontal}
+	// A policy with bounds only: the builtin engine, the default one,
+	// refuses a policy without a check.
+	scaling := &structs.ScalingPolicy{Min: 1, Max: 100, Type: structs.ScalingPolicyTypeHorizontal,
+		Engine: structs.ScalingPolicyEngineExternal}
 	tg.Scaling = scaling.TargetTaskGroup(job, tg)
 	planReq := &structs.JobPlanRequest{
 		Job:  job,

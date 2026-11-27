@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "horizontally_scalable" {
@@ -17,6 +18,7 @@ job "horizontally_scalable" {
       min     = 1
       max     = 10
       enabled = true
+      engine  = "external"
 
       policy {
         // Setting a single value allows us to check the policy block is

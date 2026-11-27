@@ -137,7 +137,7 @@ func TestConfig_Autoscaler_Defaults(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, autoscaler.DefaultConfig(), cfg)
 	must.False(t, cfg.Enabled)
-	must.Eq(t, "external", cfg.DefaultEngine)
+	must.Eq(t, "builtin", cfg.DefaultEngine)
 }
 
 func TestConfig_Autoscaler_Invalid(t *testing.T) {

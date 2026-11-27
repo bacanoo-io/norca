@@ -57,6 +57,9 @@ func testServiceJob() *Job {
 	return job
 }
 
+// testJobWithScalingPolicy returns a job with a scaling policy of the
+// external engine: the builtin engine, the default one, would refuse a policy
+// without a check.
 func testJobWithScalingPolicy() *Job {
 	job := testJob()
 	job.TaskGroups[0].Scaling = &ScalingPolicy{
@@ -64,6 +67,7 @@ func testJobWithScalingPolicy() *Job {
 		Min:     pointerOf(int64(1)),
 		Max:     pointerOf(int64(5)),
 		Enabled: pointerOf(true),
+		Engine:  "external",
 	}
 	return job
 }
