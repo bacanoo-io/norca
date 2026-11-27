@@ -68,9 +68,6 @@ const (
 
 	// SpanArtifactDownload is the download of one artifact of a task.
 	SpanArtifactDownload = "artifact.download"
-
-	// SpanImagePull is the pull of a task's image by its driver.
-	SpanImagePull = "image.pull"
 )
 
 // Span attributes that join the traces of the scheduling and of the
@@ -95,9 +92,6 @@ const (
 	// the ones it could not make (coalesced failures included).
 	AttrPlaced = attribute.Key("norca.scheduler.placed")
 	AttrFailed = attribute.Key("norca.scheduler.failed")
-
-	// AttrHook is the name of an allocation or task runner hook.
-	AttrHook = attribute.Key("norca.hook")
 )
 
 // noopSpan is a span that records nothing, for code that ends spans
