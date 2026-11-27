@@ -133,7 +133,7 @@ func TestHTTP_Tracing(t *testing.T) {
 	complete := logs.lines(`"@message":"request complete"`)
 	var matching []string
 	for _, l := range complete {
-		if strings.Contains(l, `"path":"/v1/jobs?pretty=1"`) {
+		if strings.Contains(l, `"http_path":"/v1/jobs?pretty=1"`) {
 			matching = append(matching, l)
 		}
 	}
@@ -148,7 +148,7 @@ func TestHTTP_Tracing(t *testing.T) {
 	must.NoError(t, resp.Body.Close())
 	must.Eq(t, "", resp.Header.Get(telemetry.TraceIDHeader))
 	must.Len(t, before, exp.GetSpans())
-	for _, l := range logs.lines(`"path":"/v1/agent/health"`) {
+	for _, l := range logs.lines(`"http_path":"/v1/agent/health"`) {
 		must.StrNotContains(t, l, "trace_id")
 	}
 
