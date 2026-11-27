@@ -32,8 +32,8 @@ const (
 // usageAPM is the built-in source of the Nomad metrics. It serves the checks
 // whose source is the nomad-apm from the leader's usage collector, so the
 // evaluation makes no ClientAllocations.Stats call. It understands the
-// built-in metric names (nomad.cpu, nomad.memory, nomad.cpu_mhz,
-// nomad.memory_mb, which use the average) and the nomad-apm query form
+// built-in metric names (norca.cpu, norca.memory, norca.cpu_mhz,
+// norca.memory_mb, which use the average) and the nomad-apm query form
 // taskgroup_<avg|max|sum>_<cpu-allocated|memory-allocated|memory> of the
 // external autoscaler.
 //

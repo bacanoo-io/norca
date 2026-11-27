@@ -59,7 +59,7 @@ type AutoscalerConfig struct {
 	HoldWarn string `hcl:"hold_warn"`
 
 	// MetricsWindow is how long the leader keeps the task group usage
-	// reported by clients (nomad.cpu, nomad.memory, ...).
+	// reported by clients (norca.cpu, norca.memory, ...).
 	MetricsWindow string `hcl:"metrics_window"`
 
 	// ClientMetricsInterval is the aggregation window of the task group

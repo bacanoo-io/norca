@@ -70,7 +70,7 @@ func (s *statsCallSink) statsCalls() []string {
 }
 
 // TestAutoscaler_BuiltinMetricFromClients runs a server with the built-in
-// autoscaler and a client with the mock driver. A policy on nomad.cpu is
+// autoscaler and a client with the mock driver. A policy on norca.cpu is
 // evaluated from the usage the client publishes on the system bus, without
 // any allocation stats RPC.
 func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
@@ -106,7 +106,7 @@ func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 
 	testutil.WaitForClient(t, s.RPC, c.NodeID(), s.Region())
 
-	// The mock driver reports no CPU usage, so nomad.cpu is 0% and the
+	// The mock driver reports no CPU usage, so norca.cpu is 0% and the
 	// target-value strategy scales the group down to its minimum.
 	job := mock.MinJob()
 	job.TaskGroups[0].Count = 3

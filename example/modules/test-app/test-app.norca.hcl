@@ -110,7 +110,7 @@ job "test-app" {
 
           check = [{
             cpu = [{
-              metric   = "nomad.cpu"
+              metric   = "norca.cpu"
               strategy = "target-value"
               target   = var.scaling_cpu_target
             }]

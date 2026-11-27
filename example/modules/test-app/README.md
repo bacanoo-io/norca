@@ -23,7 +23,7 @@ The job is built to show Norca features through its variables:
 | Native service catalog | group service (the default provider), optional `discovery { prefer, min_local, failover }` | `discovery_prefer`, `discovery_min_local`, `discovery_failover` |
 | Disruption budget | `disruption { max_unavailable }` | `disruption_max_unavailable` |
 | Cross-job anti-affinity | `separate { selector { app = <job_name> } scope required }` | `separate_scope`, `separate_required` |
-| Typed scaling policy | `scaling { engine = "builtin" policy { check "cpu" { metric = "nomad.cpu" strategy = "target-value" target } } }` | `scaling_enabled`, `scaling_min`, `scaling_max`, `scaling_cpu_target` |
+| Typed scaling policy | `scaling { engine = "builtin" policy { check "cpu" { metric = "norca.cpu" strategy = "target-value" target } } }` | `scaling_enabled`, `scaling_min`, `scaling_max`, `scaling_cpu_target` |
 | Native mTLS | `mtls { mode = "sidecar" }`: Envoy sidecar, the app port is not mapped to the host, the checks address the allocation | `mtls_sidecar` |
 | Multiregion deployment | `multiregion { strategy region ... }`, group `count = 0` | `multiregion`, `multiregion_max_parallel`, `multiregion_on_failure` |
 | Constraints and rules | `validation` blocks of the variables and `rule` blocks across variables (`count` within the scaling bounds, `mtls_sidecar` only with bridge networking, multiregion without scaling, no `:latest` image), checked before anything is applied; the `ui` blocks and the tabs in `metadata.hcl` lay out the install form of the web UI for a module of a registry | – |

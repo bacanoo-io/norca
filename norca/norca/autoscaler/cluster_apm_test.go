@@ -95,7 +95,7 @@ func TestClusterAPM_BadQueries(t *testing.T) {
 	apm := &clusterAPM{history: fakeGauges(1, 1, 1, new([]gaugeCall))}
 	r := sdk.TimeRange{From: time.Now().Add(-time.Hour), To: time.Now()}
 	for query, want := range map[string]string{
-		"nomad.cpu":                       "not a cluster metric",
+		"norca.cpu":                       "not a cluster metric",
 		"cluster.no_such_gauge":           "unknown cluster metric",
 		"cluster.cpu_allocated?rack=r1":   "unknown selector",
 		"cluster.cpu_allocated?op=median": "unknown op",

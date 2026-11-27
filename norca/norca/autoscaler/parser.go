@@ -151,7 +151,7 @@ func parseCheck(c interface{}) *sdk.ScalingPolicyCheck {
 	query, _ := checkMap[keyQuery].(string)
 	source, _ := checkMap[keySource].(string)
 
-	// A built-in metric (metric = "nomad.cpu") needs no query: the nomad-apm
+	// A built-in metric (metric = "norca.cpu") needs no query: the nomad-apm
 	// source serves it by name.
 	if metric, _ := checkMap[keyMetric].(string); query == "" && metric != "" {
 		query = metric

@@ -64,7 +64,7 @@ job "example" {
         scale_during_deployment = "up_only"
 
         check "cpu" {
-          metric   = "nomad.cpu"
+          metric   = "norca.cpu"
           strategy = "target-value"
           target   = 70
         }
@@ -101,7 +101,7 @@ job "example" {
 	checks := p["check"].([]map[string]interface{})
 	must.Len(t, 3, checks)
 	cpu := checks[0]["cpu"].([]map[string]interface{})[0]
-	must.Eq[any](t, "nomad.cpu", cpu["metric"])
+	must.Eq[any](t, "norca.cpu", cpu["metric"])
 	must.Eq[any](t, "target-value", cpu["strategy"])
 }
 

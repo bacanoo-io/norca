@@ -304,7 +304,7 @@ variable "discovery_failover" {
 variable "scaling_enabled" {
   type        = bool
   default     = true
-  description = "Render a scaling block with a typed policy (engine builtin, nomad.cpu, target-value). Needs server { autoscaler { enabled = true } }."
+  description = "Render a scaling block with a typed policy (engine builtin, norca.cpu, target-value). Needs server { autoscaler { enabled = true } }."
 
   ui {
     tab    = "resources"

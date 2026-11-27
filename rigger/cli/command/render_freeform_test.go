@@ -38,7 +38,7 @@ const freeFormJob = `job "app" {
         }
 
         check "mem" {
-          metric   = "nomad.memory"
+          metric   = "norca.memory"
           strategy = "target-value"
           target   = 80
         }

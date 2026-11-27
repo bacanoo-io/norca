@@ -54,12 +54,12 @@ func TestJobEndpoint_Plan_InvalidBuiltinScalingPolicy(t *testing.T) {
 	}{
 		{
 			name:  "missing strategy parameter",
-			check: map[string]interface{}{"metric": "nomad.cpu", "strategy": "target-value"},
+			check: map[string]interface{}{"metric": "norca.cpu", "strategy": "target-value"},
 			err:   "missing required field `target`",
 		},
 		{
 			name:  "unknown strategy",
-			check: map[string]interface{}{"metric": "nomad.cpu", "strategy": "magic", "target": 70},
+			check: map[string]interface{}{"metric": "norca.cpu", "strategy": "magic", "target": 70},
 			err:   `unknown strategy "magic"`,
 		},
 		{
@@ -105,7 +105,7 @@ func TestJobEndpoint_Register_TypedScalingPolicy(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	job := scalingJob(structs.ScalingPolicyEngineBuiltin, typedPolicyDocument(map[string]interface{}{
-		"metric":   "nomad.cpu",
+		"metric":   "norca.cpu",
 		"strategy": "target-value",
 		"target":   70,
 	}))
@@ -125,7 +125,7 @@ func TestJobEndpoint_Register_TypedScalingPolicy(t *testing.T) {
 	must.Eq(t, structs.ScaleDuringDeploymentUpOnly, p.ScaleDuringDeployment)
 	must.Eq(t, []*structs.ScalingCheck{{
 		Name:           "cpu",
-		Metric:         "nomad.cpu",
+		Metric:         "norca.cpu",
 		Strategy:       "target-value",
 		StrategyConfig: map[string]string{"target": "70"},
 	}}, p.Checks)
@@ -144,7 +144,7 @@ func TestJobEndpoint_Register_BuiltinEngineDisabled(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	job := scalingJob(structs.ScalingPolicyEngineBuiltin, typedPolicyDocument(map[string]interface{}{
-		"metric":   "nomad.cpu",
+		"metric":   "norca.cpu",
 		"strategy": "target-value",
 		"target":   70,
 	}))

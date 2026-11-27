@@ -25,7 +25,7 @@ func TestUsageAPM_ScopeOf(t *testing.T) {
 		{name: "maximum of the own group", query: "taskgroup_max_memory", expected: valueScopeWindow},
 		{name: "own group named in full", query: "taskgroup_avg_cpu-allocated/web/shop@default", expected: valueScopeWindow},
 		{name: "a sum is a total", query: "taskgroup_sum_cpu-allocated", expected: valueScopeUnknown},
-		{name: "another group", query: "nomad.cpu/api/shop@default", expected: valueScopeUnknown},
+		{name: "another group", query: "norca.cpu/api/shop@default", expected: valueScopeUnknown},
 		{name: "another job", query: "taskgroup_avg_cpu-allocated/web/other@default", expected: valueScopeUnknown},
 		{name: "a query that cannot be read", query: "taskgroup_p99_cpu", expected: valueScopeUnknown},
 	}

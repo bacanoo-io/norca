@@ -54,7 +54,7 @@ const (
 	DefaultSettleTimeout = 10 * time.Minute
 
 	// DefaultMetricsWindow is how long the leader keeps the task group usage
-	// reported by clients (nomad.cpu, nomad.memory, ...).
+	// reported by clients (norca.cpu, norca.memory, ...).
 	DefaultMetricsWindow = 5 * time.Minute
 
 	// DefaultClientMetricsInterval is the aggregation window of the task

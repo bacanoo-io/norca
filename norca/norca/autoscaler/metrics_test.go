@@ -275,8 +275,8 @@ func TestUsageAPM_Query(t *testing.T) {
 		{query: "taskgroup_min_cpu-allocated" + suffix, err: "invalid operation"},
 		{query: "taskgroup_avg_cpu" + suffix, err: "invalid metric"},
 		{query: "nomad.disk", err: "unsupported metric"},
-		{query: "nomad.cpu/web", err: "expected <query>"},
-		{query: "nomad.cpu/web/job", err: "expected <query>"},
+		{query: "norca.cpu/web", err: "expected <query>"},
+		{query: "norca.cpu/web/job", err: "expected <query>"},
 		{query: "taskgroup_avg_cpu-allocated/web/other@default", err: errNoUsage.Error()},
 	}
 	for _, tc := range cases {
@@ -364,7 +364,7 @@ func TestAutoscaler_BuiltinMetricNoScalingBeforeFullWindow(t *testing.T) {
 func TestAutoscaler_BuiltinMetricScaleUp(t *testing.T) {
 	ci.Parallel(t)
 
-	// nomad.memory_mb has an underscore and is canonicalized like a short
+	// norca.memory_mb has an underscore and is canonicalized like a short
 	// nomad-apm query; the usage APM still serves it.
 	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, usagePolicy(MetricMemoryMB, 100), nil)
 	c := h.withUsage(time.Minute)

@@ -25,7 +25,7 @@ func TestScalingPolicy_FillTypedPolicy(t *testing.T) {
 			"foo":                     "bar",
 			"check": []map[string]interface{}{
 				{"cpu": []map[string]interface{}{{
-					"metric":   "nomad.cpu",
+					"metric":   "norca.cpu",
 					"strategy": "target-value",
 					"target":   70,
 				}}},
@@ -53,7 +53,7 @@ func TestScalingPolicy_FillTypedPolicy(t *testing.T) {
 	must.Eq(t, []*ScalingCheck{
 		{
 			Name:           "cpu",
-			Metric:         "nomad.cpu",
+			Metric:         "norca.cpu",
 			Strategy:       "target-value",
 			StrategyConfig: map[string]string{"target": "70"},
 		},
@@ -154,7 +154,7 @@ func TestScalingPolicy_TypedCopyEqual(t *testing.T) {
 		ScaleDuringDeployment: ScaleDuringDeploymentUpOnly,
 		Checks: []*ScalingCheck{{
 			Name:           "cpu",
-			Metric:         "nomad.cpu",
+			Metric:         "norca.cpu",
 			Strategy:       "target-value",
 			StrategyConfig: map[string]string{"target": "70"},
 		}},
@@ -182,7 +182,7 @@ func TestScalingPolicy_TypedDiff(t *testing.T) {
 		Min: 1, Max: 5,
 		EvaluationInterval: time.Minute,
 		Checks: []*ScalingCheck{
-			{Name: "cpu", Metric: "nomad.cpu", Strategy: "target-value", StrategyConfig: map[string]string{"target": "70"}},
+			{Name: "cpu", Metric: "norca.cpu", Strategy: "target-value", StrategyConfig: map[string]string{"target": "70"}},
 			{Name: "gone", Query: "q", Strategy: "threshold"},
 		},
 	}

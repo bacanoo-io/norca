@@ -102,7 +102,7 @@ func TestAutoscaler_TypedMetricCheck(t *testing.T) {
 	h.updatePolicy(func(p *structs.ScalingPolicy) {
 		p.Policy = map[string]interface{}{
 			"check": []interface{}{map[string]interface{}{"cpu": []interface{}{map[string]interface{}{
-				"metric":   "nomad.cpu",
+				"metric":   "norca.cpu",
 				"strategy": "target-value",
 				"target":   70,
 			}}}},
@@ -351,7 +351,7 @@ func TestValidatePolicy(t *testing.T) {
 			Cooldown:           2 * time.Minute,
 			OnCheckError:       "ignore",
 			Checks: []*structs.ScalingCheck{
-				{Name: "cpu", Metric: "nomad.cpu", Strategy: "target-value",
+				{Name: "cpu", Metric: "norca.cpu", Strategy: "target-value",
 					StrategyConfig: map[string]string{"target": "70"}},
 				{Name: "latency", Source: "prometheus", Query: "q", Strategy: "threshold",
 					StrategyConfig: map[string]string{"upper": "0.3", "delta": "1"}},

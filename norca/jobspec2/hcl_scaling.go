@@ -24,7 +24,7 @@ import (
 //	  scale_during_deployment = "up_only"
 //
 //	  check "cpu" {
-//	    metric   = "nomad.cpu"         # or source and query
+//	    metric   = "norca.cpu"         # or source and query
 //	    strategy = "target-value"      # or a strategy "name" { ... } block
 //	    target   = 70                  # strategy parameters
 //	  }

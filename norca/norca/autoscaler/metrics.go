@@ -17,17 +17,17 @@ import (
 // a check without a query.
 const (
 	// MetricCPU is the CPU usage as a percentage of the allocated CPU.
-	MetricCPU = "nomad.cpu"
+	MetricCPU = "norca.cpu"
 
 	// MetricMemory is the memory usage as a percentage of the allocated
 	// memory.
-	MetricMemory = "nomad.memory"
+	MetricMemory = "norca.memory"
 
 	// MetricCPUMHz is the CPU usage in MHz.
-	MetricCPUMHz = "nomad.cpu_mhz"
+	MetricCPUMHz = "norca.cpu_mhz"
 
 	// MetricMemoryMB is the memory usage in MiB.
-	MetricMemoryMB = "nomad.memory_mb"
+	MetricMemoryMB = "norca.memory_mb"
 )
 
 // usageMetric indexes the values kept per bucket.

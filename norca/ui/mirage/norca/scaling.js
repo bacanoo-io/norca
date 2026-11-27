@@ -104,7 +104,7 @@ export function seedScaling(server) {
       {
         Name: 'cpu',
         Source: 'nomad-apm',
-        Metric: 'nomad.cpu',
+        Metric: 'norca.cpu',
         Query: 'avg_cpu',
         QueryWindow: 60e9,
         Strategy: 'target-value',

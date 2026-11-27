@@ -17,7 +17,7 @@ import (
 // over a window. Each measurement of an allocation is one sample; Flush
 // returns the average and the maximum per allocation of every task group
 // since the previous Flush. The built-in autoscaler of the servers uses the
-// result as its nomad.cpu and nomad.memory metrics.
+// result as its norca.cpu and norca.memory metrics.
 //
 // It is safe for concurrent use.
 type TaskGroupUsageAggregator struct {

@@ -27,7 +27,7 @@ func TestApiScalingPolicyToStructs_Typed(t *testing.T) {
 		ScaleDuringDeployment: api.ScaleDuringDeploymentUpOnly,
 		Checks: []*api.ScalingCheck{{
 			Name:           "cpu",
-			Metric:         "nomad.cpu",
+			Metric:         "norca.cpu",
 			QueryWindow:    time.Minute,
 			Strategy:       "target-value",
 			StrategyConfig: map[string]string{"target": "70"},
@@ -41,7 +41,7 @@ func TestApiScalingPolicyToStructs_Typed(t *testing.T) {
 	must.Eq(t, structs.ScaleDuringDeploymentUpOnly, p.ScaleDuringDeployment)
 	must.Eq(t, []*structs.ScalingCheck{{
 		Name:           "cpu",
-		Metric:         "nomad.cpu",
+		Metric:         "norca.cpu",
 		QueryWindow:    time.Minute,
 		Strategy:       "target-value",
 		StrategyConfig: map[string]string{"target": "70"},

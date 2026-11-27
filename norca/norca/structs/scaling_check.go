@@ -33,7 +33,7 @@ const (
 // and the strategy that turns the metric into a desired count.
 //
 //	check "cpu" {
-//	  metric   = "nomad.cpu"
+//	  metric   = "norca.cpu"
 //	  strategy = "target-value"
 //	  target   = 70
 //	}
@@ -45,7 +45,7 @@ type ScalingCheck struct {
 	// unless Metric is set.
 	Source string
 
-	// Metric is a metric built into the servers (such as nomad.cpu), used
+	// Metric is a metric built into the servers (such as norca.cpu), used
 	// instead of Source and Query.
 	Metric string
 
@@ -187,7 +187,7 @@ var scalingCheckKeys = map[string]bool{
 // are the other attributes of the check:
 //
 //	check "cpu" {
-//	  metric   = "nomad.cpu"
+//	  metric   = "norca.cpu"
 //	  strategy = "target-value"
 //	  target   = 70
 //	}
