@@ -8,6 +8,7 @@ import (
 	"time"
 
 	clientconfig "github.com/bacanoo-io/norca/norca/client/config"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/backup"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
@@ -158,6 +159,12 @@ func validateNorcaBlocks(c *Config) error {
 	}
 	if c.Client != nil && c.Client.Enabled {
 		if _, err := convertNorcaClientBlocks(c.Client, c.Vault); err != nil {
+			return err
+		}
+	}
+	// the otlp block of telemetry; its files are read when the agent starts
+	if c.Telemetry != nil {
+		if _, err := telemetry.Resolve(c.Telemetry.OTLP); err != nil {
 			return err
 		}
 	}

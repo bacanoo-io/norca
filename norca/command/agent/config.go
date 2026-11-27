@@ -25,6 +25,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/bacanoo-io/norca/norca/helper/defaultroute"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/users"
 	"github.com/bacanoo-io/norca/norca/norca"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -1134,6 +1135,10 @@ type Telemetry struct {
 	// /v1/metrics?format=prometheus.
 	Prometheus *PrometheusConfig `hcl:"prometheus"`
 
+	// OTLP is the OTLP/gRPC export of the agent's metrics and traces; it is
+	// on when the block exists.
+	OTLP *telemetry.OTLPConfig `hcl:"otlp"`
+
 	DisableHostname          bool          `hcl:"disable_hostname"`
 	UseNodeName              bool          `hcl:"use_node_name"`
 	CollectionInterval       string        `hcl:"collection_interval"`
@@ -1171,6 +1176,7 @@ func (t *Telemetry) Copy() *Telemetry {
 
 	nt := *t
 	nt.Prometheus = t.Prometheus.Copy()
+	nt.OTLP = t.OTLP.Copy()
 	nt.PrefixFilter = slices.Clone(t.PrefixFilter)
 	nt.FilterDefault = pointer.Copy(t.FilterDefault)
 	nt.ExtraKeysHCL = slices.Clone(t.ExtraKeysHCL)
@@ -2525,6 +2531,7 @@ func (a *Telemetry) Merge(b *Telemetry) *Telemetry {
 	result := *a
 
 	result.Prometheus = a.Prometheus.Merge(b.Prometheus)
+	result.OTLP = a.OTLP.Merge(b.OTLP)
 	if b.DisableHostname {
 		result.DisableHostname = true
 	}

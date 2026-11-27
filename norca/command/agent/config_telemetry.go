@@ -6,22 +6,67 @@ package agent
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
-	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 )
 
 // removeJSONKeys removes the names of the nested telemetry blocks from the
-// unused keys of the enclosing configuration. The JSON reader of hcl takes
-// an object whose only member is another object for a block with two
-// labels, and leaves the inner name behind as an unused key.
+// unused keys of the levels above them. When the blocks are written as JSON
+// objects rather than lists of objects, the JSON reader of hcl leaves the
+// name of a nested object (a block or a map), and of the blocks between, as
+// unused keys of the enclosing levels, once per nested object.
 func (t *Telemetry) removeJSONKeys(top *[]string) {
 	if t == nil {
 		return
 	}
 	if t.Prometheus != nil {
-		helper.RemoveEqualFold(top, "prometheus")
+		removeAllEqualFold(top, "prometheus")
+	}
+	o := t.OTLP
+	if o == nil {
+		return
+	}
+	names := []string{"otlp"}
+	targets := []telemetry.TargetConfig{o.TargetConfig}
+	if o.Retry != nil {
+		names = append(names, "retry")
+	}
+	if o.ResourceAttributes != nil {
+		names = append(names, "resource_attributes")
+	}
+	if o.Metrics != nil {
+		names = append(names, "metrics")
+		targets = append(targets, o.Metrics.TargetConfig)
+	}
+	if o.Traces != nil {
+		names = append(names, "traces")
+		targets = append(targets, o.Traces.TargetConfig)
+	}
+	if o.Logs != nil {
+		names = append(names, "logs")
+		targets = append(targets, o.Logs.TargetConfig)
+	}
+	if slices.ContainsFunc(targets, func(tc telemetry.TargetConfig) bool { return tc.TLS != nil }) {
+		names = append(names, "tls")
+	}
+	if slices.ContainsFunc(targets, func(tc telemetry.TargetConfig) bool { return tc.Headers != nil }) {
+		names = append(names, "headers")
+	}
+	for _, keys := range []*[]string{top, &t.ExtraKeysHCL, &o.ExtraKeysHCL} {
+		for _, name := range names {
+			removeAllEqualFold(keys, name)
+		}
+	}
+}
+
+// removeAllEqualFold removes every occurrence of name from keys.
+func removeAllEqualFold(keys *[]string, name string) {
+	*keys = slices.DeleteFunc(*keys, func(k string) bool { return strings.EqualFold(k, name) })
+	if len(*keys) == 0 {
+		*keys = nil
 	}
 }
 

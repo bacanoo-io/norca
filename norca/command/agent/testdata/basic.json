@@ -344,7 +344,80 @@
         }
       ],
       "publish_allocation_metrics": true,
-      "publish_node_metrics": true
+      "publish_node_metrics": true,
+      "otlp": [
+        {
+          "endpoint": "otlp.example.com:4317",
+          "compression": "none",
+          "timeout": "5s",
+          "headers_file": "/etc/norca.d/otlp-headers",
+          "headers": [
+            {
+              "authorization": "Bearer basic"
+            }
+          ],
+          "tls": [
+            {
+              "ca_file": "/etc/norca.d/tls/otlp-ca.pem",
+              "cert_file": "/etc/norca.d/tls/otlp.pem",
+              "key_file": "/etc/norca.d/tls/otlp-key.pem",
+              "server_name": "otlp.example.com",
+              "insecure_skip_verify": true
+            }
+          ],
+          "retry": [
+            {
+              "enabled": false,
+              "initial_interval": "1s",
+              "max_interval": "10s",
+              "max_elapsed": "30s"
+            }
+          ],
+          "resource_attributes": [
+            {
+              "deployment.environment.name": "production"
+            }
+          ],
+          "metrics": [
+            {
+              "enabled": false,
+              "interval": "15s",
+              "temporality": "delta",
+              "histograms": "exponential"
+            }
+          ],
+          "traces": [
+            {
+              "endpoint": "tempo.example.com:4317",
+              "enabled": true,
+              "sample_ratio": 0.25,
+              "trust_http_parent": true,
+              "exclude_rpc": ["Node.GetClientAllocs", "Node.UpdateStatus"],
+              "max_queue_size": 4096,
+              "max_export_batch": 256,
+              "tls": [
+                {
+                  "ca_file": "/etc/norca.d/tls/tempo-ca.pem"
+                }
+              ]
+            }
+          ],
+          "logs": [
+            {
+              "enabled": true,
+              "level": "warn",
+              "endpoint": "127.0.0.1:4317",
+              "insecure": true,
+              "headers_file": "/etc/norca.d/otlp-logs-headers",
+              "headers": [
+                {
+                  "x-scope": "logs"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "tls": [

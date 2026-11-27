@@ -11,6 +11,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/shoenig/test/must"
 )
 
@@ -138,4 +139,193 @@ func TestConfig_Parse_Prometheus(t *testing.T) {
 			must.Eq(t, tt.want, c.Telemetry.Prometheus)
 		})
 	}
+}
+
+func parseConfigString(t *testing.T, name, content string) (*Config, error) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	must.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return ParseConfigFile(path)
+}
+
+// The JSON reader of hcl leaves the names of nested objects behind; every
+// shape of the otlp block parses without unexpected keys.
+func TestConfig_Parse_OTLP_JSONShapes(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name string
+		json string
+		want *telemetry.OTLPConfig
+	}{
+		{
+			name: "only member",
+			json: `{"telemetry":{"otlp":{"endpoint":"x:1"}}}`,
+			want: &telemetry.OTLPConfig{TargetConfig: telemetry.TargetConfig{Endpoint: "x:1"}},
+		},
+		{
+			name: "tls only",
+			json: `{"telemetry":{"otlp":{"tls":{"ca_file":"/ca"}}}}`,
+			want: &telemetry.OTLPConfig{TargetConfig: telemetry.TargetConfig{TLS: &telemetry.TLSConfig{CAFile: "/ca"}}},
+		},
+		{
+			name: "signal tls only",
+			json: `{"telemetry":{"otlp":{"traces":{"tls":{"ca_file":"/ca"}}}}}`,
+			want: &telemetry.OTLPConfig{Traces: &telemetry.TracesConfig{
+				TargetConfig: telemetry.TargetConfig{TLS: &telemetry.TLSConfig{CAFile: "/ca"}},
+			}},
+		},
+		{
+			name: "headers only",
+			json: `{"telemetry":{"otlp":{"headers":{"a":"b"}}}}`,
+			want: &telemetry.OTLPConfig{TargetConfig: telemetry.TargetConfig{Headers: map[string]string{"a": "b"}}},
+		},
+		{
+			name: "signal headers",
+			json: `{"telemetry":{"otlp":{"logs":{"headers":{"a":"b"}}}}}`,
+			want: &telemetry.OTLPConfig{Logs: &telemetry.LogsConfig{
+				TargetConfig: telemetry.TargetConfig{Headers: map[string]string{"a": "b"}},
+			}},
+		},
+		{
+			name: "next to other keys",
+			json: `{"telemetry":{"collection_interval":"1s","otlp":{"retry":{"enabled":true},"resource_attributes":{"k":"v"},"metrics":{"interval":"5s"},"traces":{"exclude_rpc":["A.B"]}}}}`,
+			want: &telemetry.OTLPConfig{
+				Retry:              &telemetry.RetryConfig{Enabled: pointer.Of(true)},
+				ResourceAttributes: map[string]string{"k": "v"},
+				Metrics:            &telemetry.MetricsConfig{Interval: "5s"},
+				Traces:             &telemetry.TracesConfig{ExcludeRPC: []string{"A.B"}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := parseConfigString(t, "agent.json", tt.json)
+			must.NoError(t, err)
+			clearExtraKeys(c.Telemetry.OTLP)
+			must.Eq(t, tt.want, c.Telemetry.OTLP)
+		})
+	}
+}
+
+// clearExtraKeys drops the (empty) unused key lists hcl leaves in the
+// nested blocks, so a test can compare them with a literal.
+func clearExtraKeys(o *telemetry.OTLPConfig) {
+	if o == nil {
+		return
+	}
+	o.ExtraKeysHCL = nil
+	targets := []*telemetry.TargetConfig{&o.TargetConfig}
+	if o.Retry != nil {
+		o.Retry.ExtraKeysHCL = nil
+	}
+	if o.Metrics != nil {
+		o.Metrics.ExtraKeysHCL = nil
+		targets = append(targets, &o.Metrics.TargetConfig)
+	}
+	if o.Traces != nil {
+		o.Traces.ExtraKeysHCL = nil
+		targets = append(targets, &o.Traces.TargetConfig)
+	}
+	if o.Logs != nil {
+		o.Logs.ExtraKeysHCL = nil
+		targets = append(targets, &o.Logs.TargetConfig)
+	}
+	for _, tc := range targets {
+		if tc.TLS != nil {
+			tc.TLS.ExtraKeysHCL = nil
+		}
+	}
+}
+
+func TestConfig_Parse_OTLP_UnknownKeys(t *testing.T) {
+	ci.Parallel(t)
+
+	for name, hcl := range map[string]string{
+		"otlp":       `telemetry { otlp { endpont = "x:1" } }`,
+		"tls":        `telemetry { otlp { tls { ca = "x" } } }`,
+		"retry":      `telemetry { otlp { retry { max = "1s" } } }`,
+		"metrics":    `telemetry { otlp { metrics { intervall = "1s" } } }`,
+		"traces":     `telemetry { otlp { traces { ratio = 0.5 } } }`,
+		"logs":       `telemetry { otlp { logs { lvl = "info" } } }`,
+		"signal tls": `telemetry { otlp { traces { tls { ca = "x" } } } }`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := parseConfigString(t, "agent.hcl", hcl)
+			must.ErrorContains(t, err, "unexpected keys")
+		})
+	}
+}
+
+// Two configuration files merge key by key; insecure and tls of a later file
+// replace each other.
+func TestConfig_Merge_OTLP(t *testing.T) {
+	ci.Parallel(t)
+
+	first, err := parseConfigString(t, "a.hcl", `telemetry {
+  otlp {
+    endpoint = "central.example.com:4317"
+    headers  = { "authorization" = "Bearer a" }
+    tls { ca_file = "/ca.pem" }
+    traces { sample_ratio = 0.5 }
+  }
+}`)
+	must.NoError(t, err)
+	second, err := parseConfigString(t, "b.hcl", `telemetry {
+  otlp {
+    endpoint = "127.0.0.1:4317"
+    insecure = true
+    traces { trust_http_parent = true }
+  }
+}`)
+	must.NoError(t, err)
+
+	merged := DefaultConfig().Merge(first).Merge(second)
+	o := merged.Telemetry.OTLP
+	must.Eq(t, "127.0.0.1:4317", o.Endpoint)
+	must.True(t, *o.Insecure)
+	must.Nil(t, o.TLS)
+	must.Eq(t, map[string]string{"authorization": "Bearer a"}, o.Headers)
+	must.Eq(t, 0.5, *o.Traces.SampleRatio)
+	must.True(t, *o.Traces.TrustHTTPParent)
+	must.Eq(t, "/ca.pem", first.Telemetry.OTLP.TLS.CAFile, must.Sprint("the files are not changed"))
+
+	// the merged block is valid
+	_, err = telemetry.Resolve(o)
+	must.NoError(t, err)
+
+	// a copy of the configuration does not share the block
+	cp := merged.Copy()
+	cp.Telemetry.OTLP.Headers["authorization"] = "x"
+	must.Eq(t, "Bearer a", merged.Telemetry.OTLP.Headers["authorization"])
+}
+
+func TestValidateNorcaBlocks_OTLP(t *testing.T) {
+	ci.Parallel(t)
+
+	c := DefaultConfig()
+	must.NoError(t, validateNorcaBlocks(c))
+
+	c.Telemetry.OTLP = &telemetry.OTLPConfig{}
+	must.NoError(t, validateNorcaBlocks(c))
+
+	c.Telemetry.OTLP = &telemetry.OTLPConfig{TargetConfig: telemetry.TargetConfig{
+		Endpoint: "10.0.0.1:4317",
+		Insecure: pointer.Of(true),
+		Headers:  map[string]string{"authorization": "Bearer x"},
+	}}
+	must.ErrorContains(t, validateNorcaBlocks(c), "telemetry.otlp.metrics.headers")
+
+	// the files are not read here: norca config validate may run elsewhere
+	c.Telemetry.OTLP = &telemetry.OTLPConfig{TargetConfig: telemetry.TargetConfig{
+		TLS: &telemetry.TLSConfig{CAFile: "/nonexistent/ca.pem"},
+	}}
+	must.NoError(t, validateNorcaBlocks(c))
+}
+
+func TestTelemetry_DevConfig_NoOTLP(t *testing.T) {
+	ci.Parallel(t)
+
+	must.Nil(t, DevConfig(nil).Telemetry.OTLP)
+	must.Nil(t, DefaultConfig().Telemetry.OTLP)
 }

@@ -26,6 +26,7 @@ import (
 	flaghelper "github.com/bacanoo-io/norca/norca/helper/flags"
 	gatedwriter "github.com/bacanoo-io/norca/norca/helper/gated-writer"
 	"github.com/bacanoo-io/norca/norca/helper/logging"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/winsvc"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
@@ -58,6 +59,9 @@ type Command struct {
 	logFilter      *logutils.LevelFilter
 	logOutput      io.Writer
 	retryJoinErrCh chan struct{}
+
+	// otlp is the OTLP export of telemetry.otlp, nil without the block.
+	otlp *telemetry.Providers
 }
 
 func (c *Command) readConfig() *Config {
@@ -741,8 +745,17 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
+	// Create the OTLP exporters before the agent, so a bad file fails the
+	// startup; the providers start once the agent has its IDs.
+	c.otlp, err = c.setupOTLP(config, logger)
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error initializing OTLP telemetry: %s", err))
+		return 1
+	}
+
 	// Create the agent
 	if err := c.setupAgent(config, logger, logOutput, inmem); err != nil {
+		c.shutdownOTLP(os.Stderr)
 		logGate.Flush()
 		return 1
 	}
@@ -757,7 +770,15 @@ func (c *Command) Run(args []string) int {
 				srv.Shutdown()
 			}
 		}
+
+		// The OTLP export last, so what the shutdown emits still goes out
+		c.shutdownOTLP(os.Stderr)
 	}()
+
+	if err := c.startOTLP(config); err != nil {
+		c.Ui.Error(fmt.Sprintf("Error starting OTLP telemetry: %s", err))
+		return 1
+	}
 
 	// Join startup nodes if specified
 	if err := c.startupJoin(config); err != nil {
@@ -996,6 +1017,8 @@ func (c *Command) handleReload() {
 		// Keep the current log level
 		newConf.LogLevel = c.agent.GetConfig().LogLevel
 	}
+
+	c.reloadOTLP(newConf)
 
 	shouldReloadAgent, shouldReloadHTTP := c.agent.ShouldReload(newConf)
 	if shouldReloadAgent {

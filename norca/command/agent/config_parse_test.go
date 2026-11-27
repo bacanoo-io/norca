@@ -13,6 +13,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/stretchr/testify/require"
@@ -210,6 +211,57 @@ var basicConfig = &Config{
 		collectionInterval:       3 * time.Second,
 		PublishAllocationMetrics: true,
 		PublishNodeMetrics:       true,
+		OTLP: &telemetry.OTLPConfig{
+			TargetConfig: telemetry.TargetConfig{
+				Endpoint:    "otlp.example.com:4317",
+				Headers:     map[string]string{"authorization": "Bearer basic"},
+				HeadersFile: "/etc/norca.d/otlp-headers",
+				TLS: &telemetry.TLSConfig{
+					CAFile:             "/etc/norca.d/tls/otlp-ca.pem",
+					CertFile:           "/etc/norca.d/tls/otlp.pem",
+					KeyFile:            "/etc/norca.d/tls/otlp-key.pem",
+					ServerName:         "otlp.example.com",
+					InsecureSkipVerify: true,
+				},
+			},
+			Compression: "none",
+			Timeout:     "5s",
+			Retry: &telemetry.RetryConfig{
+				Enabled:         pointer.Of(false),
+				InitialInterval: "1s",
+				MaxInterval:     "10s",
+				MaxElapsed:      "30s",
+			},
+			ResourceAttributes: map[string]string{"deployment.environment.name": "production"},
+			Metrics: &telemetry.MetricsConfig{
+				Enabled:     pointer.Of(false),
+				Interval:    "15s",
+				Temporality: "delta",
+				Histograms:  "exponential",
+			},
+			Traces: &telemetry.TracesConfig{
+				TargetConfig: telemetry.TargetConfig{
+					Endpoint: "tempo.example.com:4317",
+					TLS:      &telemetry.TLSConfig{CAFile: "/etc/norca.d/tls/tempo-ca.pem"},
+				},
+				Enabled:         pointer.Of(true),
+				SampleRatio:     pointer.Of(0.25),
+				TrustHTTPParent: pointer.Of(true),
+				ExcludeRPC:      []string{"Node.GetClientAllocs", "Node.UpdateStatus"},
+				MaxQueueSize:    4096,
+				MaxExportBatch:  256,
+			},
+			Logs: &telemetry.LogsConfig{
+				TargetConfig: telemetry.TargetConfig{
+					Endpoint:    "127.0.0.1:4317",
+					Insecure:    pointer.Of(true),
+					Headers:     map[string]string{"x-scope": "logs"},
+					HeadersFile: "/etc/norca.d/otlp-logs-headers",
+				},
+				Enabled: pointer.Of(true),
+				Level:   "warn",
+			},
+		},
 	},
 	LeaveOnInt:                true,
 	LeaveOnTerm:               true,
@@ -680,6 +732,17 @@ var sample0 = &Config{
 		collectionInterval:       60 * time.Second,
 		PublishAllocationMetrics: true,
 		PublishNodeMetrics:       true,
+		OTLP: &telemetry.OTLPConfig{
+			TargetConfig: telemetry.TargetConfig{
+				Headers: map[string]string{"authorization": "Bearer sample0"},
+			},
+			Retry: &telemetry.RetryConfig{MaxElapsed: "2m"},
+			Traces: &telemetry.TracesConfig{
+				TargetConfig: telemetry.TargetConfig{
+					TLS: &telemetry.TLSConfig{CAFile: "/opt/data/nomad/certs/otlp-ca.pem"},
+				},
+			},
+		},
 	},
 	LeaveOnInt:     true,
 	LeaveOnTerm:    true,

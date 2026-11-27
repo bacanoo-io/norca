@@ -73,7 +73,20 @@
       "enabled": true
     },
     "publish_allocation_metrics": true,
-    "publish_node_metrics": true
+    "publish_node_metrics": true,
+    "otlp": {
+      "headers": {
+        "authorization": "Bearer sample0"
+      },
+      "retry": {
+        "max_elapsed": "2m"
+      },
+      "traces": {
+        "tls": {
+          "ca_file": "/opt/data/nomad/certs/otlp-ca.pem"
+        }
+      }
+    }
   },
   "tls": {
     "ca_file": "/opt/data/nomad/certs/nomad-ca.pem",

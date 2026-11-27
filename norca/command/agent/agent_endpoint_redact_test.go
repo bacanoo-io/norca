@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/shoenig/test/must"
 )
@@ -62,7 +63,8 @@ func TestHTTP_AgentSelf_RedactsNATSURLs(t *testing.T) {
 
 // The agent self endpoint returns no credential of the other settings that
 // can hold one: the basic authentication of Consul, addresses given as URLs,
-// the cloud auto-join entries, and (as far as their names tell) the free-form settings of plugins and client options.
+// the cloud auto-join entries, and (as far as their names tell) the
+// free-form settings of plugins and client options.
 func TestHTTP_AgentSelf_RedactsAddressesAndFreeForm(t *testing.T) {
 	ci.Parallel(t)
 
@@ -190,4 +192,49 @@ func TestRedactAddress(t *testing.T) {
 	must.Nil(t, redactOptions(nil))
 	must.Eq(t, []string{"10.0.0.1:4648", "provider=x <redacted> a=<redacted>"},
 		redactJoinAddresses([]string{"10.0.0.1:4648", "provider=x bare a=1"}))
+}
+
+// The values of the OTLP headers are credentials: the agent self endpoint
+// shows their names only, and the running configuration keeps them.
+func TestHTTP_AgentSelf_RedactsOTLPHeaders(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		const secret = "badc0deb-adc0-deba-dc0d-ebadc0debadc"
+		s.Config.Telemetry.OTLP = &telemetry.OTLPConfig{
+			TargetConfig: telemetry.TargetConfig{
+				Headers:     map[string]string{"authorization": "Bearer " + secret},
+				HeadersFile: "/etc/norca.d/otlp-headers",
+			},
+			Traces: &telemetry.TracesConfig{TargetConfig: telemetry.TargetConfig{
+				Headers: map[string]string{"x-api-key": secret},
+			}},
+			Logs: &telemetry.LogsConfig{TargetConfig: telemetry.TargetConfig{
+				Headers: map[string]string{"x-api-key": secret},
+			}},
+			Metrics: &telemetry.MetricsConfig{TargetConfig: telemetry.TargetConfig{
+				Headers: map[string]string{"x-api-key": secret},
+			}},
+		}
+
+		req, err := http.NewRequest(http.MethodGet, "/v1/agent/self", nil)
+		must.NoError(t, err)
+		obj, err := s.Server.AgentSelfRequest(httptest.NewRecorder(), req)
+		must.NoError(t, err)
+		self := obj.(agentSelf)
+
+		raw, err := json.Marshal(self)
+		must.NoError(t, err)
+		must.StrNotContains(t, string(raw), secret)
+
+		o := self.Config.Telemetry.OTLP
+		must.Eq(t, map[string]string{"authorization": "<redacted>"}, o.Headers)
+		must.Eq(t, "/etc/norca.d/otlp-headers", o.HeadersFile)
+		must.Eq(t, map[string]string{"x-api-key": "<redacted>"}, o.Traces.Headers)
+		must.Eq(t, map[string]string{"x-api-key": "<redacted>"}, o.Metrics.Headers)
+		must.Eq(t, map[string]string{"x-api-key": "<redacted>"}, o.Logs.Headers)
+
+		must.Eq(t, "Bearer "+secret, s.Config.Telemetry.OTLP.Headers["authorization"])
+		must.Eq(t, secret, s.Config.Telemetry.OTLP.Traces.Headers["x-api-key"])
+	})
 }
