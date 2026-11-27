@@ -1366,6 +1366,19 @@ func TestAllocRunner_Restore_LifecycleHooks(t *testing.T) {
 	tasklifecycle.RequireTaskBlocked(t, ar.taskCoordinator, ar.tasks["web"].Task())
 	tasklifecycle.RequireTaskBlocked(t, ar.taskCoordinator, ar.tasks["poststart"].Task())
 
+	// The first runner really starts init and side in the mock driver. Wait
+	// until both have started: otherwise a task runner may store "running"
+	// after the states set below, and the second runner restores init as
+	// running, stays in prestart and the checks below time out (Norca).
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool {
+			return ar.tasks["init"].TaskState().State != structs.TaskStatePending &&
+				ar.tasks["side"].TaskState().State != structs.TaskStatePending
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(10*time.Millisecond),
+	))
+
 	// Mimic client dies while init task running, and client restarts after
 	// init task finished and web is running.
 	ar.tasks["init"].UpdateState(structs.TaskStateDead, structs.NewTaskEvent(structs.TaskTerminated))
@@ -1378,11 +1391,16 @@ func TestAllocRunner_Restore_LifecycleHooks(t *testing.T) {
 	ar2 := arIface2.(*allocRunner)
 	must.NoError(t, ar2.Restore())
 
+	// The second runner restored the states set above.
+	must.Eq(t, structs.TaskStateDead, ar2.tasks["init"].TaskState().State)
+	must.Eq(t, structs.TaskStateRunning, ar2.tasks["side"].TaskState().State)
+	must.Eq(t, structs.TaskStateRunning, ar2.tasks["web"].TaskState().State)
+
 	go ar2.Run()
 	defer destroy(ar2)
 
-	// Wait for the coordinator to transition from the "init" state.
-	tasklifecycle.WaitNotInitUntil(ar.taskCoordinator, time.Second, func() {
+	// Wait for the restored coordinator to transition from the "init" state.
+	tasklifecycle.WaitNotInitUntil(ar2.taskCoordinator, time.Second, func() {
 		t.Fatalf("task coordinator didn't transition from init in time")
 	})
 
