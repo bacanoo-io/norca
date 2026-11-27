@@ -29,6 +29,7 @@ func messages(logger hclog.Logger, verb string, err error) {
 	logger.Warn("Failed to start the task")             // want `message starts with a capital letter`
 	logger.Warn("failed to start the task.")            // want `message ends with a period`
 	logger.Warn("RPC failed")                           // an acronym
+	logger.Warn("UpsertJob failed")                     // an identifier
 	logger.Warn("waiting...")                           // an ellipsis
 	logger.Info("restarting in %s", "delay", 3)         // want `message holds a format verb`
 	logger.Log(hclog.Level(2), "Stopped.", "task", "t") // want `message ends with a period and starts with a capital letter`

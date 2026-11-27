@@ -279,7 +279,7 @@ func (c *checker) checkMessageText(msg ast.Expr, text string) {
 		fixed = strings.TrimSuffix(fixed, ".")
 		problems = append(problems, "ends with a period")
 	}
-	if r, size := utf8.DecodeRuneInString(text); unicode.IsUpper(r) {
+	if r, size := utf8.DecodeRuneInString(text); unicode.IsUpper(r) && !isIdentifier(firstWord(text)) {
 		if next, _ := utf8.DecodeRuneInString(text[size:]); unicode.IsLower(next) {
 			fixed = string(unicode.ToLower(r)) + fixed[size:]
 			problems = append(problems, "starts with a capital letter")
@@ -302,6 +302,25 @@ func (c *checker) checkMessageText(msg ast.Expr, text string) {
 		}}
 	}
 	c.pass.Report(d)
+}
+
+// firstWord returns the text up to the first space or punctuation.
+func firstWord(text string) string {
+	if i := strings.IndexAny(text, " :,;.()"); i >= 0 {
+		return text[:i]
+	}
+	return text
+}
+
+// isIdentifier reports whether a word is written like a Go identifier or
+// an acronym (UpsertJob, IPv4): an upper case letter after its first one.
+func isIdentifier(word string) bool {
+	for i, r := range word {
+		if i > 0 && unicode.IsUpper(r) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *checker) checkPair(keyExpr, value ast.Expr) {
