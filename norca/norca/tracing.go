@@ -4,6 +4,8 @@
 package norca
 
 import (
+	"context"
+
 	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/raft"
@@ -168,4 +170,65 @@ func endFSMApplySpan(span trace.Span, resp any) {
 		span.SetStatus(codes.Error, err.Error())
 	}
 	span.End()
+}
+
+// evalTraceParent returns the traceparent that the evaluations enqueued by
+// the entry being applied continue (the eval broker hands it to the worker
+// that dequeues them): the entry's fsm.apply span when it has one (the
+// leader, a sampled entry), otherwise the traceparent of req, the decoded
+// request, which an unsampled request carries too. "" without tracing.
+// Only the leader's broker is enabled, so a follower keeps nothing.
+func (n *nomadFSM) evalTraceParent(req any) string {
+	if n.config.Tracing == nil {
+		return ""
+	}
+	if n.applySpan != nil {
+		return telemetry.FormatTraceParent(n.applySpan.SpanContext())
+	}
+	if carrier, ok := req.(telemetry.TraceCarrier); ok {
+		return carrier.GetTraceParent()
+	}
+	return ""
+}
+
+// startPlanSpan starts a span of the plan applier for a pending plan, a
+// child of the Plan.Submit span that enqueued it. Without tracing or a
+// traceparent it returns a span that records nothing.
+func (s *Server) startPlanSpan(pending *pendingPlan, name string) trace.Span {
+	span := s.config.Tracing.StartChild(pending.traceParent, name, trace.SpanKindInternal,
+		telemetry.AttrEvalID.String(pending.plan.EvalID))
+	if span == nil {
+		return trace.SpanFromContext(context.Background())
+	}
+	return span
+}
+
+// Span attributes of the plan applier's spans.
+const (
+	attrPlanRefreshIndex  = attribute.Key("norca.plan.refresh_index")
+	attrPlanRejectedNodes = attribute.Key("norca.plan.rejected_nodes")
+	attrPlanAllocIndex    = attribute.Key("norca.plan.alloc_index")
+)
+
+// endPlanEvaluateSpan ends the plan.evaluate span with the outcome of the
+// evaluation: a forced state refresh and the nodes rejected.
+func endPlanEvaluateSpan(span trace.Span, result *structs.PlanResult, err error) {
+	if result != nil && span.IsRecording() {
+		if result.RefreshIndex != 0 {
+			span.SetAttributes(attrPlanRefreshIndex.Int64(int64(result.RefreshIndex)))
+		}
+		if n := len(result.RejectedNodes); n > 0 {
+			span.SetAttributes(attrPlanRejectedNodes.Int(n))
+		}
+	}
+	telemetry.EndSpan(span, err)
+}
+
+// endPlanApplySpan ends the plan.apply span once the plan's Raft entry is
+// committed, with its index or the error of the apply.
+func endPlanApplySpan(span trace.Span, future raft.ApplyFuture, err error) {
+	if err == nil && span.IsRecording() {
+		span.SetAttributes(attrPlanAllocIndex.Int64(int64(future.Index())))
+	}
+	telemetry.EndSpan(span, err)
 }

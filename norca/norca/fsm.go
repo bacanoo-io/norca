@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -109,6 +110,11 @@ type nomadFSM struct {
 	// indexes above the restored state (see checkRestoreHole). Restore and
 	// Apply run on the FSM goroutine of Raft.
 	restoreHoleCheck atomic.Bool
+
+	// applySpan is the fsm.apply span of the entry being applied, nil
+	// without one; the evaluations the entry enqueues are its children
+	// (Norca). Only Apply sets it, on the FSM goroutine of Raft.
+	applySpan trace.Span
 
 	// enterpriseAppliers holds the set of enterprise only LogAppliers
 	enterpriseAppliers LogAppliers
@@ -229,7 +235,9 @@ func (n *nomadFSM) TimeTable() *TimeTable {
 // carries a sampled traceparent gets an fsm.apply span.
 func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 	span := n.fsmApplySpan(log)
+	n.applySpan = span
 	resp := n.apply(log)
+	n.applySpan = nil
 	endFSMApplySpan(span, resp)
 	return resp
 }
@@ -704,7 +712,7 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 		// The job or the group was removed since the request was made.
 		return nil
 	}
-	n.handleUpsertedEval(req.Eval)
+	n.handleUpsertedEval(req.Eval, &req)
 
 	// The periodic dispatcher holds the job it launches from.
 	if err := n.periodicDispatcher.Add(job); err != nil {
@@ -861,7 +869,7 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 			req.Eval.DeploymentID = req.Deployment.ID
 		}
 
-		if err := n.upsertEvals(msgType, index, []*structs.Evaluation{req.Eval}); err != nil {
+		if err := n.upsertEvals(msgType, index, []*structs.Evaluation{req.Eval}, &req); err != nil {
 			return err
 		}
 	}
@@ -893,7 +901,7 @@ func (n *nomadFSM) applyDeregisterJob(msgType structs.MessageType, buf []byte, i
 	// always attempt upsert eval even if job deregister fail
 	if req.Eval != nil {
 		req.Eval.JobModifyIndex = index
-		if err := n.upsertEvals(msgType, index, []*structs.Evaluation{req.Eval}); err != nil {
+		if err := n.upsertEvals(msgType, index, []*structs.Evaluation{req.Eval}, &req); err != nil {
 			return err
 		}
 	}
@@ -936,7 +944,7 @@ func (n *nomadFSM) applyBatchDeregisterJob(msgType structs.MessageType, buf []by
 	}
 
 	// perform the side effects outside the transactions
-	n.handleUpsertedEvals(req.Evals)
+	n.handleUpsertedEvals(req.Evals, &req)
 	return nil
 }
 
@@ -1009,35 +1017,43 @@ func (n *nomadFSM) applyUpdateEval(msgType structs.MessageType, buf []byte, inde
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	return n.upsertEvals(msgType, index, req.Evals)
+	return n.upsertEvals(msgType, index, req.Evals, &req)
 }
 
-func (n *nomadFSM) upsertEvals(msgType structs.MessageType, index uint64, evals []*structs.Evaluation) error {
+// upsertEvals upserts the evaluations of a request. req is the decoded
+// request, whose traceparent the evaluations' traces continue.
+func (n *nomadFSM) upsertEvals(msgType structs.MessageType, index uint64, evals []*structs.Evaluation, req any) error {
 	if err := n.state.UpsertEvals(msgType, index, evals); err != nil {
 		n.logger.Error("UpsertEvals failed", "error", err)
 		return err
 	}
 
-	n.handleUpsertedEvals(evals)
+	n.handleUpsertedEvals(evals, req)
 	return nil
 }
 
 // handleUpsertingEval is a helper for taking action after upserting
-// evaluations.
-func (n *nomadFSM) handleUpsertedEvals(evals []*structs.Evaluation) {
+// evaluations. req is the decoded request that created them.
+func (n *nomadFSM) handleUpsertedEvals(evals []*structs.Evaluation, req any) {
 	for _, eval := range evals {
-		n.handleUpsertedEval(eval)
+		n.handleUpsertedEval(eval, req)
 	}
 }
 
 // handleUpsertingEval is a helper for taking action after upserting an eval.
-func (n *nomadFSM) handleUpsertedEval(eval *structs.Evaluation) {
+// req is the decoded request that created it: an evaluation it enqueues
+// continues the trace of the request (evalTraceParent).
+func (n *nomadFSM) handleUpsertedEval(eval *structs.Evaluation, req any) {
 	if eval == nil {
 		return
 	}
 
 	if eval.ShouldEnqueue() {
-		n.evalBroker.Enqueue(eval)
+		if tp := n.evalTraceParent(req); tp != "" {
+			n.evalBroker.EnqueueTraced(eval, tp)
+		} else {
+			n.evalBroker.Enqueue(eval)
+		}
 	} else if eval.ShouldBlock() {
 		n.blockedEvals.Block(eval)
 	} else if eval.Status == structs.EvalStatusComplete &&
@@ -1114,7 +1130,7 @@ func (n *nomadFSM) applyAllocClientUpdate(msgType structs.MessageType, buf []byt
 
 	// Update any evals
 	if len(req.Evals) > 0 {
-		if err := n.upsertEvals(msgType, index, req.Evals); err != nil {
+		if err := n.upsertEvals(msgType, index, req.Evals, &req); err != nil {
 			n.logger.Error("applyAllocClientUpdate failed to update evaluations", "error", err)
 			return err
 		}
@@ -1162,7 +1178,7 @@ func (n *nomadFSM) applyAllocUpdateDesiredTransition(msgType structs.MessageType
 		return err
 	}
 
-	n.handleUpsertedEvals(req.Evals)
+	n.handleUpsertedEvals(req.Evals, &req)
 	return nil
 }
 
@@ -1267,7 +1283,7 @@ func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, ind
 	}
 
 	// Add evals for jobs that were preempted
-	n.handleUpsertedEvals(req.PreemptionEvals)
+	n.handleUpsertedEvals(req.PreemptionEvals, &req)
 
 	// Unblock evals waiting on quota released by stopped allocations
 	n.unblockQuotasForPlanResults(&req, index)
@@ -1292,7 +1308,7 @@ func (n *nomadFSM) applyDeploymentStatusUpdate(msgType structs.MessageType, buf 
 		return err
 	}
 
-	n.handleUpsertedEval(req.Eval)
+	n.handleUpsertedEval(req.Eval, &req)
 	return nil
 }
 
@@ -1309,7 +1325,7 @@ func (n *nomadFSM) applyDeploymentPromotion(msgType structs.MessageType, buf []b
 		return err
 	}
 
-	n.handleUpsertedEval(req.Eval)
+	n.handleUpsertedEval(req.Eval, &req)
 	return nil
 }
 
@@ -1327,7 +1343,7 @@ func (n *nomadFSM) applyDeploymentAllocHealth(msgType structs.MessageType, buf [
 		return err
 	}
 
-	n.handleUpsertedEval(req.Eval)
+	n.handleUpsertedEval(req.Eval, &req)
 	return nil
 }
 

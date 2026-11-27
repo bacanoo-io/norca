@@ -31,7 +31,7 @@ func (n *nomadFSM) applyAllocEvict(msgType structs.MessageType, buf []byte, inde
 	}
 
 	if evicted && req.Eval != nil {
-		n.handleUpsertedEvals([]*structs.Evaluation{req.Eval})
+		n.handleUpsertedEvals([]*structs.Evaluation{req.Eval}, &req)
 	}
 	return evicted
 }

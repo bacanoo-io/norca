@@ -80,6 +80,16 @@ type EvalBroker struct {
 	// unack is a map of evalID to an un-acknowledged evaluation
 	unack map[string]*unackEval
 
+	// traceParents maps the ID of an evaluation in the broker to the W3C
+	// traceparent of the span that created it, for the evaluations that a
+	// traced request created (Norca). The worker's span of the evaluation
+	// is a child of it. It is neither replicated nor persisted: a new
+	// leader has none, and its evaluations start new traces. An entry
+	// lives while its evaluation is in the broker and is removed when the
+	// evaluation is acked, nacked (or its nack timer expires), canceled
+	// or flushed; at most maxTracedEvals entries are kept.
+	traceParents map[string]string
+
 	// waiting is used to notify on a per-scheduler basis of ready work
 	waiting map[string]chan struct{}
 
@@ -154,6 +164,7 @@ func NewEvalBroker(timeout, initialNackDelay, subsequentNackDelay time.Duration,
 		cancelable:           make([]*structs.Evaluation, 0, structs.MaxUUIDsPerWriteRequest),
 		ready:                make(map[string]ReadyEvaluations),
 		unack:                make(map[string]*unackEval),
+		traceParents:         make(map[string]string),
 		waiting:              make(map[string]chan struct{}),
 		requeue:              make(map[string]*structs.Evaluation),
 		timeWait:             make(map[string]*time.Timer),
@@ -203,6 +214,39 @@ func (b *EvalBroker) Enqueue(eval *structs.Evaluation) {
 	b.l.Lock()
 	defer b.l.Unlock()
 	b.processEnqueue(eval, "")
+}
+
+// maxTracedEvals bounds the trace parents the broker keeps: evaluations
+// enqueued beyond it start new traces when they are processed (Norca).
+const maxTracedEvals = 16384
+
+// EnqueueTraced enqueues a new evaluation that a traced request created:
+// traceParent is the W3C traceparent of the span that created it, which
+// the dequeue of the evaluation returns (TraceParent). An evaluation that
+// is already in the broker keeps the trace parent it has, if any.
+func (b *EvalBroker) EnqueueTraced(eval *structs.Evaluation, traceParent string) {
+	b.l.Lock()
+	defer b.l.Unlock()
+	_, known := b.evals[eval.ID]
+	b.processEnqueue(eval, "")
+	if traceParent == "" || known || len(b.traceParents) >= maxTracedEvals {
+		return
+	}
+	if _, tracked := b.evals[eval.ID]; tracked {
+		b.traceParents[eval.ID] = traceParent
+	}
+}
+
+// TraceParent returns the W3C traceparent of the span that created an
+// outstanding evaluation, or "" when the broker has none for it or the
+// token does not match its dequeue (Norca).
+func (b *EvalBroker) TraceParent(evalID, token string) string {
+	b.l.RLock()
+	defer b.l.RUnlock()
+	if unack, ok := b.unack[evalID]; !ok || unack.Token != token {
+		return ""
+	}
+	return b.traceParents[evalID]
 }
 
 // EnqueueAll is used to enqueue many evaluations. The map allows evaluations
@@ -588,6 +632,7 @@ func (b *EvalBroker) Ack(evalID, token string) error {
 	// Cleanup
 	delete(b.unack, evalID)
 	delete(b.evals, evalID)
+	delete(b.traceParents, evalID)
 
 	namespacedID := structs.NamespacedID{
 		ID:        jobID,
@@ -601,6 +646,9 @@ func (b *EvalBroker) Ack(evalID, token string) error {
 		// Any pending evaluations with ModifyIndexes older than the just-ack'd
 		// evaluation are no longer useful, so it's safe to drop them.
 		cancelable := pending.MarkForCancel()
+		for _, eval := range cancelable {
+			delete(b.traceParents, eval.ID)
+		}
 		b.cancelable = append(b.cancelable, cancelable...)
 		b.stats.TotalCancelable = len(b.cancelable)
 		b.stats.TotalPending -= len(cancelable)
@@ -652,6 +700,7 @@ func (b *EvalBroker) Nack(evalID, token string) error {
 
 	// Cleanup
 	delete(b.unack, evalID)
+	delete(b.traceParents, evalID)
 
 	// Update the stats
 	b.stats.TotalUnacked -= 1
@@ -766,6 +815,7 @@ func (b *EvalBroker) flush() {
 	b.cancelable = make([]*structs.Evaluation, 0, structs.MaxUUIDsPerWriteRequest)
 	b.ready = make(map[string]ReadyEvaluations)
 	b.unack = make(map[string]*unackEval)
+	b.traceParents = make(map[string]string)
 	b.timeWait = make(map[string]*time.Timer)
 	b.delayHeap = delayheap.NewDelayHeap()
 }

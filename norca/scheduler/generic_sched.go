@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper"
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -120,6 +122,11 @@ type GenericScheduler struct {
 	blocked        *structs.Evaluation
 	failedTGAllocs map[string]*structs.AllocMetric
 	queuedAllocs   map[string]int
+
+	// tracer starts the spans of the run, computeTracer the ones below its
+	// scheduler.compute span (Norca, tracing.go).
+	tracer        schedTracer
+	computeTracer schedTracer
 }
 
 // NewServiceScheduler is a factory function to instantiate a new service scheduler
@@ -158,6 +165,7 @@ func (s *GenericScheduler) Process(eval *structs.Evaluation) (err error) {
 
 	// Store the evaluation
 	s.eval = eval
+	s.tracer = newSchedTracer(s.planner)
 
 	// Update our logger with the eval's information
 	s.logger = s.logger.With("eval_id", eval.ID, "job_id", eval.JobID, "namespace", eval.Namespace)
@@ -287,7 +295,11 @@ func (s *GenericScheduler) process() (bool, error) {
 	}
 
 	// Compute the target job allocations
-	if err := s.computeJobAllocs(); err != nil {
+	var computeSpan trace.Span
+	s.computeTracer, computeSpan = s.tracer.start(telemetry.SpanSchedulerCompute)
+	err = s.computeJobAllocs()
+	telemetry.EndSpan(computeSpan, err)
+	if err != nil {
 		s.logger.Error("failed to compute job allocations", "error", err)
 		return false, err
 	}
@@ -525,6 +537,10 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 	// Capture current time to use as the start time for any rescheduled allocations
 	now := time.Now()
 
+	// one scheduler.select span per task group (Norca)
+	selects := newSelectSpans(s.computeTracer)
+	defer selects.end()
+
 	// Have to handle destructive changes first as we need to discount their
 	// resources. To understand this imagine the resources were reduced and the
 	// count was scaled up.
@@ -571,6 +587,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 			if metric, ok := s.failedTGAllocs[tg.Name]; ok {
 				metric.CoalescedFailures += 1
 				metric.ExhaustResources(tg)
+				selects.failed(tg.Name)
 				continue
 			}
 
@@ -713,6 +730,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 
 				// Track the placement
 				s.plan.AppendAlloc(alloc, downgradedJob)
+				selects.placed(tg.Name)
 
 			} else {
 				// Lazy initialize the failed map
@@ -725,6 +743,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 
 				// Track the fact that we didn't find a placement
 				s.failedTGAllocs[tg.Name] = s.ctx.Metrics()
+				selects.failed(tg.Name)
 
 				// If we weren't able to find a replacement for the allocation, back
 				// out the fact that we asked to stop the allocation.

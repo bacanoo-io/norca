@@ -59,6 +59,11 @@ type pendingPlan struct {
 	enqueueTime time.Time
 	result      *structs.PlanResult
 	errCh       chan error
+
+	// traceParent is the W3C traceparent of the Plan.Submit span that
+	// enqueued the plan; the plan applier's spans of the plan are its
+	// children (Norca). Empty without tracing.
+	traceParent string
 }
 
 // Wait is used to block for the plan result or potential error
@@ -98,6 +103,12 @@ func (q *PlanQueue) SetEnabled(enabled bool) {
 
 // Enqueue is used to enqueue a plan
 func (q *PlanQueue) Enqueue(plan *structs.Plan) (PlanFuture, error) {
+	return q.EnqueueTraced(plan, "")
+}
+
+// EnqueueTraced enqueues a plan that a traced Plan.Submit call submits:
+// traceParent is the W3C traceparent of the call's span (Norca).
+func (q *PlanQueue) EnqueueTraced(plan *structs.Plan, traceParent string) (PlanFuture, error) {
 	q.l.Lock()
 	defer q.l.Unlock()
 
@@ -111,6 +122,7 @@ func (q *PlanQueue) Enqueue(plan *structs.Plan) (PlanFuture, error) {
 		plan:        plan,
 		enqueueTime: time.Now(),
 		errCh:       make(chan error, 1),
+		traceParent: traceParent,
 	}
 
 	// Push onto the heap

@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -19,6 +20,7 @@ import (
 	metrics "github.com/hashicorp/go-metrics"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/raft"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // planner is used to manage the submitted allocation plans that are waiting
@@ -139,7 +141,7 @@ func (p *planner) planApply() {
 		default:
 		}
 
-		logger := planLogger(p.srv.logger, pending.plan)
+		logger := telemetry.LogWithTraceParent(planLogger(p.srv.logger, pending.plan), pending.traceParent)
 
 		if snap != nil {
 			// If snapshot doesn't contain the previous plan
@@ -166,7 +168,9 @@ func (p *planner) planApply() {
 		}
 
 		// Evaluate the plan
+		evalSpan := p.srv.startPlanSpan(pending, telemetry.SpanPlanEvaluate)
 		result, err := evaluatePlan(pool, snap, pending.plan, logger)
+		endPlanEvaluateSpan(evalSpan, result, err)
 		if err != nil {
 			logger.Error("failed to evaluate plan", "error", err)
 			pending.respond(nil, err)
@@ -201,8 +205,10 @@ func (p *planner) planApply() {
 		}
 
 		// Dispatch the Raft transaction for the plan
-		future, err := p.applyPlan(pending.plan, result, snap)
+		applySpan := p.srv.startPlanSpan(pending, telemetry.SpanPlanApply)
+		future, err := p.applyPlanTraced(pending.plan, result, snap, applySpan)
 		if err != nil {
+			telemetry.EndSpan(applySpan, err)
 			logger.Error("failed to submit plan", "error", err)
 			pending.respond(nil, err)
 			continue
@@ -210,7 +216,7 @@ func (p *planner) planApply() {
 
 		// Respond to the plan in async; receive plan's committed index via chan
 		planIndexCh = make(chan uint64, 1)
-		go p.asyncPlanWait(planIndexCh, future, result, pending)
+		go p.asyncPlanWait(planIndexCh, future, result, pending, applySpan)
 	}
 }
 
@@ -243,6 +249,14 @@ func (p *planner) snapshotMinIndex(prevPlanResultIndex, planSnapshotIndex uint64
 
 // applyPlan is used to apply the plan result and to return the alloc index
 func (p *planner) applyPlan(plan *structs.Plan, result *structs.PlanResult, snap *state.StateSnapshot) (raft.ApplyFuture, error) {
+	return p.applyPlanTraced(plan, result, snap, nil)
+}
+
+// applyPlanTraced is applyPlan within the plan.apply span of the plan
+// (Norca): the Raft entry carries its traceparent, so the leader's FSM
+// span of the entry, and the evaluations it creates, are its children.
+// span may be nil or record nothing.
+func (p *planner) applyPlanTraced(plan *structs.Plan, result *structs.PlanResult, snap *state.StateSnapshot, span trace.Span) (raft.ApplyFuture, error) {
 	now := time.Now().UTC().UnixNano()
 
 	// Setup the update request
@@ -349,6 +363,9 @@ func (p *planner) applyPlan(plan *structs.Plan, result *structs.PlanResult, snap
 		}
 	}
 	req.PreemptionEvals = evals
+	if span != nil && span.SpanContext().IsValid() {
+		req.SetTraceParent(telemetry.FormatTraceParent(span.SpanContext()))
+	}
 
 	// Dispatch the Raft transaction
 	future, err := p.srv.raftApplyFuture(structs.ApplyPlanResultsRequestType, &req)
@@ -472,13 +489,16 @@ func signAllocIdentities(signer claimSigner, job *structs.Job, allocations []*st
 // commit the plan's index will be sent on the chan. On error the chan will be
 // closed.
 func (p *planner) asyncPlanWait(indexCh chan<- uint64, future raft.ApplyFuture,
-	result *structs.PlanResult, pending *pendingPlan) {
+	result *structs.PlanResult, pending *pendingPlan, span trace.Span) {
 	defer metrics.MeasureSince([]string{"server", "plan", "apply"}, time.Now())
 	defer close(indexCh)
 
 	// Wait for the plan to apply
-	if err := future.Error(); err != nil {
-		planLogger(p.srv.logger, pending.plan).Error("failed to apply plan", "error", err)
+	err := future.Error()
+	endPlanApplySpan(span, future, err)
+	if err != nil {
+		logger := telemetry.LogWithTraceParent(planLogger(p.srv.logger, pending.plan), pending.traceParent)
+		logger.Error("failed to apply plan", "error", err)
 		pending.respond(nil, err)
 		return
 	}

@@ -1911,6 +1911,13 @@ type EvalDequeueResponse struct {
 	// scheduler.
 	WaitIndex uint64
 
+	// TraceParent is the W3C traceparent of the span that created the
+	// evaluation (Norca): the worker's span of the evaluation is its child.
+	// Empty when the leader has none for the evaluation: no tracing, an
+	// untraced creator, or an evaluation enqueued again by a new leader.
+	// The evaluation itself never carries trace context.
+	TraceParent string
+
 	QueryMeta
 }
 

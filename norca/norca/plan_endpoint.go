@@ -59,8 +59,13 @@ func (p *Plan) Submit(args *structs.PlanRequest, reply *structs.PlanResponse) er
 	}
 	defer p.srv.evalBroker.ResumeNackTimeout(id, token)
 
-	// Submit the plan to the queue
-	future, err := p.srv.planQueue.Enqueue(plan)
+	// Submit the plan to the queue; the plan applier continues the trace of
+	// this call (Norca)
+	var traceParent string
+	if p.srv.config.Tracing != nil {
+		traceParent = args.TraceParent
+	}
+	future, err := p.srv.planQueue.EnqueueTraced(plan, traceParent)
 	if err != nil {
 		return err
 	}

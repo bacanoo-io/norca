@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/bacanoo-io/norca/norca/helper/telemetry"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -52,6 +54,11 @@ type SystemScheduler struct {
 
 	failedTGAllocs map[string]*structs.AllocMetric
 	queuedAllocs   map[string]int
+
+	// tracer starts the spans of the run, computeTracer the ones below its
+	// scheduler.compute span (Norca, tracing.go).
+	tracer        schedTracer
+	computeTracer schedTracer
 }
 
 // NewSystemScheduler is a factory function to instantiate a new system
@@ -88,6 +95,7 @@ func (s *SystemScheduler) Process(eval *structs.Evaluation) (err error) {
 
 	// Store the evaluation
 	s.eval = eval
+	s.tracer = newSchedTracer(s.planner)
 
 	// Update our logger with the eval's information
 	s.logger = s.logger.With("eval_id", eval.ID, "job_id", eval.JobID, "namespace", eval.Namespace)
@@ -161,7 +169,11 @@ func (s *SystemScheduler) process() (bool, error) {
 	}
 
 	// Compute the target job allocations
-	if err := s.computeJobAllocs(); err != nil {
+	var computeSpan trace.Span
+	s.computeTracer, computeSpan = s.tracer.start(telemetry.SpanSchedulerCompute)
+	err = s.computeJobAllocs()
+	telemetry.EndSpan(computeSpan, err)
+	if err != nil {
 		s.logger.Error("failed to compute job allocations", "error", err)
 		return false, err
 	}
@@ -357,6 +369,10 @@ func (s *SystemScheduler) computePlacements(place []allocTuple) error {
 	// track node filtering, to only report an error if all nodes have been filtered
 	var filteredMetrics map[string]*structs.AllocMetric
 
+	// one scheduler.select span per task group (Norca)
+	selects := newSelectSpans(s.computeTracer)
+	defer selects.end()
+
 	nodes := make([]*structs.Node, 1)
 	for _, missing := range place {
 		tgName := missing.TaskGroup.Name
@@ -413,6 +429,7 @@ func (s *SystemScheduler) computePlacements(place []allocTuple) error {
 			if metric, ok := s.failedTGAllocs[tgName]; ok {
 				metric.CoalescedFailures += 1
 				metric.ExhaustResources(missing.TaskGroup)
+				selects.failed(tgName)
 				continue
 			}
 
@@ -434,6 +451,7 @@ func (s *SystemScheduler) computePlacements(place []allocTuple) error {
 			// Actual failure to start this task on this candidate node, report it individually
 			s.failedTGAllocs[tgName] = s.ctx.Metrics()
 			s.addBlocked(node)
+			selects.failed(tgName)
 
 			continue
 		}
@@ -507,6 +525,7 @@ func (s *SystemScheduler) computePlacements(place []allocTuple) error {
 		}
 
 		s.plan.AppendAlloc(alloc, nil)
+		selects.placed(tgName)
 	}
 
 	return nil

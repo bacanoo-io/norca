@@ -119,6 +119,12 @@ type Worker struct {
 	// first invoked. It is used to mark the SnapshotIndex of evaluations
 	// Created, Updated or Reblocked.
 	snapshotIndex uint64
+
+	// dequeuedTraceParent is the traceparent of the Eval.Dequeue reply of
+	// the last dequeued evaluation, and trace the trace state of the
+	// evaluation in process (Norca, worker_tracing.go).
+	dequeuedTraceParent string
+	trace               workerTrace
 }
 
 // NewWorker starts a new scheduler worker associated with the given server
@@ -413,13 +419,15 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		if shutdown {
 			return
 		}
-		logger := w.logger.With("eval_id", eval.ID, "job_id", eval.JobID, "namespace", eval.Namespace)
+		w.startEvalTrace(eval, w.dequeuedTraceParent)
+		logger := w.traceLogger().With("eval_id", eval.ID, "job_id", eval.JobID, "namespace", eval.Namespace)
 
 		// since dequeue takes time, we could have shutdown the server after
 		// getting an eval that needs to be nacked before we exit. Explicitly
 		// check the server whether to allow this eval to be processed.
 		if w.srv.IsShutdown() {
 			logger.Warn("nacking eval because the server is shutting down")
+			w.failEvalTrace(errors.New("server shutting down"))
 			w.sendNack(eval, token)
 			return
 		}
@@ -428,6 +436,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		w.setWorkloadStatus(WorkloadWaitingForRaft)
 		snap, err := w.snapshotMinIndex(waitIndex, raftSyncLimit)
 		if err != nil {
+			w.failEvalTrace(err)
 			var timeoutErr ErrMinIndexDeadlineExceeded
 			if errors.As(err, &timeoutErr) {
 				logger.Warn("timeout waiting for Raft index required by eval",
@@ -463,6 +472,7 @@ func (w *Worker) run(raftSyncLimit time.Duration) {
 		w.setWorkloadStatus(WorkloadScheduling)
 		if err := w.invokeScheduler(snap, eval, token); err != nil {
 			logger.Error("error invoking scheduler", "error", err)
+			w.failEvalTrace(err)
 			w.sendNack(eval, token)
 			continue
 		}
@@ -522,6 +532,7 @@ REQ:
 
 	// Check if we got a response
 	if resp.Eval != nil {
+		w.dequeuedTraceParent = resp.TraceParent
 		w.logger.Debug("dequeued evaluation", "eval_id", resp.Eval.ID, "type", resp.Eval.Type, "namespace", resp.Eval.Namespace, "job_id", resp.Eval.JobID, "node_id", resp.Eval.NodeID, "triggered_by", resp.Eval.TriggeredBy)
 		return resp.Eval, resp.Token, resp.GetWaitIndex(), false
 	}
@@ -550,12 +561,16 @@ func (w *Worker) sendAcknowledgement(eval *structs.Evaluation, token string, ack
 		endpoint = "Eval.Nack"
 	}
 
-	// Make the RPC call
+	// Make the RPC call, within the eval.process span, which ends with it
+	w.traceRPC(&req)
+	defer w.endEvalTrace(ack)
+	logger := w.traceLogger()
 	err := w.srv.RPC(endpoint, &req, &resp)
 	if err != nil {
-		w.logger.Error("failed to acknowledge evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "error", err)
+		w.failEvalTrace(err)
+		logger.Error("failed to acknowledge evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "error", err)
 	} else {
-		w.logger.Debug("acknowledged evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "type", eval.Type,
+		logger.Debug("acknowledged evaluation", "rpc_method", endpoint, "eval_id", eval.ID, "type", eval.Type,
 			"namespace", eval.Namespace, "job_id", eval.JobID, "node_id", eval.NodeID, "triggered_by", eval.TriggeredBy)
 	}
 }
@@ -607,13 +622,15 @@ func (w *Worker) snapshotMinIndex(waitIndex uint64, timeout time.Duration) (*sta
 }
 
 // invokeScheduler is used to invoke the business logic of the scheduler
-func (w *Worker) invokeScheduler(snap *state.StateSnapshot, eval *structs.Evaluation, token string) error {
+func (w *Worker) invokeScheduler(snap *state.StateSnapshot, eval *structs.Evaluation, token string) (err error) {
 	defer metrics.MeasureSince([]string{"server", "worker", "invoke_scheduler", eval.Type}, time.Now())
+	endTrace := w.startSchedulerTrace(eval.Type)
+	defer func() { endTrace(err) }()
+
 	// Store the evaluation token
 	w.evalToken = token
 
 	// Store the snapshot's index
-	var err error
 	w.snapshotIndex, err = snap.LatestIndex()
 	if err != nil {
 		return fmt.Errorf("failed to determine snapshot's index: %v", err)
@@ -624,7 +641,7 @@ func (w *Worker) invokeScheduler(snap *state.StateSnapshot, eval *structs.Evalua
 	if eval.Type == structs.JobTypeCore {
 		sched = NewCoreScheduler(w.srv, snap)
 	} else {
-		sched, err = scheduler.NewScheduler(eval.Type, w.logger, w.srv.workersEventCh, snap, w)
+		sched, err = scheduler.NewScheduler(eval.Type, w.traceLogger(), w.srv.workersEventCh, snap, w)
 		if err != nil {
 			return fmt.Errorf("failed to instantiate scheduler: %v", err)
 		}
@@ -676,19 +693,23 @@ func (w *Worker) SubmitPlan(plan *structs.Plan) (*structs.PlanResult, scheduler.
 		},
 	}
 	var resp structs.PlanResponse
+	endTrace := w.startPlanSubmitTrace(plan, &req)
+	logger := w.traceLogger()
 
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Plan.Submit", &req, &resp); err != nil {
-		w.logger.Error("failed to submit plan for evaluation", "eval_id", plan.EvalID, "error", err)
+		logger.Error("failed to submit plan for evaluation", "eval_id", plan.EvalID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
+		endTrace(err)
 		return nil, nil, err
 	} else {
-		w.logger.Debug("submitted plan for evaluation", "eval_id", plan.EvalID)
+		logger.Debug("submitted plan for evaluation", "eval_id", plan.EvalID)
 		w.backoffReset()
 	}
+	endTrace(nil)
 
 	// Look for a result
 	result := resp.Result
@@ -739,17 +760,19 @@ func (w *Worker) UpdateEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
+	w.traceRPC(&req)
+	w.evalStatusTrace(eval)
 
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Update", &req, &resp); err != nil {
-		w.logger.Error("failed to update evaluation", "eval_id", eval.ID, "error", err)
+		w.traceLogger().Error("failed to update evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("updated evaluation", "eval_id", eval.ID)
+		w.traceLogger().Debug("updated evaluation", "eval_id", eval.ID)
 		w.backoffReset()
 	}
 	return nil
@@ -781,17 +804,18 @@ func (w *Worker) CreateEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
+	w.traceRPC(&req)
 
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Create", &req, &resp); err != nil {
-		w.logger.Error("failed to create evaluation", "eval_id", eval.ID, "error", err)
+		w.traceLogger().Error("failed to create evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("created evaluation", "eval_id", eval.ID, "wait_until", eval.WaitUntil)
+		w.traceLogger().Debug("created evaluation", "eval_id", eval.ID, "wait_until", eval.WaitUntil)
 		w.backoffReset()
 	}
 	return nil
@@ -844,17 +868,19 @@ func (w *Worker) ReblockEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
+	w.traceRPC(&req)
+	w.evalStatusTrace(eval)
 
 SUBMIT:
 	// Make the RPC call
 	if err := w.srv.RPC("Eval.Reblock", &req, &resp); err != nil {
-		w.logger.Error("failed to reblock evaluation", "eval_id", eval.ID, "error", err)
+		w.traceLogger().Error("failed to reblock evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
 			goto SUBMIT
 		}
 		return err
 	} else {
-		w.logger.Debug("reblocked evaluation", "eval_id", eval.ID)
+		w.traceLogger().Debug("reblocked evaluation", "eval_id", eval.ID)
 		w.backoffReset()
 	}
 	return nil
