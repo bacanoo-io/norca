@@ -312,7 +312,11 @@ export function riggerBackend({ token, registry, module }) {
     },
     async apply(region, namespace, release, body) {
       const r = await riggerInstall(token, region, namespace, body, false);
-      return { Revision: r.body?.Revision, Action: r.body?.Action };
+      return {
+        Revision: r.body?.Revision,
+        Action: r.body?.Action,
+        NextSteps: r.body?.NextSteps,
+      };
     },
     command(state) {
       return riggerInstallCommand({ registry, module, ...state });

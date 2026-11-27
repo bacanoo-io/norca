@@ -215,7 +215,8 @@ func (s *installServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"Action":"install","Revision":3,"Warnings":["acme/web 1.2.0: an advisory"]}`))
+	_, _ = w.Write([]byte(`{"Action":"install","Revision":3,"Warnings":["acme/web 1.2.0: an advisory"],` +
+		`"NextSteps":"The service web runs.\n  norca service info web\n"}`))
 }
 
 // runInstallCommand runs rigger install with args: its exit code, its
@@ -231,8 +232,8 @@ func runInstallCommand(t *testing.T, args ...string) (int, string, string) {
 }
 
 // install -server of a module by its address sends the request of the
-// address with the values of the flags, and writes the warnings and the
-// revision of the answer; the answer of servers that have not synced the
+// address with the values of the flags, and writes the warnings, the
+// revision and the next steps of the answer; the answer of servers that have not synced the
 // registry reaches the user as they wrote it, and nothing syncs it. A git
 // address is refused before anything is sent.
 func TestServerInstall_ByAddress(t *testing.T) {
@@ -246,7 +247,8 @@ func TestServerInstall_ByAddress(t *testing.T) {
 	t.Setenv(serverEnv, "")
 
 	code, stdout, stderr := runInstallCommand(t, globalModule, flagName, riggerRelease, "-namespace", "store", flagServer, flagVersion, someConstraint, "-var", "count=2")
-	if code != exitOK || stdout != "install store/web: revision 3\n" || !strings.Contains(stderr, "an advisory") {
+	wantStdout := "install store/web: revision 3\n\nThe service web runs.\n  norca service info web\n"
+	if code != exitOK || stdout != wantStdout || !strings.Contains(stderr, "an advisory") {
 		t.Errorf("install = %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 
@@ -286,5 +288,35 @@ func TestInstall_BuiltinVersion(t *testing.T) {
 	code, _, stderr := runInstallCommand(t, builtinRedis, flagName, "kv", flagVersion, ">= 99.0.0")
 	if code != exitError || !strings.Contains(stderr, "builtin/redis is version") || !strings.Contains(stderr, `>= 99.0.0`) {
 		t.Errorf("install = %d, stderr %q", code, stderr)
+	}
+}
+
+// The next steps of a module follow the line of the install below an empty
+// line, with one line end; a module without them adds nothing.
+func TestWriteNextSteps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, text, expected string
+	}{
+		{name: "none", text: "", expected: ""},
+		{name: "only white space", text: "\n  \n", expected: ""},
+		{name: "a heredoc", text: "Run:\n  norca service info web\n", expected: "\nRun:\n  norca service info web\n"},
+		{name: "no line end", text: "Done.", expected: "\nDone.\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b bytes.Buffer
+			if err := writeNextSteps(&b, tt.text); err != nil {
+				t.Fatal(err)
+			}
+
+			if b.String() != tt.expected {
+				t.Errorf("writeNextSteps(%q) wrote %q, want %q", tt.text, b.String(), tt.expected)
+			}
+		})
 	}
 }

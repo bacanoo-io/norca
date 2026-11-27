@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	git "github.com/go-git/go-git/v5"
@@ -177,11 +179,16 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 		_, _, err = client.Rigger().Install(&api.RiggerInstallRequest{Release: "web-signed", Registry: "signed", Module: "web"}, true, nil)
 		must.ErrorContains(t, err, rigger.ErrNotTrusted.Error())
 
-		// A local module sent as files.
+		// A local module sent as files, with next steps to show after an
+		// apply.
 		eng, err := rigger.New()
 		must.NoError(t, err)
 
-		m, diags := eng.LoadModule(t.Context(), riggerHostModule)
+		withNextSteps := maps.Clone(riggerHostModule)
+		withNextSteps["outputs.hcl"] = &fstest.MapFile{Data: []byte(
+			"output \"next_steps\" {\n  value = \"${rigger.release} runs in ${rigger.namespace}.\"\n}\n")}
+
+		m, diags := eng.LoadModule(t.Context(), withNextSteps)
 		must.False(t, diags.HasErrors(), must.Sprint(diags))
 
 		files, err := m.Archive()
@@ -197,6 +204,11 @@ func TestHTTP_RiggerInstall(t *testing.T) {
 		must.Eq(t, uint64(1), local.Revision)
 		must.Eq(t, "local", local.Module.Source)
 		must.Nil(t, local.Origin)
+		must.Eq(t, "web-local runs in local.", local.NextSteps)
+
+		planned, _, err := client.Rigger().Install(&api.RiggerInstallRequest{Release: "web-local", Files: files}, true, &api.WriteOptions{Namespace: "local"})
+		must.NoError(t, err)
+		must.Eq(t, "", planned.NextSteps, must.Sprint("a plan shows no next steps"))
 
 		must.NoError(t, s.RPC("Release.GetRelease", &structs.ReleaseSpecificRequest{
 			Name: "web-local", QueryOptions: structs.QueryOptions{Region: "global", Namespace: "local", AuthToken: s.RootToken.SecretID},

@@ -183,6 +183,14 @@ module('Acceptance | rigger catalog', function (hooks) {
       redis_password: 's3cret',
     });
     assert.strictEqual(currentURL(), '/packages/default/redis');
+    // The next steps of the module stay in the notification of the install.
+    assert.dom('[data-test-toast-title]').hasText('redis installed');
+    assert
+      .dom('[data-test-toast-message]')
+      .includesText('redis runs in namespace default.');
+    assert
+      .dom('[data-test-toast-message]')
+      .includesText('norca service info redis');
   });
 
   test('required variables, versions, and a version the cluster cannot run', async function (assert) {

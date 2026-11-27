@@ -233,6 +233,23 @@ func install(ctx context.Context, logger *slog.Logger, stdout, stderr io.Writer,
 	}
 
 	_, err = fmt.Fprintf(stdout, "%s %s/%s: revision %d\n", outcome.Action, rp.Release.Namespace, rp.Release.Name, outcome.Revision)
+	if err != nil {
+		return err
+	}
+
+	return writeNextSteps(stdout, rp.NextSteps())
+}
+
+// writeNextSteps writes the text of the output next_steps of a module after
+// its install, below an empty line; nothing when it has none, or when it is
+// sensitive (the engine and the servers leave it out then).
+func writeNextSteps(w io.Writer, text string) error {
+	text = strings.TrimRight(text, "\n")
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+
+	_, err := fmt.Fprintf(w, "\n%s\n", text)
 
 	return err
 }

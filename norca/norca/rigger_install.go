@@ -116,6 +116,9 @@ type RiggerInstallResponse struct {
 	// it; nil for a local module.
 	Origin   *rigger.ModuleOrigin
 	Warnings []string
+	// NextSteps is the text of the output next_steps of the module after
+	// an apply (rigger.ReleasePlan.NextSteps); empty for a plan.
+	NextSteps string `json:",omitempty"`
 	structs.WriteMeta
 }
 
@@ -345,7 +348,7 @@ func (s *Server) riggerInstall(args *RiggerInstallRequest, reply *RiggerInstallR
 			return err
 		}
 
-		reply.Revision = outcome.Revision
+		reply.Revision, reply.NextSteps = outcome.Revision, rp.NextSteps()
 	}
 
 	reply.Index = max(1, s.raft.AppliedIndex())

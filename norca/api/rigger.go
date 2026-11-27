@@ -330,6 +330,10 @@ type RiggerInstallResponse struct {
 	// Origin is nil for a local module.
 	Origin   *RiggerModuleOrigin
 	Warnings []string
+	// NextSteps is the text of the output next_steps of the module, for
+	// its user after an apply; empty for a plan, for a module without the
+	// output, and for a sensitive one.
+	NextSteps string `json:",omitempty"`
 }
 
 // RiggerModuleDetail is what an install form needs of a version of a module

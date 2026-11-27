@@ -417,7 +417,14 @@ export default class PackagesSchemaForm extends Component {
           body.Operation
         }`;
       }
-      this.notifications.add({ title, color: 'success' });
+      // The next steps of the module (its output next_steps) stay until
+      // they are dismissed.
+      const nextSteps = body?.NextSteps?.trim();
+      this.notifications.add({
+        title,
+        color: 'success',
+        ...(nextSteps ? { message: nextSteps, sticky: true } : {}),
+      });
       this.args.onDeployed?.(body, {
         name: this.releaseName.trim(),
         namespace: this.namespace,

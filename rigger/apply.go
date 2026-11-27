@@ -412,6 +412,8 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 		return nil, append(diags, errorDiags("Release not compared", err)...)
 	}
 
+	rp.nextSteps = nextSteps(res.Outputs)
+
 	return &rp, diags
 }
 

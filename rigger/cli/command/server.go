@@ -429,8 +429,11 @@ func serverInstall(ctx context.Context, logger *slog.Logger, stdout, stderr io.W
 	}
 
 	_, err = fmt.Fprintf(stdout, "%s %s/%s: revision %d\n", out.Action, f.namespace, f.name, out.Revision)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return writeNextSteps(stdout, out.NextSteps)
 }
 
 // serverInstallFiles is the request of an install of the module in a

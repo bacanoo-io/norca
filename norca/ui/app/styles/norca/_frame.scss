@@ -205,6 +205,11 @@
     pointer-events: auto;
     background: var(--tblr-bg-surface);
     margin: 0;
+
+    // A message keeps its lines: the next steps of a module are text.
+    .alert-description {
+      white-space: pre-line;
+    }
   }
 
   .alert-critical {

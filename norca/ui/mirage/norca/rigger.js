@@ -906,6 +906,9 @@ export default function registerRiggerRoutes(server) {
       Changes: changes,
       Warnings: warnings,
       Revision: n,
+      // The output next_steps of the module, as the servers answer an
+      // apply.
+      NextSteps: `${name} runs in namespace ${ns}.\n  norca service info ${name}\n`,
     });
   });
 

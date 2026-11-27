@@ -230,6 +230,37 @@ type ReleasePlan struct {
 	DependsOn []string      `json:"depends_on,omitempty"`
 
 	request host.ApplyRequest
+	// nextSteps is the text of the output next_steps of an install.
+	nextSteps string
+}
+
+// NextStepsOutput is the name of the output a module shows its user after
+// an install: what to do next, as text (a string; a heredoc template reads
+// best). A sensitive one is not shown.
+const NextStepsOutput = "next_steps"
+
+// NextSteps returns the text of the output next_steps of the module of a
+// plan of an install (PlanInstall), to be shown after its apply; empty when
+// the module has no such output, when it is not a string, or when it is
+// sensitive. A plan of a stack has none.
+func (rp *ReleasePlan) NextSteps() string { return rp.nextSteps }
+
+// nextSteps is the text of the output next_steps among outputs.
+func nextSteps(outputs []eval.Output) string {
+	for _, o := range outputs {
+		if o.Name != NextStepsOutput || o.Sensitive || o.Value == nil {
+			continue
+		}
+
+		var text string
+		if err := json.Unmarshal(o.Value, &text); err != nil {
+			return ""
+		}
+
+		return text
+	}
+
+	return ""
 }
 
 // SecretPlan is the plan of a secret of the stack.

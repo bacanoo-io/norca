@@ -117,3 +117,48 @@ func TestApplyInstall_AdoptOnlyPlanned(t *testing.T) {
 		t.Errorf("app has %d revisions, the last of %q: taken over without a plan of it", len(got), got[len(got)-1].Owner)
 	}
 }
+
+// The plan of an install carries the text of the output next_steps, for
+// the host to show after the apply; not when it is sensitive or not a
+// string, and not when the module has no such output.
+func TestPlanInstall_NextSteps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, outputs, expected string
+	}{
+		{
+			name:     "a heredoc",
+			outputs:  "output \"next_steps\" {\n  value = <<-EOT\n    ${rigger.release} runs.\n      norca service info ${rigger.release}\n  EOT\n}\n",
+			expected: "app runs.\n  norca service info app\n",
+		},
+		{name: "sensitive", outputs: "output \"next_steps\" {\n  value     = \"secret\"\n  sensitive = true\n}\n"},
+		{name: "not a string", outputs: "output \"next_steps\" {\n  value = [\"a\"]\n}\n"},
+		{name: "another output", outputs: "output \"service\" {\n  value = rigger.release\n}\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := ownedEngine(t, newFakeCluster())
+
+			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
+				metadataFile:  {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
+				"outputs.hcl": {Data: []byte(tt.outputs)},
+			})
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			rp, diags := e.PlanInstall(t.Context(), m, rigger.Install{Release: "app", Namespace: testNamespace, Region: "eu"}, host.Settings{})
+			if diags.HasErrors() {
+				t.Fatal(diags)
+			}
+
+			if got := rp.NextSteps(); got != tt.expected {
+				t.Errorf("NextSteps() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
