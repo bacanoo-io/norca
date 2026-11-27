@@ -3089,7 +3089,7 @@ func (c *Client) consulDiscoveryImpl() error {
 
 	dcs, err := c.consulCatalog.Datacenters()
 	if err != nil {
-		return fmt.Errorf("client.consul: unable to query Consul datacenters: %v", err)
+		return fmt.Errorf("failed to query Consul datacenters: %w", err)
 	}
 	if len(dcs) > 2 {
 		// Query the local DC first, then shuffle the
