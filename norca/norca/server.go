@@ -470,7 +470,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	aclCache := structs.NewACLCache[*acl.ACL](aclCacheSize)
 
 	// Create the logger
-	logger := config.Logger.ResetNamedIntercept("nomad")
+	logger := config.Logger.ResetNamedIntercept("norca")
 
 	// Create the server
 	s := &Server{

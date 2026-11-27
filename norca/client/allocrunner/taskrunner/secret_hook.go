@@ -423,7 +423,7 @@ func (tr *TaskRunner) secretTemplateSource(logger log.Logger) *secrets.TemplateS
 	return secrets.NewTemplateSource(&secrets.TemplateSourceConfig{
 		Registry: tr.secretRegistry(),
 		Auditor:  tr.secretAuditRecorder(),
-		Logger:   logger.Named("nomad_secret"),
+		Logger:   logger.Named("norca_secret"),
 		Lookup: func(explicit, path string) *secrets.Lookup {
 			return secrets.LookupFor(alloc.Job, alloc.TaskGroup, explicit, path)
 		},
