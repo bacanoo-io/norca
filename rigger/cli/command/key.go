@@ -219,7 +219,7 @@ func readSigned(ctx context.Context, logger *slog.Logger, stderr io.Writer, dir 
 // stackFile is the file that makes a directory a stack.
 const stackFile = "stack.hcl"
 
-var errUnpublished = errors.New("a stack is signed when it is published: it needs metadata.hcl with its stack block (design 7.5)")
+var errUnpublished = errors.New("a stack is signed when it is published: it needs metadata.hcl with its stack block")
 
 // signModule signs the tree digest of the module or published stack in dir
 // and writes the signature into its .rigger-signatures directory, which the

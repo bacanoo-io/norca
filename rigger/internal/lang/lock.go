@@ -94,7 +94,7 @@ func (l *Lock) Bytes() []byte {
 	body := f.Body()
 	body.AppendUnstructuredTokens(hclwrite.Tokens{{
 		Type:  hclsyntax.TokenComment,
-		Bytes: []byte("# Written by rigger stack sync: the versions of the modules of the stack and\n# where they were found (design 8.3). Kept in version control; not edited.\n"),
+		Bytes: []byte("# Written by rigger stack sync: the versions of the modules of the stack and\n# where they were found. Kept in version control; not edited.\n"),
 	}})
 
 	writeEntries(body, "module", l.Modules)

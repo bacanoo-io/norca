@@ -140,7 +140,7 @@ func loadTree(ctx context.Context, root fs.FS, dir, prefix string, limits Limits
 
 	if m.Metadata.Library && len(m.Resources) > 0 {
 		diags = append(diags, errorAt(m.Resources[0].Block.DefRange, "Resource in a library module",
-			"A module with library = true has no resources: it only computes values for the modules that call it (design 6.5)."))
+			"A module with library = true has no resources: it only computes values for the modules that call it."))
 	}
 
 	if diags.HasErrors() {
@@ -167,7 +167,7 @@ func (l *loader) load() (*Module, hcl.Diagnostics) {
 		l.diags = append(l.diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Missing metadata.hcl",
-			Detail:   "A module has a metadata.hcl with its module block (design 4.5).",
+			Detail:   "A module has a metadata.hcl with its module block.",
 		})
 	}
 
@@ -214,8 +214,8 @@ func (l *loader) visit(p string, d fs.DirEntry, err error) error {
 		l.diags = append(l.diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Unknown file",
-			Detail: fmt.Sprintf("%s is not a file a module may have: a file is named after what it holds "+
-				"(design 4.5), plain files go under files/.", l.name(p)),
+			Detail: fmt.Sprintf("%s is not a file a module may have: a file is named after what it holds, "+
+				"plain files go under files/.", l.name(p)),
 		})
 
 		return nil
@@ -243,7 +243,7 @@ func (l *loader) visitDir(p string, d fs.DirEntry) error {
 	l.diags = append(l.diags, &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  "Unknown directory",
-		Detail:   l.name(p) + " is not a directory a module may have: files/, examples/ and tests/ (design 7.4).",
+		Detail:   l.name(p) + " is not a directory a module may have: files/, examples/ and tests/.",
 	})
 
 	return fs.SkipDir
@@ -374,13 +374,13 @@ func (m *Module) decodeResource(file *hcl.File, rt ResourceType, name string) hc
 
 	if len(content.Blocks) != 1 {
 		return append(diags, errorAt(file.Body.MissingItemRange(), "One resource per file",
-			fmt.Sprintf("A %s file holds one %s block (design 4.5).", rt.Kind, rt.Block)))
+			fmt.Sprintf("A %s file holds one %s block.", rt.Kind, rt.Block)))
 	}
 
 	b := content.Blocks[0]
 	if b.Labels[0] != name {
 		return append(diags, errorAt(b.LabelRanges[0], "Label and file name differ",
-			fmt.Sprintf("The %s block of this file is labelled %q; the file says %q (design 4.5).", rt.Block, b.Labels[0], name)))
+			fmt.Sprintf("The %s block of this file is labelled %q; the file says %q.", rt.Block, b.Labels[0], name)))
 	}
 
 	m.Resources = append(m.Resources, &Resource{Type: rt, Name: name, Block: b})

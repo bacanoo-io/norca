@@ -162,7 +162,7 @@ func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 
 	if md.Stack == nil {
 		return hcl.Diagnostics{errorAt(rng, "Missing stack block",
-			"metadata.hcl of a stack holds a stack block with its name and version (design 7.5).")}
+			"metadata.hcl of a stack holds a stack block with its name and version.")}
 	}
 
 	meta, moreDiags := md.Stack.metadata(rng, "stack")
@@ -176,7 +176,7 @@ func (s *Stack) decodeMetadata(file *hcl.File) hcl.Diagnostics {
 
 	switch {
 	case meta.Version == "":
-		diags = append(diags, errorAt(rng, "Missing version", "A published stack has a version (design 7.5)."))
+		diags = append(diags, errorAt(rng, "Missing version", "A published stack has a version."))
 	case meta.Library:
 		diags = append(diags, errorAt(rng, "Library stack", "A stack is installed; library is an attribute of a module."))
 	}

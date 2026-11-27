@@ -103,7 +103,7 @@ func Evaluate(ctx context.Context, m *lang.Module, vars cty.Value, facts Facts, 
 	if m.Metadata.Library {
 		return nil, hcl.Diagnostics{{
 			Severity: hcl.DiagError, Summary: "Library module",
-			Detail: fmt.Sprintf("The module %q is a library: another module calls it, it is not installed on its own (design 6.5).",
+			Detail: fmt.Sprintf("The module %q is a library: another module calls it, it is not installed on its own.",
 				m.Metadata.Name),
 		}}
 	}
@@ -524,7 +524,7 @@ func sensitiveDiag(what string, rng hcl.Range) *hcl.Diagnostic {
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagError, Summary: "Sensitive value",
 		Detail: fmt.Sprintf("A sensitive value can't be used in %s. A sensitive value goes only into an item of a "+
-			"Variable, where it becomes a secret item of the release (design 6.3).", what),
+			"Variable, where it becomes a secret item of the release.", what),
 		Subject: rng.Ptr(),
 	}
 }

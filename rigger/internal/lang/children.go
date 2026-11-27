@@ -108,8 +108,10 @@ func callSource(b *hcl.Block, attrs hcl.Attributes) (string, hcl.Diagnostics) {
 	}
 
 	if !strings.HasPrefix(src, "./") && !strings.HasPrefix(src, "../") {
-		return "", hcl.Diagnostics{errorAt(attr.Expr.Range(), "Source not supported yet",
-			src+" is not a local source (./ or ../). Modules from registries come with phase 3.")}
+		return "", hcl.Diagnostics{errorAt(attr.Expr.Range(), "Source not supported",
+			src+" is not a local source: a child module is a directory relative to the module (./ or ../). "+
+				"A module of a registry is installed as a release of its own: a module block of a stack, "+
+				"or what requires { module } of this module names.")}
 	}
 
 	if v, ok := attrs[attrVersion]; ok {

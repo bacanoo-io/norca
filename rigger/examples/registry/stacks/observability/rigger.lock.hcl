@@ -1,5 +1,5 @@
 # Written by rigger stack sync: the versions of the modules of the stack and
-# where they were found (design 8.3). Kept in version control; not edited.
+# where they were found. Kept in version control; not edited.
 
 module "norca/openobserve" {
   version    = "0.2.0"

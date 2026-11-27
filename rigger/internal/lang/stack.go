@@ -184,7 +184,7 @@ func LoadStack(ctx context.Context, root fs.FS, dir string, limits Limits) (*Sta
 	if _, ok := s.Sources["stack.hcl"]; !ok {
 		return s, append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError, Summary: "Missing stack.hcl",
-			Detail: "A stack has a stack.hcl with its rigger block and its modules (design 6.4).",
+			Detail: "A stack has a stack.hcl with its rigger block and its modules.",
 		})
 	}
 
@@ -225,7 +225,7 @@ func (s *Stack) checkPublished() hcl.Diagnostics {
 
 	for _, p := range s.Parts {
 		diags = append(diags, errorAt(p.Block.DefRange, "Part of a published stack",
-			"A published stack has no stack blocks: parts are one level, a local stack over published stacks (design 7.5)."))
+			"A published stack has no stack blocks: parts are one level, a local stack over published stacks."))
 	}
 
 	if s.Metadata.Name != s.Rigger.Name {
@@ -241,7 +241,7 @@ func (s *Stack) checkPublished() hcl.Diagnostics {
 		for _, dir := range treeDirs(r.Module) {
 			if !s.inModules(dir) {
 				diags = append(diags, errorAt(r.Block.DefRange, "Module outside the stack",
-					dir+" is not in modules/ of the stack: a published stack carries its own modules (design 7.5)."))
+					dir+" is not in modules/ of the stack: a published stack carries its own modules."))
 
 				break
 			}
@@ -318,7 +318,7 @@ func (s *Stack) readFiles(ctx context.Context, fsys fs.FS, limits Limits) hcl.Di
 
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError, Summary: "Unknown directory",
-				Detail: p + " is not a directory a stack may have: modules/, values/, keys/, examples/, files/ (design 7.5).",
+				Detail: p + " is not a directory a stack may have: modules/, values/, keys/, examples/, files/.",
 			})
 
 			return fs.SkipDir
@@ -420,7 +420,7 @@ func (s *Stack) decodeFile(p string, src []byte, file *hcl.File) hcl.Diagnostics
 	default:
 		return append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError, Summary: "Unknown file",
-			Detail: p + " is not a file a stack may have: stack.hcl, variables.hcl, locals.hcl, outputs.hcl, secrets.hcl, metadata.hcl, " + LockFile + " (design 7.5).",
+			Detail: p + " is not a file a stack may have: stack.hcl, variables.hcl, locals.hcl, outputs.hcl, secrets.hcl, metadata.hcl, " + LockFile + ".",
 		})
 	}
 }
@@ -456,7 +456,7 @@ func (s *Stack) decodeStack(file *hcl.File) hcl.Diagnostics {
 
 	if riggers != 1 {
 		diags = append(diags, errorAt(file.Body.MissingItemRange(), "One rigger block",
-			"stack.hcl has one rigger block with the name of the stack (design 6.4)."))
+			"stack.hcl has one rigger block with the name of the stack."))
 	}
 
 	if s.Rigger.Name != "" && !releaseName.MatchString(s.Rigger.Name) {
@@ -508,7 +508,7 @@ func decodeRelease(b *hcl.Block) (*StackRelease, hcl.Diagnostics) {
 	name := b.Labels[0]
 	if !releaseName.MatchString(name) {
 		return nil, hcl.Diagnostics{errorAt(b.LabelRanges[0], "Invalid release name",
-			fmt.Sprintf("%q is not a name of a release: lower case letters, digits and -, at most 63 (design 6.4).", name))}
+			fmt.Sprintf("%q is not a name of a release: lower case letters, digits and -, at most 63.", name))}
 	}
 
 	attrs, diags := b.Body.JustAttributes()
@@ -717,7 +717,7 @@ func (s *Stack) parsePart(p *StackPart) hcl.Diagnostics {
 		return hcl.Diagnostics{errorAt(p.Block.DefRange, "Invalid source", err.Error()+".")}
 	case req.Kind != source.KindGlobal && req.Kind != source.KindGit:
 		return hcl.Diagnostics{errorAt(p.Block.DefRange, "Invalid source",
-			p.Source+" is not a published stack of a registry: <namespace>/<name> or a git address (design 7.5).")}
+			p.Source+" is not a published stack of a registry: <namespace>/<name> or a git address.")}
 	}
 
 	req.Stack = true
@@ -781,7 +781,7 @@ func (s *Stack) loadRelease(ctx context.Context, root fs.FS, r *StackRelease, li
 
 	if r.Version != "" {
 		return hcl.Diagnostics{errorAt(rng, "Version of a local source",
-			"A local module is part of the stack and versioned with it; it has no version (design 6.4).")}
+			"A local module is part of the stack and versioned with it; it has no version.")}
 	}
 
 	dir := path.Join(s.Dir, r.Source)
