@@ -133,17 +133,16 @@ func (w *Worker) traceRPC(args telemetry.TraceCarrier) {
 	}
 }
 
-// startPlanSubmitTrace starts the plan.submit span of a plan submission
-// and sets its traceparent in the Plan.Submit arguments. The returned
-// function ends it with the submission's error.
-func (w *Worker) startPlanSubmitTrace(plan *structs.Plan, args telemetry.TraceCarrier) func(error) {
+// startPlanSubmitTrace starts the plan.submit span of a plan submission and
+// returns the function that ends it with the submission's error, and the
+// traceparent the Plan.Submit arguments carry ("" when not traced).
+func (w *Worker) startPlanSubmitTrace(plan *structs.Plan) (func(error), string) {
 	if w.trace.span == nil {
-		return func(error) {}
+		return func(error) {}, ""
 	}
 	_, span := w.srv.config.Tracing.Start(w.trace.ctx, telemetry.SpanPlanSubmit, trace.SpanKindClient,
 		telemetry.AttrEvalID.String(plan.EvalID))
-	args.SetTraceParent(telemetry.FormatTraceParent(span.SpanContext()))
-	return func(err error) { telemetry.EndSpan(span, err) }
+	return func(err error) { telemetry.EndSpan(span, err) }, telemetry.FormatTraceParent(span.SpanContext())
 }
 
 // traceLogger returns the worker's logger with the trace IDs of the

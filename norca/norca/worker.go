@@ -693,11 +693,14 @@ func (w *Worker) SubmitPlan(plan *structs.Plan) (*structs.PlanResult, scheduler.
 		},
 	}
 	var resp structs.PlanResponse
-	endTrace := w.startPlanSubmitTrace(plan, &req)
+	endTrace, traceParent := w.startPlanSubmitTrace(plan)
 	logger := w.traceLogger()
 
 SUBMIT:
-	// Make the RPC call
+	// Make the RPC call, a child of plan.submit (a retry too)
+	if traceParent != "" {
+		req.SetTraceParent(traceParent)
+	}
 	if err := w.srv.RPC("Plan.Submit", &req, &resp); err != nil {
 		logger.Error("failed to submit plan for evaluation", "eval_id", plan.EvalID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
@@ -760,11 +763,11 @@ func (w *Worker) UpdateEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
-	w.traceRPC(&req)
 	w.evalStatusTrace(eval)
 
 SUBMIT:
-	// Make the RPC call
+	// Make the RPC call, a child of the span in progress (a retry too)
+	w.traceRPC(&req)
 	if err := w.srv.RPC("Eval.Update", &req, &resp); err != nil {
 		w.traceLogger().Error("failed to update evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
@@ -804,10 +807,10 @@ func (w *Worker) CreateEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
-	w.traceRPC(&req)
 
 SUBMIT:
-	// Make the RPC call
+	// Make the RPC call, a child of the span in progress (a retry too)
+	w.traceRPC(&req)
 	if err := w.srv.RPC("Eval.Create", &req, &resp); err != nil {
 		w.traceLogger().Error("failed to create evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
@@ -868,11 +871,11 @@ func (w *Worker) ReblockEval(eval *structs.Evaluation) error {
 		},
 	}
 	var resp structs.GenericResponse
-	w.traceRPC(&req)
 	w.evalStatusTrace(eval)
 
 SUBMIT:
-	// Make the RPC call
+	// Make the RPC call, a child of the span in progress (a retry too)
+	w.traceRPC(&req)
 	if err := w.srv.RPC("Eval.Reblock", &req, &resp); err != nil {
 		w.traceLogger().Error("failed to reblock evaluation", "eval_id", eval.ID, "error", err)
 		if w.shouldResubmit(err) && !w.backoffErr(backoffBaselineSlow, backoffLimitSlow) {
