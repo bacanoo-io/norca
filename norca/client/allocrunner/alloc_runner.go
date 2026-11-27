@@ -852,10 +852,12 @@ func (ar *allocRunner) clientAllocFrom(st *state.State, taskStates map[string]*s
 		}
 	}
 
-	// Set the NetworkStatus and default DNSConfig if one is not returned from the client
+	// Set the NetworkStatus and default DNSConfig if one is not returned from
+	// the client. The allocation gets its own copy (Norca): it is read in other
+	// goroutines after it is handed out, while later calls set the default DNS.
 	netStatus := st.NetworkStatus
 	if netStatus != nil {
-		a.NetworkStatus = netStatus
+		a.NetworkStatus = netStatus.Copy()
 	} else {
 		a.NetworkStatus = new(structs.AllocNetworkStatus)
 	}

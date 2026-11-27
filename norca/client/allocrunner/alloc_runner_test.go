@@ -138,6 +138,75 @@ func TestAllocRunner_AllocState_Copy(t *testing.T) {
 	})
 }
 
+// TestAllocRunner_ClientAlloc_NetworkStatus asserts that the allocations
+// clientAlloc hands out do not share the runner's network status (Norca).
+// The client reads them in other goroutines (allocSync encodes them for the
+// server) while later clientAlloc calls set the default DNS config; the
+// concurrent part is checked by the race detector.
+func TestAllocRunner_ClientAlloc_NetworkStatus(t *testing.T) {
+	ci.Parallel(t)
+
+	newRunner := func(t *testing.T, dns *structs.DNSConfig) (*allocRunner, func() map[string]*structs.TaskState) {
+		alloc := mock.Alloc()
+		tg := alloc.Job.TaskGroups[0]
+		tg.Networks = []*structs.NetworkResource{{Mode: "host", DNS: dns}}
+		task := tg.Tasks[0]
+		task.Driver = "mock_driver"
+		conf, cleanup := testAllocRunnerConfig(t, alloc)
+		t.Cleanup(cleanup)
+
+		arIface, err := NewAllocRunner(conf)
+		must.NoError(t, err)
+		ar := arIface.(*allocRunner)
+		ar.SetNetworkStatus(&structs.AllocNetworkStatus{InterfaceName: "eth0", Address: "10.0.0.2"})
+
+		states := func() map[string]*structs.TaskState {
+			return map[string]*structs.TaskState{task.Name: ar.tasks[task.Name].TaskState()}
+		}
+		return ar, states
+	}
+	sharedStatus := func(ar *allocRunner) *structs.AllocNetworkStatus {
+		ar.stateLock.RLock()
+		defer ar.stateLock.RUnlock()
+		return ar.state.NetworkStatus
+	}
+
+	t.Run("default dns", func(t *testing.T) {
+		dns := &structs.DNSConfig{Servers: []string{"10.0.0.53"}}
+		ar, states := newRunner(t, dns)
+
+		a := ar.clientAlloc(states())
+		must.Eq(t, "10.0.0.2", a.NetworkStatus.Address)
+		must.Eq(t, dns, a.NetworkStatus.DNS)
+		must.True(t, a.NetworkStatus != sharedStatus(ar), must.Sprint("the allocation shares the runner's network status"))
+		must.Nil(t, sharedStatus(ar).DNS)
+	})
+
+	t.Run("concurrent reader", func(t *testing.T) {
+		ar, states := newRunner(t, nil)
+		handedOut := ar.clientAlloc(states())
+
+		// A reader of a handed out allocation, like allocSync, racing
+		// with the next task state updates.
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			<-start
+			for range 100 {
+				_ = handedOut.NetworkStatus.DNS
+			}
+		})
+		wg.Go(func() {
+			<-start
+			for range 100 {
+				_ = ar.clientAlloc(states())
+			}
+		})
+		close(start)
+		wg.Wait()
+	})
+}
+
 // TestAllocRunner_TaskLeader_KillTG asserts that when a leader task dies the
 // entire task group is killed.
 func TestAllocRunner_TaskLeader_KillTG(t *testing.T) {
