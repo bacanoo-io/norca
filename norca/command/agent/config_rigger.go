@@ -15,7 +15,7 @@ import (
 // RiggerConfig is the server's rigger block: the limits of what Rigger
 // fetches on the servers. A server fetches the git repositories its users
 // name (registries, and the modules and stacks of an install), and writes
-// the tree of the commit it reads into <data_dir>/rigger/cache. The limits
+// the tree of the commit it reads into <data_dir>/server/rigger/cache. The limits
 // bound one fetched commit; a commit past one of them is not written, and
 // the sync or the install that asked for it fails with the limit in its
 // error. A limit that is not set, or is 0, is the default of a server (a
