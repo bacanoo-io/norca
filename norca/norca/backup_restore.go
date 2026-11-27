@@ -39,7 +39,7 @@ func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.Back
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "restore"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "restore"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {

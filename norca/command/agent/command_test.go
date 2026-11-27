@@ -13,6 +13,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -550,4 +551,23 @@ func TestIsValidConfig(t *testing.T) {
 			t.Logf("%s returned: %s", tc.name, mui.ErrorWriter.String())
 		})
 	}
+}
+
+// Every metric of the agent is named norca.<family>.*. Not parallel:
+// setupTelemetry replaces the go-metrics global.
+func TestCommand_SetupTelemetry_ServiceName(t *testing.T) {
+	cmd := &Command{Ui: cli.NewMockUi()}
+	inm, err := cmd.setupTelemetry(DefaultConfig())
+	require.NoError(t, err)
+
+	metrics.IncrCounter([]string{"server", "rpc", "request"}, 1)
+	var found bool
+	for _, interval := range inm.Data() {
+		interval.RLock()
+		for key := range interval.Counters {
+			found = found || strings.HasPrefix(key, "norca.server.rpc.request")
+		}
+		interval.RUnlock()
+	}
+	require.True(t, found, "no norca.server.rpc.request in the in-memory sink")
 }

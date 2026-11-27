@@ -897,13 +897,13 @@ func (b *EvalBroker) EmitStats(period time.Duration, stopCh <-chan struct{}) {
 		select {
 		case <-timer.C:
 			stats := b.Stats()
-			metrics.SetGauge([]string{"nomad", "broker", "total_ready"}, float32(stats.TotalReady))
-			metrics.SetGauge([]string{"nomad", "broker", "total_unacked"}, float32(stats.TotalUnacked))
-			metrics.SetGauge([]string{"nomad", "broker", "total_pending"}, float32(stats.TotalPending))
-			metrics.SetGauge([]string{"nomad", "broker", "total_waiting"}, float32(stats.TotalWaiting))
-			metrics.SetGauge([]string{"nomad", "broker", "total_cancelable"}, float32(stats.TotalCancelable))
+			metrics.SetGauge([]string{"server", "broker", "total_ready"}, float32(stats.TotalReady))
+			metrics.SetGauge([]string{"server", "broker", "total_unacked"}, float32(stats.TotalUnacked))
+			metrics.SetGauge([]string{"server", "broker", "total_pending"}, float32(stats.TotalPending))
+			metrics.SetGauge([]string{"server", "broker", "total_waiting"}, float32(stats.TotalWaiting))
+			metrics.SetGauge([]string{"server", "broker", "total_cancelable"}, float32(stats.TotalCancelable))
 			for _, eval := range stats.DelayedEvals {
-				metrics.SetGaugeWithLabels([]string{"nomad", "broker", "eval_waiting"},
+				metrics.SetGaugeWithLabels([]string{"server", "broker", "eval_waiting"},
 					float32(time.Until(eval.WaitUntil).Seconds()),
 					[]metrics.Label{
 						{Name: "eval_id", Value: eval.ID},
@@ -912,8 +912,8 @@ func (b *EvalBroker) EmitStats(period time.Duration, stopCh <-chan struct{}) {
 					})
 			}
 			for sched, schedStats := range stats.ByScheduler {
-				metrics.SetGauge([]string{"nomad", "broker", sched, "ready"}, float32(schedStats.Ready))
-				metrics.SetGauge([]string{"nomad", "broker", sched, "unacked"}, float32(schedStats.Unacked))
+				metrics.SetGauge([]string{"server", "broker", sched, "ready"}, float32(schedStats.Ready))
+				metrics.SetGauge([]string{"server", "broker", sched, "unacked"}, float32(schedStats.Unacked))
 			}
 
 		case <-stopCh:

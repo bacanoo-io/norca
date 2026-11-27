@@ -92,7 +92,7 @@ func (a *ACL) UpsertPolicies(args *structs.ACLPolicyUpsertRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "upsert_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "upsert_policies"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -146,7 +146,7 @@ func (a *ACL) DeletePolicies(args *structs.ACLPolicyDeleteRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "delete_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "delete_policies"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -184,7 +184,7 @@ func (a *ACL) ListPolicies(args *structs.ACLPolicyListRequest, reply *structs.AC
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "list_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "list_policies"}, time.Now())
 
 	// Check management level permissions
 	acl, err := a.srv.ResolveACL(args)
@@ -278,7 +278,7 @@ func (a *ACL) GetPolicy(args *structs.ACLPolicySpecificRequest, reply *structs.S
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_policy"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_policy"}, time.Now())
 
 	// Check management level permissions
 	acl, err := a.srv.ResolveACL(args)
@@ -375,7 +375,7 @@ func (a *ACL) GetPolicies(args *structs.ACLPolicySetRequest, reply *structs.ACLP
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_policies"}, time.Now())
 
 	// For client typed tokens, allow them to query any policies associated with that token.
 	// This is used by clients which are resolving the policies to enforce. Any associated
@@ -447,7 +447,7 @@ func (a *ACL) GetClaimPolicies(args *structs.GenericRequest, reply *structs.ACLP
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_claim_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_claim_policies"}, time.Now())
 
 	// Should only be called using a workload identity
 	claims := args.GetIdentity().Claims
@@ -493,7 +493,7 @@ func (a *ACL) Bootstrap(args *structs.ACLTokenBootstrapRequest, reply *structs.A
 		return err
 	}
 	a.srv.MeasureRPCRate("acl", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "acl", "bootstrap"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "bootstrap"}, time.Now())
 
 	// Always ignore the reset index from the arguments
 	args.ResetIndex = 0
@@ -635,7 +635,7 @@ func (a *ACL) UpsertTokens(args *structs.ACLTokenUpsertRequest, reply *structs.A
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "upsert_tokens"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "upsert_tokens"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -789,7 +789,7 @@ func (a *ACL) DeleteTokens(args *structs.ACLTokenDeleteRequest, reply *structs.G
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "delete_tokens"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "delete_tokens"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -867,7 +867,7 @@ func (a *ACL) ListTokens(args *structs.ACLTokenListRequest, reply *structs.ACLTo
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "list_tokens"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "list_tokens"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -956,7 +956,7 @@ func (a *ACL) GetToken(args *structs.ACLTokenSpecificRequest, reply *structs.Sin
 	if authErr != nil {
 		return authErr
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_token"}, time.Now())
 
 	acl, err := a.srv.ResolveACL(args)
 	if err != nil {
@@ -1022,7 +1022,7 @@ func (a *ACL) GetTokens(args *structs.ACLTokenSetRequest, reply *structs.ACLToke
 	if authErr != nil {
 		return authErr
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_tokens"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_tokens"}, time.Now())
 
 	// Check management level permissions
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -1075,7 +1075,7 @@ func (a *ACL) ResolveToken(args *structs.ResolveACLTokenRequest, reply *structs.
 		return err
 	}
 	a.srv.MeasureRPCRate("acl", structs.RateMetricRead, args)
-	defer metrics.MeasureSince([]string{"nomad", "acl", "resolve_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "resolve_token"}, time.Now())
 
 	// Setup the query meta
 	a.srv.setQueryMeta(&reply.QueryMeta)
@@ -1123,7 +1123,7 @@ func (a *ACL) UpsertOneTimeToken(args *structs.OneTimeTokenUpsertRequest, reply 
 		return err
 	}
 	defer metrics.MeasureSince(
-		[]string{"nomad", "acl", "upsert_one_time_token"}, time.Now())
+		[]string{"server", "acl", "upsert_one_time_token"}, time.Now())
 
 	if !ServersMeetMinimumVersion(a.srv.Members(), a.srv.Region(), minOneTimeAuthenticationTokenVersion, false) {
 		return fmt.Errorf("All servers should be running version %v or later to use one-time authentication tokens", minOneTimeAuthenticationTokenVersion)
@@ -1175,7 +1175,7 @@ func (a *ACL) ExchangeOneTimeToken(args *structs.OneTimeTokenExchangeRequest, re
 		return err
 	}
 	defer metrics.MeasureSince(
-		[]string{"nomad", "acl", "exchange_one_time_token"}, time.Now())
+		[]string{"server", "acl", "exchange_one_time_token"}, time.Now())
 
 	if !ServersMeetMinimumVersion(a.srv.Members(), a.srv.Region(), minOneTimeAuthenticationTokenVersion, false) {
 		return fmt.Errorf("All servers should be running version %v or later to use one-time authentication tokens", minOneTimeAuthenticationTokenVersion)
@@ -1237,7 +1237,7 @@ func (a *ACL) ExpireOneTimeTokens(args *structs.OneTimeTokenExpireRequest, reply
 		return structs.ErrPermissionDenied
 	}
 	defer metrics.MeasureSince(
-		[]string{"nomad", "acl", "expire_one_time_tokens"}, time.Now())
+		[]string{"server", "acl", "expire_one_time_tokens"}, time.Now())
 
 	if !ServersMeetMinimumVersion(a.srv.Members(), a.srv.Region(), minOneTimeAuthenticationTokenVersion, false) {
 		return fmt.Errorf("All servers should be running version %v or later to use one-time authentication tokens", minOneTimeAuthenticationTokenVersion)
@@ -1285,7 +1285,7 @@ func (a *ACL) UpsertRoles(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "upsert_roles"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "upsert_roles"}, time.Now())
 
 	// ACL roles can only be used once all servers, in all federated regions
 	// have been upgraded to 1.4.0 or greater.
@@ -1434,7 +1434,7 @@ func (a *ACL) DeleteRolesByID(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "delete_roles"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "delete_roles"}, time.Now())
 
 	// ACL roles can only be used once all servers, in all federated regions
 	// have been upgraded to 1.4.0 or greater.
@@ -1482,7 +1482,7 @@ func (a *ACL) ListRoles(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "list_roles"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "list_roles"}, time.Now())
 
 	// Resolve the token and ensure it has some form of permissions.
 	acl, err := a.srv.ResolveACL(args)
@@ -1580,7 +1580,7 @@ func (a *ACL) GetRolesByID(args *structs.ACLRolesByIDRequest, reply *structs.ACL
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_roles_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_roles_id"}, time.Now())
 
 	// For client typed tokens, allow them to query any roles associated with
 	// that token. This is used by Nomad agents in client mode which are
@@ -1639,7 +1639,7 @@ func (a *ACL) GetRoleByID(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_role_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_role_id"}, time.Now())
 
 	// Resolve the token and ensure it has some form of permissions.
 	acl, err := a.srv.ResolveACL(args)
@@ -1728,7 +1728,7 @@ func (a *ACL) GetRoleByName(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_role_name"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_role_name"}, time.Now())
 
 	// Resolve the token and ensure it has some form of permissions.
 	acl, err := a.srv.ResolveACL(args)
@@ -1875,7 +1875,7 @@ func (a *ACL) UpsertAuthMethods(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "upsert_auth_methods"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "upsert_auth_methods"}, time.Now())
 
 	// ACL auth methods can only be used once all servers in all federated
 	// regions have been upgraded to 1.5.0 or greater.
@@ -1978,7 +1978,7 @@ func (a *ACL) DeleteAuthMethods(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "delete_auth_methods_by_name"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "delete_auth_methods_by_name"}, time.Now())
 
 	// ACL auth methods can only be used once all servers in all federated
 	// regions have been upgraded to 1.5.0 or greater.
@@ -2023,7 +2023,7 @@ func (a *ACL) ListAuthMethods(
 		structs.ACLListAuthMethodsRPCMethod, args, args, reply); done {
 		return err
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "list_auth_methods"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "list_auth_methods"}, time.Now())
 
 	// Set up and return the blocking query.
 	return a.srv.blockingRPC(&blockingOptions{
@@ -2074,7 +2074,7 @@ func (a *ACL) GetAuthMethod(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_auth_method_name"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_auth_method_name"}, time.Now())
 
 	// Resolve the token and ensure it has some form of permissions.
 	acl, err := a.srv.ResolveACL(args)
@@ -2133,7 +2133,7 @@ func (a *ACL) GetAuthMethods(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_auth_methods"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_auth_methods"}, time.Now())
 
 	// allow only management token holders to query this endpoint
 	token := args.GetIdentity().GetACLToken()
@@ -2188,7 +2188,7 @@ func (a *ACL) WhoAmI(args *structs.GenericRequest, reply *structs.ACLWhoAmIRespo
 		return authErr
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "acl", "whoami"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "whoami"}, time.Now())
 
 	if !a.srv.config.ACLEnabled {
 		// Authenticate never verifies claimed when ACLs are disabled, but since
@@ -2222,7 +2222,7 @@ func (a *ACL) UpsertBindingRules(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "upsert_binding_rules"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "upsert_binding_rules"}, time.Now())
 
 	// ACL binding rules can only be used once all servers in all federated
 	// regions have been upgraded to 1.5.0 or greater.
@@ -2349,7 +2349,7 @@ func (a *ACL) DeleteBindingRules(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "delete_binding_rules"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "delete_binding_rules"}, time.Now())
 
 	// ACL binding rules can only be used once all servers in all federated
 	// regions have been upgraded to 1.5.0 or greater.
@@ -2398,7 +2398,7 @@ func (a *ACL) ListBindingRules(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "list_binding_rules"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "list_binding_rules"}, time.Now())
 
 	// Check management level permissions.
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -2457,7 +2457,7 @@ func (a *ACL) GetBindingRules(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_rules"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_rules"}, time.Now())
 
 	// Check management level permissions.
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -2512,7 +2512,7 @@ func (a *ACL) GetBindingRule(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "get_binding_rule"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "get_binding_rule"}, time.Now())
 
 	// Check management level permissions.
 	if acl, err := a.srv.ResolveACL(args); err != nil {
@@ -2574,7 +2574,7 @@ func (a *ACL) OIDCAuthURL(args *structs.ACLOIDCAuthURLRequest, reply *structs.AC
 	// forward twice. It is likely there will be two distinct patterns to this
 	// timing in clusters that utilise a mixture of local and global with
 	// methods.
-	defer metrics.MeasureSince([]string{"nomad", "acl", "oidc_auth_url"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "oidc_auth_url"}, time.Now())
 
 	// Validate the request arguments to ensure it contains all the data it
 	// needs. Whether the data provided is correct will be handled by the OIDC
@@ -2673,7 +2673,7 @@ func (a *ACL) OIDCCompleteAuth(
 	// forward twice. It is likely there will be two distinct patterns to this
 	// timing in clusters that utilise a mixture of local and global with
 	// methods.
-	defer metrics.MeasureSince([]string{"nomad", "acl", "oidc_complete_auth"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "oidc_complete_auth"}, time.Now())
 
 	// Validate the request arguments to ensure it contains all the data it
 	// needs. Whether the data provided is correct will be handled by the OIDC
@@ -2838,7 +2838,7 @@ func (a *ACL) Login(args *structs.ACLLoginRequest, reply *structs.ACLLoginRespon
 	}
 
 	// Measure the login endpoint performance.
-	defer metrics.MeasureSince([]string{"nomad", "acl", "login"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "login"}, time.Now())
 
 	// This endpoint can only be used once all servers in all federated regions
 	// have been upgraded to minACLJWTAuthMethodVersion or greater, since JWT Auth

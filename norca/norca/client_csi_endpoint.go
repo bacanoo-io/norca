@@ -32,7 +32,7 @@ func NewClientCSIEndpoint(srv *Server, ctx *RPCContext) *ClientCSI {
 }
 
 func (a *ClientCSI) ControllerAttachVolume(args *cstructs.ClientCSIControllerAttachVolumeRequest, reply *cstructs.ClientCSIControllerAttachVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "attach_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "attach_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerAttachVolume",
@@ -46,7 +46,7 @@ func (a *ClientCSI) ControllerAttachVolume(args *cstructs.ClientCSIControllerAtt
 }
 
 func (a *ClientCSI) ControllerValidateVolume(args *cstructs.ClientCSIControllerValidateVolumeRequest, reply *cstructs.ClientCSIControllerValidateVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "validate_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "validate_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerValidateVolume",
@@ -60,7 +60,7 @@ func (a *ClientCSI) ControllerValidateVolume(args *cstructs.ClientCSIControllerV
 }
 
 func (a *ClientCSI) ControllerDetachVolume(args *cstructs.ClientCSIControllerDetachVolumeRequest, reply *cstructs.ClientCSIControllerDetachVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "detach_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "detach_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerDetachVolume",
@@ -74,7 +74,7 @@ func (a *ClientCSI) ControllerDetachVolume(args *cstructs.ClientCSIControllerDet
 }
 
 func (a *ClientCSI) ControllerCreateVolume(args *cstructs.ClientCSIControllerCreateVolumeRequest, reply *cstructs.ClientCSIControllerCreateVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "create_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "create_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerCreateVolume",
@@ -88,7 +88,7 @@ func (a *ClientCSI) ControllerCreateVolume(args *cstructs.ClientCSIControllerCre
 }
 
 func (a *ClientCSI) ControllerExpandVolume(args *cstructs.ClientCSIControllerExpandVolumeRequest, reply *cstructs.ClientCSIControllerExpandVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "expand_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "expand_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerExpandVolume",
@@ -102,7 +102,7 @@ func (a *ClientCSI) ControllerExpandVolume(args *cstructs.ClientCSIControllerExp
 }
 
 func (a *ClientCSI) ControllerDeleteVolume(args *cstructs.ClientCSIControllerDeleteVolumeRequest, reply *cstructs.ClientCSIControllerDeleteVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "delete_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "delete_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerDeleteVolume",
@@ -116,7 +116,7 @@ func (a *ClientCSI) ControllerDeleteVolume(args *cstructs.ClientCSIControllerDel
 }
 
 func (a *ClientCSI) ControllerListVolumes(args *cstructs.ClientCSIControllerListVolumesRequest, reply *cstructs.ClientCSIControllerListVolumesResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "list_volumes"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "list_volumes"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerListVolumes",
@@ -132,7 +132,7 @@ func (a *ClientCSI) ControllerListVolumes(args *cstructs.ClientCSIControllerList
 // ControllerGetVolume asks a controller of the plugin for the state of a
 // volume (Norca).
 func (a *ClientCSI) ControllerGetVolume(args *cstructs.ClientCSIControllerGetVolumeRequest, reply *cstructs.ClientCSIControllerGetVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "get_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "get_volume"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerGetVolume",
@@ -148,7 +148,7 @@ func (a *ClientCSI) ControllerGetVolume(args *cstructs.ClientCSIControllerGetVol
 // ControllerGetCapacity asks a controller of the plugin for the capacity of
 // its storage (Norca).
 func (a *ClientCSI) ControllerGetCapacity(args *cstructs.ClientCSIControllerGetCapacityRequest, reply *cstructs.ClientCSIControllerGetCapacityResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "get_capacity"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "get_capacity"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerGetCapacity",
@@ -162,7 +162,7 @@ func (a *ClientCSI) ControllerGetCapacity(args *cstructs.ClientCSIControllerGetC
 }
 
 func (a *ClientCSI) ControllerCreateSnapshot(args *cstructs.ClientCSIControllerCreateSnapshotRequest, reply *cstructs.ClientCSIControllerCreateSnapshotResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "create_snapshot"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "create_snapshot"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerCreateSnapshot",
@@ -176,7 +176,7 @@ func (a *ClientCSI) ControllerCreateSnapshot(args *cstructs.ClientCSIControllerC
 }
 
 func (a *ClientCSI) ControllerDeleteSnapshot(args *cstructs.ClientCSIControllerDeleteSnapshotRequest, reply *cstructs.ClientCSIControllerDeleteSnapshotResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "delete_snapshot"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "delete_snapshot"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerDeleteSnapshot",
@@ -190,7 +190,7 @@ func (a *ClientCSI) ControllerDeleteSnapshot(args *cstructs.ClientCSIControllerD
 }
 
 func (a *ClientCSI) ControllerListSnapshots(args *cstructs.ClientCSIControllerListSnapshotsRequest, reply *cstructs.ClientCSIControllerListSnapshotsResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "list_snapshots"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_controller", "list_snapshots"}, time.Now())
 
 	err := a.sendCSIControllerRPC(args.PluginID,
 		"CSI.ControllerListSnapshots",
@@ -256,7 +256,7 @@ func (a *ClientCSI) isRetryable(err error) bool {
 }
 
 func (a *ClientCSI) NodeDetachVolume(args *cstructs.ClientCSINodeDetachVolumeRequest, reply *cstructs.ClientCSINodeDetachVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_node", "detach_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_node", "detach_volume"}, time.Now())
 	return a.sendCSINodeRPC(
 		args.NodeID,
 		"CSI.NodeDetachVolume",
@@ -268,7 +268,7 @@ func (a *ClientCSI) NodeDetachVolume(args *cstructs.ClientCSINodeDetachVolumeReq
 }
 
 func (a *ClientCSI) NodeExpandVolume(args *cstructs.ClientCSINodeExpandVolumeRequest, reply *cstructs.ClientCSINodeExpandVolumeResponse) error {
-	defer metrics.MeasureSince([]string{"nomad", "client_csi_node", "expand_volume"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_csi_node", "expand_volume"}, time.Now())
 	return a.sendCSINodeRPC(
 		args.Claim.NodeID,
 		"CSI.NodeExpandVolume",

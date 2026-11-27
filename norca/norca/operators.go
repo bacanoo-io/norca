@@ -320,7 +320,7 @@ func operatorWake(next, wish, started time.Time) time.Time {
 
 // operatorCount counts something an operator did, per kind.
 func operatorCount(kind, what string) {
-	metrics.IncrCounterWithLabels([]string{"nomad", "operator", what}, 1, []metrics.Label{{Name: "kind", Value: kind}})
+	metrics.IncrCounterWithLabels([]string{"server", "operator", what}, 1, []metrics.Label{{Name: "kind", Value: kind}})
 }
 
 // writeOperatorObject writes an object of a built-in operator: a changed

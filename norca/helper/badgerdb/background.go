@@ -88,12 +88,12 @@ func (db *DB) metricsLoop() {
 }
 
 func (db *DB) gauge(name string, v float32) {
-	metrics.SetGauge([]string{"nomad", "badger", db.Opts.MetricsName, name}, v)
+	metrics.SetGauge([]string{"badger", db.Opts.MetricsName, name}, v)
 }
 
-// MeasureSince records the time since start as nomad.badger.<name>.<metric>.
+// MeasureSince records the time since start as norca.badger.<name>.<metric>.
 func (db *DB) MeasureSince(name string, start time.Time) {
-	metrics.MeasureSince([]string{"nomad", "badger", db.Opts.MetricsName, name}, start)
+	metrics.MeasureSince([]string{"badger", db.Opts.MetricsName, name}, start)
 }
 
 // badgerLogger passes Badger's log lines to hclog; its info lines (every

@@ -53,7 +53,7 @@ func (a *ClientAllocations) GarbageCollectAll(args *structs.NodeSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "garbage_collect_all"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "garbage_collect_all"}, time.Now())
 
 	// Check node read permissions
 	if aclObj, err := a.srv.ResolveACL(args); err != nil {
@@ -105,7 +105,7 @@ func (a *ClientAllocations) Signal(args *structs.AllocSignalRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "signal"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "signal"}, time.Now())
 
 	// Verify the arguments.
 	if args.AllocID == "" {
@@ -163,7 +163,7 @@ func (a *ClientAllocations) GarbageCollect(args *structs.AllocSpecificRequest, r
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "garbage_collect"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "garbage_collect"}, time.Now())
 
 	// Verify the arguments.
 	if args.AllocID == "" {
@@ -221,7 +221,7 @@ func (a *ClientAllocations) Restart(args *structs.AllocRestartRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "restart"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "restart"}, time.Now())
 
 	// Find the allocation
 	snap, err := a.srv.State().Snapshot()
@@ -274,7 +274,7 @@ func (a *ClientAllocations) Stats(args *cstructs.AllocStatsRequest, reply *cstru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "stats"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "stats"}, time.Now())
 
 	// Find the allocation
 	snap, err := a.srv.State().Snapshot()
@@ -331,7 +331,7 @@ func (a *ClientAllocations) Checks(args *cstructs.AllocChecksRequest, reply *cst
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_allocations", "checks"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_allocations", "checks"}, time.Now())
 
 	// Grab the state snapshot, as we need this to perform lookups for a number
 	// of objects, all things being well.
@@ -372,7 +372,7 @@ func (a *ClientAllocations) Checks(args *cstructs.AllocChecksRequest, reply *cst
 // exec is used to execute command in a running task
 func (a *ClientAllocations) exec(conn io.ReadWriteCloser) {
 	defer conn.Close()
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "exec"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "exec"}, time.Now())
 
 	// Decode the arguments
 	var args cstructs.AllocExecRequest

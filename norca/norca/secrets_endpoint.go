@@ -48,7 +48,7 @@ func (e *Secret) List(args *structs.SecretListRequest, reply *structs.SecretList
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "list"}, time.Now())
 
 	aclObj, err := e.resolveACL(args)
 	if err != nil {
@@ -121,7 +121,7 @@ func (e *Secret) ReadMetadata(args *structs.SecretReadMetadataRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret", "read_metadata"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "read_metadata"}, time.Now())
 
 	aclObj, err := e.resolveACL(args)
 	if err != nil {
@@ -166,7 +166,7 @@ func (e *Secret) Read(args *structs.SecretReadRequest, reply *structs.SecretRead
 		return err
 	}
 	e.srv.MeasureRPCRate("secret", structs.RateMetricRead, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret", "read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "read"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	rec := e.auditRecord(args.GetIdentity(), structs.SecretOpRead, namespace, args.Path)
@@ -212,7 +212,7 @@ func (e *Secret) Upsert(args *structs.SecretUpsertRequest, reply *structs.Secret
 		return err
 	}
 	e.srv.MeasureRPCRate("secret", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret", "upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "upsert"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	rec := e.auditRecord(args.GetIdentity(), structs.SecretOpWrite, namespace, args.Path)
@@ -293,7 +293,7 @@ func (e *Secret) versionsOp(method, op, capability string, args *structs.SecretV
 		return err
 	}
 	e.srv.MeasureRPCRate("secret", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret", op}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", op}, time.Now())
 
 	namespace := args.RequestNamespace()
 	rec := e.auditRecord(args.GetIdentity(), op, namespace, args.Path)

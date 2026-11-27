@@ -219,7 +219,7 @@ func (i *instance) get() (plugins.Base, error) {
 			return raw, nil
 		}
 		i.logger.Warn("external plugin exited unexpectedly")
-		metrics.IncrCounterWithLabels([]string{"nomad", "autoscaler", "plugin", "exited"}, 1,
+		metrics.IncrCounterWithLabels([]string{"autoscaler", "plugin", "exited"}, 1,
 			[]metrics.Label{{Name: "plugin_name", Value: i.name}})
 		i.client.Kill()
 		i.client, i.raw = nil, nil
@@ -402,7 +402,7 @@ func (i *instance) noteCall(raw plugins.Base, err error) {
 	}
 	i.logger.Warn("external plugin does not answer, stopping it to start it again",
 		"timeouts", i.timeouts, "call_timeout", CallTimeout)
-	metrics.IncrCounterWithLabels([]string{"nomad", "autoscaler", "plugin", "hung"}, 1,
+	metrics.IncrCounterWithLabels([]string{"autoscaler", "plugin", "hung"}, 1,
 		[]metrics.Label{{Name: "plugin_name", Value: i.name}})
 	i.client.Kill()
 	i.client, i.raw, i.timeouts = nil, nil, 0

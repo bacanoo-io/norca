@@ -222,7 +222,7 @@ RECONCILE:
 		s.logger.Error("failed to wait for barrier", "error", err)
 		goto WAIT
 	}
-	metrics.MeasureSince([]string{"nomad", "leader", "barrier"}, start)
+	metrics.MeasureSince([]string{"server", "leader", "barrier"}, start)
 
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
@@ -347,7 +347,7 @@ WAIT:
 // previously inflight transactions have been committed and that our
 // state is up-to-date.
 func (s *Server) establishLeadership(stopCh chan struct{}) error {
-	defer metrics.MeasureSince([]string{"nomad", "leader", "establish_leadership"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "leader", "establish_leadership"}, time.Now())
 
 	// Generate a leader ACL token. This will allow the leader to issue work
 	// that requires a valid ACL token.
@@ -1488,19 +1488,19 @@ func (s *Server) iterateJobSummaryMetrics(summary *structs.JobSummary) {
 			})
 		}
 
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "queued"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "queued"},
 			float32(tgSummary.Queued), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "complete"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "complete"},
 			float32(tgSummary.Complete), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "failed"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "failed"},
 			float32(tgSummary.Failed), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "running"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "running"},
 			float32(tgSummary.Running), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "starting"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "starting"},
 			float32(tgSummary.Starting), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "lost"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "lost"},
 			float32(tgSummary.Lost), labels)
-		metrics.SetGaugeWithLabels([]string{"nomad", "job_summary", "unknown"},
+		metrics.SetGaugeWithLabels([]string{"server", "job_summary", "unknown"},
 			float32(tgSummary.Unknown), labels)
 	}
 }
@@ -1556,15 +1556,15 @@ func (s *Server) iterateJobStatusMetrics(jobs *memdb.ResultIterator) {
 		}
 	}
 
-	metrics.SetGauge([]string{"nomad", "job_status", "pending"}, float32(pending))
-	metrics.SetGauge([]string{"nomad", "job_status", "running"}, float32(running))
-	metrics.SetGauge([]string{"nomad", "job_status", "dead"}, float32(dead))
+	metrics.SetGauge([]string{"server", "job_status", "pending"}, float32(pending))
+	metrics.SetGauge([]string{"server", "job_status", "running"}, float32(running))
+	metrics.SetGauge([]string{"server", "job_status", "dead"}, float32(dead))
 }
 
 // revokeLeadership is invoked once we step down as leader.
 // This is used to cleanup any state that may be specific to a leader.
 func (s *Server) revokeLeadership() error {
-	defer metrics.MeasureSince([]string{"nomad", "leader", "revoke_leadership"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "leader", "revoke_leadership"}, time.Now())
 
 	s.resetConsistentReadReady()
 
@@ -1654,7 +1654,7 @@ func (s *Server) pausableWorkersLocked() []*Worker {
 // reconcile is used to reconcile the differences between Serf
 // membership and what is reflected in our strongly consistent store.
 func (s *Server) reconcile() error {
-	defer metrics.MeasureSince([]string{"nomad", "leader", "reconcile"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "leader", "reconcile"}, time.Now())
 	members := s.serf.Members()
 	for _, member := range members {
 		if err := s.reconcileMember(member); err != nil {
@@ -1671,7 +1671,7 @@ func (s *Server) reconcileMember(member serf.Member) error {
 	if !valid || parts.Region != s.config.Region {
 		return nil
 	}
-	defer metrics.MeasureSince([]string{"nomad", "leader", "reconcileMember"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "leader", "reconcileMember"}, time.Now())
 
 	var err error
 	switch member.Status {

@@ -42,7 +42,7 @@ func (k *Keyring) Rotate(args *structs.KeyringRotateRootKeyRequest, reply *struc
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "rotate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "rotate"}, time.Now())
 
 	if aclObj, err := k.srv.ResolveACL(args); err != nil {
 		return err
@@ -113,7 +113,7 @@ func (k *Keyring) List(args *structs.KeyringListRootKeyMetaRequest, reply *struc
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "list"}, time.Now())
 
 	// we need to allow both humans with management tokens and
 	// non-leader servers to list keys, in order to support
@@ -172,7 +172,7 @@ func (k *Keyring) Update(args *structs.KeyringUpdateRootKeyRequest, reply *struc
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "update"}, time.Now())
 
 	if aclObj, err := k.srv.ResolveACL(args); err != nil {
 		return err
@@ -256,7 +256,7 @@ func (k *Keyring) Get(args *structs.KeyringGetRootKeyRequest, reply *structs.Key
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "get"}, time.Now())
 
 	if args.KeyID == "" {
 		return fmt.Errorf("root key ID is required")
@@ -334,7 +334,7 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "delete"}, time.Now())
 
 	if aclObj, err := k.srv.ResolveACL(args); err != nil {
 		return err

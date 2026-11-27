@@ -59,7 +59,7 @@ func (k *ConsulKV) Get(args *structs.ConsulKVGetRequest, reply *structs.ConsulKV
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "consul_kv", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul_kv", "get"}, time.Now())
 
 	if args.Key == "" && !args.Prefix {
 		return consulKVBadRequest("Missing key name")
@@ -111,7 +111,7 @@ func (k *ConsulKV) Put(args *structs.ConsulKVPutRequest, reply *structs.ConsulKV
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "consul_kv", "put"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul_kv", "put"}, time.Now())
 
 	if args.Key == "" {
 		return consulKVBadRequest("Missing key name")
@@ -156,7 +156,7 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "consul_kv", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul_kv", "delete"}, time.Now())
 
 	if args.Key == "" && !args.Recurse {
 		return consulKVBadRequest("Missing key name")

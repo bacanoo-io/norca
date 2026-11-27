@@ -40,7 +40,7 @@ func (k *Keyring) Restore(args *structs.KeyringRestoreRequest, reply *structs.Ke
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "restore"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "restore"}, time.Now())
 
 	if aclObj, err := k.srv.ResolveACL(args); err != nil {
 		return err

@@ -96,7 +96,7 @@ func (s *Server) openRaftStore(raftDir string) (raftLogStore, error) {
 		}
 		s.logger.Info("setting up raft bolt store", "path", boltPath,
 			"no_freelist_sync", s.config.RaftBoltNoFreelistSync)
-		// publish the bbolt metrics (nomad.raft.boltdb.*)
+		// publish the bbolt metrics (norca.raft.boltdb.*)
 		go store.RunMetrics(s.shutdownCtx, 0)
 		return &boltRaftStore{BoltStore: store, path: boltPath}, nil
 

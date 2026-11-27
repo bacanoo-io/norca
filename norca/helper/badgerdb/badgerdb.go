@@ -32,7 +32,7 @@ type Options struct {
 	// "default" (also when empty) or "large".
 	Profile string
 
-	// MetricsName names the database in the metrics (nomad.badger.<name>.*).
+	// MetricsName names the database in the metrics (norca.badger.<name>.*).
 	MetricsName string
 
 	MemTableSizeMB          int

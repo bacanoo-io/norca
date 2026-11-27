@@ -20,7 +20,7 @@ import (
 const SealConfigSnapshot SnapshotType = 107
 
 func (n *nomadFSM) applySealConfigUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_seal_config_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_seal_config_upsert"}, time.Now())
 	var req structs.SealConfigUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -34,7 +34,7 @@ func (n *nomadFSM) applySealConfigUpsert(msgType structs.MessageType, buf []byte
 }
 
 func (n *nomadFSM) applySealRewrapDone(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_seal_rewrap_done"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_seal_rewrap_done"}, time.Now())
 	var req structs.SealRewrapDoneRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

@@ -281,7 +281,7 @@ func (r *runner) enqueueDue(now time.Time) {
 		r.queue = append(r.queue, id)
 	}
 	r.queueLen.Store(int64(len(r.queue)))
-	metrics.SetGauge([]string{"nomad", "autoscaler", "queue"}, float32(len(r.queue)))
+	metrics.SetGauge([]string{"autoscaler", "queue"}, float32(len(r.queue)))
 }
 
 // worker evaluates the policies sent by the runner loop.
@@ -305,7 +305,7 @@ func (r *runner) worker(ctx context.Context) {
 // count, hands the decision to the executor, and records what happened in
 // the status book.
 func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
-	defer metrics.MeasureSince([]string{"nomad", "autoscaler", "evaluate"}, time.Now())
+	defer metrics.MeasureSince([]string{"autoscaler", "evaluate"}, time.Now())
 
 	eval := &Evaluation{Time: r.now()}
 	err := r.evaluatePolicy(ctx, c, eval)
@@ -388,7 +388,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	upOnly := false
 	if t.deploymentActive {
 		if c.scaleDuringDeployment != structs.ScaleDuringDeploymentUpOnly || t.unpromotedCanary {
-			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "deployment"}, 1)
+			metrics.IncrCounter([]string{"autoscaler", "evaluate", "deployment"}, 1)
 			logger.Debug("skipping evaluation, deployment in progress", "unpromoted_canary", t.unpromotedCanary)
 			switch {
 			case t.unpromotedCanary:
@@ -406,7 +406,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	// Policies are not evaluated during cooldown, as defined by the
 	// autoscaler's policy documentation.
 	if until, reason := r.exec.blockedUntil(c.key, c.policy, t); now.Before(until) {
-		metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "skipped"}, 1)
+		metrics.IncrCounter([]string{"autoscaler", "evaluate", "skipped"}, 1)
 		logger.Debug("skipping evaluation", "reason", reason, "remaining", until.Sub(now))
 		hold := HoldCooldown
 		if reason != "cooldown" {
@@ -454,7 +454,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	// (back). The hold ends with the settle timeout, so that a count that
 	// can never run does not keep the target large for good.
 	if action.Direction == sdk.ScaleDirectionDown && !isSettled && unsettledFor < r.cfg.SettleTimeout {
-		metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "settling"}, 1)
+		metrics.IncrCounter([]string{"autoscaler", "evaluate", "settling"}, 1)
 		logger.Debug("skipping scale down, the target is not settled", "desired", t.desired,
 			"running", t.status.Count, "migrating", t.isMigrating, "for", unsettledFor)
 		eval.held(HoldSettling, fmt.Sprintf("%d of %d run, not settled for %s",
@@ -468,7 +468,7 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	// (The same timeout ends the hold of its scale downs above.)
 	if action.Direction == sdk.ScaleDirectionUp && !isSettled && unsettledFor >= r.cfg.SettleTimeout {
 		if reason := r.capacity.unhelped(c.key); reason != "" {
-			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "capacity"}, 1)
+			metrics.IncrCounter([]string{"autoscaler", "evaluate", "capacity"}, 1)
 			logger.Debug("skipping scale up, no capacity is coming for the target", "reason", reason,
 				"desired", t.desired, "running", t.status.Count)
 			eval.held(HoldCapacity, reason)

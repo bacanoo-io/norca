@@ -21,7 +21,7 @@ import (
 const SecretSnapshot SnapshotType = 109
 
 func (n *nomadFSM) applySecretApply(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_secret"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_secret"}, time.Now())
 	var req structs.SecretApplyRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -37,7 +37,7 @@ func (n *nomadFSM) applySecretApply(msgType structs.MessageType, buf []byte, ind
 }
 
 func (n *nomadFSM) applySecretPurge(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "purge_secret"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "purge_secret"}, time.Now())
 	var req structs.SecretPurgeRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

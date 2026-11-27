@@ -42,7 +42,7 @@ func (c *Certificate) Roots(args *structs.CertificateRootsRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "certificate", "roots"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "certificate", "roots"}, time.Now())
 
 	region := c.srv.Region()
 	opts := blockingOptions{
@@ -88,7 +88,7 @@ func (c *Certificate) CRL(args *structs.CertificateCRLRequest, reply *structs.Ce
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "certificate", "crl"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "certificate", "crl"}, time.Now())
 
 	store := c.srv.State()
 	all, err := store.CertificateAuthorities(nil)
@@ -145,7 +145,7 @@ func (c *Certificate) ImportAuthority(args *structs.CertificateAuthorityImportRe
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "certificate", "import_authority"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "certificate", "import_authority"}, time.Now())
 
 	if err := c.requireManagement(args); err != nil {
 		return err
@@ -170,7 +170,7 @@ func (c *Certificate) RotateAuthority(args *structs.CertificateAuthorityRotateRe
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "certificate", "rotate_authority"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "certificate", "rotate_authority"}, time.Now())
 
 	if err := c.requireManagement(args); err != nil {
 		return err
@@ -225,7 +225,7 @@ func (c *Certificate) Revoke(args *structs.CertificateRevokeRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "certificate", "revoke"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "certificate", "revoke"}, time.Now())
 
 	aclObj, err := c.srv.ResolveACL(args)
 	if err != nil {

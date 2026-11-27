@@ -49,7 +49,7 @@ func (sv *Variables) Apply(args *structs.VariablesApplyRequest, reply *structs.V
 	}
 
 	defer metrics.MeasureSince([]string{
-		"nomad", "variables", "apply", string(args.Op)}, time.Now())
+		"server", "variables", "apply", string(args.Op)}, time.Now())
 
 	// Check if the Namespace is explicitly set on the variable. If
 	// not, use the RequestNamespace
@@ -250,7 +250,7 @@ func (sv *Variables) Read(args *structs.VariablesReadRequest, reply *structs.Var
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "variables", "read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "variables", "read"}, time.Now())
 
 	_, _, err := sv.handleMixedAuthEndpoint(args.QueryOptions,
 		acl.PolicyRead, args.Path)
@@ -301,7 +301,7 @@ func (sv *Variables) List(
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "variables", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "variables", "list"}, time.Now())
 
 	// If the caller has requested to list variables across all namespaces, use
 	// the custom function to perform this.

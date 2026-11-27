@@ -131,7 +131,7 @@ func (m *MetricsStore) History(args *structs.MetricsHistoryRequest, reply *struc
 	if done {
 		return err
 	}
-	defer metrics.MeasureSince([]string{"nomad", "metrics_store", "history"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "metrics_store", "history"}, time.Now())
 
 	if args.Metric == "" {
 		args.Metric = metricsstore.MetricCPU

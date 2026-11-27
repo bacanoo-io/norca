@@ -37,7 +37,7 @@ func (a *Alloc) Evict(args *structs.AllocEvictRequest, reply *structs.AllocEvict
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "evict"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "evict"}, time.Now())
 
 	alloc, err := getAlloc(a.srv.State(), args.AllocID)
 	if err != nil {
@@ -110,7 +110,7 @@ func (j *Job) Disruption(args *structs.JobDisruptionRequest, reply *structs.JobD
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "disruption"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "disruption"}, time.Now())
 
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
 		return err

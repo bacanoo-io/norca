@@ -54,7 +54,7 @@ func (e *Eval) GetEval(args *structs.EvalSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "get_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "get_eval"}, time.Now())
 
 	// Check for read-job permissions before performing blocking query.
 	allowNsOp := acl.NamespaceValidator(acl.NamespaceCapabilityReadJob)
@@ -135,7 +135,7 @@ func (e *Eval) Dequeue(args *structs.EvalDequeueRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "dequeue"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "dequeue"}, time.Now())
 
 	// Ensure there is at least one scheduler
 	if len(args.Schedulers) == 0 {
@@ -249,7 +249,7 @@ func (e *Eval) Ack(args *structs.EvalAckRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "ack"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "ack"}, time.Now())
 
 	// Ack the EvalID
 	if err := e.srv.evalBroker.Ack(args.EvalID, args.Token); err != nil {
@@ -284,7 +284,7 @@ func (e *Eval) Nack(args *structs.EvalAckRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "nack"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "nack"}, time.Now())
 
 	// Nack the EvalID
 	if err := e.srv.evalBroker.Nack(args.EvalID, args.Token); err != nil {
@@ -311,7 +311,7 @@ func (e *Eval) Update(args *structs.EvalUpdateRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "update"}, time.Now())
 
 	// Ensure there is only a single update with token
 	if len(args.Evals) != 1 {
@@ -353,7 +353,7 @@ func (e *Eval) Create(args *structs.EvalUpdateRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "create"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "create"}, time.Now())
 
 	// Ensure there is only a single update with token
 	if len(args.Evals) != 1 {
@@ -410,7 +410,7 @@ func (e *Eval) Reblock(args *structs.EvalUpdateRequest, reply *structs.GenericRe
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "reblock"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "reblock"}, time.Now())
 
 	// Ensure there is only a single update with token
 	if len(args.Evals) != 1 {
@@ -464,7 +464,7 @@ func (e *Eval) Reap(args *structs.EvalReapRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "reap"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "reap"}, time.Now())
 
 	// Update via Raft
 	_, index, err := e.srv.raftApply(structs.EvalDeleteRequestType, args)
@@ -492,7 +492,7 @@ func (e *Eval) Delete(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "delete"}, time.Now())
 
 	// This RPC endpoint is very destructive and alters Nomad's core state,
 	// meaning only those with management tokens can call it.
@@ -684,7 +684,7 @@ func (e *Eval) List(args *structs.EvalListRequest, reply *structs.EvalListRespon
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "list"}, time.Now())
 
 	namespace := args.RequestNamespace()
 
@@ -809,7 +809,7 @@ func (e *Eval) Count(args *structs.EvalCountRequest, reply *structs.EvalCountRes
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "count"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "count"}, time.Now())
 	namespace := args.RequestNamespace()
 
 	// Check for read-job permissions
@@ -914,7 +914,7 @@ func (e *Eval) Allocations(args *structs.EvalSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "eval", "allocations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "eval", "allocations"}, time.Now())
 
 	// Check for read-job permissions
 	allowNsOp := acl.NamespaceValidator(acl.NamespaceCapabilityReadJob)

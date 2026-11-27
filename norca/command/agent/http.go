@@ -394,7 +394,7 @@ func connLimiter(connLimit int, handshakeTimeout time.Duration, tlsConfig *tls.C
 	}).HTTPConnStateFuncWithErrorHandler(func(err error, conn net.Conn) {
 		conn = connprefix.Unwrap(conn)
 		if err == connlimit.ErrPerClientIPLimitReached {
-			metrics.IncrCounter([]string{"nomad", "agent", "http", "exceeded"}, 1)
+			metrics.IncrCounter([]string{"agent", "http", "exceeded"}, 1)
 			if n := limiter.Reserve(); n.Delay() == 0 {
 				logger.Warn("Too many concurrent connections", "address", conn.RemoteAddr().String(), "limit", connLimit)
 				// Norca: the answer to a TLS connection is written on its

@@ -52,7 +52,7 @@ func (e *SecretEngine) List(args *structs.SecretEngineListRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret_engine", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_engine", "list"}, time.Now())
 
 	aclObj, err := e.secret.resolveACL(args)
 	if err != nil {
@@ -120,7 +120,7 @@ func (e *SecretEngine) Read(args *structs.SecretEngineReadRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret_engine", "read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_engine", "read"}, time.Now())
 
 	aclObj, err := e.secret.resolveACL(args)
 	if err != nil {
@@ -158,7 +158,7 @@ func (e *SecretEngine) Upsert(args *structs.SecretEngineUpsertRequest, reply *st
 		return err
 	}
 	e.srv.MeasureRPCRate("secret_engine", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_engine", "upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_engine", "upsert"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	name := ""
@@ -219,7 +219,7 @@ func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *st
 		return err
 	}
 	e.srv.MeasureRPCRate("secret_engine", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_engine", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_engine", "delete"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	rec := e.secret.auditRecord(args.GetIdentity(), structs.SecretOpEngineDelete, namespace, secretEnginePath(args.Name))
@@ -306,7 +306,7 @@ func (e *SecretLease) List(args *structs.SecretLeaseListRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret_lease", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_lease", "list"}, time.Now())
 
 	aclObj, err := e.secret.resolveACL(args)
 	if err != nil {
@@ -372,7 +372,7 @@ func (e *SecretLease) Read(args *structs.SecretLeaseReadRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret_lease", "read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_lease", "read"}, time.Now())
 
 	aclObj, err := e.secret.resolveACL(args)
 	if err != nil {
@@ -447,7 +447,7 @@ func (e *SecretLease) Create(args *structs.SecretLeaseCreateRequest, reply *stru
 		return err
 	}
 	e.srv.MeasureRPCRate("secret_lease", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_lease", "create"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_lease", "create"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	path := structs.SecretEngineCredsPath(args.Engine, args.Role)
@@ -489,7 +489,7 @@ func (e *SecretLease) Create(args *structs.SecretLeaseCreateRequest, reply *stru
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}
-	metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "leases", "created"}, 1,
+	metrics.IncrCounterWithLabels([]string{"server", "secrets", "leases", "created"}, 1,
 		[]metrics.Label{{Name: "engine", Value: args.Engine}})
 	reply.Lease = lease
 	reply.Items = cred.Items
@@ -523,7 +523,7 @@ func (e *SecretLease) Renew(args *structs.SecretLeaseRenewRequest, reply *struct
 		return err
 	}
 	e.srv.MeasureRPCRate("secret_lease", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_lease", "renew"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_lease", "renew"}, time.Now())
 
 	rec := e.secret.auditRecord(args.GetIdentity(), structs.SecretOpLeaseRenew, args.RequestNamespace(), "")
 	rec.LeaseID = args.LeaseID
@@ -552,7 +552,7 @@ func (e *SecretLease) Renew(args *structs.SecretLeaseRenewRequest, reply *struct
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}
-	metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "leases", "renewed"}, 1,
+	metrics.IncrCounterWithLabels([]string{"server", "secrets", "leases", "renewed"}, 1,
 		[]metrics.Label{{Name: "engine", Value: lease.Engine}})
 	reply.Lease = out
 	reply.Items = items
@@ -569,7 +569,7 @@ func (e *SecretLease) Revoke(args *structs.SecretLeaseRevokeRequest, reply *stru
 		return err
 	}
 	e.srv.MeasureRPCRate("secret_lease", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_lease", "revoke"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret_lease", "revoke"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	rec := e.secret.auditRecord(args.GetIdentity(), structs.SecretOpLeaseRevoke, namespace, "")
@@ -656,7 +656,7 @@ func (e *SecretLease) Revoke(args *structs.SecretLeaseRevokeRequest, reply *stru
 	reply.Revoked = []string{}
 	for _, l := range revoked {
 		reply.Revoked = append(reply.Revoked, l.ID)
-		metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "leases", "revoked"}, 1,
+		metrics.IncrCounterWithLabels([]string{"server", "secrets", "leases", "revoked"}, 1,
 			[]metrics.Label{{Name: "engine", Value: l.Engine}, {Name: "reason", Value: reason}})
 	}
 	reply.Index = index

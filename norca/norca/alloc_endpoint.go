@@ -42,7 +42,7 @@ func (a *Alloc) List(args *structs.AllocListRequest, reply *structs.AllocListRes
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "list"}, time.Now())
 
 	namespace := args.RequestNamespace()
 
@@ -152,7 +152,7 @@ func (a *Alloc) GetAlloc(args *structs.AllocSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "get_alloc"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "get_alloc"}, time.Now())
 
 	// Check namespace read-job permissions before performing blocking query.
 	allowNsOp := acl.NamespaceValidator(acl.NamespaceCapabilityReadJob)
@@ -215,7 +215,7 @@ func (a *Alloc) GetAllocs(args *structs.AllocsGetRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "get_allocs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "get_allocs"}, time.Now())
 
 	allocs := make([]*structs.Allocation, len(args.AllocIDs))
 
@@ -286,7 +286,7 @@ func (a *Alloc) Stop(args *structs.AllocStopRequest, reply *structs.AllocStopRes
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "stop"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "stop"}, time.Now())
 
 	alloc, err := getAlloc(a.srv.State(), args.AllocID)
 	if err != nil {
@@ -351,7 +351,7 @@ func (a *Alloc) UpdateDesiredTransition(args *structs.AllocUpdateDesiredTransiti
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "update_desired_transition"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "update_desired_transition"}, time.Now())
 
 	// Check that it is a management token.
 	if aclObj, err := a.srv.ResolveACL(args); err != nil {
@@ -392,7 +392,7 @@ func (a *Alloc) GetServiceRegistrations(
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "get_service_registrations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "get_service_registrations"}, time.Now())
 
 	// If ACLs are enabled, ensure the caller has the read-job namespace
 	// capability.

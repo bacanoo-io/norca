@@ -250,7 +250,7 @@ func (w *secretLeaseWatcher) revoke(leases []*structs.SecretLease) error {
 		}
 		_ = w.srv.secretAudit(rec, true)
 		if err == nil {
-			metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "leases", "revoked"}, 1,
+			metrics.IncrCounterWithLabels([]string{"server", "secrets", "leases", "revoked"}, 1,
 				[]metrics.Label{{Name: "engine", Value: l.Engine}, {Name: "reason", Value: l.RevokeReason}})
 		}
 	}
@@ -309,7 +309,7 @@ func (w *secretLeaseWatcher) engine(ctx context.Context, engine *structs.SecretE
 			backoff = min(secretSyncBackoffMin<<(st.failures-1), secretSyncBackoffMax)
 		}
 		st.next = now.Add(backoff)
-		metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "engine", "sync_failed"}, 1,
+		metrics.IncrCounterWithLabels([]string{"server", "secrets", "engine", "sync_failed"}, 1,
 			[]metrics.Label{{Name: "engine", Value: engine.Name}})
 		logger.Warn("failed to bring the secret engine's backend in line with its leases",
 			"attempt", st.failures, "retry_in", backoff, "error", err)
@@ -319,7 +319,7 @@ func (w *secretLeaseWatcher) engine(ctx context.Context, engine *structs.SecretE
 		logger.Info("brought the secret engine's backend in line with its leases again")
 	}
 	st.fingerprint, st.at, st.failures, st.next = fingerprint, now, 0, time.Time{}
-	metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "engine", "synced"}, 1,
+	metrics.IncrCounterWithLabels([]string{"server", "secrets", "engine", "synced"}, 1,
 		[]metrics.Label{{Name: "engine", Value: engine.Name}})
 	return now.Add(w.resync)
 }
@@ -356,6 +356,6 @@ func secretEngineFingerprint(s *Server, engine *structs.SecretEngine, revoked ma
 func (w *secretLeaseWatcher) setGauge(active int) {
 	w.srv.secretsGauges.leases.write(w.gaugeTicket, func() {
 		w.srv.secretsGauges.leasesActive.Store(int64(active))
-		metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, float32(active))
+		metrics.SetGauge([]string{"server", "secrets", "leases", "active"}, float32(active))
 	})
 }

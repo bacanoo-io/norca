@@ -597,7 +597,7 @@ func (s *Search) PrefixSearch(args *structs.SearchRequest, reply *structs.Search
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "search", "prefix_search"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "search", "prefix_search"}, time.Now())
 
 	aclObj, err := s.srv.ResolveACL(args)
 	if err != nil {
@@ -736,7 +736,7 @@ func (s *Search) FuzzySearch(args *structs.FuzzySearchRequest, reply *structs.Fu
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "search", "fuzzy_search"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "search", "fuzzy_search"}, time.Now())
 
 	aclObj, err := s.srv.ResolveACL(args)
 	if err != nil {

@@ -74,11 +74,11 @@ func (d *AutopilotDelegate) NotifyState(state *autopilot.State) {
 			// The standby promotions and demotions since the last state.
 			d.server.rolePromoter.observe(state)
 		}
-		metrics.SetGauge([]string{"nomad", "autopilot", "failure_tolerance"}, float32(state.FailureTolerance))
+		metrics.SetGauge([]string{"server", "autopilot", "failure_tolerance"}, float32(state.FailureTolerance))
 		if state.Healthy {
-			metrics.SetGauge([]string{"nomad", "autopilot", "healthy"}, 1)
+			metrics.SetGauge([]string{"server", "autopilot", "healthy"}, 1)
 		} else {
-			metrics.SetGauge([]string{"nomad", "autopilot", "healthy"}, 0)
+			metrics.SetGauge([]string{"server", "autopilot", "healthy"}, 0)
 		}
 	}
 }

@@ -220,7 +220,7 @@ func (r *rpcHandler) listen(ctx context.Context) {
 		}
 
 		go r.handleConn(ctx, conn, &RPCContext{Conn: conn})
-		metrics.IncrCounter([]string{"nomad", "rpc", "accept_conn"}, 1)
+		metrics.IncrCounter([]string{"server", "rpc", "accept_conn"}, 1)
 	}
 }
 
@@ -307,7 +307,7 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 		r.srv.removeNodeConn(rpcCtx)
 
 	case pool.RpcRaft:
-		metrics.IncrCounter([]string{"nomad", "rpc", "raft_handoff"}, 1)
+		metrics.IncrCounter([]string{"server", "rpc", "raft_handoff"}, 1)
 		// Ensure that when TLS is configured, only certificates from `server.<region>.norca` are accepted for Raft connections.
 		if err := r.validateRaftTLS(rpcCtx); err != nil {
 			conn.Close()
@@ -460,12 +460,12 @@ func (r *rpcHandler) handleNomadConn(ctx context.Context, conn net.Conn, server 
 		if err := server.ServeRequest(rpcCodec); err != nil {
 			if err != io.EOF && !strings.Contains(err.Error(), "closed") {
 				r.logger.Error("RPC error", "error", err, "connection", conn)
-				metrics.IncrCounter([]string{"nomad", "rpc", "request_error"}, 1)
+				metrics.IncrCounter([]string{"server", "rpc", "request_error"}, 1)
 				r.srv.metricsCounters.countRPC(true)
 			}
 			return
 		}
-		metrics.IncrCounter([]string{"nomad", "rpc", "request"}, 1)
+		metrics.IncrCounter([]string{"server", "rpc", "request"}, 1)
 		r.srv.metricsCounters.countRPC(rpcCodec.answeredError)
 	}
 }
@@ -495,7 +495,7 @@ func (r *rpcHandler) handleStreamingConn(conn net.Conn) {
 	if err := decoder.Decode(&header); err != nil {
 		if err != io.EOF && !strings.Contains(err.Error(), "closed") {
 			r.logger.Error("streaming RPC error", "error", err, "connection", conn)
-			metrics.IncrCounter([]string{"nomad", "streaming_rpc", "request_error"}, 1)
+			metrics.IncrCounter([]string{"server", "streaming_rpc", "request_error"}, 1)
 		}
 
 		return
@@ -505,7 +505,7 @@ func (r *rpcHandler) handleStreamingConn(conn net.Conn) {
 	handler, err := r.srv.streamingRpcs.GetHandler(header.Method)
 	if err != nil {
 		r.logger.Error("streaming RPC error", "error", err, "connection", conn)
-		metrics.IncrCounter([]string{"nomad", "streaming_rpc", "request_error"}, 1)
+		metrics.IncrCounter([]string{"server", "streaming_rpc", "request_error"}, 1)
 		ack.Error = err.Error()
 	}
 
@@ -521,7 +521,7 @@ func (r *rpcHandler) handleStreamingConn(conn net.Conn) {
 	}
 
 	// Invoke the handler
-	metrics.IncrCounter([]string{"nomad", "streaming_rpc", "request"}, 1)
+	metrics.IncrCounter([]string{"server", "streaming_rpc", "request"}, 1)
 	handler(conn)
 }
 
@@ -646,7 +646,7 @@ type consistentReader interface {
 // of establishLeadership (isReadyForConsistentReads), so the state of a
 // confirmed leader holds every write acknowledged before the read started.
 func (s *Server) verifyLeaderForRead() error {
-	defer metrics.MeasureSince([]string{"nomad", "rpc", "consistent_read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "rpc", "consistent_read"}, time.Now())
 	if !s.isReadyForConsistentReads() {
 		return structs.ErrNotReadyForConsistentReads
 	}
@@ -764,7 +764,7 @@ func (r *rpcHandler) forwardRegion(region, method string, args interface{}, repl
 	}
 
 	// Forward to remote Nomad
-	metrics.IncrCounter([]string{"nomad", "rpc", "cross-region", region}, 1)
+	metrics.IncrCounter([]string{"server", "rpc", "cross-region", region}, 1)
 	return r.srv.connPool.RPC(region, server.Addr, method, args, reply)
 }
 
@@ -922,7 +922,7 @@ RUN_QUERY:
 	r.setQueryMeta(opts.queryMeta)
 
 	// Increment the rpc query counter
-	metrics.IncrCounter([]string{"nomad", "rpc", "query"}, 1)
+	metrics.IncrCounter([]string{"server", "rpc", "query"}, 1)
 
 	// We capture the state store and its abandon channel but pass a snapshot to
 	// the blocking query function. We operate on the snapshot to allow separate

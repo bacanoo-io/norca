@@ -157,7 +157,7 @@ func (c *CachedBadNodeTracker) emitStats() {
 		labels := []metrics.Label{
 			{Name: "node_id", Value: nodeID},
 		}
-		metrics.SetGaugeWithLabels([]string{"nomad", "plan", "rejection_tracker", "node_score"}, float32(score), labels)
+		metrics.SetGaugeWithLabels([]string{"server", "plan", "rejection_tracker", "node_score"}, float32(score), labels)
 	}
 }
 

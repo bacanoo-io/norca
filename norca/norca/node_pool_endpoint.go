@@ -40,7 +40,7 @@ func (n *NodePool) List(args *structs.NodePoolListRequest, reply *structs.NodePo
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "list"}, time.Now())
 
 	// Resolve ACL token to only return node pools it has access to.
 	aclObj, err := n.srv.ResolveACL(args)
@@ -125,7 +125,7 @@ func (n *NodePool) GetNodePool(args *structs.NodePoolSpecificRequest, reply *str
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "get_node_pool"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "get_node_pool"}, time.Now())
 
 	// Resolve ACL token and verify it has read capability for the pool.
 	aclObj, err := n.srv.ResolveACL(args)
@@ -179,7 +179,7 @@ func (n *NodePool) UpsertNodePools(args *structs.NodePoolUpsertRequest, reply *s
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "upsert_node_pools"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "upsert_node_pools"}, time.Now())
 
 	// Resolve ACL token and verify it has write capability to all pools in the
 	// request.
@@ -240,7 +240,7 @@ func (n *NodePool) DeleteNodePools(args *structs.NodePoolDeleteRequest, reply *s
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "delete_node_pools"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "delete_node_pools"}, time.Now())
 
 	// Resolve ACL token and verify it has delete capability to all pools in
 	// the request.
@@ -393,7 +393,7 @@ func (n *NodePool) ListJobs(args *structs.NodePoolJobsRequest, reply *structs.No
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "list_jobs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "list_jobs"}, time.Now())
 
 	// Resolve ACL token and verify it has read capability for the pool.
 	aclObj, err := n.srv.ResolveACL(args)
@@ -522,7 +522,7 @@ func (n *NodePool) ListNodes(args *structs.NodePoolNodesRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "node_pool", "list_nodes"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "node_pool", "list_nodes"}, time.Now())
 
 	// Resolve ACL token and verify it has read capability for nodes and the
 	// node pool.

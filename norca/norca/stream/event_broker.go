@@ -190,7 +190,7 @@ func (e *EventBroker) subscribe(req *SubscribeRequest, aclObj *acl.ACL) (*Subscr
 				ErrIndexNotAvailable, req.Index, missing)
 		}
 	} else if offset > 0 {
-		metrics.SetGauge([]string{"nomad", "event_broker", "subscription", "request_offset"}, float32(offset))
+		metrics.SetGauge([]string{"server", "event_broker", "subscription", "request_offset"}, float32(offset))
 		e.logger.Debug("requested index no longer in buffer", "requsted", int(req.Index), "closest", int(head.Events.Index))
 	}
 

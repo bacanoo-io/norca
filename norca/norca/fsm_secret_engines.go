@@ -31,7 +31,7 @@ func isSecretEngineApplyError(err error) bool {
 }
 
 func (n *nomadFSM) applySecretEngineApply(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_secret_engine"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_secret_engine"}, time.Now())
 	var req structs.SecretEngineApplyRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -46,7 +46,7 @@ func (n *nomadFSM) applySecretEngineApply(msgType structs.MessageType, buf []byt
 }
 
 func (n *nomadFSM) applySecretEnginePurge(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "purge_secret_engine"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "purge_secret_engine"}, time.Now())
 	var req structs.SecretEnginePurgeRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -61,7 +61,7 @@ func (n *nomadFSM) applySecretEnginePurge(msgType structs.MessageType, buf []byt
 }
 
 func (n *nomadFSM) applySecretLeaseApply(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_secret_lease"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_secret_lease"}, time.Now())
 	var req structs.SecretLeaseApplyRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -76,7 +76,7 @@ func (n *nomadFSM) applySecretLeaseApply(msgType structs.MessageType, buf []byte
 }
 
 func (n *nomadFSM) applySecretLeasePurge(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "purge_secret_lease"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "purge_secret_lease"}, time.Now())
 	var req structs.SecretLeasePurgeRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

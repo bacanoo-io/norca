@@ -60,7 +60,7 @@ func (s *ServiceRegistration) UpsertExternal(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "upsert_external"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "upsert_external"}, time.Now())
 
 	if err := s.externalServicesEnabled(); err != nil {
 		return err
@@ -185,7 +185,7 @@ func (s *ServiceRegistration) DeleteExternal(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "delete_external"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "delete_external"}, time.Now())
 
 	enabledErr := s.externalServicesEnabled()
 
@@ -263,7 +263,7 @@ func (s *ServiceRegistration) UpdateExternalChecks(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "update_external_checks"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "update_external_checks"}, time.Now())
 
 	if err := s.externalServicesEnabled(); err != nil {
 		return err
@@ -312,7 +312,7 @@ func (s *ServiceRegistration) ListExternal(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "list_external"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "list_external"}, time.Now())
 
 	if err := s.externalServicesEnabled(); err != nil {
 		return err

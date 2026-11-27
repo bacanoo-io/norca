@@ -317,13 +317,13 @@ func (w *Webhook) Close() {
 // subject to the webhook's failure policy.
 func (w *Webhook) Review(ctx context.Context, req *ReviewRequest) (resp *ReviewResponse, err error) {
 	labels := []metrics.Label{{Name: "webhook", Value: w.cfg.Name}}
-	defer metrics.MeasureSinceWithLabels([]string{"nomad", "admission", "webhook", "latency"}, time.Now(), labels)
-	metrics.IncrCounterWithLabels([]string{"nomad", "admission", "webhook", "calls"}, 1, labels)
+	defer metrics.MeasureSinceWithLabels([]string{"server", "admission", "webhook", "latency"}, time.Now(), labels)
+	metrics.IncrCounterWithLabels([]string{"server", "admission", "webhook", "calls"}, 1, labels)
 	w.calls.Add(1)
 	defer func() {
 		if err != nil {
 			w.failures.Add(1)
-			metrics.IncrCounterWithLabels([]string{"nomad", "admission", "webhook", "errors"}, 1, labels)
+			metrics.IncrCounterWithLabels([]string{"server", "admission", "webhook", "errors"}, 1, labels)
 		}
 	}()
 

@@ -192,7 +192,7 @@ func (c *consulACLsAPI) Stop() {
 }
 
 func (c *consulACLsAPI) readToken(ctx context.Context, secretID string) (*api.ACLToken, error) {
-	defer metrics.MeasureSince([]string{"nomad", "consul", "read_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul", "read_token"}, time.Now())
 
 	if id := strings.TrimSpace(secretID); !helper.IsUUID(id) {
 		return nil, errors.New("missing consul token")
@@ -261,7 +261,7 @@ func (c *consulACLsAPI) CheckPermissions(ctx context.Context, namespace string, 
 }
 
 func (c *consulACLsAPI) CreateToken(ctx context.Context, sir ServiceIdentityRequest) (*structs.SIToken, error) {
-	defer metrics.MeasureSince([]string{"nomad", "consul", "create_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul", "create_token"}, time.Now())
 
 	// make sure the background token revocations have not been stopped
 	c.bgRevokeLock.Lock()
@@ -315,7 +315,7 @@ func (c *consulACLsAPI) CreateToken(ctx context.Context, sir ServiceIdentityRequ
 // A return value of true indicates one or more accessors were stored for
 // a revocation retry attempt in the background (intended for tests).
 func (c *consulACLsAPI) RevokeTokens(ctx context.Context, accessors []*structs.SITokenAccessor, committed bool) bool {
-	defer metrics.MeasureSince([]string{"nomad", "consul", "revoke_tokens"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul", "revoke_tokens"}, time.Now())
 
 	nTokens := float32(len(accessors))
 
@@ -325,7 +325,7 @@ func (c *consulACLsAPI) RevokeTokens(ctx context.Context, accessors []*structs.S
 		// track of them and will need to do a brute reconciliation later. This
 		// should happen rarely, and will be implemented soon.
 		if !committed {
-			metrics.IncrCounter([]string{"nomad", "consul", "undistributed_si_tokens_abandoned"}, nTokens)
+			metrics.IncrCounter([]string{"server", "consul", "undistributed_si_tokens_abandoned"}, nTokens)
 		}
 
 		c.logger.Warn("failed to revoke tokens, will reattempt later", "error", err)
@@ -335,7 +335,7 @@ func (c *consulACLsAPI) RevokeTokens(ctx context.Context, accessors []*structs.S
 
 	if !committed {
 		// Un-committed tokens were revoked without incident (nothing to purge)
-		metrics.IncrCounter([]string{"nomad", "consul", "undistributed_si_tokens_revoked"}, nTokens)
+		metrics.IncrCounter([]string{"server", "consul", "undistributed_si_tokens_revoked"}, nTokens)
 		return false
 	}
 
@@ -347,7 +347,7 @@ func (c *consulACLsAPI) RevokeTokens(ctx context.Context, accessors []*structs.S
 	}
 
 	// Track that the SI tokens were revoked and purged successfully
-	metrics.IncrCounter([]string{"nomad", "consul", "distributed_si_tokens_revoked"}, nTokens)
+	metrics.IncrCounter([]string{"server", "consul", "distributed_si_tokens_revoked"}, nTokens)
 	return false
 }
 
@@ -477,14 +477,14 @@ func (c *consulACLsAPI) bgRetryRevoke() {
 
 	// Track that the SI tokens were revoked successfully
 	nTokens := float32(len(toPurge))
-	metrics.IncrCounter([]string{"nomad", "consul", "distributed_tokens_revoked"}, nTokens)
+	metrics.IncrCounter([]string{"server", "consul", "distributed_tokens_revoked"}, nTokens)
 
 	// Reset the list of accessors to retry, since we just removed them all.
 	c.bgRetryRevocation = nil
 }
 
 func (c *consulACLsAPI) ListTokens() ([]string, error) {
-	// defer metrics.MeasureSince([]string{"nomad", "consul", "list_tokens"}, time.Now())
+	// defer metrics.MeasureSince([]string{"server", "consul", "list_tokens"}, time.Now())
 	return nil, errors.New("not yet implemented")
 }
 
@@ -562,7 +562,7 @@ func (c *consulConfigsAPI) SetTerminatingCE(ctx context.Context, namespace, serv
 
 // setCE will set the Configuration Entry of any type Consul supports.
 func (c *consulConfigsAPI) setCE(ctx context.Context, entry api.ConfigEntry) error {
-	defer metrics.MeasureSince([]string{"nomad", "consul", "create_config_entry"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "consul", "create_config_entry"}, time.Now())
 
 	// make sure the background deletion goroutine has not been stopped
 	c.lock.Lock()

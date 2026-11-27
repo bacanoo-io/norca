@@ -343,7 +343,7 @@ func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "approve_restore"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "approve_restore"}, time.Now())
 
 	identity, _, err := b.fullRestoreIdentity(args)
 	if err != nil {
@@ -418,7 +418,7 @@ func (b *Backup) RejectRestore(args *structs.BackupRestoreRejectRequest, reply *
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "reject_restore"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "reject_restore"}, time.Now())
 
 	identity, _, err := b.fullRestoreIdentity(args)
 	if err != nil {
@@ -711,7 +711,7 @@ func (b *Backup) GetRestore(args *structs.BackupRestoreSpecificRequest, reply *s
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "get_restore"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "get_restore"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -760,7 +760,7 @@ func (b *Backup) ListRestores(args *structs.BackupRestoreListRequest, reply *str
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "list_restores"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "list_restores"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {

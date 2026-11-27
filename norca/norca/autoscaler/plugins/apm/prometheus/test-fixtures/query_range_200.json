@@ -5,7 +5,7 @@
     "result": [
       {
         "metric": {
-          "__name__": "nomad_client_allocated_memory",
+          "__name__": "norca_client_allocated_memory",
           "datacenter": "dc1",
           "host": "server-1",
           "instance": "192.168.0.10",

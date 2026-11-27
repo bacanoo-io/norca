@@ -24,7 +24,7 @@ const (
 )
 
 func (n *nomadFSM) applyObjectKindUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_kind_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_object_kind_upsert"}, time.Now())
 	var req structs.ObjectKindUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -41,7 +41,7 @@ func (n *nomadFSM) applyObjectKindUpsert(msgType structs.MessageType, buf []byte
 }
 
 func (n *nomadFSM) applyObjectKindDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_kind_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_object_kind_delete"}, time.Now())
 	var req structs.ObjectKindDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -55,7 +55,7 @@ func (n *nomadFSM) applyObjectKindDelete(msgType structs.MessageType, buf []byte
 }
 
 func (n *nomadFSM) applyCustomObjectUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_custom_object_upsert"}, time.Now())
 	var req structs.CustomObjectUpsertStateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -72,7 +72,7 @@ func (n *nomadFSM) applyCustomObjectUpsert(msgType structs.MessageType, buf []by
 }
 
 func (n *nomadFSM) applyCustomObjectDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_custom_object_delete"}, time.Now())
 	var req structs.CustomObjectDeleteStateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -88,7 +88,7 @@ func (n *nomadFSM) applyCustomObjectDelete(msgType structs.MessageType, buf []by
 }
 
 func (n *nomadFSM) applyCustomObjectEvents(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_events"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_custom_object_events"}, time.Now())
 	var req structs.CustomObjectEventsStateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -106,7 +106,7 @@ func (n *nomadFSM) applyCustomObjectEvents(msgType structs.MessageType, buf []by
 }
 
 func (n *nomadFSM) applyObjectGC(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_gc"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_object_gc"}, time.Now())
 	var req structs.ObjectGCRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

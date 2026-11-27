@@ -271,7 +271,7 @@ func (s *Server) recordNodeHost(report *structs.TaskGroupUsageReport, at time.Ti
 // is checked against its subject; without this a node could still report the
 // usage of any job, move its autoscaler and fill the metrics store with
 // series of groups that do not exist. What is left out is counted
-// (nomad.bus.telemetry.foreign_groups) and logged once a minute.
+// (norca.server.bus.telemetry.foreign_groups) and logged once a minute.
 func (s *Server) keepOwnTaskGroups(report *structs.TaskGroupUsageReport) {
 	if len(report.Groups) == 0 {
 		return
@@ -305,7 +305,7 @@ func (s *Server) keepOwnTaskGroups(report *structs.TaskGroupUsageReport) {
 	if foreign == 0 {
 		return
 	}
-	metrics.IncrCounter([]string{"nomad", "bus", "telemetry", "foreign_groups"}, float32(foreign))
+	metrics.IncrCounter([]string{"server", "bus", "telemetry", "foreign_groups"}, float32(foreign))
 	total := s.busTelemetryForeign.Add(uint64(foreign))
 	now := time.Now().UnixNano()
 	if last := s.busTelemetryForeignLogged.Load(); now-last > int64(telemetryForeignLogInterval) &&

@@ -201,10 +201,10 @@ func (s *Server) standbyChanged(ev *structs.ServerRoleEvent) {
 	case structs.TypeStandbyPromoted:
 		s.logger.Info("standby server promoted", "standby", ev.ID, "name", ev.Name,
 			"replaces", ev.Replaced, "reason", ev.Reason)
-		metrics.IncrCounter([]string{"nomad", "autopilot", "standby_promotions"}, 1)
+		metrics.IncrCounter([]string{"server", "autopilot", "standby_promotions"}, 1)
 	case structs.TypeStandbyDemoted:
 		s.logger.Info("standby server demoted", "standby", ev.ID, "name", ev.Name, "reason", ev.Reason)
-		metrics.IncrCounter([]string{"nomad", "autopilot", "standby_demotions"}, 1)
+		metrics.IncrCounter([]string{"server", "autopilot", "standby_demotions"}, 1)
 	}
 	s.publishServerEvent(ev)
 }

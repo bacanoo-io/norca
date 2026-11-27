@@ -42,7 +42,7 @@ func (n *Namespace) UpsertNamespaces(args *structs.NamespaceUpsertRequest,
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "namespace", "upsert_namespaces"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "namespace", "upsert_namespaces"}, time.Now())
 
 	// Check management permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -93,7 +93,7 @@ func (n *Namespace) DeleteNamespaces(args *structs.NamespaceDeleteRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "namespace", "delete_namespaces"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "namespace", "delete_namespaces"}, time.Now())
 
 	// Check management permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -293,7 +293,7 @@ func (n *Namespace) ListNamespaces(args *structs.NamespaceListRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "namespace", "list_namespace"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "namespace", "list_namespace"}, time.Now())
 
 	// Resolve token to acl to filter namespace list
 	aclObj, err := n.srv.ResolveACL(args)
@@ -360,7 +360,7 @@ func (n *Namespace) GetNamespace(args *structs.NamespaceSpecificRequest, reply *
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "namespace", "get_namespace"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "namespace", "get_namespace"}, time.Now())
 
 	// Check capabilities for the given namespace permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -414,7 +414,7 @@ func (n *Namespace) GetNamespaces(args *structs.NamespaceSetRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "namespace", "get_namespaces"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "namespace", "get_namespaces"}, time.Now())
 
 	// Check management permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {

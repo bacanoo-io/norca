@@ -40,7 +40,7 @@ func (m *MTLS) Roots(args *structs.MTLSRootsRequest, reply *structs.MTLSRootsRes
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "mtls", "roots"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "mtls", "roots"}, time.Now())
 
 	region := m.srv.Region()
 	opts := blockingOptions{
@@ -105,7 +105,7 @@ func (m *MTLS) SignCertificate(args *structs.MTLSSignRequest, reply *structs.MTL
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "mtls", "sign_certificate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "mtls", "sign_certificate"}, time.Now())
 
 	if !ServersMeetMinimumNorcaVersion(m.srv.serf.Members(), m.srv.Region(), false) {
 		return fmt.Errorf("all servers must be running Norca %v or later to issue mTLS certificates", minNorcaFeaturesVersion)
@@ -203,7 +203,7 @@ func (m *MTLS) SignCertificate(args *structs.MTLSSignRequest, reply *structs.MTL
 		return err
 	}
 	m.srv.metricsCounters.certificatesIssued.Add(1)
-	metrics.IncrCounter([]string{"nomad", "mtls", "certificates_issued"}, 1)
+	metrics.IncrCounter([]string{"server", "mtls", "certificates_issued"}, 1)
 
 	reply.CertPEM = certPEM
 	reply.SPIFFEID = spiffeID
@@ -252,7 +252,7 @@ func (m *MTLS) RotateCA(args *structs.MTLSRotateRequest, reply *structs.MTLSRota
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "mtls", "rotate_ca"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "mtls", "rotate_ca"}, time.Now())
 
 	// A management token is required; a client node's secret resolves to
 	// no ACL object and is not enough.

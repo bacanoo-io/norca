@@ -23,7 +23,7 @@ const (
 )
 
 func (n *nomadFSM) applyNetworkPolicyUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_network_policy_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_network_policy_upsert"}, time.Now())
 	var req structs.NetworkPolicyUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -43,7 +43,7 @@ func (n *nomadFSM) applyNetworkPolicyUpsert(msgType structs.MessageType, buf []b
 }
 
 func (n *nomadFSM) applyNetworkPolicyDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_network_policy_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_network_policy_delete"}, time.Now())
 	var req structs.NetworkPolicyDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -57,7 +57,7 @@ func (n *nomadFSM) applyNetworkPolicyDelete(msgType structs.MessageType, buf []b
 }
 
 func (n *nomadFSM) applyAdminNetworkPolicyUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_admin_network_policy_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_admin_network_policy_upsert"}, time.Now())
 	var req structs.AdminNetworkPolicyUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -71,7 +71,7 @@ func (n *nomadFSM) applyAdminNetworkPolicyUpsert(msgType structs.MessageType, bu
 }
 
 func (n *nomadFSM) applyAdminNetworkPolicyDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_admin_network_policy_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_admin_network_policy_delete"}, time.Now())
 	var req structs.AdminNetworkPolicyDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

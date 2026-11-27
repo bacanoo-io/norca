@@ -185,12 +185,12 @@ func (e *objectEcosystem) allowWrite(kind *structs.ObjectKind, identity string) 
 	// The identity bucket is checked first, so that a misbehaving identity
 	// is throttled before it consumes the kind's budget.
 	if il != nil && !il.limiter.AllowN(now, 1) {
-		metrics.IncrCounterWithLabels([]string{"nomad", "custom_object", "throttled"}, 1,
+		metrics.IncrCounterWithLabels([]string{"server", "custom_object", "throttled"}, 1,
 			[]metrics.Label{{Name: "kind", Value: ref}, {Name: "limit", Value: "identity_write_rate"}})
 		return structs.NewObjectLimitError("writes of %s by %s exceed %g per second", ref, identity, l.IdentityWriteRate)
 	}
 	if kl.all != nil && !kl.all.AllowN(now, 1) {
-		metrics.IncrCounterWithLabels([]string{"nomad", "custom_object", "throttled"}, 1,
+		metrics.IncrCounterWithLabels([]string{"server", "custom_object", "throttled"}, 1,
 			[]metrics.Label{{Name: "kind", Value: ref}, {Name: "limit", Value: "write_rate"}})
 		return structs.NewObjectLimitError("writes of %s exceed %g per second", ref, l.WriteRate)
 	}
@@ -207,7 +207,7 @@ func (e *objectEcosystem) acquireWatch(kind *structs.ObjectKind, identity string
 	e.lock.Lock()
 	defer e.lock.Unlock()
 	if e.watches[key] >= kind.Limits.MaxWatchesPerIdentity {
-		metrics.IncrCounterWithLabels([]string{"nomad", "custom_object", "throttled"}, 1,
+		metrics.IncrCounterWithLabels([]string{"server", "custom_object", "throttled"}, 1,
 			[]metrics.Label{{Name: "kind", Value: kind.KindRef()}, {Name: "limit", Value: "max_watches_per_identity"}})
 		return nil, structs.NewObjectLimitError("%s has %d watches of %s open, the limit",
 			identity, e.watches[key], kind.KindRef())
@@ -397,7 +397,7 @@ func (r *objectReview) webhooks(mode string) []*structs.ObjectKindWebhook {
 // to a failure: a warning for "ignore", an error otherwise.
 func (s *Server) objectWebhookFailure(kind *structs.ObjectKind, w *structs.ObjectKindWebhook, err error) error {
 	labels := []metrics.Label{{Name: "kind", Value: kind.KindRef()}, {Name: "webhook", Value: w.Name}}
-	metrics.IncrCounterWithLabels([]string{"nomad", "custom_object", "webhook", "failures"}, 1, labels)
+	metrics.IncrCounterWithLabels([]string{"server", "custom_object", "webhook", "failures"}, 1, labels)
 	if w.IgnoreFailure() {
 		s.logger.Warn("object webhook failed, ignoring", "kind", kind.KindRef(), "webhook", w.Name, "error", err)
 		return &admissionWarning{fmt.Errorf("webhook %q of %s failed and was ignored: %v", w.Name, kind.KindRef(), err)}
@@ -765,7 +765,7 @@ func (k *ObjectKind) ApproveWebhook(args *structs.ObjectKindWebhookApprovalReque
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "object_kind", "approve_webhook"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "object_kind", "approve_webhook"}, time.Now())
 
 	aclObj, err := k.srv.ResolveACL(args)
 	if err != nil {
@@ -903,7 +903,7 @@ func (s *Server) migrateObjectsOnce(stopCh chan struct{}, failed map[string]stri
 				}}, "server:migration")
 				continue
 			}
-			metrics.IncrCounterWithLabels([]string{"nomad", "custom_object", "migrated"}, 1,
+			metrics.IncrCounterWithLabels([]string{"server", "custom_object", "migrated"}, 1,
 				[]metrics.Label{{Name: "kind", Value: kind.KindRef()}})
 			time.Sleep(objectMigrationPause)
 		}

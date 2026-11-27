@@ -38,7 +38,7 @@ func (a *AdmissionPolicy) List(args *structs.AdmissionPolicyListRequest, reply *
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admission_policy", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admission_policy", "list"}, time.Now())
 
 	aclObj, err := a.srv.ResolveACL(args)
 	if err != nil {
@@ -106,7 +106,7 @@ func (a *AdmissionPolicy) GetAdmissionPolicy(args *structs.AdmissionPolicySpecif
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admission_policy", "get_admission_policy"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admission_policy", "get_admission_policy"}, time.Now())
 
 	aclObj, err := a.srv.ResolveACL(args)
 	if err != nil {
@@ -152,7 +152,7 @@ func (a *AdmissionPolicy) UpsertAdmissionPolicies(args *structs.AdmissionPolicyU
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admission_policy", "upsert_admission_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admission_policy", "upsert_admission_policies"}, time.Now())
 
 	aclObj, err := a.srv.ResolveACL(args)
 	if err != nil {
@@ -211,7 +211,7 @@ func (a *AdmissionPolicy) DeleteAdmissionPolicies(args *structs.AdmissionPolicyD
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admission_policy", "delete_admission_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admission_policy", "delete_admission_policies"}, time.Now())
 
 	aclObj, err := a.srv.ResolveACL(args)
 	if err != nil {

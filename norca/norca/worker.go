@@ -499,7 +499,7 @@ REQ:
 	start := time.Now()
 	w.setWorkloadStatus(WorkloadWaitingToDequeue)
 	err := w.srv.RPC("Eval.Dequeue", &req, &resp)
-	metrics.MeasureSince([]string{"nomad", "worker", "dequeue_eval"}, start)
+	metrics.MeasureSince([]string{"server", "worker", "dequeue_eval"}, start)
 	if err != nil {
 		if time.Since(w.start) > dequeueErrGrace && !w.workerShuttingDown() {
 			w.logger.Error("failed to dequeue evaluation", "error", err)
@@ -533,7 +533,7 @@ REQ:
 // This function implements `ack`ing or `nack`ing the evaluation generally.
 // Any errors are logged but swallowed.
 func (w *Worker) sendAcknowledgement(eval *structs.Evaluation, token string, ack bool) {
-	defer metrics.MeasureSince([]string{"nomad", "worker", "send_ack"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "send_ack"}, time.Now())
 	// Setup the request
 	req := structs.EvalAckRequest{
 		EvalID: eval.ID,
@@ -590,7 +590,7 @@ func (e ErrMinIndexDeadlineExceeded) Error() string {
 
 // snapshotMinIndex times calls to StateStore.SnapshotAfter which may block.
 func (w *Worker) snapshotMinIndex(waitIndex uint64, timeout time.Duration) (*state.StateSnapshot, error) {
-	defer metrics.MeasureSince([]string{"nomad", "worker", "wait_for_index"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "wait_for_index"}, time.Now())
 
 	ctx, cancel := context.WithTimeout(w.ctx, timeout)
 	snap, err := w.srv.fsm.State().SnapshotMinIndex(ctx, waitIndex)
@@ -609,7 +609,7 @@ func (w *Worker) snapshotMinIndex(waitIndex uint64, timeout time.Duration) (*sta
 
 // invokeScheduler is used to invoke the business logic of the scheduler
 func (w *Worker) invokeScheduler(snap *state.StateSnapshot, eval *structs.Evaluation, token string) error {
-	defer metrics.MeasureSince([]string{"nomad", "worker", "invoke_scheduler", eval.Type}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "invoke_scheduler", eval.Type}, time.Now())
 	// Store the evaluation token
 	w.evalToken = token
 
@@ -654,7 +654,7 @@ func (w *Worker) SubmitPlan(plan *structs.Plan) (*structs.PlanResult, scheduler.
 	if w.srv.IsShutdown() {
 		return nil, nil, fmt.Errorf("shutdown while planning")
 	}
-	defer metrics.MeasureSince([]string{"nomad", "worker", "submit_plan"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "submit_plan"}, time.Now())
 
 	// Add the evaluation token to the plan
 	plan.EvalToken = w.evalToken
@@ -725,7 +725,7 @@ func (w *Worker) UpdateEval(eval *structs.Evaluation) error {
 	if w.srv.IsShutdown() {
 		return fmt.Errorf("shutdown while planning")
 	}
-	defer metrics.MeasureSince([]string{"nomad", "worker", "update_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "update_eval"}, time.Now())
 
 	// Store the snapshot index in the eval
 	eval.SnapshotIndex = w.snapshotIndex
@@ -764,7 +764,7 @@ func (w *Worker) CreateEval(eval *structs.Evaluation) error {
 	if w.srv.IsShutdown() {
 		return fmt.Errorf("shutdown while planning")
 	}
-	defer metrics.MeasureSince([]string{"nomad", "worker", "create_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "create_eval"}, time.Now())
 
 	// Store the snapshot index in the eval
 	eval.SnapshotIndex = w.snapshotIndex
@@ -806,7 +806,7 @@ func (w *Worker) ReblockEval(eval *structs.Evaluation) error {
 	if w.srv.IsShutdown() {
 		return fmt.Errorf("shutdown while planning")
 	}
-	defer metrics.MeasureSince([]string{"nomad", "worker", "reblock_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "worker", "reblock_eval"}, time.Now())
 
 	// Update the evaluation if the queued jobs is not same as what is
 	// recorded in the job summary

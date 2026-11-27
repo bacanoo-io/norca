@@ -82,11 +82,11 @@ func (tc *MetricsTest) TestMetricsLinux(f *framework.F) {
 	}
 
 	workloads := map[string]string{
-		"cpustress":  "nomad_client_allocs_cpu_user",
-		"diskstress": "nomad_client_allocs_memory_rss", // TODO(tgross): do we have disk stats?
-		"helloworld": "nomad_client_allocs_cpu_allocated",
-		"memstress":  "nomad_client_allocs_memory_usage",
-		"simpleweb":  "nomad_client_allocs_memory_rss",
+		"cpustress":  "norca_client_allocs_cpu_user",
+		"diskstress": "norca_client_allocs_memory_rss", // TODO(tgross): do we have disk stats?
+		"helloworld": "norca_client_allocs_cpu_allocated",
+		"memstress":  "norca_client_allocs_memory_usage",
+		"simpleweb":  "norca_client_allocs_memory_rss",
 	}
 
 	tc.runWorkloads(t, workloads)
@@ -106,8 +106,8 @@ func (tc *MetricsTest) TestMetricsWindows(f *framework.F) {
 	}
 
 	workloads := map[string]string{
-		"factorial_windows": "nomad_client_allocs_cpu_user",
-		"mem_windows":       "nomad_client_allocs_memory_rss",
+		"factorial_windows": "norca_client_allocs_cpu_user",
+		"mem_windows":       "norca_client_allocs_memory_rss",
 	}
 
 	tc.runWorkloads(t, workloads)
@@ -131,11 +131,11 @@ func (tc *MetricsTest) runWorkloads(t *testing.T, workloads map[string]string) {
 // from clients
 func (tc *MetricsTest) queryClientMetrics(t *testing.T, clientNodes []string) {
 	metrics := []string{
-		"nomad_client_allocated_memory",
-		"nomad_client_host_cpu_user",
-		"nomad_client_host_disk_available",
-		"nomad_client_host_memory_used",
-		"nomad_client_uptime",
+		"norca_client_allocated_memory",
+		"norca_client_host_cpu_user",
+		"norca_client_host_disk_available",
+		"norca_client_host_memory_used",
+		"norca_client_uptime",
 	}
 	// we start with a very long timeout here because it takes a while for
 	// prometheus to be live and for jobs to initially register metrics.

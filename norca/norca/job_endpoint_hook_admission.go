@@ -110,7 +110,7 @@ func admissionUser(args structs.RequestWithIdentity) *structs.AdmissionUser {
 // admission chain (the leader).
 func (s *Server) publishAdmissionDenied(ev *structs.JobAdmissionDeniedEvent) {
 	s.metricsCounters.admissionDenied.Add(1)
-	metrics.IncrCounterWithLabels([]string{"nomad", "admission", "denied"}, 1, []metrics.Label{
+	metrics.IncrCounterWithLabels([]string{"server", "admission", "denied"}, 1, []metrics.Label{
 		{Name: "controller", Value: ev.Controller},
 		{Name: "name", Value: ev.Name},
 	})
@@ -143,7 +143,7 @@ func (s *Server) publishAdmissionDenied(ev *structs.JobAdmissionDeniedEvent) {
 // the Variable.
 func (s *Server) publishVariableAdmissionDenied(ev *structs.VariableAdmissionDeniedEvent) {
 	s.metricsCounters.admissionDenied.Add(1)
-	metrics.IncrCounterWithLabels([]string{"nomad", "admission", "denied"}, 1, []metrics.Label{
+	metrics.IncrCounterWithLabels([]string{"server", "admission", "denied"}, 1, []metrics.Label{
 		{Name: "controller", Value: ev.Controller},
 		{Name: "name", Value: ev.Name},
 	})

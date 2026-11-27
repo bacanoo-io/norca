@@ -16,7 +16,7 @@ import (
 )
 
 func (n *nomadFSM) applyAdmissionPolicyUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_admission_policy_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_admission_policy_upsert"}, time.Now())
 	var req structs.AdmissionPolicyUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -30,7 +30,7 @@ func (n *nomadFSM) applyAdmissionPolicyUpsert(msgType structs.MessageType, buf [
 }
 
 func (n *nomadFSM) applyAdmissionPolicyDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_admission_policy_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_admission_policy_delete"}, time.Now())
 	var req structs.AdmissionPolicyDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

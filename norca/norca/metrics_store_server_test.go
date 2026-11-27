@@ -122,15 +122,15 @@ func TestMetricsStore_RaftTimings(t *testing.T) {
 		return []metrics.Label{{Name: "peer_id", Value: id}, host}
 	}
 	alignTelemetryInterval(interval, 200*time.Millisecond)
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "commitTime"}, 10, []metrics.Label{host})
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "commitTime"}, 30, []metrics.Label{host})
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc"}, 4, peer("server-2"))
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc"}, 6, peer("server-2"))
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc"}, 2, peer("server-3"))
+	sink.AddSampleWithLabels([]string{"norca", "raft", "commitTime"}, 10, []metrics.Label{host})
+	sink.AddSampleWithLabels([]string{"norca", "raft", "commitTime"}, 30, []metrics.Label{host})
+	sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc"}, 4, peer("server-2"))
+	sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc"}, 6, peer("server-2"))
+	sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc"}, 2, peer("server-3"))
 	// The same time under the name with the peer, and the time of a
 	// follower to handle an AppendEntries request: not read.
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc", "server-2"}, 500, []metrics.Label{host})
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "rpc", "appendEntries"}, 900, []metrics.Label{host})
+	sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc", "server-2"}, 500, []metrics.Label{host})
+	sink.AddSampleWithLabels([]string{"norca", "raft", "rpc", "appendEntries"}, 900, []metrics.Label{host})
 
 	// Nothing until the interval is complete.
 	var got raftTimings
@@ -153,7 +153,7 @@ func TestMetricsStore_RaftTimings(t *testing.T) {
 
 	// A follower has no commit time, only what the next interval brings.
 	alignTelemetryInterval(interval, 200*time.Millisecond)
-	sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc"}, 8, peer("server-2"))
+	sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc"}, 8, peer("server-2"))
 	testutil.WaitForResult(func() (bool, error) {
 		got = reader.raftTimings(sink)
 		if len(got.appendEntries) == 0 {
@@ -238,8 +238,8 @@ func TestMetricsStore_SampleServer(t *testing.T) {
 
 			// The Raft times reach the store through the sample loop.
 			alignTelemetryInterval(interval, 200*time.Millisecond)
-			sink.AddSample([]string{"nomad", "raft", "commitTime"}, 3)
-			sink.AddSampleWithLabels([]string{"nomad", "raft", "replication", "appendEntries", "rpc"}, 2,
+			sink.AddSample([]string{"norca", "raft", "commitTime"}, 3)
+			sink.AddSampleWithLabels([]string{"norca", "raft", "replication", "appendEntries", "rpc"}, 2,
 				[]metrics.Label{{Name: "peer_id", Value: "server-2"}})
 			testutil.WaitForResult(func() (bool, error) {
 				var commit, appendEntries bool

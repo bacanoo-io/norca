@@ -80,7 +80,7 @@ func TestAPMPlugin_Query(t *testing.T) {
 				configKeyCACert:            "./test-fixtures/ca.crt",
 				configKeySkipVerify:        "true",
 			},
-			query: "nomad_client_allocated_memory",
+			query: "norca_client_allocated_memory",
 			timeRange: sdk.TimeRange{
 				From: time.Unix(1600000000, 0),
 				To:   time.Unix(1610000000, 0),
@@ -95,7 +95,7 @@ func TestAPMPlugin_Query(t *testing.T) {
 
 				// Verify request body.
 				r.ParseForm()
-				require.Equal(t, "nomad_client_allocated_memory", r.FormValue("query"))
+				require.Equal(t, "norca_client_allocated_memory", r.FormValue("query"))
 				require.Equal(t, "1600000000", r.FormValue("start"))
 				require.Equal(t, "1610000000", r.FormValue("end"))
 
@@ -117,7 +117,7 @@ func TestAPMPlugin_Query(t *testing.T) {
 				configKeyCACert:            "./test-fixtures/ca.crt",
 				configKeySkipVerify:        "true",
 			},
-			query: "nomad_client_allocated_memory",
+			query: "norca_client_allocated_memory",
 			timeRange: sdk.TimeRange{
 				From: time.Unix(1610000000, 0),
 				To:   time.Unix(1610000000, 0),
@@ -133,7 +133,7 @@ func TestAPMPlugin_Query(t *testing.T) {
 
 				// Verify request body.
 				r.ParseForm()
-				require.Equal(t, "nomad_client_allocated_memory", r.FormValue("query"))
+				require.Equal(t, "norca_client_allocated_memory", r.FormValue("query"))
 				require.Equal(t, "1610000000", r.FormValue("time"))
 
 				// Verify custom headers.

@@ -39,7 +39,7 @@ func (q *Quota) UpsertQuotaSpecs(args *structs.QuotaSpecUpsertRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "upsert_quota_specs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "upsert_quota_specs"}, time.Now())
 
 	aclObj, err := q.srv.ResolveACL(args)
 	if err != nil {
@@ -92,7 +92,7 @@ func (q *Quota) DeleteQuotaSpecs(args *structs.QuotaSpecDeleteRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "delete_quota_specs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "delete_quota_specs"}, time.Now())
 
 	aclObj, err := q.srv.ResolveACL(args)
 	if err != nil {
@@ -152,7 +152,7 @@ func (q *Quota) ListQuotaSpecs(args *structs.QuotaSpecListRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "list_quota_specs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "list_quota_specs"}, time.Now())
 
 	if err := q.checkRead(args); err != nil {
 		return err
@@ -198,7 +198,7 @@ func (q *Quota) GetQuotaSpec(args *structs.QuotaSpecSpecificRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "get_quota_spec"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "get_quota_spec"}, time.Now())
 
 	if err := q.checkRead(args); err != nil {
 		return err
@@ -239,7 +239,7 @@ func (q *Quota) ListQuotaUsages(args *structs.QuotaSpecListRequest, reply *struc
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "list_quota_usages"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "list_quota_usages"}, time.Now())
 
 	if err := q.checkRead(args); err != nil {
 		return err
@@ -310,7 +310,7 @@ func (q *Quota) GetQuotaUsage(args *structs.QuotaSpecSpecificRequest, reply *str
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "quota", "get_quota_usage"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "quota", "get_quota_usage"}, time.Now())
 
 	if err := q.checkRead(args); err != nil {
 		return err

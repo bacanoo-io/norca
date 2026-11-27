@@ -98,7 +98,7 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "apply"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "apply"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
@@ -233,7 +233,7 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "rollback"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "rollback"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
@@ -334,7 +334,7 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "delete"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
@@ -568,7 +568,7 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "test"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "test"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
@@ -655,7 +655,7 @@ func (r *Release) Drift(args *structs.ReleaseDriftRequest, reply *structs.Releas
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "drift"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "drift"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityRead); err != nil {
@@ -689,7 +689,7 @@ func (r *Release) List(args *structs.ReleaseListRequest, reply *structs.ReleaseL
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "list"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	aclObj, err := r.authorize(args, namespace, acl.ObjectCapabilityRead)
@@ -752,7 +752,7 @@ func (r *Release) GetRelease(args *structs.ReleaseSpecificRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "get_release"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "get_release"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityRead); err != nil {
@@ -797,7 +797,7 @@ func (r *Release) History(args *structs.ReleaseSpecificRequest, reply *structs.R
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "history"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "history"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityRead); err != nil {
@@ -853,7 +853,7 @@ func (r *Release) GetRevision(args *structs.ReleaseRevisionRequest, reply *struc
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "release", "get_revision"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "release", "get_revision"}, time.Now())
 
 	namespace := args.RequestNamespace()
 	aclObj, err := r.authorize(args, namespace, acl.ObjectCapabilityRead)

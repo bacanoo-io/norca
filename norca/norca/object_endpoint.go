@@ -153,7 +153,7 @@ func (k *ObjectKind) List(args *structs.ObjectKindListRequest, reply *structs.Ob
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "object_kind", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "object_kind", "list"}, time.Now())
 
 	aclObj, err := k.srv.ResolveACL(args)
 	if err != nil {
@@ -213,7 +213,7 @@ func (k *ObjectKind) GetObjectKind(args *structs.ObjectKindSpecificRequest, repl
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "object_kind", "get_object_kind"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "object_kind", "get_object_kind"}, time.Now())
 
 	aclObj, err := k.srv.ResolveACL(args)
 	if err != nil {
@@ -259,7 +259,7 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "object_kind", "upsert_object_kind"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "object_kind", "upsert_object_kind"}, time.Now())
 
 	aclObj, err := k.srv.ResolveACL(args)
 	if err != nil {
@@ -365,7 +365,7 @@ func (k *ObjectKind) DeleteObjectKind(args *structs.ObjectKindDeleteRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "object_kind", "delete_object_kind"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "object_kind", "delete_object_kind"}, time.Now())
 
 	aclObj, err := k.srv.ResolveACL(args)
 	if err != nil {
@@ -446,7 +446,7 @@ func (c *CustomObject) List(args *structs.CustomObjectListRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "list"}, time.Now())
 
 	aclObj, err := c.srv.ResolveACL(args)
 	if err != nil {
@@ -570,7 +570,7 @@ func (c *CustomObject) GetCustomObject(args *structs.CustomObjectSpecificRequest
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "get_custom_object"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "get_custom_object"}, time.Now())
 
 	aclObj, err := c.srv.ResolveACL(args)
 	if err != nil {
@@ -1002,7 +1002,7 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "apply"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "apply"}, time.Now())
 
 	in := args.Object
 	if in == nil {
@@ -1183,7 +1183,7 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "update_status"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "update_status"}, time.Now())
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)

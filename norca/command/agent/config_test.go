@@ -1383,7 +1383,7 @@ func TestTelemetry_Parse(t *testing.T) {
 
 	file1 := filepath.Join(dir, "config1.hcl")
 	err := os.WriteFile(file1, []byte(`telemetry{
-		prefix_filter = ["+nomad.raft"]
+		prefix_filter = ["+norca.raft"]
 		filter_default = false
 		disable_dispatched_job_summary_metrics = true
 		disable_rpc_rate_metrics_labels = true
@@ -1395,7 +1395,7 @@ func TestTelemetry_Parse(t *testing.T) {
 	require.NoError(err)
 
 	require.False(*config.Telemetry.FilterDefault)
-	require.Exactly([]string{"+nomad.raft"}, config.Telemetry.PrefixFilter)
+	require.Exactly([]string{"+norca.raft"}, config.Telemetry.PrefixFilter)
 	require.True(config.Telemetry.DisableDispatchedJobSummaryMetrics)
 	require.True(config.Telemetry.DisableRPCRateMetricsLabels)
 }

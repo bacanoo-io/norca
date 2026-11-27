@@ -16,7 +16,7 @@ import (
 // The response is the error, or whether the allocation was evicted (false
 // if it was already terminal or being migrated).
 func (n *nomadFSM) applyAllocEvict(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "alloc_evict"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "alloc_evict"}, time.Now())
 	var req structs.AllocEvictRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

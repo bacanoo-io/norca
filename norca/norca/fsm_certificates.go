@@ -19,7 +19,7 @@ import (
 const CertificateAuthoritySnapshot SnapshotType = 117
 
 func (n *nomadFSM) applyCertificateAuthoritiesUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_certificate_authorities_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_certificate_authorities_upsert"}, time.Now())
 	var req structs.CertificateAuthoritiesUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

@@ -137,7 +137,7 @@ func (h *nodeHeartbeater) resetHeartbeatTimerLocked(id string, ttl time.Duration
 // invalidateHeartbeat is invoked when a heartbeat TTL is reached and we
 // need to invalidate the heartbeat.
 func (h *nodeHeartbeater) invalidateHeartbeat(id string) {
-	defer metrics.MeasureSince([]string{"nomad", "heartbeat", "invalidate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "heartbeat", "invalidate"}, time.Now())
 	// Clear the heartbeat timer
 	h.heartbeatTimersLock.Lock()
 	if timer, ok := h.heartbeatTimers[id]; ok {
@@ -256,7 +256,7 @@ func (h *nodeHeartbeater) heartbeatStats() {
 	for {
 		select {
 		case <-time.After(5 * time.Second):
-			metrics.SetGauge([]string{"nomad", "heartbeat", "active"}, float32(h.activeHeartbeats()))
+			metrics.SetGauge([]string{"server", "heartbeat", "active"}, float32(h.activeHeartbeats()))
 
 		case <-h.srv.shutdownCh:
 			return

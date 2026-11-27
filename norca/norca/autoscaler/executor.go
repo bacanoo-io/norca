@@ -150,7 +150,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 	// are dropped; the policy is evaluated again at its next interval, with
 	// fresh metrics.
 	if !e.limiter.AllowN(now, 1) {
-		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "rate_limited"}, 1)
+		metrics.IncrCounter([]string{"autoscaler", "scale", "rate_limited"}, 1)
 		logger.Debug("scaling action dropped by the rate limit", "count", action.Count)
 		return HoldRateLimit, nil
 	}
@@ -186,20 +186,20 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 
 	start := time.Now()
 	_, err := e.scaler.Scale(req)
-	metrics.MeasureSince([]string{"nomad", "autoscaler", "scale", "invoke"}, start)
+	metrics.MeasureSince([]string{"autoscaler", "scale", "invoke"}, start)
 	if err != nil {
 		// Active deployments errors are fairly common and usually not
 		// impactful to the target's eventual end state, so treat them as a
 		// no-op without cooldown.
 		if strings.Contains(err.Error(), errActiveDeployment) {
-			metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "noop"}, 1)
+			metrics.IncrCounter([]string{"autoscaler", "scale", "noop"}, 1)
 			logger.Debug("skipping scaling due to active deployment")
 			return HoldDeployment, nil
 		}
-		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "error"}, 1)
+		metrics.IncrCounter([]string{"autoscaler", "scale", "error"}, 1)
 		return "", fmt.Errorf("failed to scale group %s: %w", key, err)
 	}
-	metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "success"}, 1)
+	metrics.IncrCounter([]string{"autoscaler", "scale", "success"}, 1)
 
 	cd := c.policy.Cooldown
 	if action.Direction == sdk.ScaleDirectionUp {
@@ -244,7 +244,7 @@ func (e *executor) suspend(c *compiledPolicy, now time.Time, logger hclog.Logger
 	e.suspended[c.key] = until
 	e.l.Unlock()
 
-	metrics.IncrCounter([]string{"nomad", "autoscaler", "oscillation", "suspended"}, 1)
+	metrics.IncrCounter([]string{"autoscaler", "oscillation", "suspended"}, 1)
 	logger.Warn("task group scaling oscillates, suspending the policy",
 		"direction_changes", e.cfg.OscillationThreshold, "window", e.cfg.OscillationWindow,
 		"suspended_until", until)

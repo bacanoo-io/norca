@@ -38,7 +38,7 @@ func (p *Periodic) Force(args *structs.PeriodicForceRequest, reply *structs.Peri
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "periodic", "force"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "periodic", "force"}, time.Now())
 
 	// Check for write-job permissions
 	if aclObj, err := p.srv.ResolveACL(args); err != nil {

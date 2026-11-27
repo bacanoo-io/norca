@@ -45,7 +45,7 @@ func (b *Backup) List(args *structs.BackupListRequest, reply *structs.BackupList
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "list"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -87,7 +87,7 @@ func (b *Backup) Get(args *structs.BackupSpecificRequest, reply *structs.SingleB
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "get"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -139,7 +139,7 @@ func (b *Backup) Save(args *structs.BackupSaveRequest, reply *structs.BackupSave
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "save"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "save"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -194,7 +194,7 @@ func (b *Backup) Update(args *structs.BackupUpdateRequest, reply *structs.Backup
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "update"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -252,7 +252,7 @@ func (b *Backup) Delete(args *structs.BackupDeleteRequest, reply *structs.Generi
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "delete"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -352,7 +352,7 @@ func (b *Backup) Contents(args *structs.BackupContentsRequest, reply *structs.Ba
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "contents"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "contents"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -399,7 +399,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "diff"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "diff"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {
@@ -484,7 +484,7 @@ func (b *Backup) DownloadURL(args *structs.BackupDownloadURLRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "backup", "download_url"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "backup", "download_url"}, time.Now())
 
 	aclObj, err := b.srv.ResolveACL(args)
 	if err != nil {

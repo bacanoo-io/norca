@@ -41,7 +41,7 @@ func (n *NodeMeta) Apply(args *structs.NodeMetaApplyRequest, reply *structs.Node
 	if authErr != nil {
 		return nstructs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_meta", "apply"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_meta", "apply"}, time.Now())
 
 	// Check node write permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -68,7 +68,7 @@ func (n *NodeMeta) Read(args *structs.NodeSpecificRequest, reply *structs.NodeMe
 	if authErr != nil {
 		return nstructs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_meta", "read"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_meta", "read"}, time.Now())
 
 	// Check node read permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {

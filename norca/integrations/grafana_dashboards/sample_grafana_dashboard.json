@@ -81,10 +81,10 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "nomad_client_consul_check_registrations",
+              "expr": "norca_client_consul_check_registrations",
               "format": "time_series",
               "intervalFactor": 2,
-              "metric": "nomad_client_consul_check_registrations",
+              "metric": "norca_client_consul_check_registrations",
               "refId": "B",
               "step": 20
             }
@@ -169,10 +169,10 @@
           "steppedLine": true,
           "targets": [
             {
-              "expr": "nomad_client_allocations_running",
+              "expr": "norca_client_allocations_running",
               "format": "time_series",
               "intervalFactor": 2,
-              "metric": "nomad_client_allocations_running",
+              "metric": "norca_client_allocations_running",
               "refId": "A",
               "step": 20
             }
@@ -245,10 +245,10 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "nomad_client_allocations_blocked",
+              "expr": "norca_client_allocations_blocked",
               "format": "time_series",
               "intervalFactor": 2,
-              "metric": "nomad_client_allocations_blocked",
+              "metric": "norca_client_allocations_blocked",
               "refId": "A",
               "step": 40
             }
@@ -322,10 +322,10 @@
           "span": 6,
           "targets": [
             {
-              "expr": "nomad_runtime_total_gc_pause_ns",
+              "expr": "norca_runtime_total_gc_pause_ns",
               "format": "time_series",
               "intervalFactor": 2,
-              "metric": "nomad_runtime_total_gc_pause_ns",
+              "metric": "norca_runtime_total_gc_pause_ns",
               "refId": "A",
               "step": 20
             }
@@ -385,10 +385,10 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "nomad_runtime_alloc_bytes",
+              "expr": "norca_runtime_alloc_bytes",
               "format": "time_series",
               "intervalFactor": 2,
-              "metric": "nomad_runtime_alloc_bytes",
+              "metric": "norca_runtime_alloc_bytes",
               "refId": "A",
               "step": 40
             }

@@ -154,7 +154,7 @@ func (r *runner) reconcile(list *policyList, now time.Time) {
 
 		c, err := r.compile(p)
 		if err != nil {
-			metrics.IncrCounter([]string{"nomad", "autoscaler", "policy", "invalid"}, 1)
+			metrics.IncrCounter([]string{"autoscaler", "policy", "invalid"}, 1)
 			if h != nil && h.compiled != nil {
 				r.logger.Warn("latest version for policy is invalid, old one will keep running",
 					"policy_id", p.ID, "validation_error", err)
@@ -206,7 +206,7 @@ func (r *runner) reconcile(list *policyList, now time.Time) {
 
 	r.policyCount.Store(int64(len(r.handles)))
 	r.queueLen.Store(int64(len(r.queue)))
-	metrics.SetGauge([]string{"nomad", "autoscaler", "policies"}, float32(len(r.handles)))
+	metrics.SetGauge([]string{"autoscaler", "policies"}, float32(len(r.handles)))
 }
 
 func (r *runner) removeFromQueue(id string) {

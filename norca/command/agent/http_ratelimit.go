@@ -433,7 +433,7 @@ func (s *HTTPServer) rateLimited(resp http.ResponseWriter, req *http.Request) bo
 	if read {
 		kind = "read"
 	}
-	metrics.IncrCounterWithLabels([]string{"nomad", "http", "rate_limited"}, 1,
+	metrics.IncrCounterWithLabels([]string{"http", "rate_limited"}, 1,
 		[]metrics.Label{{Name: "kind", Value: kind}})
 	resp.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
 	resp.WriteHeader(http.StatusTooManyRequests)

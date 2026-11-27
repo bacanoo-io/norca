@@ -121,7 +121,7 @@ func (op *Operator) SealUnseal(args *structs.SealUnsealRequest, reply *structs.S
 	} else if aclObj != nil && !aclObj.AllowOperatorWrite() {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "seal", "unseal"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "seal", "unseal"}, time.Now())
 
 	if args.ServerID != "" && !op.srv.isLocalServer(args.ServerID) {
 		target, err := op.srv.findServer(args.ServerID)
@@ -302,7 +302,7 @@ func (k *Keyring) Rewrap(args *structs.KeyringRewrapRequest, reply *structs.Keyr
 	} else if aclObj != nil && !aclObj.AllowOperatorWrite() {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "keyring", "rewrap"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "keyring", "rewrap"}, time.Now())
 
 	resp, err := k.srv.seal.startRewrap(args)
 	if err != nil {

@@ -43,7 +43,7 @@ func (n *NetworkPolicy) List(args *structs.NetworkPolicyListRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "list"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -123,7 +123,7 @@ func (n *NetworkPolicy) GetNetworkPolicy(args *structs.NetworkPolicySpecificRequ
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "get_network_policy"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "get_network_policy"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -169,7 +169,7 @@ func (n *NetworkPolicy) UpsertNetworkPolicies(args *structs.NetworkPolicyUpsertR
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "upsert_network_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "upsert_network_policies"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -240,7 +240,7 @@ func (n *NetworkPolicy) DeleteNetworkPolicies(args *structs.NetworkPolicyDeleteR
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "delete_network_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "delete_network_policies"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -291,7 +291,7 @@ func (n *NetworkPolicy) ListAdminNetworkPolicies(args *structs.AdminNetworkPolic
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admin_network_policy", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admin_network_policy", "list"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -340,7 +340,7 @@ func (n *NetworkPolicy) GetAdminNetworkPolicy(args *structs.AdminNetworkPolicySp
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admin_network_policy", "get_admin_network_policy"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admin_network_policy", "get_admin_network_policy"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -385,7 +385,7 @@ func (n *NetworkPolicy) UpsertAdminNetworkPolicies(args *structs.AdminNetworkPol
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admin_network_policy", "upsert_admin_network_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admin_network_policy", "upsert_admin_network_policies"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -436,7 +436,7 @@ func (n *NetworkPolicy) DeleteAdminNetworkPolicies(args *structs.AdminNetworkPol
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "admin_network_policy", "delete_admin_network_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "admin_network_policy", "delete_admin_network_policies"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -488,7 +488,7 @@ func (n *NetworkPolicy) Status(args *structs.NetworkPolicyStatusRequest, reply *
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "status"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "status"}, time.Now())
 
 	aclObj, err := n.srv.ResolveACL(args)
 	if err != nil {
@@ -614,7 +614,7 @@ func (n *NetworkPolicy) GetAllocRules(args *structs.NetworkPolicyAllocRequest, r
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "network_policy", "get_alloc_rules"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "network_policy", "get_alloc_rules"}, time.Now())
 
 	if args.AllocID == "" {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "missing allocation ID")

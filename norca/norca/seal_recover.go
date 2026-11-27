@@ -192,7 +192,7 @@ func (op *Operator) SealRecover(args *structs.SealRecoverRequest, reply *structs
 	if len(args.CoreKey) > 0 && aclObj != nil && !aclObj.IsManagement() {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "seal", "recover"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "seal", "recover"}, time.Now())
 
 	s := op.srv
 	m := s.seal

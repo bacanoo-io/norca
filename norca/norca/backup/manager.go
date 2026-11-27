@@ -415,7 +415,7 @@ func (m *Manager) emitAgeMetric(records []*structs.BackupRecord, now time.Time) 
 	if last.IsZero() {
 		return
 	}
-	metrics.SetGauge([]string{"nomad", "backup", "last_success_age_seconds"}, float32(now.Sub(last).Seconds()))
+	metrics.SetGauge([]string{"server", "backup", "last_success_age_seconds"}, float32(now.Sub(last).Seconds()))
 }
 
 // Save takes a backup on the leader and waits for it. With a Started
@@ -537,7 +537,7 @@ func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination
 			"observer", record.TakenBy, "error", record.StatusDescription)
 		return nil, false, nil
 	}
-	metrics.IncrCounter([]string{"nomad", "backup", "taken_by_observer"}, 1)
+	metrics.IncrCounter([]string{"server", "backup", "taken_by_observer"}, 1)
 	if m.deps.TakenByObserver != nil {
 		m.deps.TakenByObserver()
 	}
@@ -779,12 +779,12 @@ func (m *Manager) finish(ctx context.Context, cfg *Config, dests []Destination, 
 		if st.Status == structs.BackupDestinationStatusVerified {
 			m.failures[st.Name] = 0
 			if obj := st.Objects[structs.BackupObjectState]; obj != nil {
-				metrics.SetGaugeWithLabels([]string{"nomad", "backup", "size_bytes"}, float32(obj.Size), labels)
+				metrics.SetGaugeWithLabels([]string{"server", "backup", "size_bytes"}, float32(obj.Size), labels)
 			}
-			metrics.SetGaugeWithLabels([]string{"nomad", "backup", "duration_seconds"}, float32(st.Duration.Seconds()), labels)
+			metrics.SetGaugeWithLabels([]string{"server", "backup", "duration_seconds"}, float32(st.Duration.Seconds()), labels)
 			continue
 		}
-		metrics.IncrCounterWithLabels([]string{"nomad", "backup", "failures_total"}, 1, labels)
+		metrics.IncrCounterWithLabels([]string{"server", "backup", "failures_total"}, 1, labels)
 		m.failures[st.Name]++
 		if m.failures[st.Name] >= 3 {
 			m.logger.Error("backups to destination keep failing", "destination", st.Name,
@@ -799,7 +799,7 @@ func (m *Manager) finish(ctx context.Context, cfg *Config, dests []Destination, 
 		&structs.BackupUpsertRequest{Backups: []*structs.BackupRecord{record}}); err != nil {
 		return nil, fmt.Errorf("backup %s was uploaded but could not be recorded: %w", record.ID, err)
 	}
-	metrics.SetGauge([]string{"nomad", "backup", "last_success_age_seconds"}, 0)
+	metrics.SetGauge([]string{"server", "backup", "last_success_age_seconds"}, 0)
 	m.logger.Info("backup completed", "id", record.ID, "status", record.Status, "taken_by", record.TakenBy,
 		"destinations", record.VerifiedDestinations(), "duration", record.CompletedAt.Sub(record.StartedAt))
 
@@ -827,7 +827,7 @@ func (m *Manager) finishFailed(record *structs.BackupRecord, err error) (*struct
 	record.Status = structs.BackupStatusFailed
 	record.StatusDescription = err.Error()
 	record.CompletedAt = time.Now().UTC()
-	metrics.IncrCounterWithLabels([]string{"nomad", "backup", "failures_total"}, 1,
+	metrics.IncrCounterWithLabels([]string{"server", "backup", "failures_total"}, 1,
 		[]metrics.Label{{Name: "destination", Value: "all"}})
 	if _, aerr := m.deps.Apply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.BackupUpsertRequest{Backups: []*structs.BackupRecord{record}}); aerr != nil {

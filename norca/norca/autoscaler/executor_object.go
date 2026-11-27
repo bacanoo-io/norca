@@ -75,12 +75,12 @@ func (e *executor) executeObject(c *compiledPolicy, t *targetState, action sdk.S
 		CAS:          cas,
 		WriteRequest: namespace,
 	})
-	metrics.MeasureSince([]string{"nomad", "autoscaler", "scale", "invoke"}, start)
+	metrics.MeasureSince([]string{"autoscaler", "scale", "invoke"}, start)
 	if err != nil {
-		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "error"}, 1)
+		metrics.IncrCounter([]string{"autoscaler", "scale", "error"}, 1)
 		return fmt.Errorf("failed to scale %s: %w", o, err)
 	}
-	metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "success"}, 1)
+	metrics.IncrCounter([]string{"autoscaler", "scale", "success"}, 1)
 
 	cd := c.policy.Cooldown
 	if action.Direction == sdk.ScaleDirectionUp {

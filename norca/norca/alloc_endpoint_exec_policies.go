@@ -34,7 +34,7 @@ func (a *Alloc) CheckExecBoundPolicies(args *structs.AllocSpecificRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "alloc", "check_exec_bound_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "alloc", "check_exec_bound_policies"}, time.Now())
 
 	aclObj, err := a.srv.ResolveACL(args)
 	if err != nil {

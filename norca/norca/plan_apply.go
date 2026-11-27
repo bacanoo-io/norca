@@ -217,7 +217,7 @@ func (p *planner) planApply() {
 // include both the previous plan and all objects referenced by the plan or
 // return an error.
 func (p *planner) snapshotMinIndex(prevPlanResultIndex, planSnapshotIndex uint64) (*state.StateSnapshot, error) {
-	defer metrics.MeasureSince([]string{"nomad", "plan", "wait_for_index"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plan", "wait_for_index"}, time.Now())
 
 	// Minimum index the snapshot must include is the max of the previous
 	// plan result's and current plan's snapshot index.
@@ -471,7 +471,7 @@ func signAllocIdentities(signer claimSigner, job *structs.Job, allocations []*st
 // closed.
 func (p *planner) asyncPlanWait(indexCh chan<- uint64, future raft.ApplyFuture,
 	result *structs.PlanResult, pending *pendingPlan) {
-	defer metrics.MeasureSince([]string{"nomad", "plan", "apply"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plan", "apply"}, time.Now())
 	defer close(indexCh)
 
 	// Wait for the plan to apply
@@ -500,7 +500,7 @@ func (p *planner) asyncPlanWait(indexCh chan<- uint64, future raft.ApplyFuture,
 // can be applied if any. Returns if there should be a plan application
 // which may be partial or if there was an error
 func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.Plan, logger log.Logger) (*structs.PlanResult, error) {
-	defer metrics.MeasureSince([]string{"nomad", "plan", "evaluate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plan", "evaluate"}, time.Now())
 
 	logger.Trace("evaluating plan", "plan", log.Fmt("%#v", plan))
 
@@ -622,7 +622,7 @@ func evaluatePlanPlacements(pool *EvaluatePool, snap *state.StateSnapshot, plan 
 			return true
 		}
 		if !fit {
-			metrics.IncrCounterWithLabels([]string{"nomad", "plan", "node_rejected"}, 1, []metrics.Label{{Name: "node_id", Value: nodeID}})
+			metrics.IncrCounterWithLabels([]string{"server", "plan", "node_rejected"}, 1, []metrics.Label{{Name: "node_id", Value: nodeID}})
 
 			// Log the reason why the node's allocations could not be made
 			if reason != "" {

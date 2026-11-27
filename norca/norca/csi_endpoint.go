@@ -83,7 +83,7 @@ func (v *CSIVolume) List(args *structs.CSIVolumeListRequest, reply *structs.CSIV
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "list"}, time.Now())
 
 	ns := args.RequestNamespace()
 	opts := blockingOptions{
@@ -201,7 +201,7 @@ func (v *CSIVolume) Get(args *structs.CSIVolumeGetRequest, reply *structs.CSIVol
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "get"}, time.Now())
 
 	if args.ID == "" {
 		return fmt.Errorf("missing volume ID")
@@ -317,7 +317,7 @@ func (v *CSIVolume) Register(args *structs.CSIVolumeRegisterRequest, reply *stru
 		return err
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "register"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "register"}, time.Now())
 
 	if !allowVolume(aclObj, args.RequestNamespace()) || !aclObj.AllowPluginRead() {
 		return structs.ErrPermissionDenied
@@ -433,7 +433,7 @@ func (v *CSIVolume) Deregister(args *structs.CSIVolumeDeregisterRequest, reply *
 		return err
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "deregister"}, time.Now())
 
 	ns := args.RequestNamespace()
 	if !allowVolume(aclObj, ns) {
@@ -476,7 +476,7 @@ func (v *CSIVolume) Claim(args *structs.CSIVolumeClaimRequest, reply *structs.CS
 		return err
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "claim"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "claim"}, time.Now())
 
 	if !allowVolume(aclObj, args.RequestNamespace()) || !aclObj.AllowPluginRead() {
 		return structs.ErrPermissionDenied
@@ -709,7 +709,7 @@ func (v *CSIVolume) Unpublish(args *structs.CSIVolumeUnpublishRequest, reply *st
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "volume", "unpublish"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "unpublish"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIMountVolume)
 	aclObj, err := v.srv.ResolveClientOrACL(args)
@@ -1051,7 +1051,7 @@ func (v *CSIVolume) Create(args *structs.CSIVolumeCreateRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "create"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "create"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
 	aclObj, err := v.srv.ResolveACL(args)
@@ -1380,7 +1380,7 @@ func (v *CSIVolume) Delete(args *structs.CSIVolumeDeleteRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "delete"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
 	aclObj, err := v.srv.ResolveACL(args)
@@ -1466,7 +1466,7 @@ func (v *CSIVolume) ListExternal(args *structs.CSIVolumeExternalListRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "list_external"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "list_external"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIListVolume,
 		acl.NamespaceCapabilityCSIReadVolume,
@@ -1531,7 +1531,7 @@ func (v *CSIVolume) CreateSnapshot(args *structs.CSISnapshotCreateRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "create_snapshot"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "create_snapshot"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
 	aclObj, err := v.srv.ResolveACL(args)
@@ -1636,7 +1636,7 @@ func (v *CSIVolume) DeleteSnapshot(args *structs.CSISnapshotDeleteRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "delete_snapshot"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "delete_snapshot"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
 	aclObj, err := v.srv.ResolveACL(args)
@@ -1709,7 +1709,7 @@ func (v *CSIVolume) ListSnapshots(args *structs.CSISnapshotListRequest, reply *s
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "volume", "list_snapshots"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "volume", "list_snapshots"}, time.Now())
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIListVolume,
 		acl.NamespaceCapabilityCSIReadVolume,
@@ -1787,7 +1787,7 @@ func (v *CSIPlugin) List(args *structs.CSIPluginListRequest, reply *structs.CSIP
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "plugin", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plugin", "list"}, time.Now())
 
 	aclObj, err := v.srv.ResolveACL(args)
 	if err != nil {
@@ -1846,7 +1846,7 @@ func (v *CSIPlugin) Get(args *structs.CSIPluginGetRequest, reply *structs.CSIPlu
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "plugin", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plugin", "get"}, time.Now())
 
 	aclObj, err := v.srv.ResolveACL(args)
 	if err != nil {
@@ -1922,7 +1922,7 @@ func (v *CSIPlugin) Delete(args *structs.CSIPluginDeleteRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "plugin", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plugin", "delete"}, time.Now())
 
 	// Check that it is a management token.
 	if aclObj, err := v.srv.ResolveACL(args); err != nil {

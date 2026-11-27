@@ -23,7 +23,7 @@ const (
 )
 
 func (n *nomadFSM) applyMTLSRootsUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_mtls_roots_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_mtls_roots_upsert"}, time.Now())
 	var req structs.MTLSRootsUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -37,7 +37,7 @@ func (n *nomadFSM) applyMTLSRootsUpsert(msgType structs.MessageType, buf []byte,
 }
 
 func (n *nomadFSM) applyServiceIntentionUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_service_intention_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_service_intention_upsert"}, time.Now())
 	var req structs.ServiceIntentionUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -51,7 +51,7 @@ func (n *nomadFSM) applyServiceIntentionUpsert(msgType structs.MessageType, buf 
 }
 
 func (n *nomadFSM) applyServiceIntentionDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_service_intention_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_service_intention_delete"}, time.Now())
 	var req structs.ServiceIntentionDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

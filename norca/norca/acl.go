@@ -245,7 +245,7 @@ func (s *Server) ResolveToken(secretID string) (*acl.ACL, error) {
 	if !s.config.ACLEnabled {
 		return nil, nil
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "resolveToken"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "resolveToken"}, time.Now())
 
 	// Check if the secret ID is the leader secret ID, in which case treat it as
 	// a management token.
@@ -414,7 +414,7 @@ func (s *Server) ResolveSecretToken(secretID string) (*structs.ACLToken, error) 
 	if !s.config.ACLEnabled {
 		return nil, nil
 	}
-	defer metrics.MeasureSince([]string{"nomad", "acl", "resolveSecretToken"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "acl", "resolveSecretToken"}, time.Now())
 
 	if secretID == "" {
 		return structs.AnonymousACLToken, nil

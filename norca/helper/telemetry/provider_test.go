@@ -361,7 +361,7 @@ func TestProviders_IgnoresOTELEnvironment(t *testing.T) {
 // parallel: it installs a global go-metrics sink and counts what reaches it.
 func TestProviders_ClosedPort(t *testing.T) {
 	inm := metrics.NewInmemSink(time.Minute, time.Minute)
-	sink, err := metrics.NewGlobal(metrics.DefaultConfig("nomad"), inm)
+	sink, err := metrics.NewGlobal(metrics.DefaultConfig("norca"), inm)
 	must.NoError(t, err)
 	t.Cleanup(sink.Shutdown)
 
@@ -389,14 +389,14 @@ func TestProviders_ClosedPort(t *testing.T) {
 	for _, interval := range inm.Data() {
 		interval.RLock()
 		for key, c := range interval.Counters {
-			if strings.HasPrefix(key, "nomad.agent.otlp.export_errors;") {
+			if strings.HasPrefix(key, "norca.agent.otlp.export_errors;") {
 				counted[key] += c.Count
 			}
 		}
 		interval.RUnlock()
 	}
-	must.Eq(t, 3, counted["nomad.agent.otlp.export_errors;signal=traces"])
-	must.GreaterEq(t, 3, counted["nomad.agent.otlp.export_errors;signal=metrics"])
+	must.Eq(t, 3, counted["norca.agent.otlp.export_errors;signal=traces"])
+	must.GreaterEq(t, 3, counted["norca.agent.otlp.export_errors;signal=metrics"])
 
 	ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
 	defer cancel()

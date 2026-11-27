@@ -70,7 +70,7 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		return true, nil
 	}
 
-	metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "quota_capped"}, 1)
+	metrics.IncrCounter([]string{"autoscaler", "scale", "quota_capped"}, 1)
 	r.logger.Info("scale up capped by the namespace quota", "policy_id", c.policy.ID,
 		"target", c.key.String(), "quota", remaining.Quota, "desired", action.Count, "ceiling", ceiling)
 

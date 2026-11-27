@@ -5,7 +5,7 @@
     "result": [
       {
         "metric": {
-          "__name__": "nomad_client_allocated_memory"
+          "__name__": "norca_client_allocated_memory"
         },
         "value": [1610000000, "42"]
       }

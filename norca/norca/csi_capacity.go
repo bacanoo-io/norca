@@ -300,7 +300,7 @@ func (s *Server) checkCreateCapacity(vol *structs.CSIVolume, plugin *structs.CSI
 			"plugin_id", plugin.ID, "volume", vol.ID, "error", c.Error)
 		return nil
 	}
-	metrics.IncrCounter([]string{"nomad", "volume", "create_capacity_checked"}, 1)
+	metrics.IncrCounter([]string{"server", "volume", "create_capacity_checked"}, 1)
 	where := ""
 	if key := c.TopologyKey(); key != "" {
 		where = " in " + key
@@ -328,7 +328,7 @@ func (v *CSIPlugin) Capacity(args *structs.CSIPluginCapacityRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "plugin", "capacity"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plugin", "capacity"}, time.Now())
 
 	aclObj, err := v.srv.ResolveACL(args)
 	if err != nil {

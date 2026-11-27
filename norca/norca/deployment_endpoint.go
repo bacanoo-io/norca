@@ -43,7 +43,7 @@ func (d *Deployment) GetDeployment(args *structs.DeploymentSpecificRequest,
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "get_deployment"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "get_deployment"}, time.Now())
 
 	// Check namespace read-job permissions
 	allowNsOp := acl.NamespaceValidator(acl.NamespaceCapabilityReadJob)
@@ -107,7 +107,7 @@ func (d *Deployment) Fail(args *structs.DeploymentFailRequest, reply *structs.De
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "fail"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "fail"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -160,7 +160,7 @@ func (d *Deployment) Pause(args *structs.DeploymentPauseRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "pause"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "pause"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -211,7 +211,7 @@ func (d *Deployment) Promote(args *structs.DeploymentPromoteRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "promote"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "promote"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -258,7 +258,7 @@ func (d *Deployment) Run(args *structs.DeploymentRunRequest, reply *structs.Depl
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "run"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "run"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -305,7 +305,7 @@ func (d *Deployment) Unblock(args *structs.DeploymentUnblockRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "unblock"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "unblock"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -352,7 +352,7 @@ func (d *Deployment) Cancel(args *structs.DeploymentCancelRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "cancel"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "cancel"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -400,7 +400,7 @@ func (d *Deployment) SetAllocHealth(args *structs.DeploymentAllocHealthRequest, 
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "set_alloc_health"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "set_alloc_health"}, time.Now())
 
 	// Validate the arguments
 	if args.DeploymentID == "" {
@@ -458,7 +458,7 @@ func (d *Deployment) List(args *structs.DeploymentListRequest, reply *structs.De
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "list"}, time.Now())
 
 	namespace := args.RequestNamespace()
 
@@ -571,7 +571,7 @@ func (d *Deployment) Allocations(args *structs.DeploymentSpecificRequest, reply 
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "allocations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "allocations"}, time.Now())
 
 	// Check namespace read-job permissions against the request namespace.
 	// Must re-check against the alloc namespace when they return to ensure
@@ -642,7 +642,7 @@ func (d *Deployment) Reap(args *structs.DeploymentDeleteRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "deployment", "reap"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "deployment", "reap"}, time.Now())
 
 	// Update via Raft
 	_, index, err := d.srv.raftApply(structs.DeploymentDeleteRequestType, args)

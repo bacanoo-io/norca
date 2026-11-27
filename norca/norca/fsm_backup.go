@@ -23,7 +23,7 @@ const (
 )
 
 func (n *nomadFSM) applyBackupUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_backup_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_backup_upsert"}, time.Now())
 	var req structs.BackupUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -37,7 +37,7 @@ func (n *nomadFSM) applyBackupUpsert(msgType structs.MessageType, buf []byte, in
 }
 
 func (n *nomadFSM) applyBackupDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_backup_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_backup_delete"}, time.Now())
 	var req structs.BackupDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -51,7 +51,7 @@ func (n *nomadFSM) applyBackupDelete(msgType structs.MessageType, buf []byte, in
 }
 
 func (n *nomadFSM) applyBackupRestoreUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_backup_restore_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_backup_restore_upsert"}, time.Now())
 	var req structs.BackupRestoreUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

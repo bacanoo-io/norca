@@ -310,7 +310,7 @@ func (e *Secret) ReplicationList(args *structs.SecretReplicationListRequest, rep
 	if err := e.authorizeReplication(args, authErr); err != nil {
 		return err
 	}
-	defer metrics.MeasureSince([]string{"nomad", "secret", "replication_list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "replication_list"}, time.Now())
 
 	return e.srv.blockingRPC(&blockingOptions{
 		queryOpts: &args.QueryOptions,
@@ -349,7 +349,7 @@ func (e *Secret) Replicate(args *structs.SecretReplicateRequest, reply *structs.
 		return err
 	}
 	e.srv.MeasureRPCRate("secret", structs.RateMetricRead, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret", "replicate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "secret", "replicate"}, time.Now())
 
 	ns, path := args.SecretNamespace, args.Path
 	rec := e.auditRecord(args.GetIdentity(), structs.SecretOpReplicate, ns, path)
@@ -799,7 +799,7 @@ func (r *secretReplicator) run(stopCh <-chan struct{}) {
 			// The authoritative region is not (yet) known in the federation.
 			r.logger.Debug("no path to the authoritative region", "authoritative_region", r.region)
 		} else {
-			metrics.IncrCounter([]string{"nomad", "secrets", "replication", "failed"}, 1)
+			metrics.IncrCounter([]string{"server", "secrets", "replication", "failed"}, 1)
 			r.logger.Warn("failed to replicate secrets from the authoritative region", "error", err)
 		}
 		// The next round compares everything at once.
@@ -891,7 +891,7 @@ func (r *secretReplicator) conflict(src *structs.Secret, reason string) {
 		return
 	}
 	r.warned[k] = src.ModifyIndex
-	metrics.IncrCounter([]string{"nomad", "secrets", "replication", "conflict"}, 1)
+	metrics.IncrCounter([]string{"server", "secrets", "replication", "conflict"}, 1)
 	r.logger.Warn("not replicating secret", "namespace", src.Namespace, "path", src.Path, "reason", reason)
 }
 
@@ -1018,7 +1018,7 @@ func (r *secretReplicator) write(src *structs.Secret, values map[uint64]*secretR
 		return err
 	}
 	delete(r.warned, src.Namespace+"/"+src.Path)
-	metrics.IncrCounter([]string{"nomad", "secrets", "replication", "written"}, 1)
+	metrics.IncrCounter([]string{"server", "secrets", "replication", "written"}, 1)
 	r.logger.Debug("replicated secret", "namespace", src.Namespace, "path", src.Path,
 		"version", src.CurrentVersion, "values", len(written))
 	return auditErr
@@ -1044,7 +1044,7 @@ func (r *secretReplicator) remove(namespace, path string, local *structs.Secret)
 	if err != nil {
 		return err
 	}
-	metrics.IncrCounter([]string{"nomad", "secrets", "replication", "removed"}, 1)
+	metrics.IncrCounter([]string{"server", "secrets", "replication", "removed"}, 1)
 	r.logger.Debug("removed secret replica", "namespace", namespace, "path", path)
 	return auditErr
 }

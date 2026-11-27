@@ -120,7 +120,7 @@ func (f *FileSystem) List(args *cstructs.FsListRequest, reply *cstructs.FsListRe
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "file_system", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "file_system", "list"}, time.Now())
 
 	// Verify the arguments.
 	if args.AllocID == "" {
@@ -180,7 +180,7 @@ func (f *FileSystem) Stat(args *cstructs.FsStatRequest, reply *cstructs.FsStatRe
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "file_system", "stat"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "file_system", "stat"}, time.Now())
 
 	// Verify the arguments.
 	if args.AllocID == "" {
@@ -225,7 +225,7 @@ func (f *FileSystem) Stat(args *cstructs.FsStatRequest, reply *cstructs.FsStatRe
 // directory.
 func (f *FileSystem) stream(conn io.ReadWriteCloser) {
 	defer conn.Close()
-	defer metrics.MeasureSince([]string{"nomad", "file_system", "stream"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "file_system", "stream"}, time.Now())
 
 	// Decode the arguments
 	var args cstructs.FsStreamRequest
@@ -350,7 +350,7 @@ func (f *FileSystem) stream(conn io.ReadWriteCloser) {
 // logs is used to access an task's logs for a given allocation
 func (f *FileSystem) logs(conn io.ReadWriteCloser) {
 	defer conn.Close()
-	defer metrics.MeasureSince([]string{"nomad", "file_system", "logs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "file_system", "logs"}, time.Now())
 
 	// Decode the arguments
 	var args cstructs.FsLogsRequest

@@ -315,7 +315,7 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "delete"}, time.Now())
 
 	if isReleaseObjectKind(args.Group, args.Kind) {
 		return errReleaseObjectKind(args.Group, args.Kind)
@@ -510,7 +510,7 @@ func (c *CustomObject) UpdateFinalizers(args *structs.CustomObjectFinalizersRequ
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "update_finalizers"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "update_finalizers"}, time.Now())
 
 	if isReleaseObjectKind(args.Group, args.Kind) {
 		return errReleaseObjectKind(args.Group, args.Kind)
@@ -584,7 +584,7 @@ func (c *CustomObject) RecordEvents(args *structs.CustomObjectEventsRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "record_events"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "record_events"}, time.Now())
 
 	if isReleaseObjectKind(args.Group, args.Kind) {
 		return errReleaseObjectKind(args.Group, args.Kind)
@@ -691,7 +691,7 @@ func (c *CustomObject) ListEvents(args *structs.CustomObjectSpecificRequest, rep
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "list_events"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "list_events"}, time.Now())
 
 	aclObj, err := c.srv.ResolveACL(args)
 	if err != nil {
@@ -751,7 +751,7 @@ func (c *CustomObject) GetScale(args *structs.CustomObjectSpecificRequest, reply
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "get_scale"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "get_scale"}, time.Now())
 
 	aclObj, err := c.srv.ResolveACL(args)
 	if err != nil {
@@ -810,7 +810,7 @@ func (c *CustomObject) Scale(args *structs.CustomObjectScaleRequest, reply *stru
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "scale"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "custom_object", "scale"}, time.Now())
 
 	if isReleaseObjectKind(args.Group, args.Kind) {
 		return errReleaseObjectKind(args.Group, args.Kind)

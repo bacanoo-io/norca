@@ -21,7 +21,7 @@ import (
 const SecretStoreBlobSnapshot SnapshotType = 105
 
 func (n *nomadFSM) applySecretStoreBlobsUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_secret_store_blobs_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_secret_store_blobs_upsert"}, time.Now())
 	var req structs.SecretStoreBlobsUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -35,7 +35,7 @@ func (n *nomadFSM) applySecretStoreBlobsUpsert(msgType structs.MessageType, buf 
 }
 
 func (n *nomadFSM) applySecretStoreBlobsDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_secret_store_blobs_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_secret_store_blobs_delete"}, time.Now())
 	var req structs.SecretStoreBlobsDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

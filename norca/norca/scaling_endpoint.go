@@ -39,7 +39,7 @@ func (p *Scaling) ListPolicies(args *structs.ScalingPolicyListRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "scaling", "list_policies"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "scaling", "list_policies"}, time.Now())
 
 	if err := validateScalingEngineFilter(args.Engine); err != nil {
 		return err
@@ -119,7 +119,7 @@ func (p *Scaling) GetPolicy(args *structs.ScalingPolicySpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "scaling", "get_policy"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "scaling", "get_policy"}, time.Now())
 
 	// Check for list-job permissions
 	if aclObj, err := p.srv.ResolveACL(args); err != nil {
@@ -181,7 +181,7 @@ func (p *Scaling) GetPolicyStatus(args *structs.ScalingPolicySpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "scaling", "get_policy_status"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "scaling", "get_policy_status"}, time.Now())
 
 	// The permissions of GetPolicy: the status says no more than the policy
 	// and the job do.

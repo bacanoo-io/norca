@@ -160,7 +160,7 @@ func (e *externalServices) assignCheckersLocked(regs []*structs.ServiceRegistrat
 	if len(apply) == 0 {
 		return nil
 	}
-	metrics.IncrCounter([]string{"nomad", "service_registration", "external_checker_assigned"}, float32(len(apply)))
+	metrics.IncrCounter([]string{"server", "service_registration", "external_checker_assigned"}, float32(len(apply)))
 	_, err := e.writeLocked(apply)
 	return err
 }

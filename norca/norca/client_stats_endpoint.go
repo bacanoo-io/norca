@@ -41,7 +41,7 @@ func (s *ClientStats) Stats(args *nstructs.NodeSpecificRequest, reply *structs.C
 	if authErr != nil {
 		return nstructs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client_stats", "stats"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client_stats", "stats"}, time.Now())
 
 	// Check node read permissions
 	if aclObj, err := s.srv.ResolveACL(args); err != nil {

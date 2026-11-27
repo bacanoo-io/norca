@@ -446,7 +446,7 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 }
 
 func (n *nomadFSM) applyClusterMetadata(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "cluster_meta"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "cluster_meta"}, time.Now())
 
 	var req structs.ClusterMetadata
 	if err := structs.Decode(buf, &req); err != nil {
@@ -464,7 +464,7 @@ func (n *nomadFSM) applyClusterMetadata(buf []byte, index uint64) interface{} {
 }
 
 func (n *nomadFSM) applyUpsertNode(reqType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "register_node"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "register_node"}, time.Now())
 	var req structs.NodeRegisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -494,7 +494,7 @@ func (n *nomadFSM) applyUpsertNode(reqType structs.MessageType, buf []byte, inde
 }
 
 func (n *nomadFSM) applyDeregisterNode(reqType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "deregister_node"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "deregister_node"}, time.Now())
 	var req structs.NodeDeregisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -509,7 +509,7 @@ func (n *nomadFSM) applyDeregisterNode(reqType structs.MessageType, buf []byte, 
 }
 
 func (n *nomadFSM) applyDeregisterNodeBatch(reqType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "batch_deregister_node"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "batch_deregister_node"}, time.Now())
 	var req structs.NodeBatchDeregisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -524,7 +524,7 @@ func (n *nomadFSM) applyDeregisterNodeBatch(reqType structs.MessageType, buf []b
 }
 
 func (n *nomadFSM) applyStatusUpdate(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "node_status_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "node_status_update"}, time.Now())
 	var req structs.NodeUpdateStatusRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -553,7 +553,7 @@ func (n *nomadFSM) applyStatusUpdate(msgType structs.MessageType, buf []byte, in
 }
 
 func (n *nomadFSM) applyDrainUpdate(reqType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "node_drain_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "node_drain_update"}, time.Now())
 	var req structs.NodeUpdateDrainRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -570,7 +570,7 @@ func (n *nomadFSM) applyDrainUpdate(reqType structs.MessageType, buf []byte, ind
 }
 
 func (n *nomadFSM) applyBatchDrainUpdate(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "batch_node_drain_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "batch_node_drain_update"}, time.Now())
 	var req structs.BatchNodeUpdateDrainRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -584,7 +584,7 @@ func (n *nomadFSM) applyBatchDrainUpdate(msgType structs.MessageType, buf []byte
 }
 
 func (n *nomadFSM) applyNodeEligibilityUpdate(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "node_eligibility_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "node_eligibility_update"}, time.Now())
 	var req structs.NodeUpdateEligibilityRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -614,7 +614,7 @@ func (n *nomadFSM) applyNodeEligibilityUpdate(msgType structs.MessageType, buf [
 }
 
 func (n *nomadFSM) applyNodePoolUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_node_pool_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_node_pool_upsert"}, time.Now())
 	var req structs.NodePoolUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -629,7 +629,7 @@ func (n *nomadFSM) applyNodePoolUpsert(msgType structs.MessageType, buf []byte, 
 }
 
 func (n *nomadFSM) applyNodePoolDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_node_pool_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_node_pool_delete"}, time.Now())
 	var req structs.NodePoolDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -698,7 +698,7 @@ func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRe
 }
 
 func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "register_job"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "register_job"}, time.Now())
 	var req structs.JobRegisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -853,7 +853,7 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 }
 
 func (n *nomadFSM) applyDeregisterJob(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "deregister_job"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "deregister_job"}, time.Now())
 	var req structs.JobDeregisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -889,7 +889,7 @@ func (n *nomadFSM) applyDeregisterJob(msgType structs.MessageType, buf []byte, i
 }
 
 func (n *nomadFSM) applyBatchDeregisterJob(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "batch_deregister_job"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "batch_deregister_job"}, time.Now())
 	var req structs.JobBatchDeregisterRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -986,7 +986,7 @@ func (n *nomadFSM) handleJobDeregister(index uint64, jobID, namespace string, pu
 }
 
 func (n *nomadFSM) applyUpdateEval(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "update_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "update_eval"}, time.Now())
 	var req structs.EvalUpdateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1032,7 +1032,7 @@ func (n *nomadFSM) handleUpsertedEval(eval *structs.Evaluation) {
 }
 
 func (n *nomadFSM) applyDeleteEval(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "delete_eval"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "delete_eval"}, time.Now())
 	var req structs.EvalReapRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1069,7 +1069,7 @@ func (n *nomadFSM) applyAllocUpdate(_ structs.MessageType, _ []byte, _ uint64) i
 }
 
 func (n *nomadFSM) applyAllocClientUpdate(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "alloc_client_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "alloc_client_update"}, time.Now())
 	var req structs.AllocUpdateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1134,7 +1134,7 @@ func (n *nomadFSM) applyAllocClientUpdate(msgType structs.MessageType, buf []byt
 // applyAllocUpdateDesiredTransition is used to update the desired transitions
 // of a set of allocations.
 func (n *nomadFSM) applyAllocUpdateDesiredTransition(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "alloc_update_desired_transition"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "alloc_update_desired_transition"}, time.Now())
 	var req structs.AllocUpdateDesiredTransitionRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1159,7 +1159,7 @@ func (n *nomadFSM) applyReconcileSummaries(buf []byte, index uint64) interface{}
 
 // applyUpsertNodeEvent tracks the given node events.
 func (n *nomadFSM) applyUpsertNodeEvent(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "upsert_node_events"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "upsert_node_events"}, time.Now())
 	var req structs.EmitNodeEventsRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode EmitNodeEventsRequest: %v", err))
@@ -1176,7 +1176,7 @@ func (n *nomadFSM) applyUpsertNodeEvent(msgType structs.MessageType, buf []byte,
 // applyUpsertVaultAccessor stores the Vault accessors for a given allocation
 // and task
 func (n *nomadFSM) applyUpsertVaultAccessor(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "upsert_vault_accessor"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "upsert_vault_accessor"}, time.Now())
 	var req structs.VaultAccessorsRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1192,7 +1192,7 @@ func (n *nomadFSM) applyUpsertVaultAccessor(buf []byte, index uint64) interface{
 
 // applyDeregisterVaultAccessor deregisters a set of Vault accessors
 func (n *nomadFSM) applyDeregisterVaultAccessor(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "deregister_vault_accessor"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "deregister_vault_accessor"}, time.Now())
 	var req structs.VaultAccessorsRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1207,7 +1207,7 @@ func (n *nomadFSM) applyDeregisterVaultAccessor(buf []byte, index uint64) interf
 }
 
 func (n *nomadFSM) applyUpsertSIAccessor(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "upsert_si_accessor"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "upsert_si_accessor"}, time.Now())
 	var request structs.SITokenAccessorsRequest
 	if err := structs.Decode(buf, &request); err != nil {
 		panic(fmt.Errorf("failed to decode request: %w", err))
@@ -1222,7 +1222,7 @@ func (n *nomadFSM) applyUpsertSIAccessor(buf []byte, index uint64) interface{} {
 }
 
 func (n *nomadFSM) applyDeregisterSIAccessor(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "deregister_si_accessor"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "deregister_si_accessor"}, time.Now())
 	var request structs.SITokenAccessorsRequest
 	if err := structs.Decode(buf, &request); err != nil {
 		panic(fmt.Errorf("failed to decode request: %w", err))
@@ -1238,7 +1238,7 @@ func (n *nomadFSM) applyDeregisterSIAccessor(buf []byte, index uint64) interface
 
 // applyPlanApply applies the results of a plan application
 func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_plan_results"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_plan_results"}, time.Now())
 	var req structs.ApplyPlanResultsRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1264,7 +1264,7 @@ func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, ind
 // applyDeploymentStatusUpdate is used to update the status of an existing
 // deployment
 func (n *nomadFSM) applyDeploymentStatusUpdate(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_deployment_status_update"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_deployment_status_update"}, time.Now())
 	var req structs.DeploymentStatusUpdateRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1281,7 +1281,7 @@ func (n *nomadFSM) applyDeploymentStatusUpdate(msgType structs.MessageType, buf 
 
 // applyDeploymentPromotion is used to promote canaries in a deployment
 func (n *nomadFSM) applyDeploymentPromotion(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_deployment_promotion"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_deployment_promotion"}, time.Now())
 	var req structs.ApplyDeploymentPromoteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1299,7 +1299,7 @@ func (n *nomadFSM) applyDeploymentPromotion(msgType structs.MessageType, buf []b
 // applyDeploymentAllocHealth is used to set the health of allocations as part
 // of a deployment
 func (n *nomadFSM) applyDeploymentAllocHealth(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_deployment_alloc_health"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_deployment_alloc_health"}, time.Now())
 	var req structs.ApplyDeploymentAllocHealthRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1316,7 +1316,7 @@ func (n *nomadFSM) applyDeploymentAllocHealth(msgType structs.MessageType, buf [
 
 // applyDeploymentDelete is used to delete a set of deployments
 func (n *nomadFSM) applyDeploymentDelete(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_deployment_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_deployment_delete"}, time.Now())
 	var req structs.DeploymentDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1332,7 +1332,7 @@ func (n *nomadFSM) applyDeploymentDelete(buf []byte, index uint64) interface{} {
 
 // applyJobStability is used to set the stability of a job
 func (n *nomadFSM) applyJobStability(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_job_stability"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_job_stability"}, time.Now())
 	var req structs.JobStabilityRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1348,7 +1348,7 @@ func (n *nomadFSM) applyJobStability(buf []byte, index uint64) interface{} {
 
 // applyACLPolicyUpsert is used to upsert a set of policies
 func (n *nomadFSM) applyACLPolicyUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_policy_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_policy_upsert"}, time.Now())
 	var req structs.ACLPolicyUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1369,7 +1369,7 @@ func (n *nomadFSM) applyACLPolicyUpsert(msgType structs.MessageType, buf []byte,
 
 // applyACLPolicyDelete is used to delete a set of policies
 func (n *nomadFSM) applyACLPolicyDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_policy_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_policy_delete"}, time.Now())
 	var req structs.ACLPolicyDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1384,7 +1384,7 @@ func (n *nomadFSM) applyACLPolicyDelete(msgType structs.MessageType, buf []byte,
 
 // applyACLTokenUpsert is used to upsert a set of policies
 func (n *nomadFSM) applyACLTokenUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_token_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_token_upsert"}, time.Now())
 	var req structs.ACLTokenUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1399,7 +1399,7 @@ func (n *nomadFSM) applyACLTokenUpsert(msgType structs.MessageType, buf []byte, 
 
 // applyACLTokenDelete is used to delete a set of policies
 func (n *nomadFSM) applyACLTokenDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_token_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_token_delete"}, time.Now())
 	var req structs.ACLTokenDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1414,7 +1414,7 @@ func (n *nomadFSM) applyACLTokenDelete(msgType structs.MessageType, buf []byte, 
 
 // applyACLTokenBootstrap is used to bootstrap an ACL token
 func (n *nomadFSM) applyACLTokenBootstrap(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_token_bootstrap"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_token_bootstrap"}, time.Now())
 	var req structs.ACLTokenBootstrapRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1429,7 +1429,7 @@ func (n *nomadFSM) applyACLTokenBootstrap(msgType structs.MessageType, buf []byt
 
 // applyOneTimeTokenUpsert is used to upsert a one-time token
 func (n *nomadFSM) applyOneTimeTokenUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_one_time_token_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_one_time_token_upsert"}, time.Now())
 	var req structs.OneTimeToken
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1444,7 +1444,7 @@ func (n *nomadFSM) applyOneTimeTokenUpsert(msgType structs.MessageType, buf []by
 
 // applyOneTimeTokenDelete is used to delete a set of one-time tokens
 func (n *nomadFSM) applyOneTimeTokenDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_one_time_token_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_one_time_token_delete"}, time.Now())
 	var req structs.OneTimeTokenDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1459,7 +1459,7 @@ func (n *nomadFSM) applyOneTimeTokenDelete(msgType structs.MessageType, buf []by
 
 // applyOneTimeTokenExpire is used to delete a set of one-time tokens
 func (n *nomadFSM) applyOneTimeTokenExpire(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_one_time_token_expire"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_one_time_token_expire"}, time.Now())
 	var req structs.OneTimeTokenExpireRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1477,7 +1477,7 @@ func (n *nomadFSM) applyAutopilotUpdate(buf []byte, index uint64) interface{} {
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "autopilot"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "autopilot"}, time.Now())
 
 	if req.CAS {
 		act, err := n.state.AutopilotCASConfig(index, req.Config.ModifyIndex, &req.Config)
@@ -1494,7 +1494,7 @@ func (n *nomadFSM) applySchedulerConfigUpdate(buf []byte, index uint64) interfac
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_scheduler_config"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_scheduler_config"}, time.Now())
 
 	req.Config.Canonicalize()
 
@@ -1513,7 +1513,7 @@ func (n *nomadFSM) applyCSIVolumeRegister(buf []byte, index uint64) interface{} 
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_volume_register"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_csi_volume_register"}, time.Now())
 
 	if err := n.state.UpsertCSIVolumeExpected(index, req.Volumes, req.ExpectedModifyIndex); err != nil {
 		// A failed check-and-set is an answer for the writer, which reads
@@ -1534,7 +1534,7 @@ func (n *nomadFSM) applyCSIVolumeDeregister(buf []byte, index uint64) interface{
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_volume_deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_csi_volume_deregister"}, time.Now())
 
 	if err := n.state.CSIVolumeDeregister(index, req.RequestNamespace(), req.VolumeIDs, req.Force); err != nil {
 		n.logger.Error("CSIVolumeDeregister failed", "error", err)
@@ -1549,7 +1549,7 @@ func (n *nomadFSM) applyCSIVolumeBatchClaim(buf []byte, index uint64) interface{
 	if err := structs.Decode(buf, &batch); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_volume_batch_claim"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_csi_volume_batch_claim"}, time.Now())
 
 	for _, req := range batch.Claims {
 		err := n.state.CSIVolumeClaim(index, req.RequestNamespace(),
@@ -1567,7 +1567,7 @@ func (n *nomadFSM) applyCSIVolumeClaim(buf []byte, index uint64) interface{} {
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_volume_claim"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_csi_volume_claim"}, time.Now())
 
 	if err := n.state.CSIVolumeClaim(index, req.RequestNamespace(), req.VolumeID, req.ToClaim()); err != nil {
 		n.logger.Error("CSIVolumeClaim failed", "error", err)
@@ -1581,7 +1581,7 @@ func (n *nomadFSM) applyCSIPluginDelete(buf []byte, index uint64) interface{} {
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_plugin_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_csi_plugin_delete"}, time.Now())
 
 	if err := n.state.DeleteCSIPlugin(index, req.ID); err != nil {
 		// "plugin in use" is an error for the state store but not for typical
@@ -1596,7 +1596,7 @@ func (n *nomadFSM) applyCSIPluginDelete(buf []byte, index uint64) interface{} {
 
 // applyNamespaceUpsert is used to upsert a set of namespaces
 func (n *nomadFSM) applyNamespaceUpsert(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_namespace_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_namespace_upsert"}, time.Now())
 	var req structs.NamespaceUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -1638,7 +1638,7 @@ func (n *nomadFSM) applyNamespaceUpsert(buf []byte, index uint64) interface{} {
 
 // applyNamespaceDelete is used to delete a set of namespaces
 func (n *nomadFSM) applyNamespaceDelete(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_namespace_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_namespace_delete"}, time.Now())
 	var req structs.NamespaceDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2364,7 +2364,7 @@ func (n *nomadFSM) reconcileQueuedAllocations(index uint64) error {
 }
 
 func (n *nomadFSM) applyUpsertScalingEvent(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "upsert_scaling_event"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "upsert_scaling_event"}, time.Now())
 	var req structs.ScalingEventRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2379,7 +2379,7 @@ func (n *nomadFSM) applyUpsertScalingEvent(buf []byte, index uint64) interface{}
 }
 
 func (n *nomadFSM) applyUpsertServiceRegistrations(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_service_registration_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_service_registration_upsert"}, time.Now())
 	var req structs.ServiceRegistrationUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2411,7 +2411,7 @@ func (n *nomadFSM) applyUpsertServiceRegistrations(msgType structs.MessageType, 
 }
 
 func (n *nomadFSM) applyDeleteServiceRegistrationByID(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_service_registration_delete_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_service_registration_delete_id"}, time.Now())
 	var req structs.ServiceRegistrationDeleteByIDRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2439,7 +2439,7 @@ func (n *nomadFSM) applyDeleteServiceRegistrationByID(msgType structs.MessageTyp
 }
 
 func (n *nomadFSM) applyDeleteServiceRegistrationByNodeID(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_service_registration_delete_node_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_service_registration_delete_node_id"}, time.Now())
 	var req structs.ServiceRegistrationDeleteByNodeIDRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2454,7 +2454,7 @@ func (n *nomadFSM) applyDeleteServiceRegistrationByNodeID(msgType structs.Messag
 }
 
 func (n *nomadFSM) applyACLRolesUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_role_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_role_upsert"}, time.Now())
 	var req structs.ACLRolesUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2475,7 +2475,7 @@ func (n *nomadFSM) applyACLRolesUpsert(msgType structs.MessageType, buf []byte, 
 }
 
 func (n *nomadFSM) applyACLRolesDeleteByID(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_role_delete_by_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_role_delete_by_id"}, time.Now())
 	var req structs.ACLRolesDeleteByIDRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2490,7 +2490,7 @@ func (n *nomadFSM) applyACLRolesDeleteByID(msgType structs.MessageType, buf []by
 }
 
 func (n *nomadFSM) applyACLAuthMethodsUpsert(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_auth_method_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_auth_method_upsert"}, time.Now())
 	var req structs.ACLAuthMethodUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2505,7 +2505,7 @@ func (n *nomadFSM) applyACLAuthMethodsUpsert(buf []byte, index uint64) interface
 }
 
 func (n *nomadFSM) applyACLAuthMethodsDelete(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_auth_method_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_auth_method_delete"}, time.Now())
 	var req structs.ACLAuthMethodDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2520,7 +2520,7 @@ func (n *nomadFSM) applyACLAuthMethodsDelete(buf []byte, index uint64) interface
 }
 
 func (n *nomadFSM) applyACLBindingRulesUpsert(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_binding_rule_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_binding_rule_upsert"}, time.Now())
 	var req structs.ACLBindingRulesUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2535,7 +2535,7 @@ func (n *nomadFSM) applyACLBindingRulesUpsert(buf []byte, index uint64) interfac
 }
 
 func (n *nomadFSM) applyACLBindingRulesDelete(buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_acl_binding_rule_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_acl_binding_rule_delete"}, time.Now())
 	var req structs.ACLBindingRulesDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -2580,7 +2580,7 @@ func (n *nomadFSM) applyVariableOperation(msgType structs.MessageType, buf []byt
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
-	defer metrics.MeasureSinceWithLabels([]string{"nomad", "fsm", "apply_sv_operation"}, time.Now(),
+	defer metrics.MeasureSinceWithLabels([]string{"server", "fsm", "apply_sv_operation"}, time.Now(),
 		[]metrics.Label{{Name: "op", Value: string(req.Op)}})
 	switch req.Op {
 	case structs.VarOpSet:
@@ -2599,7 +2599,7 @@ func (n *nomadFSM) applyVariableOperation(msgType structs.MessageType, buf []byt
 }
 
 func (n *nomadFSM) applyRootKeyMetaUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_root_key_meta_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_root_key_meta_upsert"}, time.Now())
 
 	var req structs.KeyringUpdateRootKeyMetaRequest
 	if err := structs.Decode(buf, &req); err != nil {
@@ -2615,7 +2615,7 @@ func (n *nomadFSM) applyRootKeyMetaUpsert(msgType structs.MessageType, buf []byt
 }
 
 func (n *nomadFSM) applyRootKeyMetaDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_root_key_meta_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_root_key_meta_delete"}, time.Now())
 
 	var req structs.KeyringDeleteRootKeyRequest
 	if err := structs.Decode(buf, &req); err != nil {
@@ -2631,7 +2631,7 @@ func (n *nomadFSM) applyRootKeyMetaDelete(msgType structs.MessageType, buf []byt
 }
 
 func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "persist"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "persist"}, time.Now())
 	// Register the nodes
 	encoder := codec.NewEncoder(sink, structs.MsgpackHandle)
 

@@ -42,7 +42,7 @@ func (p *Plan) Submit(args *structs.PlanRequest, reply *structs.PlanResponse) er
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "plan", "submit"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "plan", "submit"}, time.Now())
 
 	if args.Plan == nil {
 		return fmt.Errorf("cannot submit nil plan")

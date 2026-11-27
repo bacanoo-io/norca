@@ -169,7 +169,7 @@ func (e *externalServices) reconcileLocked(now time.Time) error {
 			if _, err := e.deleteLocked(reg.Namespace, reg.ID); err != nil {
 				e.logger.Warn("failed to deregister external service", "service_id", reg.ID, "error", err)
 			} else {
-				metrics.IncrCounter([]string{"nomad", "service_registration", "external_reaped"}, 1)
+				metrics.IncrCounter([]string{"server", "service_registration", "external_reaped"}, 1)
 			}
 			continue
 		}
@@ -237,7 +237,7 @@ func (e *externalServices) expireLocked(now time.Time) error {
 	if len(apply) == 0 {
 		return nil
 	}
-	metrics.IncrCounter([]string{"nomad", "service_registration", "external_ttl_expired"}, float32(len(apply)))
+	metrics.IncrCounter([]string{"server", "service_registration", "external_ttl_expired"}, float32(len(apply)))
 	_, err := e.writeLocked(apply)
 	return err
 }

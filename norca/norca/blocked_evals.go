@@ -784,17 +784,17 @@ func (b *BlockedEvals) EmitStats(period time.Duration, stopCh <-chan struct{}) {
 		select {
 		case <-timer.C:
 			stats := b.Stats()
-			metrics.SetGauge([]string{"nomad", "blocked_evals", "total_quota_limit"}, float32(stats.TotalQuotaLimit))
-			metrics.SetGauge([]string{"nomad", "blocked_evals", "total_blocked"}, float32(stats.TotalBlocked))
-			metrics.SetGauge([]string{"nomad", "blocked_evals", "total_escaped"}, float32(stats.TotalEscaped))
+			metrics.SetGauge([]string{"server", "blocked_evals", "total_quota_limit"}, float32(stats.TotalQuotaLimit))
+			metrics.SetGauge([]string{"server", "blocked_evals", "total_blocked"}, float32(stats.TotalBlocked))
+			metrics.SetGauge([]string{"server", "blocked_evals", "total_escaped"}, float32(stats.TotalEscaped))
 
 			for k, v := range stats.BlockedResources.ByJob {
 				labels := []metrics.Label{
 					{Name: "namespace", Value: k.Namespace},
 					{Name: "job", Value: k.ID},
 				}
-				metrics.SetGaugeWithLabels([]string{"nomad", "blocked_evals", "job", "cpu"}, float32(v.CPU), labels)
-				metrics.SetGaugeWithLabels([]string{"nomad", "blocked_evals", "job", "memory"}, float32(v.MemoryMB), labels)
+				metrics.SetGaugeWithLabels([]string{"server", "blocked_evals", "job", "cpu"}, float32(v.CPU), labels)
+				metrics.SetGaugeWithLabels([]string{"server", "blocked_evals", "job", "memory"}, float32(v.MemoryMB), labels)
 			}
 
 			for k, v := range stats.BlockedResources.ByClassInDC {
@@ -802,8 +802,8 @@ func (b *BlockedEvals) EmitStats(period time.Duration, stopCh <-chan struct{}) {
 					{Name: "datacenter", Value: k.dc},
 					{Name: "node_class", Value: k.class},
 				}
-				metrics.SetGaugeWithLabels([]string{"nomad", "blocked_evals", "cpu"}, float32(v.CPU), labels)
-				metrics.SetGaugeWithLabels([]string{"nomad", "blocked_evals", "memory"}, float32(v.MemoryMB), labels)
+				metrics.SetGaugeWithLabels([]string{"server", "blocked_evals", "cpu"}, float32(v.CPU), labels)
+				metrics.SetGaugeWithLabels([]string{"server", "blocked_evals", "memory"}, float32(v.MemoryMB), labels)
 			}
 		case <-stopCh:
 			return

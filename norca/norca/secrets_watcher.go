@@ -353,7 +353,7 @@ func (w *secretsWatcher) rotate(sec *structs.Secret, dueAt time.Time, st *secret
 	payload := &structs.SecretLifecycleEvent{RotationDueAt: &dueAt, Job: job}
 	if err == nil {
 		st.done = true
-		metrics.IncrCounter([]string{"nomad", "secrets", "rotation", "dispatched"}, 1)
+		metrics.IncrCounter([]string{"server", "secrets", "rotation", "dispatched"}, 1)
 		logger.Info("dispatched the rotation job", "dispatched_job_id", reply.DispatchedJobID)
 		payload.DispatchedJobID, payload.EvalID = reply.DispatchedJobID, reply.EvalID
 		w.publish([]structs.Event{secretLifecycleEvent(structs.TypeSecretRotationDispatched, sec, payload)})
@@ -366,7 +366,7 @@ func (w *secretsWatcher) rotate(sec *structs.Secret, dueAt time.Time, st *secret
 		backoff = min(secretRotationBackoffMin<<(st.attempts-1), secretRotationBackoffMax)
 	}
 	st.next = now.Add(backoff)
-	metrics.IncrCounter([]string{"nomad", "secrets", "rotation", "failed"}, 1)
+	metrics.IncrCounter([]string{"server", "secrets", "rotation", "failed"}, 1)
 	logger.Warn("failed to dispatch the rotation job", "attempt", st.attempts,
 		"retry_in", backoff, "error", err)
 	next := st.next
@@ -382,9 +382,9 @@ func (w *secretsWatcher) setGauges(c secretsWatcherCounts) {
 		w.srv.secretsGauges.expiring.Store(int64(c.expiring))
 		w.srv.secretsGauges.expired.Store(int64(c.expired))
 		w.srv.secretsGauges.rotationDue.Store(int64(c.rotationDue))
-		metrics.SetGauge([]string{"nomad", "secrets", "expiring"}, float32(c.expiring))
-		metrics.SetGauge([]string{"nomad", "secrets", "expired"}, float32(c.expired))
-		metrics.SetGauge([]string{"nomad", "secrets", "rotation_due"}, float32(c.rotationDue))
+		metrics.SetGauge([]string{"server", "secrets", "expiring"}, float32(c.expiring))
+		metrics.SetGauge([]string{"server", "secrets", "expired"}, float32(c.expired))
+		metrics.SetGauge([]string{"server", "secrets", "rotation_due"}, float32(c.rotationDue))
 	})
 }
 

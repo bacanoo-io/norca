@@ -18,10 +18,10 @@ func (s *Server) MeasureRPCRate(endpoint, op string, args structs.RequestWithIde
 	if !s.config.ACLEnabled || identity == nil || s.config.DisableRPCRateMetricsLabels {
 		// If ACLs aren't enabled, we never have a sensible identity.
 		// Or the administrator may have disabled the identity labels.
-		metrics.IncrCounter([]string{"nomad", "rpc", endpoint, op}, 1)
+		metrics.IncrCounter([]string{"server", "rpc", endpoint, op}, 1)
 	} else {
 		metrics.IncrCounterWithLabels(
-			[]string{"nomad", "rpc", endpoint, op}, 1,
+			[]string{"server", "rpc", endpoint, op}, 1,
 			[]metrics.Label{{Name: "identity", Value: identity.String()}})
 	}
 }

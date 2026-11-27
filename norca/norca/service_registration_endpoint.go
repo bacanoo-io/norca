@@ -56,7 +56,7 @@ func (s *ServiceRegistration) Upsert(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "upsert"}, time.Now())
 
 	// Nomad service registrations can only be used once all servers, in the
 	// local region, have been upgraded to 1.3.0 or greater.
@@ -229,7 +229,7 @@ func (s *ServiceRegistration) DeleteByID(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "delete_id"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "delete_id"}, time.Now())
 
 	// Nomad service registrations can only be used once all servers, in the
 	// local region, have been upgraded to 1.3.0 or greater.
@@ -340,7 +340,7 @@ func (s *ServiceRegistration) List(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "list"}, time.Now())
 
 	// If the caller has requested to list services across all namespaces, use
 	// the custom function to perform this.
@@ -524,7 +524,7 @@ func (s *ServiceRegistration) GetService(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_registration", "get_service"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_registration", "get_service"}, time.Now())
 
 	aclObj, err := s.srv.ResolveClientOrACL(args)
 	if err != nil {

@@ -126,7 +126,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "client", "register"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "register"}, time.Now())
 
 	// Validate the arguments
 	if args.Node == nil {
@@ -396,7 +396,7 @@ func (n *Node) Deregister(args *structs.NodeDeregisterRequest, reply *structs.No
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "deregister"}, time.Now())
 
 	if args.NodeID == "" {
 		return fmt.Errorf("missing node ID for client deregistration")
@@ -423,7 +423,7 @@ func (n *Node) BatchDeregister(args *structs.NodeBatchDeregisterRequest, reply *
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "batch_deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "batch_deregister"}, time.Now())
 
 	if len(args.NodeIDs) == 0 {
 		return fmt.Errorf("missing node IDs for client deregistration")
@@ -581,7 +581,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "client", "update_status"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "update_status"}, time.Now())
 
 	// clean room bugfix: the caller was never checked, so with ACLs enabled
 	// anyone (even anonymous) could set the status of any node, and take over
@@ -799,7 +799,7 @@ func (n *Node) UpdateDrain(args *structs.NodeUpdateDrainRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "update_drain"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "update_drain"}, time.Now())
 
 	// Check node write permissions. A client node may only drain itself
 	// (drain_on_shutdown).
@@ -927,7 +927,7 @@ func (n *Node) UpdateEligibility(args *structs.NodeUpdateEligibilityRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "update_eligibility"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "update_eligibility"}, time.Now())
 
 	// Check node write permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -1030,7 +1030,7 @@ func (n *Node) Evaluate(args *structs.NodeEvaluateRequest, reply *structs.NodeUp
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "evaluate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "evaluate"}, time.Now())
 
 	// Check node write permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -1091,7 +1091,7 @@ func (n *Node) GetNode(args *structs.NodeSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "get_node"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "get_node"}, time.Now())
 
 	// Check node read permissions
 	aclObj, err := n.srv.ResolveClientOrACL(args)
@@ -1152,7 +1152,7 @@ func (n *Node) GetAllocs(args *structs.NodeSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "get_allocs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "get_allocs"}, time.Now())
 
 	// Check node read and namespace job read permissions
 	aclObj, err := n.srv.ResolveACL(args)
@@ -1263,7 +1263,7 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "get_client_allocs"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "get_client_allocs"}, time.Now())
 
 	// Verify the arguments
 	if args.NodeID == "" {
@@ -1412,7 +1412,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 		return structs.ErrPermissionDenied
 	}
 
-	defer metrics.MeasureSince([]string{"nomad", "client", "update_alloc"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "update_alloc"}, time.Now())
 
 	// Ensure at least a single alloc
 	if len(args.Alloc) == 0 {
@@ -1695,7 +1695,7 @@ func (n *Node) List(args *structs.NodeListRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "list"}, time.Now())
 
 	// Check node read permissions
 	if aclObj, err := n.srv.ResolveACL(args); err != nil {
@@ -1908,7 +1908,7 @@ func (n *Node) DeriveVaultToken(args *structs.DeriveVaultTokenRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "derive_vault_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "derive_vault_token"}, time.Now())
 
 	// Verify the arguments
 	if args.NodeID == "" {
@@ -2139,7 +2139,7 @@ func (n *Node) DeriveSIToken(args *structs.DeriveSITokenRequest, reply *structs.
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "derive_si_token"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "derive_si_token"}, time.Now())
 
 	// Verify the arguments
 	if err := args.Validate(); err != nil {
@@ -2370,7 +2370,7 @@ func (n *Node) EmitEvents(args *structs.EmitNodeEventsRequest, reply *structs.Em
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "client", "emit_events"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "client", "emit_events"}, time.Now())
 
 	if len(args.NodeEvents) == 0 {
 		return fmt.Errorf("no node events given")

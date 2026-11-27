@@ -4,7 +4,7 @@
 
 // Ported from Nomad Autoscaler v0.6.0 policy/check.go.
 // Modified: in-process plugin interfaces, the clock is injected for tests,
-// metrics use the Nomad go-metrics fork and the nomad.autoscaler prefix
+// metrics use the Nomad go-metrics fork and the norca.autoscaler prefix
 // without per-policy labels, and query errors follow the check's on_error
 // setting instead of always aborting the evaluation.
 
@@ -198,7 +198,7 @@ func (ch *checkRunner) runStrategy(ctx context.Context, count int64, ms sdk.Time
 		{Name: "plugin_name", Value: ch.check.Strategy.Name},
 	}
 
-	defer metrics.MeasureSinceWithLabels([]string{"nomad", "autoscaler", "strategy", "run"}, time.Now(), labels)
+	defer metrics.MeasureSinceWithLabels([]string{"autoscaler", "strategy", "run"}, time.Now(), labels)
 
 	var runResp *sdk.ScalingCheckEvaluation
 	var err error
@@ -252,7 +252,7 @@ func (ch *checkRunner) queryMetrics(ctx context.Context, cache *queryMetricsCach
 
 	// Trigger a metric measure to track latency of the call.
 	labels := []metrics.Label{{Name: "plugin_name", Value: ch.check.Source}}
-	defer metrics.MeasureSinceWithLabels([]string{"nomad", "autoscaler", "apm", "query"},
+	defer metrics.MeasureSinceWithLabels([]string{"autoscaler", "apm", "query"},
 		time.Now(), labels)
 
 	r := ch.queryRange()

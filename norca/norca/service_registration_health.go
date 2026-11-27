@@ -122,11 +122,11 @@ func (d *serviceHealthDamper) filter(regs []*structs.ServiceRegistration,
 func (d *serviceHealthDamper) emit(changes, deferred int) {
 	labels := []metrics.Label{{Name: "region", Value: d.srv.Region()}}
 	if changes > 0 {
-		metrics.IncrCounterWithLabels([]string{"nomad", "service_registration", "health_updates"},
+		metrics.IncrCounterWithLabels([]string{"server", "service_registration", "health_updates"},
 			float32(changes), labels)
 	}
 	if deferred > 0 {
-		metrics.IncrCounterWithLabels([]string{"nomad", "service_registration", "health_updates_deferred"},
+		metrics.IncrCounterWithLabels([]string{"server", "service_registration", "health_updates_deferred"},
 			float32(deferred), labels)
 	}
 }

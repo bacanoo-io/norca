@@ -149,7 +149,7 @@ func serverGauges(v serverValues, counters *counterSampler) []metricsstore.Gauge
 }
 
 // The names of the Raft times in the telemetry, after the service name
-// ("nomad"): the time to commit an entry, and the time of an AppendEntries
+// ("norca"): the time to commit an entry, and the time of an AppendEntries
 // request to a follower (label peer_id). The raft library emits the second
 // once more under a name that ends in the peer; that one is not read.
 const (

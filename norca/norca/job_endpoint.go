@@ -172,7 +172,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "register"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "register"}, time.Now())
 
 	// Validate the arguments
 	if args.Job == nil {
@@ -575,7 +575,7 @@ func (j *Job) Summary(args *structs.JobSummaryRequest, reply *structs.JobSummary
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job_summary", "get_job_summary"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job_summary", "get_job_summary"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -628,7 +628,7 @@ func (j *Job) Validate(args *structs.JobValidateRequest, reply *structs.JobValid
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "validate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "validate"}, time.Now())
 
 	// defensive check; http layer and RPC requester should ensure namespaces are set consistently
 	if args.RequestNamespace() != args.Job.Namespace {
@@ -680,7 +680,7 @@ func (j *Job) Revert(args *structs.JobRevertRequest, reply *structs.JobRegisterR
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "revert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "revert"}, time.Now())
 
 	// Check for submit-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -759,7 +759,7 @@ func (j *Job) Stable(args *structs.JobStabilityRequest, reply *structs.JobStabil
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "stable"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "stable"}, time.Now())
 
 	// Check for read-job permissions
 	aclObj, err := j.srv.ResolveACL(args)
@@ -817,7 +817,7 @@ func (j *Job) Evaluate(args *structs.JobEvaluateRequest, reply *structs.JobRegis
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "evaluate"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "evaluate"}, time.Now())
 
 	// Check for submit-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -918,7 +918,7 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "deregister"}, time.Now())
 
 	// Check for submit-job permissions
 	aclObj, err := j.srv.ResolveACL(args)
@@ -1020,7 +1020,7 @@ func (j *Job) BatchDeregister(args *structs.JobBatchDeregisterRequest, reply *st
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "batch_deregister"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "batch_deregister"}, time.Now())
 
 	// Resolve the ACL token
 	aclObj, err := j.srv.ResolveACL(args)
@@ -1115,7 +1115,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "scale"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "scale"}, time.Now())
 
 	namespace := args.RequestNamespace()
 
@@ -1374,7 +1374,7 @@ func (j *Job) GetJobSubmission(args *structs.JobSubmissionRequest, reply *struct
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "get_job_submission"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "get_job_submission"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1422,7 +1422,7 @@ func (j *Job) GetJob(args *structs.JobSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "get_job"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "get_job"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1473,7 +1473,7 @@ func (j *Job) GetJobVersions(args *structs.JobVersionsRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "get_job_versions"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "get_job_versions"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1580,7 +1580,7 @@ func (j *Job) List(args *structs.JobListRequest, reply *structs.JobListResponse)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "list"}, time.Now())
 
 	namespace := args.RequestNamespace()
 
@@ -1691,7 +1691,7 @@ func (j *Job) Allocations(args *structs.JobSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "allocations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "allocations"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1751,7 +1751,7 @@ func (j *Job) Evaluations(args *structs.JobSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "evaluations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "evaluations"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1798,7 +1798,7 @@ func (j *Job) Deployments(args *structs.JobSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "deployments"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "deployments"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1845,7 +1845,7 @@ func (j *Job) LatestDeployment(args *structs.JobSpecificRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "latest_deployment"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "latest_deployment"}, time.Now())
 
 	// Check for read-job permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -1902,7 +1902,7 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "plan"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "plan"}, time.Now())
 	return j.plan(args, reply)
 }
 
@@ -2133,7 +2133,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "dispatch"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "dispatch"}, time.Now())
 
 	// Check for submit-job permissions
 	aclObj, err := j.srv.ResolveACL(args)
@@ -2415,7 +2415,7 @@ func (j *Job) ScaleStatus(args *structs.JobScaleStatusRequest,
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "scale_status"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "scale_status"}, time.Now())
 
 	// Check for autoscaler permissions
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
@@ -2540,7 +2540,7 @@ func (j *Job) GetServiceRegistrations(
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "job", "get_service_registrations"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "job", "get_service_registrations"}, time.Now())
 
 	// If ACLs are enabled, ensure the caller has the read-job namespace
 	// capability.

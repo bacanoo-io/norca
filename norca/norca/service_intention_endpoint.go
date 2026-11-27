@@ -64,7 +64,7 @@ func (si *ServiceIntention) List(args *structs.ServiceIntentionListRequest, repl
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_intention", "list"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_intention", "list"}, time.Now())
 
 	allowed, err := si.intentionReadFilter(args)
 	if err != nil {
@@ -110,7 +110,7 @@ func (si *ServiceIntention) Get(args *structs.ServiceIntentionGetRequest, reply 
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_intention", "get"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_intention", "get"}, time.Now())
 
 	allowed, err := si.intentionReadFilter(args)
 	if err != nil {
@@ -220,7 +220,7 @@ func (si *ServiceIntention) Upsert(args *structs.ServiceIntentionUpsertRequest, 
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_intention", "upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_intention", "upsert"}, time.Now())
 
 	if err := si.prepareWrite(args, args.RequestNamespace(), args.Intentions, true); err != nil {
 		return err
@@ -243,7 +243,7 @@ func (si *ServiceIntention) Delete(args *structs.ServiceIntentionDeleteRequest, 
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
-	defer metrics.MeasureSince([]string{"nomad", "service_intention", "delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "service_intention", "delete"}, time.Now())
 
 	if err := si.prepareWrite(args, args.RequestNamespace(), args.Intentions, false); err != nil {
 		return err

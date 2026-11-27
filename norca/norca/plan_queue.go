@@ -210,7 +210,7 @@ func (q *PlanQueue) EmitStats(period time.Duration, stopCh <-chan struct{}) {
 		select {
 		case <-timer.C:
 			stats := q.Stats()
-			metrics.SetGauge([]string{"nomad", "plan", "queue_depth"}, float32(stats.Depth))
+			metrics.SetGauge([]string{"server", "plan", "queue_depth"}, float32(stats.Depth))
 		case <-stopCh:
 			return
 		}

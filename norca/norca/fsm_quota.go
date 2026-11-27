@@ -26,7 +26,7 @@ const (
 
 // applyQuotaSpecUpsert is used to upsert a set of quota specifications.
 func (n *nomadFSM) applyQuotaSpecUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_quota_spec_upsert"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_quota_spec_upsert"}, time.Now())
 	var req structs.QuotaSpecUpsertRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))
@@ -52,7 +52,7 @@ func (n *nomadFSM) applyQuotaSpecUpsert(msgType structs.MessageType, buf []byte,
 
 // applyQuotaSpecDelete is used to delete a set of quota specifications.
 func (n *nomadFSM) applyQuotaSpecDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
-	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_quota_spec_delete"}, time.Now())
+	defer metrics.MeasureSince([]string{"server", "fsm", "apply_quota_spec_delete"}, time.Now())
 	var req structs.QuotaSpecDeleteRequest
 	if err := structs.Decode(buf, &req); err != nil {
 		panic(fmt.Errorf("failed to decode request: %v", err))

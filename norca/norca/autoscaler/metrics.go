@@ -146,7 +146,7 @@ func (c *usageCollector) setActive(active bool, window time.Duration, now time.T
 	c.started = now
 	c.lastSweep = now
 	c.groups = map[targetKey]*groupUsage{}
-	metrics.SetGauge([]string{"nomad", "autoscaler", "usage", "groups"}, 0)
+	metrics.SetGauge([]string{"autoscaler", "usage", "groups"}, 0)
 }
 
 // record adds a client report received at now.
@@ -180,7 +180,7 @@ func (c *usageCollector) record(now time.Time, report *structs.TaskGroupUsageRep
 		gu, ok := c.groups[key]
 		if !ok {
 			if len(c.groups) >= maxUsageGroups {
-				metrics.IncrCounter([]string{"nomad", "autoscaler", "usage", "dropped"}, 1)
+				metrics.IncrCounter([]string{"autoscaler", "usage", "dropped"}, 1)
 				continue
 			}
 			gu = &groupUsage{}
@@ -288,7 +288,7 @@ func (c *usageCollector) seed(now time.Time, seeds []UsageSeed) int {
 		used++
 	}
 	c.started = oldest
-	metrics.SetGauge([]string{"nomad", "autoscaler", "usage", "groups"}, float32(len(c.groups)))
+	metrics.SetGauge([]string{"autoscaler", "usage", "groups"}, float32(len(c.groups)))
 	return used
 }
 
@@ -300,7 +300,7 @@ func (c *usageCollector) sweepLocked(now time.Time) {
 			delete(c.groups, key)
 		}
 	}
-	metrics.SetGauge([]string{"nomad", "autoscaler", "usage", "groups"}, float32(len(c.groups)))
+	metrics.SetGauge([]string{"autoscaler", "usage", "groups"}, float32(len(c.groups)))
 }
 
 // windowSize returns the window of the collector.
