@@ -1,0 +1,18 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package fix
+
+import (
+	hclog "github.com/hashicorp/go-hclog"
+
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+)
+
+func f(logger hclog.Logger, alloc *structs.Allocation, job *structs.Job, jns structs.NamespacedID, err error) {
+	logger.Warn("failed to start", "error", err)                       // want `message ends with a period and starts` `key "err"`
+	logger.Info("camel", "node_id", "n1")                              // want `key "nodeID"`
+	logger.Info("alloc", "alloc_id", alloc.ID)                         // want `a whole Allocation is logged`
+	logger.Info("job", "job_id", job.ID, "namespace", job.Namespace)   // want `key "job"` `a whole NamespacedID is logged`
+	logger.Info("drain", "job_id", jns.ID, "namespace", jns.Namespace) // want `a whole NamespacedID is logged`
+}
