@@ -29,6 +29,9 @@ type connection struct {
 	target  Target
 	headers *headerCredentials
 	conn    *grpc.ClientConn
+
+	// pin sets the resource of the logs export requests (resourcePin).
+	pin *resourcePin
 }
 
 // newConnection reads the files of a target (CA, client certificate,
@@ -50,10 +53,12 @@ func newConnection(s *Settings, t Target, userAgent string) (*connection, error)
 	if err != nil {
 		return nil, err
 	}
+	pin := &resourcePin{}
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transport),
 		grpc.WithPerRPCCredentials(headers),
 		grpc.WithUserAgent(userAgent),
+		grpc.WithChainUnaryInterceptor(pin.intercept),
 	}
 	if s.Compression == CompressionGzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
@@ -62,7 +67,7 @@ func newConnection(s *Settings, t Target, userAgent string) (*connection, error)
 	if err != nil {
 		return nil, fmt.Errorf("endpoint %s: %w", t.Endpoint, err)
 	}
-	return &connection{target: t, headers: headers, conn: conn}, nil
+	return &connection{target: t, headers: headers, conn: conn, pin: pin}, nil
 }
 
 // connections creates the connections of the enabled signals, one per
@@ -86,6 +91,14 @@ func (cs *connections) get(t Target) (*connection, error) {
 	}
 	cs.all = append(cs.all, c)
 	return c, nil
+}
+
+// pinResource makes every connection send the agent's resource with the
+// logs it exports.
+func (cs *connections) pinResource(res *resource.Resource) {
+	for _, c := range cs.all {
+		c.pin.set(res)
+	}
 }
 
 // reload reads the headers files again.

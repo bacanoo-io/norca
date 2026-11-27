@@ -68,6 +68,11 @@ type Server struct {
 	metrics []Received[*colmetricpb.ExportMetricsServiceRequest]
 	logs    []Received[*collogspb.ExportLogsServiceRequest]
 	changed chan struct{}
+
+	// fail is returned by every export while set, which records nothing.
+	fail error
+	// failed counts the refused exports.
+	failed int
 }
 
 // Start starts a receiver on a free port of 127.0.0.1; it stops at the end
@@ -95,6 +100,22 @@ func Start(t testing.TB, opts Options) *Server {
 // Stop stops the receiver; a later export fails as with a closed port.
 func (s *Server) Stop() {
 	s.grpc.Stop()
+}
+
+// Fail makes every export fail with err (a gRPC status error, e.g.
+// status.Error(codes.Unavailable, "down")) until it is called with nil. The
+// refused requests are not recorded.
+func (s *Server) Fail(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fail = err
+}
+
+// Failed returns the number of exports refused by Fail.
+func (s *Server) Failed() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.failed
 }
 
 // Traces returns the trace export requests received so far.
@@ -138,8 +159,9 @@ func (s *Server) Wait(timeout time.Duration, cond func(*Server) bool) bool {
 	}
 }
 
-// record stores a request and wakes the waiters.
-func record[M any](s *Server, ctx context.Context, list *[]Received[M], req M) {
+// record stores a request and wakes the waiters, or returns the error set
+// by Fail.
+func record[M any](s *Server, ctx context.Context, list *[]Received[M], req M) error {
 	r := Received[M]{Request: req}
 	r.Metadata, _ = metadata.FromIncomingContext(ctx)
 	if info, ok := ctx.Value(rpcInfoKey{}).(*rpcInfo); ok {
@@ -151,10 +173,17 @@ func record[M any](s *Server, ctx context.Context, list *[]Received[M], req M) {
 		}
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.fail != nil {
+		s.failed++
+		close(s.changed)
+		s.changed = make(chan struct{})
+		return s.fail
+	}
 	*list = append(*list, r)
 	close(s.changed)
 	s.changed = make(chan struct{})
-	s.mu.Unlock()
+	return nil
 }
 
 type traceService struct {
@@ -163,7 +192,9 @@ type traceService struct {
 }
 
 func (ts traceService) Export(ctx context.Context, req *coltracepb.ExportTraceServiceRequest) (*coltracepb.ExportTraceServiceResponse, error) {
-	record(ts.s, ctx, &ts.s.traces, req)
+	if err := record(ts.s, ctx, &ts.s.traces, req); err != nil {
+		return nil, err
+	}
 	return &coltracepb.ExportTraceServiceResponse{}, nil
 }
 
@@ -173,7 +204,9 @@ type metricsService struct {
 }
 
 func (ms metricsService) Export(ctx context.Context, req *colmetricpb.ExportMetricsServiceRequest) (*colmetricpb.ExportMetricsServiceResponse, error) {
-	record(ms.s, ctx, &ms.s.metrics, req)
+	if err := record(ms.s, ctx, &ms.s.metrics, req); err != nil {
+		return nil, err
+	}
 	return &colmetricpb.ExportMetricsServiceResponse{}, nil
 }
 
@@ -183,7 +216,9 @@ type logsService struct {
 }
 
 func (ls logsService) Export(ctx context.Context, req *collogspb.ExportLogsServiceRequest) (*collogspb.ExportLogsServiceResponse, error) {
-	record(ls.s, ctx, &ls.s.logs, req)
+	if err := record(ls.s, ctx, &ls.s.logs, req); err != nil {
+		return nil, err
+	}
 	return &collogspb.ExportLogsServiceResponse{}, nil
 }
 

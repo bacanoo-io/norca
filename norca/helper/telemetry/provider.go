@@ -12,13 +12,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/version"
 	"github.com/hashicorp/go-hclog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/exemplar"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -80,11 +84,23 @@ type Providers struct {
 	// it exists from New and is bound in Start.
 	sink *OTelSink
 
-	mu      sync.Mutex
-	started bool
-	stopped bool
-	tracer  *sdktrace.TracerProvider
-	meter   *sdkmetric.MeterProvider
+	// logs exports the agent's log lines, which logSink takes from the
+	// intercept logger (logs signal on); both exist from New, and the sink
+	// is bound in Start.
+	logs    *logExporter
+	logSink *LogSink
+
+	// events exports the event stream (logs.events on); it exists from New
+	// and is bound in Start.
+	events *EventExporter
+
+	mu             sync.Mutex
+	started        bool
+	stopped        bool
+	tracer         *sdktrace.TracerProvider
+	meter          *sdkmetric.MeterProvider
+	logProvider    *sdklog.LoggerProvider
+	eventsProvider *sdklog.LoggerProvider
 }
 
 // New validates the settings' files and creates the exporters of the
@@ -106,6 +122,9 @@ func New(s *Settings, logger hclog.Logger, userAgent string) (*Providers, error)
 	if err := p.newExporters(); err != nil {
 		if p.spans != nil {
 			_ = p.spans.Shutdown(context.Background())
+		}
+		if p.logs != nil {
+			_ = p.logs.Shutdown(context.Background())
 		}
 		_ = p.conns.close()
 		return nil, err
@@ -141,8 +160,28 @@ func (p *Providers) newExporters() error {
 		p.metrics = &metricExporter{Exporter: exp, errs: p.errs}
 		p.sink = NewOTelSink(nil, OTelSinkOptions{Logger: p.logger})
 	}
-	// The logs signal (phase 5 of the plan) gets its exporter here from
-	// s.Logs.Target, in the same way, once the log SDK is linked.
+	if s.Logs.Enabled {
+		c, err := p.conns.get(s.Logs.Target)
+		if err != nil {
+			return fmt.Errorf("telemetry.otlp.logs: %w", err)
+		}
+		exp, err := otlploggrpc.New(context.Background(), logOptions(s, c)...)
+		if err != nil {
+			return fmt.Errorf("telemetry.otlp.logs: creating the exporter: %w", err)
+		}
+		p.logs = &logExporter{Exporter: exp, errs: p.errs, signal: SignalLogs}
+		p.logSink = NewLogSink(s.Logs.Level)
+		if s.Logs.Events.Enabled {
+			// an exporter of its own on the same connection: the events are
+			// exported synchronously, outside the batch processor
+			exp, err := otlploggrpc.New(context.Background(), logOptions(s, c)...)
+			if err != nil {
+				return fmt.Errorf("telemetry.otlp.logs.events: creating the exporter: %w", err)
+			}
+			p.events = newEventExporter(&logExporter{Exporter: exp, errs: p.errs, signal: SignalEvents},
+				s.Logs.Events.Topics)
+		}
+	}
 	return nil
 }
 
@@ -203,6 +242,33 @@ func (p *Providers) Start(id Identity) error {
 		)
 		p.sink.Bind(p.meter)
 	}
+
+	if p.logs != nil {
+		p.conns.pinResource(res)
+		p.logProvider = sdklog.NewLoggerProvider(
+			sdklog.WithResource(res),
+			sdklog.WithAttributeCountLimit(logAttributeCountMax),
+			sdklog.WithAttributeValueLengthLimit(logValueLengthMax),
+			sdklog.WithProcessor(sdklog.NewBatchProcessor(p.logs,
+				sdklog.WithMaxQueueSize(logMaxQueueSize),
+				sdklog.WithExportMaxBatchSize(logMaxExportBatch),
+				sdklog.WithExportInterval(logExportInterval),
+				sdklog.WithExportTimeout(p.settings.Timeout),
+			)),
+		)
+		p.logSink.Bind(p.logProvider.Logger(InstrumentationName,
+			otellog.WithInstrumentationVersion(version.GetVersion().VersionNumber())))
+	}
+	if p.events != nil {
+		// the events cut their bodies themselves (MaxEventBody)
+		p.eventsProvider = sdklog.NewLoggerProvider(
+			sdklog.WithResource(res),
+			sdklog.WithAttributeCountLimit(logAttributeCountMax),
+			sdklog.WithAttributeValueLengthLimit(-1),
+			sdklog.WithProcessor(recordCollector{}),
+		)
+		p.events.bind(p.eventsProvider)
+	}
 	p.started = true
 	return nil
 }
@@ -254,13 +320,33 @@ func (p *Providers) MetricSink() *OTelSink {
 	return p.sink
 }
 
+// LogSink returns the hclog sink of the logs signal, to register on the
+// agent's intercept logger; nil when the logs export is off, so no sink is
+// registered. It exists before Start and keeps the lines of the agent's
+// setup until then.
+func (p *Providers) LogSink() *LogSink {
+	if p == nil {
+		return nil
+	}
+	return p.logSink
+}
+
+// EventExporter returns the exporter of the event stream for the leader;
+// nil when logs.events is off.
+func (p *Providers) EventExporter() *EventExporter {
+	if p == nil {
+		return nil
+	}
+	return p.events
+}
+
 // ForceFlush exports what the providers hold.
 func (p *Providers) ForceFlush(ctx context.Context) error {
 	if p == nil {
 		return nil
 	}
 	p.mu.Lock()
-	tracer, meter := p.tracer, p.meter
+	tracer, meter, logProvider := p.tracer, p.meter, p.logProvider
 	p.mu.Unlock()
 	var errs []error
 	if tracer != nil {
@@ -269,12 +355,16 @@ func (p *Providers) ForceFlush(ctx context.Context) error {
 	if meter != nil {
 		errs = append(errs, meter.ForceFlush(ctx))
 	}
+	if logProvider != nil {
+		errs = append(errs, logProvider.ForceFlush(ctx))
+	}
 	return errors.Join(errs...)
 }
 
-// Reload applies a reloaded otlp block: the headers files are read again
-// and sample_ratio takes effect. Any other change needs a restart, which is
-// logged. An error leaves the running settings as they were.
+// Reload applies a reloaded otlp block: the headers files are read again,
+// and traces.sample_ratio and logs.level take effect. Any other change
+// needs a restart, which is logged; so does enabling or disabling a signal
+// or the event export. An error leaves the running settings as they were.
 func (p *Providers) Reload(c *OTLPConfig) error {
 	if p == nil {
 		if c != nil {
@@ -291,9 +381,12 @@ func (p *Providers) Reload(c *OTLPConfig) error {
 		return err
 	}
 	if !sameExceptReloadable(p.settings, s) {
-		p.logger.Warn("changes of the otlp block other than the headers files and traces.sample_ratio need a restart of the agent")
+		p.logger.Warn("changes of the otlp block other than the headers files, traces.sample_ratio and logs.level need a restart of the agent")
 	}
 	p.sampler.set(s.Traces.SampleRatio)
+	if p.logSink != nil {
+		p.logSink.SetLevel(s.Logs.Level)
+	}
 	return p.conns.reload()
 }
 
@@ -307,9 +400,10 @@ func sameExceptReloadable(a, b *Settings) bool {
 	return reflect.DeepEqual(ac, bc)
 }
 
-// Shutdown flushes and stops the traces first, then the metrics, within the
-// deadline of ctx, and closes the connections. The export errors of the
-// final flush are not logged; the caller reports the returned error.
+// Shutdown flushes and stops the traces first, then the metrics, then the
+// logs (so the lines of the shutdown go out), within the deadline of ctx,
+// and closes the connections. The export errors of the final flush are not
+// logged; the caller reports the returned error.
 func (p *Providers) Shutdown(ctx context.Context) error {
 	if p == nil {
 		return nil
@@ -320,7 +414,7 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	p.stopped = true
-	tracer, meter := p.tracer, p.meter
+	tracer, meter, logProvider, eventsProvider := p.tracer, p.meter, p.logProvider, p.eventsProvider
 	p.mu.Unlock()
 	p.errs.quiet.Store(true)
 
@@ -336,6 +430,22 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 		errs = append(errs, meter.Shutdown(ctx))
 	case p.metrics != nil:
 		errs = append(errs, p.metrics.Shutdown(ctx))
+	}
+	if p.events != nil {
+		p.events.close()
+		if eventsProvider != nil {
+			errs = append(errs, eventsProvider.Shutdown(ctx))
+		}
+		errs = append(errs, p.events.exp.Shutdown(ctx))
+	}
+	if p.logSink != nil {
+		p.logSink.close()
+	}
+	switch {
+	case logProvider != nil:
+		errs = append(errs, logProvider.Shutdown(ctx))
+	case p.logs != nil:
+		errs = append(errs, p.logs.Shutdown(ctx))
 	}
 	errs = append(errs, p.conns.close())
 	if err := errors.Join(errs...); err != nil {

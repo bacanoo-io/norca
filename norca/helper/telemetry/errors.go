@@ -97,7 +97,20 @@ func (r *errorReporter) log(signal string, err error) {
 	st.lastLog = now
 	r.mu.Unlock()
 
-	r.logger.Warn("OTLP export failed", "signal", signal, "error", err, "count", count, "per", r.interval)
+	logger := r.logger
+	if feedsLogExport(signal) {
+		logger = logger.With(LogKeyOTLPInternal, true)
+	}
+	logger.Warn("OTLP export failed", "signal", signal, "error", err, "count", count, "per", r.interval)
+}
+
+// feedsLogExport reports whether the error lines of a signal could feed the
+// log export they report on: those of the logs signal and the SDK's internal
+// errors, which the log SDK reports too. They carry LogKeyOTLPInternal, and
+// the log sink drops them (the loop guard); the lines of the other signals
+// are exported like any other warning.
+func feedsLogExport(signal string) bool {
+	return signal == SignalLogs || signal == signalInternal
 }
 
 // handle is the global OpenTelemetry error handler of the agent. The errors

@@ -26,6 +26,8 @@ package logcheck
 //	volume_id                    volume ID
 //	object_kind, object_name     custom objects
 //	trace_id, span_id            set by helper/telemetry only
+//	otlp_internal                set by helper/telemetry only: the line is not
+//	                             exported over OTLP (loop guard of the log export)
 //
 // An object is never logged as a value: its ID is (objectTypes).
 
@@ -75,8 +77,9 @@ var ambiguous = map[string]string{
 
 // reserved lists keys that only the package allowed for them sets.
 var reserved = map[string]string{
-	"trace_id": "helper/telemetry",
-	"span_id":  "helper/telemetry",
+	"trace_id":      "helper/telemetry",
+	"span_id":       "helper/telemetry",
+	"otlp_internal": "helper/telemetry",
 }
 
 // structsPath is the import path of the package of the server's structs.

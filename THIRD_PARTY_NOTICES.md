@@ -314,11 +314,14 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc](#go-go-opentelemetry-io-contrib-instrumentation-google-golang-org-grpc-otelgrpc-v0-67-0) | v0.67.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp](#go-go-opentelemetry-io-contrib-instrumentation-net-http-otelhttp-v0-69-0) | v0.69.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel](#go-go-opentelemetry-io-otel-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
+| [go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc](#go-go-opentelemetry-io-otel-exporters-otlp-otlplog-otlploggrpc-v0-20-0) | v0.20.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc](#go-go-opentelemetry-io-otel-exporters-otlp-otlpmetric-otlpmetricgrpc-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/exporters/otlp/otlptrace](#go-go-opentelemetry-io-otel-exporters-otlp-otlptrace-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc](#go-go-opentelemetry-io-otel-exporters-otlp-otlptrace-otlptracegrpc-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
+| [go.opentelemetry.io/otel/log](#go-go-opentelemetry-io-otel-log-v0-20-0) | v0.20.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/metric](#go-go-opentelemetry-io-otel-metric-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/sdk](#go-go-opentelemetry-io-otel-sdk-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
+| [go.opentelemetry.io/otel/sdk/log](#go-go-opentelemetry-io-otel-sdk-log-v0-20-0) | v0.20.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/sdk/metric](#go-go-opentelemetry-io-otel-sdk-metric-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/otel/trace](#go-go-opentelemetry-io-otel-trace-v1-44-0) | v1.44.0 | Apache-2.0 AND BSD-3-Clause | norca |
 | [go.opentelemetry.io/proto/otlp](#go-go-opentelemetry-io-proto-otlp-v1-10-0) | v1.10.0 | Apache-2.0 | norca |
@@ -4023,6 +4026,14 @@ distributed under the same license terms.
 - Used in: norca
 - `LICENSE`: [license text 168](#license-text-168)
 
+<a id="go-go-opentelemetry-io-otel-exporters-otlp-otlplog-otlploggrpc-v0-20-0"></a>
+
+### go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.20.0
+
+- License: Apache-2.0 AND BSD-3-Clause
+- Used in: norca
+- `LICENSE`: [license text 168](#license-text-168)
+
 <a id="go-go-opentelemetry-io-otel-exporters-otlp-otlpmetric-otlpmetricgrpc-v1-44-0"></a>
 
 ### go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.44.0
@@ -4047,6 +4058,14 @@ distributed under the same license terms.
 - Used in: norca
 - `LICENSE`: [license text 168](#license-text-168)
 
+<a id="go-go-opentelemetry-io-otel-log-v0-20-0"></a>
+
+### go.opentelemetry.io/otel/log v0.20.0
+
+- License: Apache-2.0 AND BSD-3-Clause
+- Used in: norca
+- `LICENSE`: [license text 168](#license-text-168)
+
 <a id="go-go-opentelemetry-io-otel-metric-v1-44-0"></a>
 
 ### go.opentelemetry.io/otel/metric v1.44.0
@@ -4058,6 +4077,14 @@ distributed under the same license terms.
 <a id="go-go-opentelemetry-io-otel-sdk-v1-44-0"></a>
 
 ### go.opentelemetry.io/otel/sdk v1.44.0
+
+- License: Apache-2.0 AND BSD-3-Clause
+- Used in: norca
+- `LICENSE`: [license text 168](#license-text-168)
+
+<a id="go-go-opentelemetry-io-otel-sdk-log-v0-20-0"></a>
+
+### go.opentelemetry.io/otel/sdk/log v0.20.0
 
 - License: Apache-2.0 AND BSD-3-Clause
 - Used in: norca
@@ -27650,7 +27677,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 168
 
-Used by: go.opentelemetry.io/contrib/detectors/gcp v1.44.0, go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0, go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0, go.opentelemetry.io/otel v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0, go.opentelemetry.io/otel/metric v1.44.0, go.opentelemetry.io/otel/sdk v1.44.0, go.opentelemetry.io/otel/sdk/metric v1.44.0, go.opentelemetry.io/otel/trace v1.44.0
+Used by: go.opentelemetry.io/contrib/detectors/gcp v1.44.0, go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0, go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0, go.opentelemetry.io/otel v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.20.0, go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0, go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0, go.opentelemetry.io/otel/log v0.20.0, go.opentelemetry.io/otel/metric v1.44.0, go.opentelemetry.io/otel/sdk v1.44.0, go.opentelemetry.io/otel/sdk/log v0.20.0, go.opentelemetry.io/otel/sdk/metric v1.44.0, go.opentelemetry.io/otel/trace v1.44.0
 
 ```text
                                  Apache License
