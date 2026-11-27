@@ -33,7 +33,6 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/client"
-	"github.com/bacanoo-io/norca/norca/command/agent/event"
 	"github.com/bacanoo-io/norca/norca/helper/connprefix"
 	"github.com/bacanoo-io/norca/norca/helper/noxssrw"
 	"github.com/bacanoo-io/norca/norca/helper/telemetry"
@@ -94,10 +93,6 @@ type RPCer interface {
 // HTTPServer is used to wrap an Agent and expose it over an HTTP interface
 type HTTPServer struct {
 	agent RPCer
-
-	// eventAuditor is the enterprise audit log feature which is needed by the
-	// HTTP server.
-	eventAuditor event.Auditor
 
 	mux        *http.ServeMux
 	listener   net.Listener
@@ -209,15 +204,14 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 
 		// Create the server
 		srv := &HTTPServer{
-			agent:        agent,
-			eventAuditor: agent.auditor,
-			mux:          http.NewServeMux(),
-			listener:     ln,
-			listenerCh:   make(chan struct{}),
-			logger:       agent.httpLogger,
-			Addr:         ln.Addr().String(),
-			wsUpgrader:   wsUpgrader,
-			rateLimiter:  limiter,
+			agent:       agent,
+			mux:         http.NewServeMux(),
+			listener:    ln,
+			listenerCh:  make(chan struct{}),
+			logger:      agent.httpLogger,
+			Addr:        ln.Addr().String(),
+			wsUpgrader:  wsUpgrader,
+			rateLimiter: limiter,
 
 			execMaxFrameBytes: execMaxFrameBytes,
 		}
@@ -252,14 +246,13 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 	// the builtinDialer and builtinListener will be nil.
 	if agent.builtinDialer != nil && agent.builtinListener != nil {
 		srv := &HTTPServer{
-			agent:        agent,
-			eventAuditor: agent.auditor,
-			mux:          http.NewServeMux(),
-			listener:     agent.builtinListener,
-			listenerCh:   make(chan struct{}),
-			logger:       agent.httpLogger,
-			Addr:         "builtin",
-			wsUpgrader:   wsUpgrader,
+			agent:      agent,
+			mux:        http.NewServeMux(),
+			listener:   agent.builtinListener,
+			listenerCh: make(chan struct{}),
+			logger:     agent.httpLogger,
+			Addr:       "builtin",
+			wsUpgrader: wsUpgrader,
 
 			execMaxFrameBytes: execMaxFrameBytes,
 		}
@@ -814,7 +807,7 @@ func (s *HTTPServer) handleUI(policy *config.ContentSecurityPolicy, h http.Handl
 }
 
 func (s *HTTPServer) handleRootFallthrough() http.Handler {
-	return s.auditHTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" {
 			url := "/ui/"
 			if req.URL.RawQuery != "" {
@@ -824,7 +817,7 @@ func (s *HTTPServer) handleRootFallthrough() http.Handler {
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
-	}))
+	})
 }
 
 func errCodeFromHandler(err error) (int, string) {
@@ -872,7 +865,7 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 		defer func() {
 			logger.Debug("request complete", "http_method", req.Method, "http_path", reqURL, "duration", time.Since(start))
 		}()
-		obj, err := s.auditHandler(handler)(resp, req)
+		obj, err := handler(resp, req)
 
 		// Check for an error
 	HAS_ERR:
@@ -960,7 +953,7 @@ func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *htt
 		defer func() {
 			logger.Debug("request complete", "http_method", req.Method, "http_path", reqURL, "duration", time.Since(start))
 		}()
-		obj, err := s.auditNonJSONHandler(handler)(resp, req)
+		obj, err := handler(resp, req)
 
 		// Check for an error
 		if err != nil {

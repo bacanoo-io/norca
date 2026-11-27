@@ -5,7 +5,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"io"
 	golog "log"
@@ -22,7 +21,6 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
 	"github.com/bacanoo-io/norca/norca/client/state"
 	"github.com/bacanoo-io/norca/norca/command/agent/consul"
-	"github.com/bacanoo-io/norca/norca/command/agent/event"
 	"github.com/bacanoo-io/norca/norca/helper/bufconndialer"
 	"github.com/bacanoo-io/norca/norca/helper/escapingfs"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
@@ -73,12 +71,8 @@ type Agent struct {
 	configLock sync.Mutex
 
 	logger     log.InterceptLogger
-	auditor    event.Auditor
 	httpLogger log.Logger
 	logOutput  io.Writer
-
-	// EnterpriseAgent holds information and methods for enterprise functionality
-	EnterpriseAgent *EnterpriseAgent
 
 	// consulService is Nomad's custom Consul client for managing services
 	// and checks.
@@ -181,9 +175,6 @@ func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, i
 		return nil, err
 	}
 
-	if err := a.setupEnterpriseAgent(logger); err != nil {
-		return nil, err
-	}
 	if a.client == nil && a.server == nil {
 		return nil, fmt.Errorf("must have at least client or server mode enabled")
 	}
@@ -1463,13 +1454,6 @@ func (a *Agent) Reload(newConfig *Config) error {
 		a.logger.SetLevel(log.LevelFromString(current.LogLevel))
 	}
 
-	// Allow auditor to call reopen regardless of config changes
-	// This is primarily for enterprise audit logging to allow the underlying
-	// file to be reopened if necessary
-	if err := a.auditor.Reopen(); err != nil {
-		return err
-	}
-
 	fullUpdateTLSConfig := func() {
 		// Completely reload the agent's TLS configuration (moving from non-TLS to
 		// TLS, or vice versa)
@@ -1559,26 +1543,3 @@ func (a *Agent) setupConsul(consulConfig *config.ConsulConfig) error {
 	go a.consulService.Run()
 	return nil
 }
-
-// noOpAuditor is a no-op Auditor that fulfills the
-// event.Auditor interface.
-type noOpAuditor struct{}
-
-// Ensure noOpAuditor is an Auditor
-var _ event.Auditor = &noOpAuditor{}
-
-func (e *noOpAuditor) Event(ctx context.Context, eventType string, payload interface{}) error {
-	return nil
-}
-
-func (e *noOpAuditor) Enabled() bool {
-	return false
-}
-
-func (e *noOpAuditor) Reopen() error {
-	return nil
-}
-
-func (e *noOpAuditor) SetEnabled(enabled bool) {}
-
-func (e *noOpAuditor) DeliveryEnforced() bool { return false }

@@ -1040,8 +1040,7 @@ func TestServer_Reload_TLS_Certificate(t *testing.T) {
 	}
 
 	agent := &Agent{
-		auditor: &noOpAuditor{},
-		config:  agentConfig,
+		config: agentConfig,
 	}
 
 	newConfig := &Config{
@@ -1089,8 +1088,7 @@ func TestServer_Reload_TLS_Certificate_Invalid(t *testing.T) {
 	}
 
 	agent := &Agent{
-		auditor: &noOpAuditor{},
-		config:  agentConfig,
+		config: agentConfig,
 	}
 
 	newConfig := &Config{
@@ -1168,9 +1166,8 @@ func TestServer_Reload_TLS_UpgradeToTLS(t *testing.T) {
 	}
 
 	agent := &Agent{
-		auditor: &noOpAuditor{},
-		logger:  logger,
-		config:  agentConfig,
+		logger: logger,
+		config: agentConfig,
 	}
 
 	newConfig := &Config{
@@ -1216,9 +1213,8 @@ func TestServer_Reload_TLS_DowngradeFromTLS(t *testing.T) {
 	}
 
 	agent := &Agent{
-		logger:  logger,
-		config:  agentConfig,
-		auditor: &noOpAuditor{},
+		logger: logger,
+		config: agentConfig,
 	}
 
 	newConfig := &Config{
