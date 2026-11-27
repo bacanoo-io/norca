@@ -293,7 +293,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	if _, ok := d.tasks.Get(handle.Config.ID); ok {
 		d.logger.Trace("nothing to recover; task already exists",
 			"task_id", handle.Config.ID,
-			"task_name", handle.Config.Name,
+			"task", handle.Config.Name,
 		)
 		return nil
 	}
@@ -313,7 +313,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 
 	// Create client for reattached executor
 	exec, pluginClient, err := executor.ReattachToExecutor(plugRC,
-		d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID))
+		d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID))
 	if err != nil {
 		d.logger.Error("failed to reattach to executor", "error", err, "task_id", handle.Config.ID)
 		return fmt.Errorf("failed to reattach to executor: %v", err)
@@ -361,7 +361,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		LogLevel: "debug",
 	}
 
-	logger := d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID)
+	logger := d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID)
 	exec, pluginClient, err := executor.CreateExecutor(logger, d.nomadConfig, executorConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create executor: %v", err)

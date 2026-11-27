@@ -196,7 +196,7 @@ func (d *Driver) buildFingerprint() *drivers.Fingerprint {
 		// If this situations arises, we are running in Windows 10 with Linux Containers enabled via VM
 		if runtime.GOOS == "windows" && dockerInfo.OSType == "linux" {
 			if d.fingerprintSuccessful() {
-				d.logger.Warn("Docker is configured with Linux containers; switch to Windows Containers")
+				d.logger.Warn("docker is configured with Linux containers; switch to Windows Containers")
 			}
 
 			d.setFingerprintFailure()

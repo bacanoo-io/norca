@@ -275,7 +275,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	if _, ok := d.tasks.Get(handle.Config.ID); ok {
 		d.logger.Trace("nothing to recover; task already exists",
 			"task_id", handle.Config.ID,
-			"task_name", handle.Config.Name,
+			"task", handle.Config.Name,
 		)
 		return nil
 	}
@@ -293,7 +293,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	}
 
 	execImpl, pluginClient, err := executor.ReattachToExecutor(plugRC,
-		d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID))
+		d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID))
 	if err != nil {
 		d.logger.Error("failed to reattach to executor", "error", err, "task_id", handle.Config.ID)
 		return fmt.Errorf("failed to reattach to executor: %v", err)
@@ -483,7 +483,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		if err := validateSocketPath(monitorPath); err != nil {
 			return nil, nil, err
 		}
-		d.logger.Debug("got monitor path", "monitorPath", monitorPath)
+		d.logger.Debug("got monitor path", "monitor_path", monitorPath)
 		args = append(args, "-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath))
 	}
 
@@ -566,7 +566,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 	}
 
 	execImpl, pluginClient, err := executor.CreateExecutor(
-		d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID),
+		d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID),
 		d.nomadConfig, executorConfig)
 	if err != nil {
 		return nil, nil, err
@@ -587,7 +587,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		pluginClient.Kill()
 		return nil, nil, err
 	}
-	d.logger.Debug("started new QEMU VM", "id", vmID)
+	d.logger.Debug("started new QEMU VM", "vm_id", vmID)
 
 	h := &taskHandle{
 		exec:         execImpl,
@@ -772,14 +772,14 @@ func sendQemuShutdown(logger hclog.Logger, monitorPath string, userPid int) erro
 	}
 	monitorSocket, err := net.Dial("unix", monitorPath)
 	if err != nil {
-		logger.Warn("could not connect to qemu monitor", "pid", userPid, "monitorPath", monitorPath, "error", err)
+		logger.Warn("could not connect to qemu monitor", "pid", userPid, "monitor_path", monitorPath, "error", err)
 		return err
 	}
 	defer monitorSocket.Close()
 	logger.Debug("sending graceful shutdown command to qemu monitor socket", "monitor_path", monitorPath, "pid", userPid)
 	_, err = monitorSocket.Write([]byte(qemuGracefulShutdownMsg))
 	if err != nil {
-		logger.Warn("failed to send shutdown message", "shutdown message", qemuGracefulShutdownMsg, "monitorPath", monitorPath, "userPid", userPid, "error", err)
+		logger.Warn("failed to send shutdown message", "shutdown_message", qemuGracefulShutdownMsg, "monitor_path", monitorPath, "user_pid", userPid, "error", err)
 	}
 	return err
 }

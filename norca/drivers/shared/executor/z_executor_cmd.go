@@ -34,7 +34,7 @@ func init() {
 
 		f, err := os.OpenFile(executorConfig.LogFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 		if err != nil {
-			hclog.L().Error(err.Error())
+			hclog.L().Error("failed to open the executor log file", "error", err)
 			os.Exit(1)
 		}
 

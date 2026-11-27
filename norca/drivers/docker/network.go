@@ -130,7 +130,7 @@ func (d *Driver) DestroyNetwork(allocID string, spec *drivers.NetworkIsolationSp
 
 	timeout := uint(1) // this is the pause container, just kill it fast
 	if err := dockerClient.StopContainerWithContext(id, timeout, d.ctx); err != nil {
-		d.logger.Warn("failed to stop pause container", "id", id, "error", err)
+		d.logger.Warn("failed to stop pause container", "container_id", id, "error", err)
 	}
 
 	if err := dockerClient.RemoveContainer(docker.RemoveContainerOptions{

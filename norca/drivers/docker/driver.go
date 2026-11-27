@@ -398,7 +398,7 @@ CREATE:
 				Force: true,
 			})
 			msg := "failed to inspect started container"
-			d.logger.Error(msg, "error", err)
+			d.logger.Error("failed to inspect started container", "error", err)
 			dockerClient.RemoveContainer(docker.RemoveContainerOptions{
 				ID:    container.ID,
 				Force: true,
@@ -629,7 +629,7 @@ func (d *Driver) pullImage(task *drivers.TaskConfig, driverConfig *TaskConfig, c
 	authOptions, err := d.resolveRegistryAuthentication(driverConfig, repo)
 	if err != nil {
 		if driverConfig.AuthSoftFail {
-			d.logger.Warn("Failed to find docker repo auth", "repo", repo, "error", err)
+			d.logger.Warn("failed to find docker repo auth", "repo", repo, "error", err)
 		} else {
 			return "", fmt.Errorf("Failed to find docker auth for repo %q: %v", repo, err)
 		}
@@ -944,7 +944,7 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	// ensure that PortMap variables are populated early on
 	task.Env = taskenv.SetPortMapEnvs(task.Env, driverConfig.PortMap)
 
-	logger := d.logger.With("task_name", task.Name)
+	logger := d.logger.With("task", task.Name)
 	var c docker.CreateContainerOptions
 	if task.Resources == nil {
 		// Guard against missing resources. We should never have been able to
@@ -1519,7 +1519,7 @@ OUTER:
 		d.logger.Trace("listed container", "names", hclog.Fmt("%+v", shimContainer.Names))
 		for _, name := range shimContainer.Names {
 			if name == containerName {
-				d.logger.Trace("Found container",
+				d.logger.Trace("found container",
 					"container_name", containerName, "container_id", shimContainer.ID)
 				found = true
 				break OUTER

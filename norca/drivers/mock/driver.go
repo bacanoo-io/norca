@@ -387,7 +387,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	// assume we're still running if we've recovered it at all.
 	killCtx, killCancel := context.WithCancel(context.Background())
 	h := &taskHandle{
-		logger:          d.logger.With("task_name", handle.Config.Name),
+		logger:          d.logger.With("task", handle.Config.Name),
 		pluginExitAfter: taskState.PluginExitAfter,
 		killAfter:       taskState.KillAfter,
 		waitCh:          make(chan any),
@@ -495,7 +495,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		execCommand:     driverConfig.ExecCommand,
 		pluginExitAfter: driverConfig.pluginExitAfterDuration,
 		killAfter:       driverConfig.killAfterDuration,
-		logger:          d.logger.With("task_name", cfg.Name),
+		logger:          d.logger.With("task", cfg.Name),
 		waitCh:          make(chan interface{}),
 		killCh:          killCtx.Done(),
 		kill:            killCancel,
@@ -512,13 +512,13 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 	handle := drivers.NewTaskHandle(taskHandleVersion)
 	handle.Config = cfg
 	if err := handle.SetDriverState(&driverState); err != nil {
-		d.logger.Error("failed to start task, error setting driver state", "error", err, "task_name", cfg.Name)
+		d.logger.Error("failed to start task, error setting driver state", "error", err, "task", cfg.Name)
 		return nil, nil, fmt.Errorf("failed to set driver state: %v", err)
 	}
 
 	d.tasks.Set(cfg.ID, h)
 
-	d.logger.Debug("starting task", "task_name", cfg.Name)
+	d.logger.Debug("starting task", "task", cfg.Name)
 	go h.run()
 	return handle, net, nil
 
@@ -554,13 +554,13 @@ func (d *Driver) StopTask(taskID string, timeout time.Duration, signal string) e
 		return drivers.ErrTaskNotFound
 	}
 
-	d.logger.Debug("killing task", "task_name", h.taskConfig.Name, "kill_after", h.killAfter)
+	d.logger.Debug("killing task", "task", h.taskConfig.Name, "kill_after", h.killAfter)
 
 	select {
 	case <-h.waitCh:
-		d.logger.Debug("not killing task: already exited", "task_name", h.taskConfig.Name)
+		d.logger.Debug("not killing task: already exited", "task", h.taskConfig.Name)
 	case <-time.After(h.killAfter):
-		d.logger.Debug("killing task due to kill_after", "task_name", h.taskConfig.Name)
+		d.logger.Debug("killing task due to kill_after", "task", h.taskConfig.Name)
 		h.kill()
 	}
 	return nil

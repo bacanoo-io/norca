@@ -209,7 +209,7 @@ func (p *Plugin) StartTask(config *drivers.TaskConfig) (*drivers.TaskHandle, *dr
 
 	// ensure we do not already have a handle for this task
 	if _, exists := p.tasks.Get(config.ID); exists {
-		p.logger.Error("task with id already started", "id", config.ID)
+		p.logger.Error("task with id already started", "task_id", config.ID)
 		return nil, nil, fmt.Errorf("task with ID %s already started", config.ID)
 	}
 
@@ -307,7 +307,7 @@ func (p *Plugin) RecoverTask(handle *drivers.TaskHandle) error {
 		return errors.New("failed to recover task, handle is nil")
 	}
 
-	p.logger.Info("recovering task", "id", handle.Config.ID)
+	p.logger.Info("recovering task", "task_id", handle.Config.ID)
 
 	if _, exists := p.tasks.Get(handle.Config.ID); exists {
 		return nil // nothing to do
@@ -346,7 +346,7 @@ func (p *Plugin) WaitTask(ctx context.Context, taskID string) (<-chan *drivers.E
 	// note that WaitTask must be idempotent - it may be called multiple times
 	// for a single live instance of a task (e.g. waiting on restart, etc.)
 
-	p.logger.Trace("waiting on task", "id", taskID)
+	p.logger.Trace("waiting on task", "task_id", taskID)
 
 	handle, exists := p.tasks.Get(taskID)
 	if !exists {
@@ -370,7 +370,7 @@ func (p *Plugin) StopTask(taskID string, timeout time.Duration, signal string) e
 		signal = "sigint"
 	}
 
-	p.logger.Debug("stop task", "id", taskID, "timeout", timeout, "signal", signal)
+	p.logger.Debug("stop task", "task_id", taskID, "timeout", timeout, "signal", signal)
 
 	h, exists := p.tasks.Get(taskID)
 	if !exists {
@@ -383,7 +383,7 @@ func (p *Plugin) StopTask(taskID string, timeout time.Duration, signal string) e
 // memory. If the task is currently running it will only be stopped and removed
 // if the force option is set.
 func (p *Plugin) DestroyTask(taskID string, force bool) error {
-	p.logger.Debug("destroy task", "id", taskID, "force", force)
+	p.logger.Debug("destroy task", "task_id", taskID, "force", force)
 
 	h, exists := p.tasks.Get(taskID)
 	if !exists {

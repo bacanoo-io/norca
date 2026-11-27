@@ -356,7 +356,7 @@ func (d *Driver) buildFingerprint() *drivers.Fingerprint {
 		fp.Health = drivers.HealthStateUnhealthy
 		fp.HealthDescription = drivers.NoCgroupMountMessage
 		if d.fingerprintSuccessful() {
-			d.logger.Warn(fp.HealthDescription, "error", err)
+			d.logger.Warn("no cgroup mount point found", "error", err)
 		}
 		d.setFingerprintFailure()
 		return fp
@@ -383,7 +383,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	if _, ok := d.tasks.Get(handle.Config.ID); ok {
 		d.logger.Trace("nothing to recover; task already exists",
 			"task_id", handle.Config.ID,
-			"task_name", handle.Config.Name,
+			"task", handle.Config.Name,
 		)
 		return nil
 	}
@@ -403,7 +403,7 @@ func (d *Driver) RecoverTask(handle *drivers.TaskHandle) error {
 	}
 
 	exec, pluginClient, err := executor.ReattachToExecutor(plugRC,
-		d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID))
+		d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID))
 	if err != nil {
 		d.logger.Error("failed to reattach to executor", "error", err, "task_id", handle.Config.ID)
 		return fmt.Errorf("failed to reattach to executor: %v", err)
@@ -452,7 +452,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 	}
 
 	exec, pluginClient, err := executor.CreateExecutor(
-		d.logger.With("task_name", handle.Config.Name, "alloc_id", handle.Config.AllocID),
+		d.logger.With("task", handle.Config.Name, "alloc_id", handle.Config.AllocID),
 		d.nomadConfig, executorConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create executor: %v", err)
