@@ -537,7 +537,7 @@ func SetupLoggers(ui cli.Ui, config *Config) (*logutils.LevelFilter, *gatedwrite
 	// Check if syslog is enabled
 	if config.EnableSyslog {
 		ui.Output(fmt.Sprintf("Config enable_syslog is `true` with log_level=%v", config.LogLevel))
-		l, err := gsyslog.NewLogger(logLevelMap[logLevel], config.SyslogFacility, "nomad")
+		l, err := gsyslog.NewLogger(logLevelMap[logLevel], config.SyslogFacility, "norca")
 		if err != nil {
 			ui.Error(fmt.Sprintf("Syslog setup failed: %v", err))
 			return nil, nil, nil
@@ -551,7 +551,7 @@ func SetupLoggers(ui cli.Ui, config *Config) (*logutils.LevelFilter, *gatedwrite
 
 		// if a path is provided, but has no filename, then a default is used.
 		if fileName == "" {
-			fileName = "nomad.log"
+			fileName = "norca.log"
 		}
 
 		// Try to enter the user specified log rotation duration first

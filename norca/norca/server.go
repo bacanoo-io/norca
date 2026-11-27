@@ -1212,7 +1212,7 @@ func (s *Server) setupBootstrapHandler() error {
 		dcs, err := s.consulCatalog.Datacenters()
 		if err != nil {
 			peersTimeout.Reset(peersPollInterval + helper.RandomStagger(peersPollInterval/peersPollJitterFactor))
-			return fmt.Errorf("server.nomad: unable to query Consul datacenters: %v", err)
+			return fmt.Errorf("failed to query Consul datacenters: %w", err)
 		}
 		if len(dcs) > 2 {
 			// Query the local DC first, then shuffle the

@@ -21,7 +21,7 @@ type NomadFingerprint struct {
 
 // NewNomadFingerprint is used to create a Nomad fingerprint
 func NewNomadFingerprint(logger log.Logger) Fingerprint {
-	f := &NomadFingerprint{logger: logger.Named("nomad")}
+	f := &NomadFingerprint{logger: logger.Named("norca")}
 	return f
 }
 
