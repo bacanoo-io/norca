@@ -272,6 +272,15 @@ func releaseResourceHash(res *structs.ReleaseResource) string {
 		j.Status, j.StatusDescription, j.Stable = "", "", false
 		j.Version, j.SubmitTime = 0, 0
 		j.CreateIndex, j.ModifyIndex, j.JobModifyIndex = 0, 0, 0
+		// The count of a group that an enabled scaling policy scales belongs
+		// to the policy, not to the release: a new version of the job keeps
+		// it (keepScaledCounts), so a count the autoscaler or a job scale
+		// set is no drift.
+		for _, tg := range j.TaskGroups {
+			if isScaledGroup(tg) {
+				tg.Count = 0
+			}
+		}
 		v = j
 	}
 	b, err := json.Marshal(v)

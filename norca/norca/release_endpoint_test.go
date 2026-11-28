@@ -438,6 +438,47 @@ func TestRelease_Drift(t *testing.T) {
 	must.Eq(t, structs.ReleaseConditionTrue, cond.Status)
 }
 
+// A count that the autoscaler or a job scale set on a group an enabled
+// scaling policy scales is no drift (gitops-rigger-design.md 6.3): before,
+// every scaled job of a release reported Drifted "modified".
+func TestRelease_DriftIgnoresScaledCount(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	job := testReleaseJob("scaled")
+	job.TaskGroups[0].Scaling = &structs.ScalingPolicy{
+		Type: structs.ScalingPolicyTypeHorizontal, Engine: structs.ScalingPolicyEngineExternal,
+		Min: 1, Max: 5, Enabled: true, Policy: map[string]interface{}{},
+	}
+	_, err := c.apply("default", "scaled", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "scaled"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: job}},
+	})
+	must.NoError(t, err)
+	must.False(t, c.drift("default", "scaled").Drifted)
+
+	// The autoscaler changes only the count, as Job.Scale does.
+	store := c.srv.State()
+	upsert := func(change func(*structs.Job)) {
+		live, err := store.JobByID(nil, "default", "scaled")
+		must.NoError(t, err)
+		next := live.Copy()
+		change(next)
+		index, err := store.LatestIndex()
+		must.NoError(t, err)
+		must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, index+1, nil, next))
+	}
+	upsert(func(j *structs.Job) { j.TaskGroups[0].Count = 3 })
+	must.False(t, c.drift("default", "scaled").Drifted)
+
+	// Anything else changed by hand still is drift.
+	upsert(func(j *structs.Job) { j.TaskGroups[0].Meta = map[string]string{"by": "hand"} })
+	d := c.drift("default", "scaled")
+	must.True(t, d.Drifted)
+	must.Eq(t, "modified", d.Resources[0].Reason)
+}
+
 func TestRelease_SignatureAdmission(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)

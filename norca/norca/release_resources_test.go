@@ -217,6 +217,47 @@ func TestRelease_VariableWriteIsCheckedAndSet(t *testing.T) {
 	must.Eq(t, map[string]string{"user": "admin2", "password": "rotated"}, items())
 }
 
+// The hash of a job leaves out the count of a group that an enabled scaling
+// policy scales, and only that count (gitops-rigger-design.md 6.3): the
+// autoscaler owns it, and a new version of the job keeps it.
+func TestReleaseResourceHash_ScaledCount(t *testing.T) {
+	ci.Parallel(t)
+
+	base := mock.Job()
+	job := func(scaling *structs.ScalingPolicy, count int) *structs.ReleaseResource {
+		j := base.Copy()
+		j.TaskGroups[0].Count = count
+		j.TaskGroups[0].Scaling = scaling
+		return &structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: j}
+	}
+	policy := func(enabled bool) *structs.ScalingPolicy {
+		return &structs.ScalingPolicy{Type: structs.ScalingPolicyTypeHorizontal, Min: 1, Max: 5, Enabled: enabled}
+	}
+
+	cases := []struct {
+		name    string
+		scaling *structs.ScalingPolicy
+		same    bool
+	}{
+		{name: "an enabled policy owns the count", scaling: policy(true), same: true},
+		{name: "a disabled policy does not", scaling: policy(false), same: false},
+		{name: "without a policy the count is the job's", scaling: nil, same: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := releaseResourceHash(job(tc.scaling, 1))
+			b := releaseResourceHash(job(tc.scaling, 4))
+			must.Eq(t, tc.same, a == b)
+		})
+	}
+
+	// Anything else of a scaled group still counts.
+	scaled := job(policy(true), 1)
+	changed := job(policy(true), 1)
+	changed.Job.TaskGroups[0].Meta = map[string]string{"changed": "yes"}
+	must.NotEq(t, releaseResourceHash(scaled), releaseResourceHash(changed))
+}
+
 // A hook job is registered only while its ID is free (review finding
 // ATM-2): the check-and-set write of a job is refused when the job exists
 // or changed, and leaves it alone.
