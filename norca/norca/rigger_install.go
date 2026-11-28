@@ -702,5 +702,46 @@ func riggerWarnings(m *rigger.Module, diags hcl.Diagnostics) []string {
 // riggerDiagsError is the error of the diagnostics of a module, a request
 // the client can correct.
 func riggerDiagsError(diags hcl.Diagnostics) error {
-	return structs.NewErrRPCCodedf(http.StatusBadRequest, "%s", diags.Error())
+	return structs.NewErrRPCCodedf(http.StatusBadRequest, "%s", diagsText(diags))
+}
+
+// diagsText is the text of the errors of diagnostics, as
+// hcl.Diagnostics.Error gives it, but a diagnostic without a subject (an
+// error of the servers, not of a file) is not prefixed with "<nil>: ".
+func diagsText(diags hcl.Diagnostics) string {
+	var errs hcl.Diagnostics
+
+	for _, d := range diags {
+		if d.Severity == hcl.DiagError {
+			errs = append(errs, d)
+		}
+	}
+
+	if len(errs) == 0 {
+		errs = diags
+	}
+
+	switch len(errs) {
+	case 0:
+		return "no diagnostics"
+	case 1:
+		return diagText(errs[0])
+	}
+
+	return fmt.Sprintf("%s, and %d other diagnostic(s)", diagText(errs[0]), len(errs)-1)
+}
+
+// diagText is the text of one diagnostic: its subject when it has one, its
+// summary and its detail.
+func diagText(d *hcl.Diagnostic) string {
+	text := d.Summary
+	if d.Detail != "" {
+		text += "; " + d.Detail
+	}
+
+	if d.Subject != nil {
+		text = d.Subject.String() + ": " + text
+	}
+
+	return text
 }

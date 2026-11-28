@@ -714,7 +714,7 @@ func (s *Server) runRiggerOperation(ctx context.Context, cancel context.CancelFu
 		}
 
 		if diags.HasErrors() {
-			runErr = errors.New(diags.Error())
+			runErr = errors.New(diagsText(diags))
 		}
 	} else {
 		removed, err := eng.DestroyStack(ctx, st)
