@@ -6,6 +6,7 @@ package lang
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -280,6 +281,10 @@ func (v *Variable) decodeBlock(b *hcl.Block) hcl.Diagnostics {
 			diags = append(diags, checkShowIf(b.Body, showIf)...)
 		}
 
+		if widget, ok := ui["widget"]; ok {
+			diags = append(diags, checkWidget(b.Body, widget)...)
+		}
+
 		return diags
 	default:
 		attrs, diags := decodeConstAttributes(b.Body, secretSchema)
@@ -334,6 +339,38 @@ func checkShowIf(body hcl.Body, val cty.Value) hcl.Diagnostics {
 	}
 
 	return nil
+}
+
+// Widgets are the widgets of the install form a ui block may name.
+var Widgets = []string{
+	"text", "number", "slider", "switch", "segmented", "select", "secret", "secret-path",
+	"code", "tags", "key-value", "object-list", "namespace-select", "region-select",
+	"node-pool-select", "datacenter-multiselect", "storage-volume-select",
+}
+
+// checkWidget checks the widget of a ui block. Another one is a warning,
+// not an error, as a show_if is: the form then shows the field its type
+// gives, which is a hint lost.
+func checkWidget(body hcl.Body, val cty.Value) hcl.Diagnostics {
+	rng := body.MissingItemRange()
+	if attrs, _ := body.JustAttributes(); attrs["widget"] != nil {
+		rng = attrs["widget"].Expr.Range()
+	}
+
+	text, ok := stringOf(val)
+	if ok && slices.Contains(Widgets, text) {
+		return nil
+	}
+
+	detail := "widget is a string."
+	if ok {
+		detail = fmt.Sprintf("%q is not a widget: %s.", text, strings.Join(Widgets, ", "))
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagWarning, Summary: "Unknown widget",
+		Detail: detail + " The form shows the field its type gives.", Subject: rng.Ptr(),
+	}}
 }
 
 // article is a type name with its indefinite article.

@@ -11,6 +11,8 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedReleases } from 'nomad-ui/mirage/norca/releases';
 import { seedRigger } from 'nomad-ui/mirage/norca/rigger';
+import { seedSecrets } from 'nomad-ui/mirage/norca/secrets';
+import { Response } from 'miragejs';
 import { useToken, lastBody, lastRequest } from 'nomad-ui/tests/helpers/norca';
 
 const REDIS = 'global/norca/redis';
@@ -191,6 +193,62 @@ module('Acceptance | rigger catalog', function (hooks) {
     assert
       .dom('[data-test-toast-message]')
       .includesText('norca service info redis');
+  });
+
+  test('a secret-path field offers the secret paths of the namespace of the release', async function (assert) {
+    server.create('namespace', { id: 'staging' });
+    seedSecrets(server);
+    await openCatalog();
+    await click(`[data-test-btn-install="${REDIS}"]`);
+    await click('[data-test-tab="security"]');
+
+    const offered = () =>
+      [
+        ...document.querySelectorAll(
+          '[data-test-pack-field="acl_path"] [data-test-pack-secret-paths] option'
+        ),
+      ].map((o) => o.value);
+    assert
+      .dom('[data-test-pack-field="acl_path"]')
+      .hasAttribute('data-test-pack-widget', 'secret-path');
+    assert.deepEqual(
+      offered(),
+      ['prod/api/stripe', 'prod/db/postgres'],
+      'the paths of namespace default, without a deleted secret'
+    );
+    assert.ok(
+      lastRequest('GET', '/v1/secrets').url.includes('namespace=default')
+    );
+
+    await select('[data-test-form-namespace]', 'staging');
+    await click('[data-test-tab="security"]');
+    assert.deepEqual(offered(), ['staging/db/postgres'], 'the new namespace');
+
+    // Any path may be written; the value is the path, never the secret.
+    await fillIn(
+      '[data-test-pack-field="acl_path"] [data-test-pack-secret-path]',
+      'staging/redis/acl'
+    );
+    await click('[data-test-btn-deploy]');
+    assert.strictEqual(
+      lastBody('PUT', '/v1/rigger/install').ValuesJSON.acl_path,
+      'staging/redis/acl'
+    );
+  });
+
+  test('a token that may not list secrets gets a text field', async function (assert) {
+    server.get('/secrets', () => new Response(403, {}, 'Permission denied'));
+    await openCatalog();
+    await click(`[data-test-btn-install="${REDIS}"]`);
+    await click('[data-test-tab="security"]');
+
+    assert
+      .dom('[data-test-pack-field="acl_path"] [data-test-pack-secret-path]')
+      .exists();
+    assert
+      .dom('[data-test-pack-field="acl_path"] [data-test-pack-secret-paths]')
+      .doesNotExist();
+    assert.dom('[data-test-pack-load-error]').doesNotExist();
   });
 
   test('required variables, versions, and a version the cluster cannot run', async function (assert) {

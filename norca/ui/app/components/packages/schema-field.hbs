@@ -17,6 +17,7 @@
               @drafts={{@drafts}}
               @namespaces={{@namespaces}}
               @regions={{@regions}}
+              @secretPaths={{@secretPaths}}
               @onChange={{@onChange}}
               @onDraft={{@onDraft}}
             />
@@ -105,6 +106,25 @@
             {{on "click" this.toggleReveal}}
           />
         </div>
+      {{else if (eq this.field.widget "secret-path")}}
+        {{! A path in the secret store, never the secret: the paths of the
+            namespace are offered, any other may be written. }}
+        <Ui::Input
+          @id={{f.id}}
+          @describedBy={{f.describedBy}}
+          @invalid={{f.invalid}}
+          @icon="lock"
+          @placeholder="path/of/the/secret"
+          @value={{this.value}}
+          @onInput={{this.change}}
+          list={{if @secretPaths.length (concat f.id "-secret-paths")}}
+          data-test-pack-secret-path
+        />
+        {{#if @secretPaths.length}}
+          <datalist id={{concat f.id "-secret-paths"}} data-test-pack-secret-paths>
+            {{#each @secretPaths as |p|}}<option value={{p}}></option>{{/each}}
+          </datalist>
+        {{/if}}
       {{else if (or this.isText (eq this.field.widget "code"))}}
         <Ui::Input
           @id={{f.id}}

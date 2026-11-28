@@ -163,3 +163,52 @@ func TestLoad_ShowIf(t *testing.T) {
 		})
 	}
 }
+
+// A widget the install form does not know was read in silence: the form
+// showed the field its type gives. Another widget is a warning, as a
+// show_if is: the module still loads.
+func TestLoad_Widget(t *testing.T) {
+	t.Parallel()
+
+	variable := func(widget string) string {
+		return "variable \"path\" {\n  type    = string\n  default = \"\"\n\n  ui {\n    widget = " + widget + "\n  }\n}\n"
+	}
+
+	for _, w := range lang.Widgets {
+		t.Run(w, func(t *testing.T) {
+			t.Parallel()
+
+			if _, diags := loadVariables(t, variable(`"`+w+`"`)); diags != "" {
+				t.Errorf("widget = %s: %s", w, diags)
+			}
+		})
+	}
+
+	tests := []struct {
+		name     string
+		widget   string
+		expected string
+	}{
+		{name: "an unknown widget", widget: `"password"`, expected: `Unknown widget; "password" is not a widget: text, number,`},
+		{name: "not a string", widget: `true`, expected: "Unknown widget; widget is a string."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, diags := loadVariables(t, variable(tt.widget))
+
+			if _, all := lang.Load(t.Context(), fstest.MapFS{
+				metadataHCL:  {Data: []byte(metadata)},
+				variablesHCL: {Data: []byte(variable(tt.widget))},
+			}, limits); all.HasErrors() {
+				t.Errorf("widget = %s: an error (%s); an unknown widget is a warning", tt.widget, all.Error())
+			}
+
+			if !strings.Contains(diags, tt.expected) {
+				t.Errorf("widget = %s: diagnostics %q, want %q", tt.widget, diags, tt.expected)
+			}
+		})
+	}
+}

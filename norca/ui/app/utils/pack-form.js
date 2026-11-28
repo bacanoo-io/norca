@@ -67,6 +67,7 @@ function widgetOf(prop) {
     case 'key-value':
     case 'namespace-select':
     case 'region-select':
+    case 'secret-path':
       return declared;
     case 'datacenter-multiselect':
       return 'tags';

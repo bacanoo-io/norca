@@ -172,6 +172,14 @@ const REDIS_SCHEMA = {
       'x-ui-secret-path': 'nomad/jobs/redis',
       'x-ui-secret-item': 'tls_key',
     },
+    acl_path: {
+      type: 'string',
+      title: 'ACL users path',
+      description: 'Path of the secret with the ACL users.',
+      'x-ui-tab': 'security',
+      'x-ui-widget': 'secret-path',
+      'x-ui-order': 3,
+    },
   },
 };
 

@@ -9,6 +9,7 @@ import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
+import { listSecrets } from 'nomad-ui/utils/secrets';
 import {
   formSchema,
   initialState,
@@ -64,6 +65,11 @@ export default class PackagesSchemaForm extends Component {
   // Adopt takes over a release another manager applied or a stack owns
   // (a backend with hasAdopt).
   @tracked adopt = false;
+
+  // The secret paths a secret-path field offers, and the region and
+  // namespace they were listed for (loadSecretPaths).
+  @tracked secretPaths = [];
+  secretPathsFor = null;
 
   @tracked isPlanning = false;
   @tracked isDeploying = false;
@@ -234,6 +240,35 @@ export default class PackagesSchemaForm extends Component {
     if (initial || !this.form.tabs.some((t) => t.id === this.activeTab)) {
       this.activeTab = this.form.tabs[0]?.id || 'cli';
     }
+    this.loadSecretPaths();
+  }
+
+  get hasSecretPathField() {
+    const has = (fields) =>
+      (fields || []).some((f) => f.widget === 'secret-path' || has(f.children));
+    return has(this.form.fields);
+  }
+
+  // The paths of the secrets of the namespace of the release, which a
+  // secret-path field offers. A token that may not list them gets none:
+  // the field stays a text field. The list is set when it arrives, never
+  // in the render that asks for it.
+  loadSecretPaths() {
+    if (!this.hasSecretPathField) return;
+    const key = `${this.region}\n${this.namespace}`;
+    if (this.secretPathsFor === key) return;
+    this.secretPathsFor = key;
+    waitForPromise(listSecrets(this.token, this.region, this.namespace))
+      .then(({ body }) => {
+        if (this.secretPathsFor !== key || this.isDestroying) return;
+        this.secretPaths = (body || [])
+          .filter((s) => !s.Deleted)
+          .map((s) => s.Path)
+          .sort();
+      })
+      .catch(() => {
+        if (this.secretPathsFor === key) this.secretPaths = [];
+      });
   }
 
   fetchDetail(version) {
@@ -286,6 +321,8 @@ export default class PackagesSchemaForm extends Component {
 
   @action setNamespace(value) {
     this.namespace = value;
+    this.secretPaths = [];
+    this.loadSecretPaths();
   }
 
   @action setAdopt(value) {
