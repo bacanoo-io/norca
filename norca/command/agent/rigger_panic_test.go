@@ -49,13 +49,16 @@ func TestHTTP_RiggerStackPanic(t *testing.T) {
 		testutil.WaitForLeader(t, s.RPC)
 
 		// The conversion of a release request is the host the servers are
-		// given; it panics while fault is set.
-		var fault atomic.Bool
+		// given; it panics while fault is set, after skip more calls pass.
+		var (
+			fault atomic.Bool
+			skip  atomic.Int32
+		)
 
 		cfg := s.Agent.Server().GetConfig()
 		convert := cfg.ReleaseFromRendered
 		cfg.ReleaseFromRendered = func(name string, req *api.ReleaseApplyRequest, ns string) (*structs.ReleaseApplyRequest, error) {
-			if fault.Load() {
+			if fault.Load() && skip.Add(-1) < 0 {
 				panic("a fault under the engine")
 			}
 
@@ -90,7 +93,9 @@ func TestHTTP_RiggerStackPanic(t *testing.T) {
 		must.Eq(t, "Succeeded", waitOperation(t, client, again.Name).Status.Phase)
 
 		// The apply of an install asks the host in the goroutine of the
-		// operation.
+		// operation. Its plan asks the host once before (the servers' dry
+		// run of a new release), which passes.
+		skip.Store(1)
 		fault.Store(true)
 
 		failed, _, err := client.Rigger().StackApply(&api.RiggerStackRequest{Files: solo}, nil)

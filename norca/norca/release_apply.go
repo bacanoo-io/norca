@@ -438,6 +438,18 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		return err
 	}
 	if nsObj == nil {
+		if in.dryRun {
+			// The namespace of a new release may come from an apply that
+			// runs before it (a tree applies tree-global, which creates
+			// the namespaces, before the stack of each namespace): a plan
+			// says what the release would create, unchecked, instead of
+			// failing (gitops-rigger-design.md G26 of norca-deployer).
+			reply.Changes = uncheckedChanges(in.resources)
+			reply.Warnings = append(op.warnings, fmt.Sprintf(
+				"the namespace %q of the release does not exist yet: its resources are not checked", op.namespace))
+			reply.Revision = 1
+			return nil
+		}
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "namespace %q of the release not found", op.namespace)
 	}
 	relObj, rel, err := releaseObject(snap, op.namespace, op.name)
@@ -1330,6 +1342,42 @@ func sortRefsForDeletion(refs []*structs.ReleaseResourceRef) {
 	})
 }
 
+// uncheckedChanges are the changes of a release whose namespace does not
+// exist yet: every resource would be created, hooks would run, nothing is
+// read or checked.
+func uncheckedChanges(resources []*structs.ReleaseResource) []*structs.ReleaseResourceChange {
+	changes := make([]*structs.ReleaseResourceChange, 0, len(resources))
+	for _, res := range resources {
+		if res == nil {
+			continue
+		}
+		ref := res.Ref()
+		action := structs.ReleaseChangeCreate
+		if res.IsHook() {
+			action = structs.ReleaseChangeHook
+		}
+		changes = append(changes, &structs.ReleaseResourceChange{
+			Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Hook: ref.Hook, Action: action,
+		})
+	}
+	return changes
+}
+
+// namespaceComesWithRelease reports whether the namespace name does not
+// exist and the release creates it: a job of it can't be planned before.
+func namespaceComesWithRelease(snap *state.StateSnapshot, resources []*structs.ReleaseResource, name string) (bool, error) {
+	ns, err := snap.NamespaceByName(nil, name)
+	if err != nil || ns != nil {
+		return false, err
+	}
+	for _, res := range resources {
+		if res != nil && res.Type == structs.ReleaseResourceNamespace && res.Namespace != nil && res.Namespace.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // plan computes the changes an apply would make, without writing.
 func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.ReleaseResource,
 	removed []*structs.ReleaseResourceRef, taken map[string]string, owned map[string]bool) ([]*structs.ReleaseResourceChange, error) {
@@ -1390,6 +1438,18 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 
 		switch res.Type {
 		case structs.ReleaseResourceJob:
+			// A new job in a namespace the release creates itself can't be
+			// planned before the namespace exists: it is created with it.
+			if !live.exists() {
+				comes, err := namespaceComesWithRelease(snap, resources, res.Job.Namespace)
+				if err != nil {
+					return nil, err
+				}
+				if comes {
+					change.Action = structs.ReleaseChangeCreate
+					break
+				}
+			}
 			// A job with bound ACL policies the token doesn't hold (JOG-2):
 			// the apply would be refused. A token that may not submit the
 			// job is marked below anyway.

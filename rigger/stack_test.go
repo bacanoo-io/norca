@@ -99,8 +99,18 @@ func (f *fakeCluster) List(_ context.Context, namespace string) ([]host.Revision
 	return out, nil
 }
 
+// Plan answers the dry run of the servers: an update of a release that
+// exists, a create for a new one.
 func (f *fakeCluster) Plan(_ context.Context, req host.ApplyRequest) (host.Plan, error) {
-	return host.Plan{Release: req.Release, Changes: []host.Change{{Kind: "job", Name: "x", Action: host.ActionUpdate}}}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	action := host.ActionUpdate
+	if _, ok := f.revision(req.Release); !ok {
+		action = host.ActionCreate
+	}
+
+	return host.Plan{Release: req.Release, Changes: []host.Change{{Kind: "job", Name: "x", Action: action}}}, nil
 }
 
 func (f *fakeCluster) Drift(_ context.Context, ref host.ReleaseRef) (host.Drift, error) {

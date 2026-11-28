@@ -438,6 +438,74 @@ func TestRelease_Drift(t *testing.T) {
 	must.Eq(t, structs.ReleaseConditionTrue, cond.Status)
 }
 
+// A plan checks a new release too (norca-deployer G26): its resources are
+// created, a job the servers refuse carries the error, a job in a namespace
+// the release creates is created without an error, and a release whose
+// namespace does not exist yet is planned unchecked instead of refused.
+func TestRelease_PlanOfAnInstall(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	plan := func(ns, name string, resources ...*structs.ReleaseResource) *structs.ReleaseApplyResponse {
+		t.Helper()
+		resp, err := c.apply(ns, name, &structs.ReleaseApplyRequest{
+			DryRun: true, Pack: &structs.ReleasePack{Name: name}, Resources: resources,
+		})
+		must.NoError(t, err)
+		return resp
+	}
+	byName := func(resp *structs.ReleaseApplyResponse) map[string]*structs.ReleaseResourceChange {
+		out := map[string]*structs.ReleaseResourceChange{}
+		for _, ch := range resp.Changes {
+			out[ch.Name] = ch
+		}
+		return out
+	}
+
+	// A valid job and a job without a driver, which the servers refuse.
+	broken := testReleaseJob("install-broken")
+	broken.TaskGroups[0].Tasks[0].Driver = ""
+	changes := byName(plan("default", "fresh",
+		&structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: testReleaseJob("install-ok")},
+		&structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: broken},
+	))
+	must.Eq(t, structs.ReleaseChangeCreate, changes["install-ok"].Action)
+	must.Eq(t, "", changes["install-ok"].Error)
+	must.Eq(t, structs.ReleaseChangeCreate, changes["install-broken"].Action)
+	must.NotEq(t, "", changes["install-broken"].Error)
+
+	// A job in a namespace the same release creates.
+	inTeam := testReleaseJob("team-web")
+	inTeam.Namespace = "team"
+	changes = byName(plan("default", "with-team",
+		&structs.ReleaseResource{Type: structs.ReleaseResourceNamespace, Namespace: &structs.Namespace{Name: "team"}},
+		&structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: inTeam},
+	))
+	must.Eq(t, structs.ReleaseChangeCreate, changes["team"].Action)
+	must.Eq(t, structs.ReleaseChangeCreate, changes["team-web"].Action)
+	must.Eq(t, "", changes["team-web"].Error)
+
+	// The namespace of the release itself does not exist yet.
+	resp := plan("later", "first",
+		&structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: testReleaseJob("later-web")},
+		&structs.ReleaseResource{Type: structs.ReleaseResourceVariable, Variable: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Path: "config/later"}, Items: map[string]string{"a": "b"},
+		}},
+	)
+	changes = byName(resp)
+	must.Eq(t, structs.ReleaseChangeCreate, changes["later-web"].Action)
+	must.Eq(t, structs.ReleaseChangeCreate, changes["config/later"].Action)
+	must.StrContains(t, strings.Join(resp.Warnings, "\n"), "does not exist yet")
+
+	// The apply of it is still refused.
+	_, err := c.apply("later", "first", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "first"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("later-web")}},
+	})
+	must.ErrorContains(t, err, `namespace "later" of the release not found`)
+}
+
 // A count that the autoscaler or a job scale set on a group an enabled
 // scaling policy scales is no drift (gitops-rigger-design.md 6.3): before,
 // every scaled job of a release reported Drifted "modified".

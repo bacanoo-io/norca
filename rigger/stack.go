@@ -225,7 +225,8 @@ type ReleasePlan struct {
 	// TakesOver says whose the release is when an apply of the plan takes
 	// it over, which needs ApplyOptions.Adopt; empty for none.
 	TakesOver string `json:"takes_over,omitempty"`
-	// Changes are the server's changes per resource of an upgrade.
+	// Changes are the server's changes per resource of an install or an
+	// upgrade, from its dry run.
 	Changes   []host.Change `json:"changes,omitempty"`
 	DependsOn []string      `json:"depends_on,omitempty"`
 
@@ -578,9 +579,7 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 
 	switch {
 	case errors.Is(err, host.ErrNotFound):
-		rp.Action = ActionInstall
-
-		return rp, nil
+		return e.planNewRelease(ctx, rp)
 	case err != nil:
 		return ReleasePlan{}, err
 	}
@@ -612,6 +611,23 @@ func (e *Engine) planRelease(ctx context.Context, ref host.ReleaseRef, owner, re
 	preview.Adopt = rp.TakesOver != ""
 
 	server, err := e.releases.Plan(ctx, preview)
+	if err != nil {
+		return ReleasePlan{}, err
+	}
+
+	rp.Changes = server.Changes
+
+	return rp, nil
+}
+
+// planNewRelease plans a release of a stack that does not exist yet. The servers check
+// a new release too (a dry run): its resources are planned as created, and
+// a resource they would refuse is found before any release of the stack is
+// applied.
+func (e *Engine) planNewRelease(ctx context.Context, rp ReleasePlan) (ReleasePlan, error) {
+	rp.Action = ActionInstall
+
+	server, err := e.releases.Plan(ctx, rp.request)
 	if err != nil {
 		return ReleasePlan{}, err
 	}
