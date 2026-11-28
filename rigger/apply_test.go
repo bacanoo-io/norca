@@ -151,7 +151,7 @@ func TestPlanInstall_NextSteps(t *testing.T) {
 				t.Fatal(diags)
 			}
 
-			rp, diags := e.PlanInstall(t.Context(), m, rigger.Install{Release: "app", Namespace: testNamespace, Region: "eu"}, host.Settings{})
+			rp, diags := e.PlanInstall(t.Context(), m, rigger.Install{Release: appRelease, Namespace: testNamespace, Region: "eu"}, host.Settings{})
 			if diags.HasErrors() {
 				t.Fatal(diags)
 			}

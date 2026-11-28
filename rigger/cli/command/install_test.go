@@ -246,8 +246,9 @@ func TestServerInstall_ByAddress(t *testing.T) {
 	t.Setenv("NORCA_NAMESPACE", "")
 	t.Setenv(serverEnv, "")
 
-	code, stdout, stderr := runInstallCommand(t, globalModule, flagName, riggerRelease, "-namespace", "store", flagServer, flagVersion, someConstraint, "-var", "count=2")
 	wantStdout := "install store/web: revision 3\n\nThe service web runs.\n  norca service info web\n"
+
+	code, stdout, stderr := runInstallCommand(t, globalModule, flagName, riggerRelease, "-namespace", "store", flagServer, flagVersion, someConstraint, "-var", "count=2")
 	if code != exitOK || stdout != wantStdout || !strings.Contains(stderr, "an advisory") {
 		t.Errorf("install = %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
