@@ -1357,10 +1357,14 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 			continue
 		}
 		// Never read or compare the live state of a resource the caller may
-		// not read or write (PK-3): otherwise a dry run leaks whether a
-		// Variable, ACL policy, quota, namespace or object exists and
-		// whether its content matches the submitted resource.
-		if !allowReleaseResourceWrite(aclObj, res) || !allowReleaseResourceRead(aclObj, res) {
+		// not read (PK-3): otherwise a dry run leaks whether a Variable, ACL
+		// policy, quota, namespace or object exists and whether its content
+		// matches the submitted resource. Reading is enough: the comparison
+		// tells nothing a read of the resource does not, so a token that
+		// may only read plans as exactly as one that may write
+		// (gitops-rigger-design.md 6.7). What it may not write is marked
+		// below.
+		if !allowReleaseResourceRead(aclObj, res) {
 			exempt, err := op.m.ownedUnchanged(snap, owned, res)
 			switch {
 			case err != nil:
@@ -1382,12 +1386,14 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 		if err != nil {
 			return nil, err
 		}
+		canWrite := allowReleaseResourceApply(aclObj, res)
 
 		switch res.Type {
 		case structs.ReleaseResourceJob:
 			// A job with bound ACL policies the token doesn't hold (JOG-2):
-			// the apply would be refused.
-			if aclObj != nil {
+			// the apply would be refused. A token that may not submit the
+			// job is marked below anyway.
+			if aclObj != nil && canWrite {
 				if err := op.m.srv.releaseJobBoundPolicies(snap, aclObj, op.args, res.Job); err != nil {
 					change.Action = structs.ReleaseChangeUpdate
 					if !live.exists() {
@@ -1402,9 +1408,15 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 			}
 			var reply structs.JobPlanResponse
 			job := res.Job.Copy()
-			err := op.m.srv.RPC("Job.Plan", &structs.JobPlanRequest{
-				Job: job, Diff: true, WriteRequest: op.writeRequest(job.Namespace),
-			}, &reply)
+			req := &structs.JobPlanRequest{Job: job, Diff: true, WriteRequest: op.writeRequest(job.Namespace)}
+			if canWrite {
+				err = op.m.srv.RPC("Job.Plan", req, &reply)
+			} else {
+				// The scheduler's plan needs submit-job; a token that may
+				// only read the job gets the diff without the placements.
+				req.SetIdentity(op.args.GetIdentity())
+				err = NewJobEndpoints(op.m.srv, nil).planJob(req, &reply, true)
+			}
 			if err != nil {
 				change.Error = err.Error()
 				change.Action = structs.ReleaseChangeUpdate
@@ -1426,6 +1438,17 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 				op.warn("job %q: %s", job.ID, reply.Warnings)
 			}
 		case structs.ReleaseResourceObject:
+			if !canWrite {
+				// The dry run of the object endpoint, which applies the
+				// defaults of its kind and its webhooks, needs the write
+				// capability: without it the object is not compared.
+				change.Action = structs.ReleaseChangeUpdate
+				if !live.exists() {
+					change.Action = structs.ReleaseChangeCreate
+				}
+				change.Error = "not compared: " + structs.ErrPermissionDenied.Error()
+				continue
+			}
 			obj := res.Object.Copy()
 			ns := obj.Namespace
 			if ns == "" {
@@ -1466,6 +1489,12 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 			default:
 				change.Action = structs.ReleaseChangeUnchanged
 			}
+		}
+		// An apply with this token would be refused, unless the release
+		// owns the resource and leaves it as it is (ownedUnchanged).
+		ownedAsItIs := change.Action == structs.ReleaseChangeUnchanged && owned[ref.Key()]
+		if !canWrite && change.Error == "" && !ownedAsItIs {
+			change.Error = structs.ErrPermissionDenied.Error()
 		}
 	}
 	for _, ref := range removed {

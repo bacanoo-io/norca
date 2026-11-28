@@ -79,8 +79,9 @@ func waitOperation(t *testing.T, client *api.Client, name string) *api.RiggerOpe
 // 4.6b): planned; applied as an operation that ends Succeeded with its
 // outcomes and its full log on the bus; applied again (unchanged); its
 // status; a cancel of an ended operation is refused; the operations beyond
-// ten are deleted; destroyed as an operation; a token without the right to
-// write releases is refused.
+// ten are deleted; destroyed as an operation; a token that may only read
+// releases plans and reads the status but can't apply; a token without the
+// right to read releases can't plan.
 func TestHTTP_RiggerStackOperations(t *testing.T) {
 	ci.Parallel(t)
 
@@ -157,6 +158,32 @@ func TestHTTP_RiggerStackOperations(t *testing.T) {
 		must.NoError(t, err)
 		must.Eq(t, 2, len(status.Releases))
 
+		// A token that may only read plans the stack and reads its status
+		// (gitops-rigger-design.md 6.7), but can't apply it.
+		reader := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1600, "stack-plan", `
+namespace "default" {
+  capabilities = ["read-job", "list-jobs", "read-secret", "list-secrets"]
+  object "rigger.norca.io/Release" { capabilities = ["read"] }
+  variables {
+    path "shop/*" { capabilities = ["read"] }
+  }
+}`)
+		client.SetSecretID(reader.SecretID)
+
+		bigger := *req
+		bigger.Values = "size = 2\n"
+		readPlan, _, err := client.Rigger().StackPlan(&bigger, nil)
+		must.NoError(t, err)
+		must.Eq(t, "db:upgrade app:unchanged", stackActions(readPlan.Plan.Releases))
+
+		_, _, err = client.Rigger().StackStatus(req, nil)
+		must.NoError(t, err)
+
+		_, _, err = client.Rigger().StackApply(&bigger, nil)
+		must.ErrorContains(t, err, "Permission denied")
+
+		client.SetSecretID(s.RootToken.SecretID)
+
 		// Eleven more applies, all unchanged: ten operations are kept.
 		var last string
 
@@ -197,9 +224,9 @@ func TestHTTP_RiggerStackOperations(t *testing.T) {
 		must.Eq(t, "Succeeded", op.Status.Phase, must.Sprint(op.Status.Error))
 		must.Eq(t, "app:remove db:remove", operationActions(op.Status.Outcomes))
 
-		// A token that can't write releases.
-		weak := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1700, "read-only",
-			`namespace "default" { object "rigger.norca.io/Release" { capabilities = ["read"] } }`)
+		// A token that can't read releases can't plan.
+		weak := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1700, "no-releases",
+			`namespace "default" { policy = "read" }`)
 		client.SetSecretID(weak.SecretID)
 
 		_, _, err = client.Rigger().StackPlan(req, nil)

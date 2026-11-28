@@ -750,6 +750,84 @@ namespace "default" {
 	must.ErrorContains(t, err, "Permission denied")
 }
 
+// A token that may only read plans a release as exactly as one that may
+// write it (gitops-rigger-design.md 6.7): reading releases is enough for a
+// dry run, a resource it may read is compared, a job is compared by its diff
+// without the scheduler, and what it may not write is marked. It still can't
+// apply, and a token without the read right on releases can't plan.
+func TestRelease_PlanWithReadOnlyToken(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	job := testReleaseJob("ro-web")
+	variable := func() *structs.ReleaseResource {
+		return &structs.ReleaseResource{Type: structs.ReleaseResourceVariable, Variable: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Path: "config/ro"},
+			Items:            map[string]string{"user": "admin"},
+		}}
+	}
+	_, err := c.apply("default", "ro", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "ro"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: job.Copy()}, variable()},
+	})
+	must.NoError(t, err)
+
+	reader := mock.CreatePolicyAndToken(t, c.srv.State(), 1020, "release-plan", `
+namespace "default" {
+  capabilities = ["read-job", "list-jobs"]
+  object "rigger.norca.io/Release" { capabilities = ["read"] }
+  variables {
+    path "config/*" { capabilities = ["read"] }
+  }
+}`)
+	plan := func(token string, resources ...*structs.ReleaseResource) (map[string]*structs.ReleaseResourceChange, error) {
+		var resp structs.ReleaseApplyResponse
+		err := msgpackrpc.CallWithCodec(c.codec, "Release.Apply", &structs.ReleaseApplyRequest{
+			Name: "ro", DryRun: true, Pack: &structs.ReleasePack{Name: "ro"}, Resources: resources,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: token},
+		}, &resp)
+		changes := map[string]*structs.ReleaseResourceChange{}
+		for _, ch := range resp.Changes {
+			changes[ch.Name] = ch
+		}
+		return changes, err
+	}
+
+	// Unchanged: the release owns both as they are, nothing to mark.
+	changes, err := plan(reader.SecretID, &structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: job.Copy()}, variable())
+	must.NoError(t, err)
+	must.Eq(t, structs.ReleaseChangeUnchanged, changes["ro-web"].Action, must.Sprint(changes["ro-web"].Error))
+	must.Eq(t, "", changes["ro-web"].Error)
+	must.Eq(t, structs.ReleaseChangeUnchanged, changes["config/ro"].Action)
+	must.Eq(t, "", changes["config/ro"].Error)
+
+	// A changed job: its diff, and the mark that this token can't apply it.
+	changed := job.Copy()
+	changed.Meta = map[string]string{"changed": "yes"}
+	changes, err = plan(reader.SecretID, &structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: changed}, variable())
+	must.NoError(t, err)
+	web := changes["ro-web"]
+	must.Eq(t, structs.ReleaseChangeUpdate, web.Action)
+	must.NotNil(t, web.JobDiff)
+	must.Eq(t, structs.DiffTypeEdited, web.JobDiff.Type)
+	must.StrContains(t, web.Error, "Permission denied")
+
+	// The token can't apply.
+	var resp structs.ReleaseApplyResponse
+	err = msgpackrpc.CallWithCodec(c.codec, "Release.Apply", &structs.ReleaseApplyRequest{
+		Name: "ro", Pack: &structs.ReleasePack{Name: "ro"},
+		Resources:    []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: changed.Copy()}, variable()},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: reader.SecretID},
+	}, &resp)
+	must.ErrorContains(t, err, "Permission denied")
+
+	// Without the read right on releases there is no plan.
+	jobsOnly := mock.CreatePolicyAndToken(t, c.srv.State(), 1021, "jobs-read", `namespace "default" { policy = "read" }`)
+	_, err = plan(jobsOnly.SecretID, &structs.ReleaseResource{Type: structs.ReleaseResourceJob, Job: job.Copy()})
+	must.ErrorContains(t, err, "Permission denied")
+}
+
 // TestRelease_RevisionVariablesACL checks that a revision does not reveal
 // the values of its Variables to a token that may not read them (clean room
 // bugfix): Release.GetRevision leaves them out, the object API and the

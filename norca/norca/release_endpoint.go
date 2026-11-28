@@ -100,8 +100,16 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	}
 	defer metrics.MeasureSince([]string{"server", "release", "apply"}, time.Now())
 
+	// A dry run writes nothing and compares only what the caller may read
+	// (releaseOp.plan), so reading releases is enough for it: a plan in a
+	// pull request or of a GitOps binding that only plans needs no token
+	// that could apply (gitops-rigger-design.md 6.7).
 	namespace := args.RequestNamespace()
-	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
+	capability := acl.ObjectCapabilityWrite
+	if args.DryRun {
+		capability = acl.ObjectCapabilityRead
+	}
+	if _, err := r.authorize(args, namespace, capability); err != nil {
 		return err
 	}
 	if err := r.prepareWrite(args.Name, args.DryRun); err != nil {

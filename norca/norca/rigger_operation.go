@@ -210,7 +210,7 @@ func (r *Rigger) StackPlan(args *RiggerStackRequest, reply *RiggerStackPlanRespo
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	eng, s, values, err := r.srv.riggerStack(ctx, args, r.ctx)
+	eng, s, values, err := r.srv.riggerStack(ctx, args, acl.ObjectCapabilityRead, r.ctx)
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func (r *Rigger) StackStatus(args *RiggerStackRequest, reply *RiggerStackStatusR
 	ctx, cancel := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancel()
 
-	eng, s, _, err := r.srv.riggerStack(ctx, args, r.ctx)
+	eng, s, _, err := r.srv.riggerStack(ctx, args, acl.ObjectCapabilityRead, r.ctx)
 	if err != nil {
 		return err
 	}
@@ -400,15 +400,17 @@ func (s *Server) authorizeNamespaceObject(args structs.RequestWithIdentity, name
 }
 
 // authorizeRiggerStack checks what a stack request needs before the
-// servers do anything for it: its form, write on releases in its namespace,
-// and read on the kind of registries for a published stack.
-func (s *Server) authorizeRiggerStack(args *RiggerStackRequest) error {
+// servers do anything for it: its form, the capability on releases in its
+// namespace (read for a plan or a status, which write nothing; write for an
+// apply or a destroy), and read on the kind of registries for a published
+// stack.
+func (s *Server) authorizeRiggerStack(args *RiggerStackRequest, capability string) error {
 	local := len(args.Files) > 0
 	if local == (args.Source != "") {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "a stack is either published (a source) or sent as files")
 	}
 
-	if err := s.authorizeNamespaceObject(args, args.RequestNamespace(), structs.ReleaseKindRef, acl.ObjectCapabilityWrite); err != nil {
+	if err := s.authorizeNamespaceObject(args, args.RequestNamespace(), structs.ReleaseKindRef, capability); err != nil {
 		return err
 	}
 
@@ -419,12 +421,15 @@ func (s *Server) authorizeRiggerStack(args *RiggerStackRequest) error {
 	return s.authorizeNamespaceObject(args, acl.ObjectClusterNamespace, structs.RiggerRegistryKindRef, acl.ObjectCapabilityRead)
 }
 
-// riggerStack checks the rights of a stack request and loads the stack and
-// its values with an engine of the caller's token: a published stack from
-// its source, a local one from its files, both with the sources a server
-// fetches from (rigger_sources.go). The stack is in the namespace of the request.
-func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, rpcCtx *RPCContext, opts ...rigger.Option) (*rigger.Engine, *rigger.Stack, rigger.Values, error) {
-	if err := s.authorizeRiggerStack(args); err != nil {
+// riggerStack checks the rights of a stack request (capability on releases,
+// see authorizeRiggerStack) and loads the stack and its values with an
+// engine of the caller's token: a published stack from its source, a local
+// one from its files, both with the sources a server fetches from
+// (rigger_sources.go). The stack is in the namespace of the request.
+func (s *Server) riggerStack(ctx context.Context, args *RiggerStackRequest, capability string, rpcCtx *RPCContext,
+	opts ...rigger.Option) (*rigger.Engine, *rigger.Stack, rigger.Values, error) {
+
+	if err := s.authorizeRiggerStack(args, capability); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -502,7 +507,7 @@ func (r *riggerRegistries) noGlobalDir() (string, error) {
 func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, rpcCtx *RPCContext) (*RiggerOperation, error) {
 	// Before the log: its writer connects to the bus and may wait for it
 	// and make its stream.
-	if err := s.authorizeRiggerStack(args); err != nil {
+	if err := s.authorizeRiggerStack(args, acl.ObjectCapabilityWrite); err != nil {
 		return nil, err
 	}
 
@@ -525,7 +530,7 @@ func (s *Server) startRiggerOperation(args *RiggerStackRequest, action string, r
 	planCtx, cancelPlan := context.WithTimeout(context.Background(), riggerInstallTimeout)
 	defer cancelPlan()
 
-	eng, st, values, err := s.riggerStack(planCtx, args, rpcCtx, rigger.WithLogger(logger))
+	eng, st, values, err := s.riggerStack(planCtx, args, acl.ObjectCapabilityWrite, rpcCtx, rigger.WithLogger(logger))
 	if err != nil {
 		return nil, err
 	}

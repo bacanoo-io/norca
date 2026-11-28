@@ -1908,6 +1908,17 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 
 // plan runs the plan of a job on this server's state.
 func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse) error {
+	return j.planJob(args, reply, false)
+}
+
+// planJob runs the plan of a job on this server's state. With diffOnly it
+// stops at the diff of the job, before the scheduler: the job is prepared as
+// for a plan (admission controllers and policies, kept counts, scaling
+// policy IDs) and compared with the stored one. It is not an RPC: the
+// release dry run uses it for a caller that may read the job but not submit
+// it (releaseOp.plan), so it needs read-job instead of submit-job and
+// answers no placements, which would tell about the nodes.
+func (j *Job) planJob(args *structs.JobPlanRequest, reply *structs.JobPlanResponse, diffOnly bool) error {
 	// Validate the arguments
 	if args.Job == nil {
 		return fmt.Errorf("Job required for plan")
@@ -1940,6 +1951,10 @@ func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	// Check job submission permissions, which we assume is the same for plan
 	if aclObj, err := j.srv.ResolveACL(args); err != nil {
 		return err
+	} else if aclObj != nil && diffOnly {
+		if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadJob) {
+			return structs.ErrPermissionDenied
+		}
 	} else if aclObj != nil {
 		if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
 			return structs.ErrPermissionDenied
@@ -1985,6 +2000,20 @@ func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 
 	if err := propagateScalingPolicyIDs(oldJob, args.Job); err != nil {
 		return err
+	}
+
+	if diffOnly {
+		if args.Diff {
+			jobDiff, err := oldJob.Diff(args.Job, true)
+			if err != nil {
+				return fmt.Errorf("failed to create job diff: %v", err)
+			}
+			reply.Diff = jobDiff
+		}
+		if oldJob != nil {
+			reply.JobModifyIndex, reply.Index = oldJob.JobModifyIndex, oldJob.JobModifyIndex
+		}
+		return nil
 	}
 
 	var index uint64
