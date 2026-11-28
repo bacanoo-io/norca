@@ -103,7 +103,7 @@ func addInstallFlags(cmd *cobra.Command) *installFlags {
 	flags.StringVar(&f.region, regionFlag, "", "region of the release (default: the region of the cluster)")
 	flags.StringVar(&f.version, versionFlag, "", `a module by its address: the version `+"`constraint`"+` ("~> 1.2"); none takes the newest`)
 	flags.StringVar(&f.registry, "registry", "", "with --server: a registry of the cluster to install from; the argument is the module as it lists it")
-	flags.DurationVar(&f.timeout, "timeout", 0, "how long to wait until the release is ready (default: the server's)")
+	flags.DurationVar(&f.timeout, timeoutFlag, 0, "how long to wait until the release is ready (default: the server's)")
 	flags.BoolVar(&f.adopt, adoptFlag, false, "take over a release another package manager applied or a stack owns")
 	flags.BoolVar(&f.server, serverFlag, serverDefault(), serverUsage)
 

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -54,6 +55,16 @@ applied.`,
   rigger release rollback web 3 --namespace apps`,
 	},
 	{
+		"test <name>", "Run the tests of a release",
+		`Run the tests of the current revision of a release: the jobs of its
+modules with hook { on = "test" }. The command waits for them, prints each
+hook job with its status, and ends with exit code 1 when a test failed. A
+release without such hooks passes. The servers keep the result as the last
+test of the release. --timeout bounds the wait (by default the servers').`,
+		`  rigger release test web --namespace apps
+  rigger release test web --timeout 10m`,
+	},
+	{
 		"uninstall <name>", "Uninstall a release",
 		`Uninstall a release of the namespace.`,
 		`  rigger release uninstall web --namespace apps`,
@@ -70,18 +81,28 @@ func (a *app) newReleaseCommand() *cobra.Command {
 
 	return newGroup(&cobra.Command{
 		Use:   "release",
-		Short: "One release, without a stack: list, status, history, rollback, uninstall",
+		Short: "One release, without a stack: list, status, history, rollback, test, uninstall",
 		Long: `The commands of one release of a module, without a stack, through the
 release API of the cluster.`,
 	}, sub...)
 }
 
+// releaseOptions are the flags of rigger release that only some of its
+// commands use.
+type releaseOptions struct {
+	// adopt is --adopt of rollback.
+	adopt bool
+	// timeout is --timeout of test.
+	timeout time.Duration
+}
+
 // newReleaseSubcommand is one command of rigger release. Each parses the
-// flags they all took before; --adopt shows for rollback only.
+// flags they all took before; --adopt shows for rollback only, --timeout
+// for test only.
 func (a *app) newReleaseSubcommand(doc [4]string) *cobra.Command {
 	var (
 		namespace, region string
-		adopt             bool
+		opts              releaseOptions
 	)
 
 	name, _, _ := strings.Cut(doc[0], " ")
@@ -94,23 +115,29 @@ func (a *app) newReleaseSubcommand(doc [4]string) *cobra.Command {
 				return err
 			}
 
-			return releaseCommand(cmd.Context(), a.stdout, norcaapi.NewReleases(client), name, namespace, args, adopt)
+			return releaseCommand(cmd.Context(), a.stdout, norcaapi.NewReleases(client), name, namespace, args, opts)
 		},
 	}
 
 	flags := cmd.Flags()
 	flags.StringVar(&namespace, namespaceFlag, "default", "namespace of the release (list: * for all)")
 	flags.StringVar(&region, regionFlag, "", "the region to talk to")
-	flags.BoolVar(&adopt, adoptFlag, false, "restore a revision of another manager or stack")
+	flags.BoolVar(&opts.adopt, adoptFlag, false, "restore a revision of another manager or stack")
+	flags.DurationVar(&opts.timeout, timeoutFlag, 0, "how long to wait for the tests (default: the servers')")
 
-	if name != "rollback" {
+	switch name {
+	case "rollback":
+		showOnly(cmd, namespaceFlag, regionFlag, adoptFlag)
+	case cmdTest:
+		showOnly(cmd, namespaceFlag, regionFlag, timeoutFlag)
+	default:
 		showOnly(cmd, namespaceFlag, regionFlag)
 	}
 
 	return cmd
 }
 
-func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Releases, cmd, namespace string, args []string, adopt bool) error {
+func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Releases, cmd, namespace string, args []string, opts releaseOptions) error {
 	if cmd == cmdList {
 		revs, err := releases.List(ctx, namespace)
 		if err != nil {
@@ -137,7 +164,9 @@ func releaseCommand(ctx context.Context, w io.Writer, releases *norcaapi.Release
 
 		return writeRevisions(w, revs)
 	case "rollback":
-		return releaseRollback(ctx, w, releases, ref, args[1:], adopt)
+		return releaseRollback(ctx, w, releases, ref, args[1:], opts.adopt)
+	case cmdTest:
+		return releaseTest(ctx, w, releases, ref, opts.timeout)
 	case "uninstall":
 		if err := releases.Uninstall(ctx, ref); err != nil {
 			return err
@@ -171,6 +200,45 @@ func releaseStatus(ctx context.Context, w io.Writer, releases *norcaapi.Releases
 		if _, err := fmt.Fprintf(w, "  drifted %s %s: %s\n", d.Kind, d.Name, d.Detail); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// errTestFailed ends rigger release test with exit code 1 when a test of
+// the release failed; the hooks are printed before it.
+var errTestFailed = errors.New("a test of the release failed")
+
+// releaseTest runs the tests of the current revision of a release and
+// writes the result and each hook job.
+func releaseTest(ctx context.Context, w io.Writer, releases *norcaapi.Releases, ref host.ReleaseRef, timeout time.Duration) error {
+	res, err := releases.Test(ctx, ref, timeout)
+	if err != nil {
+		return err
+	}
+
+	result := "passed"
+	if !res.Succeeded {
+		result = "failed"
+	}
+
+	if _, err := fmt.Fprintf(w, "test %s/%s: revision %d %s\n", ref.Namespace, ref.Name, res.Revision, result); err != nil {
+		return err
+	}
+
+	for _, h := range res.Hooks {
+		line := fmt.Sprintf("  %s %s/%s: %s", h.Phase, h.Namespace, h.Job, h.Status)
+		if h.Message != "" {
+			line += " (" + h.Message + ")"
+		}
+
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
+
+	if !res.Succeeded {
+		return errTestFailed
 	}
 
 	return nil

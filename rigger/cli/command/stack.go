@@ -55,7 +55,8 @@ const (
 	cmdSync    = "sync"
 )
 
-// The flags of the stack commands, and of install and module render.
+// The flags of the stack commands, and of install, module render and the
+// release commands.
 const (
 	valuesFlag    = "values"
 	varFlag       = "var"
@@ -66,6 +67,7 @@ const (
 	adoptFlag     = "adopt"
 	keyFlag       = "key"
 	pruneFlag     = "prune"
+	timeoutFlag   = "timeout"
 )
 
 // stackDoc is the help of a stack command and the flags it shows; it

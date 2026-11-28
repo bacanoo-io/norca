@@ -268,6 +268,18 @@ func (r *Releases) RollbackRevision(ctx context.Context, ref host.ReleaseRef, nu
 	return r.revisionOf(ctx, ref, resp.Revision)
 }
 
+// Test runs the tests of the current revision of a release (its hook jobs
+// of the phase test) and waits for them; timeout 0 is the servers'
+// default. A failed test is a result with Succeeded false, not an error.
+func (r *Releases) Test(ctx context.Context, ref host.ReleaseRef, timeout time.Duration) (*api.ReleaseTestResult, error) {
+	resp, _, err := r.client.Releases().Test(ref.Name, timeout, write(ctx, ref.Namespace))
+	if err != nil {
+		return nil, notFound(err)
+	}
+
+	return resp, nil
+}
+
 // Uninstall removes a release and its resources.
 func (r *Releases) Uninstall(ctx context.Context, ref host.ReleaseRef) error {
 	_, _, err := r.client.Releases().Delete(ref.Name, &api.ReleaseDeleteOptions{Propagation: api.ReleasePropagationBackground}, write(ctx, ref.Namespace))

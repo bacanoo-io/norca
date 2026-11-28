@@ -234,7 +234,7 @@ func TestRun_GroupNeedsACommand(t *testing.T) {
 	}{
 		{args: []string{cmdStack}, expected: "rigger: stack needs a command: sync, validate, plan, apply, status, destroy or publish\n"},
 		{args: []string{cmdStack, "aply"}, expected: "rigger: unknown stack command \"aply\"\n"},
-		{args: []string{cmdRelease}, expected: "rigger: release needs a command: list, status, history, rollback or uninstall\n"},
+		{args: []string{cmdRelease}, expected: "rigger: release needs a command: list, status, history, rollback, test or uninstall\n"},
 		{args: []string{cmdKey}, expected: "rigger: key needs a command: generate, sign or verify\n"},
 		{args: []string{cmdBundle}, expected: "rigger: bundle needs a command: create, inspect or import\n"},
 		{args: []string{cmdOperation}, expected: "rigger: operation needs a command: follow, cancel or status\n"},

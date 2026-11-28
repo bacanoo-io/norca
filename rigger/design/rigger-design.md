@@ -1057,12 +1057,16 @@ rigger index update|check           list new versions in the global registry; ch
 Every `rigger stack` command takes a directory (default: the current one) or a
 registry address with `--version`.
 
-rigger release list|status|history|rollback|uninstall    one release, without a stack
+rigger release list|status|history|rollback|test|uninstall    one release, without a stack
 rigger install <source> --name x -f values.hcl            a stack of one, for quick use
 ```
 
 `rigger install` covers what `norca pack run` does today; everything else of a
 single release goes to the server's release API unchanged.
+`rigger release test` (added 2026-11-28) runs the hooks of the phase `test`
+of the current revision (`PUT /v1/release/<name>/test`), prints each hook
+job with its status and ends with exit code 1 when a test failed; the
+servers keep the result as `status.lastTest` of the release.
 
 **The command line** (as built 2026-11-25; the user found the standard
 `flag` package not adequate and decided the four points below). The
