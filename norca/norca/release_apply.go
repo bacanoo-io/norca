@@ -19,7 +19,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	norcaversion "github.com/bacanoo-io/norca/norca/version"
-	"github.com/hashicorp/go-version"
+	riggerversion "github.com/bacanoo-io/norca/rigger/version"
 )
 
 // releaseFeatures are the server features a pack can require in the
@@ -214,21 +214,29 @@ func (s *Server) evaluatePackCompatibility(req *structs.ReleasePackRequires) (bo
 	return len(missing) == 0, missing
 }
 
-// checkReleaseRequirements checks the requirements of a pack against this
-// server.
+// checkReleaseRequirements checks the requirements of a module against this
+// server. requires.norca is a constraint of Rigger, read as the rigger
+// program reads the required_version of a stack.
 func checkReleaseRequirements(req *structs.ReleasePackRequires) error {
+	return checkReleaseRequirementsAt(req, norcaversion.NorcaVersion)
+}
+
+func checkReleaseRequirementsAt(req *structs.ReleasePackRequires, server string) error {
 	if req == nil {
 		return nil
 	}
 	if req.Norca != "" {
-		c, err := version.NewConstraint(req.Norca)
+		c, err := riggerversion.ParseConstraint(req.Norca)
 		if err != nil {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid Norca version requirement %q: %v", req.Norca, err)
 		}
-		v := version.Must(version.NewVersion(norcaversion.NorcaVersion))
-		if !c.Check(v.Core()) {
+		v, err := riggerversion.Parse(server)
+		if err != nil {
+			return fmt.Errorf("the version %q of the servers: %w", server, err)
+		}
+		if !c.Check(v) {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest,
-				"the module requires Norca %s, the servers run %s", req.Norca, norcaversion.NorcaVersion)
+				"the module requires Norca %s, the servers run %s", req.Norca, server)
 		}
 	}
 	for _, f := range req.Features {

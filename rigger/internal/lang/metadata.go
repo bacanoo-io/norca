@@ -125,6 +125,15 @@ func (b *moduleBlock) metadata(rng hcl.Range, what string) (module.Metadata, hcl
 			fmt.Sprintf("%q is not a category: %s.", b.Category, strings.Join(module.Categories, ", "))))
 	}
 
+	// The servers check requires.norca with the constraints of Rigger, the
+	// ones of required_version.
+	if r := b.Requires; r != nil && r.Norca != "" {
+		if _, err := version.ParseConstraint(r.Norca); err != nil {
+			diags = append(diags, errorAt(rng, "Invalid Norca requirement",
+				fmt.Sprintf("requires.norca %q is no version constraint such as \">= 0.3.0\" or \"~> 0.3\": %s.", r.Norca, err)))
+		}
+	}
+
 	md := module.Metadata{
 		Name: b.Name, Version: b.Version, Description: b.Description, URL: b.URL,
 		License: b.License, Category: b.Category, Keywords: b.Keywords, Icon: b.Icon, Library: b.Library,

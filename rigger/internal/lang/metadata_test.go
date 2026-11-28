@@ -62,3 +62,51 @@ func TestLoad_MetadataVersion(t *testing.T) {
 		})
 	}
 }
+
+// requires.norca is a constraint of Rigger, which the servers check against
+// their version: one ParseConstraint does not take is refused at the load,
+// not at the first install.
+func TestLoad_MetadataRequiresNorca(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		constraint string
+		invalid    bool
+	}{
+		{name: "a lower bound", constraint: ">= 0.3.0"},
+		{name: "a pessimistic constraint", constraint: "~> 0.3"},
+		{name: "two conditions", constraint: ">= 0.3.0, < 1.0.0"},
+		{name: "no operator", constraint: "0.3.0"},
+		{name: "a word", constraint: "latest", invalid: true},
+		{name: "conditions without a comma", constraint: ">= 0.3.0 < 1.0.0", invalid: true},
+		{name: "an empty condition", constraint: ">= 0.3.0,", invalid: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := fstest.MapFS{metadataHCL: {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n" +
+				"  requires {\n    norca = \"" + tt.constraint + "\"\n  }\n}\n")}}
+
+			m, diags := lang.Load(t.Context(), fsys, limits)
+
+			if !tt.invalid {
+				if diags.HasErrors() {
+					t.Fatalf("Load() = %s, want requires.norca %q taken", diags.Error(), tt.constraint)
+				}
+
+				if m.Metadata.Requires.Norca != tt.constraint {
+					t.Errorf("requires.norca = %q, want %q", m.Metadata.Requires.Norca, tt.constraint)
+				}
+
+				return
+			}
+
+			if expected := "Invalid Norca requirement"; !strings.Contains(diags.Error(), expected) {
+				t.Errorf("diagnostics = %q, want them to contain %q", diags.Error(), expected)
+			}
+		})
+	}
+}
