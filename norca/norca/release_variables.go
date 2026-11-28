@@ -26,7 +26,7 @@ func validateReleaseVariables(schemas []*structs.ReleaseVariablesSchema, values 
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "empty variables schema")
 		}
 		if slices.Contains(packs, s.Pack) {
-			return structs.NewErrRPCCodedf(http.StatusBadRequest, "pack %q has more than one variables schema", s.Pack)
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "module %q has more than one variables schema", s.Pack)
 		}
 		packs = append(packs, s.Pack)
 		size += len(s.Schema)
@@ -49,7 +49,7 @@ func validateReleaseVariables(schemas []*structs.ReleaseVariablesSchema, values 
 func validatePackVariables(pack, schema string, values map[string]any) error {
 	compiled, err := objectschema.CompileDocument("pack-variables/"+pack, schema)
 	if err != nil {
-		return fmt.Errorf("the variables_schema of pack %q is invalid: %v", pack, err)
+		return fmt.Errorf("the variables_schema of module %q is invalid: %v", pack, err)
 	}
 	doc := make(map[string]any, len(values))
 	for k, v := range values {
@@ -58,7 +58,7 @@ func validatePackVariables(pack, schema string, values map[string]any) error {
 		}
 	}
 	if err := compiled.ValidateValue(doc); err != nil {
-		return fmt.Errorf("the variables of pack %q do not match its variables_schema: %v", pack, err)
+		return fmt.Errorf("the variables of module %q do not match its variables_schema: %v", pack, err)
 	}
 	return nil
 }

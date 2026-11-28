@@ -228,12 +228,12 @@ func checkReleaseRequirements(req *structs.ReleasePackRequires) error {
 		v := version.Must(version.NewVersion(norcaversion.NorcaVersion))
 		if !c.Check(v.Core()) {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest,
-				"the pack requires Norca %s, the servers run %s", req.Norca, norcaversion.NorcaVersion)
+				"the module requires Norca %s, the servers run %s", req.Norca, norcaversion.NorcaVersion)
 		}
 	}
 	for _, f := range req.Features {
 		if !slices.Contains(releaseFeatures, f) {
-			return structs.NewErrRPCCodedf(http.StatusBadRequest, "the pack requires the feature %q, which the servers don't provide", f)
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "the module requires the feature %q, which the servers don't provide", f)
 		}
 	}
 	return nil
@@ -407,7 +407,7 @@ func claimConflicts(aclObj *acl.ACL, resources []*structs.ReleaseResource, other
 	if len(conflicts) == 0 {
 		return nil
 	}
-	return structs.NewReleaseConflictError("resources of the pack are being written by other operations: %s",
+	return structs.NewReleaseConflictError("resources of the release are being written by other operations: %s",
 		strings.Join(conflicts, "; "))
 }
 
@@ -577,10 +577,10 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		}
 	}
 	if len(tenantConflicts) > 0 {
-		return structs.NewReleaseConflictError("resources of the pack belong to tenants: %s", strings.Join(tenantConflicts, "; "))
+		return structs.NewReleaseConflictError("resources of the release belong to tenants: %s", strings.Join(tenantConflicts, "; "))
 	}
 	if len(conflicts) > 0 && !in.takeOwnership {
-		return structs.NewReleaseConflictError("resources of the pack belong to other releases (use -take-ownership to take them over): %s",
+		return structs.NewReleaseConflictError("resources of the release belong to other releases (TakeOwnership of the request takes them over): %s",
 			strings.Join(conflicts, "; "))
 	}
 	if err := m.authorizeAdoption(op, in, resources, taken); err != nil {

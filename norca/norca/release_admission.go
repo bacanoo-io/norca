@@ -71,12 +71,12 @@ func (m *releaseManager) admitRelease(snap *state.StateSnapshot, op *releaseOp, 
 		case signer != "":
 			pack.TrustedSigner = signer
 		case pack.Digest == "":
-			verdict(p, fmt.Sprintf("admission policy %q: the pack has no content digest; only signed packs from OCI registries or bundles are allowed in namespace %q",
+			verdict(p, fmt.Sprintf("admission policy %q: the module has no content digest; only signed modules are allowed in namespace %q",
 				p.Name, op.namespace))
 		case len(sigs) == 0:
-			verdict(p, fmt.Sprintf("admission policy %q: the pack %s is not signed", p.Name, pack.Digest))
+			verdict(p, fmt.Sprintf("admission policy %q: the module %s is not signed", p.Name, pack.Digest))
 		default:
-			verdict(p, fmt.Sprintf("admission policy %q: the pack %s is not signed by a trusted key", p.Name, pack.Digest))
+			verdict(p, fmt.Sprintf("admission policy %q: the module %s is not signed by a trusted key", p.Name, pack.Digest))
 		}
 	}
 

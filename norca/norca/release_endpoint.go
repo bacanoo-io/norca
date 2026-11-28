@@ -217,7 +217,7 @@ func checkSecretsHaveVariables(secrets map[string]map[string]string, resources [
 			}
 		}
 		if !found {
-			return structs.NewErrRPCCodedf(http.StatusBadRequest, "secret items for %q, which is not a variable of the pack", key)
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "secret items for %q, which is not a variable of the module", key)
 		}
 	}
 	return nil
@@ -920,7 +920,7 @@ func validateReleaseManager(pack *structs.ReleasePack) error {
 	case "", structs.ReleaseManagerPack, structs.ReleaseManagerRigger:
 		return nil
 	}
-	return structs.NewErrRPCCodedf(http.StatusBadRequest, "unknown manager %q of the pack: %q or %q",
+	return structs.NewErrRPCCodedf(http.StatusBadRequest, "unknown manager %q of the release: %q or %q",
 		pack.Manager, structs.ReleaseManagerPack, structs.ReleaseManagerRigger)
 }
 

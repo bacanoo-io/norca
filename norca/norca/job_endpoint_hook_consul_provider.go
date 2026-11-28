@@ -46,7 +46,7 @@ func (h jobConsulProviderHook) Validate(job *structs.Job) ([]error, error) {
 
 	sort.Strings(names)
 	return []error{fmt.Errorf(
-		"services %s use provider \"consul\" (set, or the default of a Connect block), but no node of region %q runs a Consul agent (attribute consul.version): the job cannot be placed. Use provider = \"nomad\" for the native catalog, or install Consul (the consul pack of the pack registry)",
+		"services %s use provider \"consul\" (set, or the default of a Connect block), but no node of region %q runs a Consul agent (attribute consul.version): the job cannot be placed. Use provider = \"nomad\" for the native catalog, or install Consul (the module consul of the Norca registry)",
 		strings.Join(names, ", "), h.srv.Region())}, nil
 }
 

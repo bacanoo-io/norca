@@ -39,7 +39,7 @@ func TestRelease_VariablesSchema(t *testing.T) {
 	// path of the variable.
 	for _, dryRun := range []bool{true, false} {
 		_, err := c.apply("default", "vs", req(map[string]any{"image": "nginx", "app_count": 5}, dryRun))
-		must.ErrorContains(t, err, `the variables of pack "redis" do not match its variables_schema`)
+		must.ErrorContains(t, err, `the variables of module "redis" do not match its variables_schema`)
 		must.ErrorContains(t, err, "at /app_count:")
 		must.ErrorContains(t, err, "at /image:")
 	}
@@ -53,7 +53,7 @@ func TestRelease_VariablesSchema(t *testing.T) {
 	bad := req(map[string]any{"image": "redis:7"}, false)
 	bad.VariablesSchemas[0].Schema = `{"type": 5}`
 	_, err = c.apply("default", "vs", bad)
-	must.ErrorContains(t, err, `the variables_schema of pack "redis" is invalid`)
+	must.ErrorContains(t, err, `the variables_schema of module "redis" is invalid`)
 
 	// Valid values: the schema is stored in the revision, the values used
 	// for the validation are not.

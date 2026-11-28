@@ -402,7 +402,7 @@ type ReleaseDriftEntry struct {
 }
 
 // ErrReleasesNotSupported is returned when the servers have no release API.
-var ErrReleasesNotSupported = errors.New("the servers do not support pack releases")
+var ErrReleasesNotSupported = errors.New("the servers do not support releases")
 
 // Releases is used to manage pack releases.
 type Releases struct {
