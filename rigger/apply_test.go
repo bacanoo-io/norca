@@ -144,8 +144,8 @@ func TestPlanInstall_NextSteps(t *testing.T) {
 			e := ownedEngine(t, newFakeCluster())
 
 			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
-				metadataFile:  {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
-				"outputs.hcl": {Data: []byte(tt.outputs)},
+				metadataFile: {Data: []byte("module {\n  name    = \"app\"\n  version = \"1.0.0\"\n}\n")},
+				outputsFile:  {Data: []byte(tt.outputs)},
 			})
 			if diags.HasErrors() {
 				t.Fatal(diags)

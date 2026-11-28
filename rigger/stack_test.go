@@ -208,6 +208,12 @@ const stackPath = "s/stack.hcl"
 // metadataFile is the file of the metadata of a module or a stack.
 const metadataFile = "metadata.hcl"
 
+// outputsFile is the file of the outputs of a module or a stack.
+const outputsFile = "outputs.hcl"
+
+// bothUnchanged is a plan of the stack of the tests that changes nothing.
+const bothUnchanged = "db:unchanged app:unchanged"
+
 // variablesFile is the file of the variables of a module or a stack.
 const variablesFile = "variables.hcl"
 
@@ -367,7 +373,7 @@ func TestStack_PlanApply(t *testing.T) {
 	checkApplied(t, f)
 
 	again := planOf(t, e, fsys, nil)
-	if got := actions(again); got != "db:unchanged app:unchanged" || again.HasChanges() {
+	if got := actions(again); got != bothUnchanged || again.HasChanges() {
 		t.Errorf("plan after apply = %s, generate %v, secrets %+v; want nothing to do", got, again.Generate, again.Secrets)
 	}
 
@@ -419,7 +425,7 @@ func TestStack_Commit(t *testing.T) {
 		}
 	}
 
-	if got := actions(planAt(second)); got != "db:unchanged app:unchanged" {
+	if got := actions(planAt(second)); got != bothUnchanged {
 		t.Errorf("the plan of the same stack at another commit = %s, want nothing to do", got)
 	}
 }

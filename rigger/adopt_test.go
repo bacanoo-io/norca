@@ -74,7 +74,7 @@ func TestStack_TakeOver(t *testing.T) {
 		t.Fatal(diags)
 	}
 
-	if got := actions(planOf(t, e, stackFiles(twoReleases), nil)); got != "db:unchanged app:unchanged" {
+	if got := actions(planOf(t, e, stackFiles(twoReleases), nil)); got != bothUnchanged {
 		t.Errorf("the plan after the take-over = %s", got)
 	}
 }

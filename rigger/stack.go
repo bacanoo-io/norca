@@ -340,13 +340,11 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, errorDiags("No cluster", ErrNoCluster)
 	}
 
-	vars, diags := eval.Variables(s.s.Vars, inputs(values))
+	// The required version is checked before anything is evaluated: an
+	// evaluation may be in a child process (WithChildEvaluation).
+	diags := e.checkRequiredVersion(ctx, s.s)
 	if diags.HasErrors() {
 		return nil, diags
-	}
-
-	if moreDiags := e.checkRequiredVersion(ctx, s.s); moreDiags.HasErrors() {
-		return nil, append(diags, moreDiags...)
 	}
 
 	plan := &StackPlan{
@@ -359,25 +357,14 @@ func (e *Engine) planStack(ctx context.Context, s *Stack, values Values) (*Stack
 		return nil, errorDiags("Generated values not read", err)
 	}
 
-	evalCtx, cancel := e.evaluationContext(ctx)
-	defer cancel()
-
-	res, moreDiags := eval.EvaluateStack(evalCtx, s.s, vars, func(name string) (string, bool) {
-		if v, ok := existing[name]; ok {
-			return v, true
-		}
-
-		if _, ok := plan.generated[name]; !ok {
-			plan.generated[name] = generate()
-		}
-
-		return plan.generated[name], false
-	}, e.evalConfig())
+	res, generated, moreDiags := e.evaluateStack(ctx, s, values, existing)
 	diags = append(diags, moreDiags...)
 
 	if moreDiags.HasErrors() {
 		return nil, diags
 	}
+
+	plan.generated = generated
 
 	plan.Generate = res.Missing
 	plan.secrets = res.Secrets

@@ -49,6 +49,12 @@ type Module struct {
 	Root fs.FS
 	// Dir is the directory of the module in the root it was loaded from.
 	Dir string
+	// Prefix names the files of the module in diagnostics (LoadAs): the
+	// address of a fetched module, the source of a local one of a stack;
+	// empty for a module loaded with LoadAt. A load again with the same
+	// root, directory and prefix gives the same module (rig-integration.md
+	// 4.6d: the evaluation in a child process).
+	Prefix string
 }
 
 // Child is a child module: a module block of modules.hcl and the module it

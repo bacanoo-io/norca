@@ -88,7 +88,7 @@ variable "extra" {
   default = null
 }
 `)},
-	"outputs.hcl": {Data: []byte(`output "url" {
+	outputsFile: {Data: []byte(`output "url" {
   value       = "http://${var.name}"
   description = "Where it answers"
 }
@@ -250,7 +250,7 @@ func TestEngine_ValidateModule_Defaults(t *testing.T) {
 			m, diags := e.LoadModule(t.Context(), fstest.MapFS{
 				metadataFile:  {Data: []byte(metadata)},
 				variablesFile: {Data: []byte(tt.variables)},
-				"outputs.hcl": {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
+				outputsFile:   {Data: []byte("output \"n\" {\n  value = tonumber(var.n)\n}\n")},
 			})
 			if diags.HasErrors() {
 				t.Fatal(diags)

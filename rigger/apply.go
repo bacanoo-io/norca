@@ -377,21 +377,11 @@ func (e *Engine) planInstall(ctx context.Context, m *Module, in Install, set hos
 		return nil, diags
 	}
 
-	vars, diags := e.variables(ctx, m, in.Values)
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
 	md := m.mod.Metadata
 	facts := eval.Facts{Release: in.Release, Namespace: in.Namespace, Region: in.Region, ModuleName: md.Name, ModuleVersion: md.Version}
 
-	evalCtx, cancel := e.evaluationContext(ctx)
-	defer cancel()
-
-	res, moreDiags := eval.Evaluate(evalCtx, m.mod, vars, facts, e.evalConfig())
-	diags = append(diags, moreDiags...)
-
-	if moreDiags.HasErrors() {
+	vars, res, diags := e.evaluateModule(ctx, m, in.Values, facts)
+	if diags.HasErrors() {
 		return nil, diags
 	}
 

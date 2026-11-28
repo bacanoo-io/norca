@@ -49,6 +49,9 @@ type Engine struct {
 	clock    host.Clock
 	logger   *slog.Logger
 	limits   Limits
+	// child evaluates the plans in a child process (WithChildEvaluation);
+	// nil evaluates in this one.
+	child *childEvaluator
 }
 
 // Option configures an [Engine]. An option returns an error when its
