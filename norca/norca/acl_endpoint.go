@@ -326,7 +326,12 @@ func (a *ACL) GetPolicy(args *structs.ACLPolicySpecificRequest, reply *structs.S
 				return err
 			}
 
-			// Setup the output
+			// Setup the output. The policy of the state store is shared by
+			// every reader: the RulesJSON filled in below goes into a copy.
+			if out != nil {
+				cp := *out
+				out = &cp
+			}
 			reply.Policy = out
 			if out != nil {
 				reply.Index = out.ModifyIndex

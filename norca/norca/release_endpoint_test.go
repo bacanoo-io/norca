@@ -547,6 +547,34 @@ func TestRelease_DriftIgnoresScaledCount(t *testing.T) {
 	must.Eq(t, "modified", d.Resources[0].Reason)
 }
 
+// A read of an ACL policy of a release is no drift (norca-deployer tree
+// e2e, 2026-11-28): ACL.GetPolicy set RulesJSON on the policy of the state
+// store, so the hash of the live policy changed and the release reported
+// it "modified".
+func TestRelease_DriftAfterAPolicyRead(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	_, err := c.apply("default", "read-policy", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "read-policy"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceACLPolicy, ACLPolicy: &structs.ACLPolicy{
+			Name: "read-policy", Rules: `namespace "default" { policy = "read" }`,
+		}}},
+	})
+	must.NoError(t, err)
+	must.False(t, c.drift("default", "read-policy").Drifted)
+
+	var resp structs.SingleACLPolicyResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ACL.GetPolicy", &structs.ACLPolicySpecificRequest{
+		Name: "read-policy", QueryOptions: structs.QueryOptions{Region: "global", AuthToken: c.token},
+	}, &resp))
+	must.NotNil(t, resp.Policy.RulesJSON)
+
+	d := c.drift("default", "read-policy")
+	must.False(t, d.Drifted, must.Sprintf("drift after a read: %+v", d.Resources))
+}
+
 func TestRelease_SignatureAdmission(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)

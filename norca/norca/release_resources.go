@@ -241,6 +241,8 @@ func releaseResourceHash(res *structs.ReleaseResource) string {
 	case structs.ReleaseResourceACLPolicy:
 		p := *res.ACLPolicy
 		p.CreateIndex, p.ModifyIndex, p.Hash = 0, 0, nil
+		// RulesJSON is made from Rules when a policy is read, not written.
+		p.RulesJSON = nil
 		v = p
 	case structs.ReleaseResourceVariable:
 		v = res.Variable.Items

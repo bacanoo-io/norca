@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	aclpolicy "github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
@@ -25,6 +26,44 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// withRulesJSON is a policy as ACL.GetPolicy answers it: a copy with the
+// parsed rules.
+func withRulesJSON(t *testing.T, p *structs.ACLPolicy) *structs.ACLPolicy {
+	t.Helper()
+
+	rules, err := aclpolicy.Parse(p.Rules)
+	must.NoError(t, err)
+
+	cp := *p
+	cp.RulesJSON = rules
+
+	return &cp
+}
+
+// ACL.GetPolicy answers a copy: the RulesJSON it fills in is not written
+// into the policy of the state store, which other readers share.
+func TestACLEndpoint_GetPolicy_LeavesTheStateAlone(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, root, cleanupS1 := TestACLServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	policy := mock.ACLPolicy()
+	must.NoError(t, s1.fsm.State().UpsertACLPolicies(structs.MsgTypeTestSetup, 1000, []*structs.ACLPolicy{policy}))
+
+	var resp structs.SingleACLPolicyResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ACL.GetPolicy", &structs.ACLPolicySpecificRequest{
+		Name: policy.Name, QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
+	}, &resp))
+	must.NotNil(t, resp.Policy.RulesJSON)
+
+	stored, err := s1.fsm.State().ACLPolicyByName(nil, policy.Name)
+	must.NoError(t, err)
+	must.Nil(t, stored.RulesJSON)
+}
 
 func TestACLEndpoint_GetPolicy(t *testing.T) {
 	ci.Parallel(t)
@@ -60,7 +99,7 @@ func TestACLEndpoint_GetPolicy(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	assert.Equal(t, uint64(1000), resp.Index)
-	assert.Equal(t, policy, resp.Policy)
+	assert.Equal(t, withRulesJSON(t, policy), resp.Policy)
 
 	// Lookup non-existing policy
 	get.Name = uuid.Generate()
@@ -83,7 +122,7 @@ func TestACLEndpoint_GetPolicy(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	assert.EqualValues(t, 1000, resp2.Index)
-	assert.Equal(t, policy, resp2.Policy)
+	assert.Equal(t, withRulesJSON(t, policy), resp2.Policy)
 
 	// Lookup the anonymous policy with no token
 	get = &structs.ACLPolicySpecificRequest{
@@ -97,7 +136,7 @@ func TestACLEndpoint_GetPolicy(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.EqualValues(t, 1001, resp3.Index)
-	assert.Equal(t, anonymousPolicy, resp3.Policy)
+	assert.Equal(t, withRulesJSON(t, anonymousPolicy), resp3.Policy)
 
 	// Lookup non-anonoymous policy with no token
 	get = &structs.ACLPolicySpecificRequest{
@@ -138,7 +177,7 @@ func TestACLEndpoint_GetPolicy(t *testing.T) {
 	var resp5 structs.SingleACLPolicyResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ACL.GetPolicy", req5, &resp5))
 	must.Eq(t, 1000, resp5.Index)
-	must.Eq(t, policy, resp5.Policy)
+	must.Eq(t, withRulesJSON(t, policy), resp5.Policy)
 }
 
 func TestACLEndpoint_GetPolicy_Blocking(t *testing.T) {
