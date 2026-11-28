@@ -22,6 +22,7 @@ import (
 
 	rigger "github.com/bacanoo-io/norca/rigger"
 	"github.com/bacanoo-io/norca/rigger/cli/internal/atomicfile"
+	"github.com/bacanoo-io/norca/rigger/host"
 	"github.com/bacanoo-io/norca/rigger/source"
 )
 
@@ -494,6 +495,22 @@ var planSigns = map[rigger.ReleaseAction]string{
 	rigger.ActionRemove: "-", rigger.ActionDisabled: " ",
 }
 
+// writeChanges writes the changes per resource of a release: the action,
+// why the servers would refuse it, and the lines of a job's diff.
+func writeChanges(w io.Writer, changes []host.Change) {
+	for _, c := range changes {
+		_, _ = fmt.Fprintf(w, "      %s %s: %s\t\t\t\n", c.Kind, c.Name, c.Action)
+
+		if c.Error != "" {
+			_, _ = fmt.Fprintf(w, "        refused: %s\t\t\t\n", c.Error)
+		}
+
+		for _, line := range c.Diff {
+			_, _ = fmt.Fprintf(w, "        %s\t\t\t\n", line)
+		}
+	}
+}
+
 // writePlan writes a plan for a person, or as JSON.
 func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 	if asJSON {
@@ -523,9 +540,7 @@ func writePlan(w io.Writer, plan *rigger.StackPlan, asJSON, prune bool) error {
 
 		_, _ = fmt.Fprintf(tw, "  %s %s\t%s\t%s\t%s %s\n", planSigns[r.Action], r.Release.Name, r.Release.Namespace, action, r.Module.Name, r.Module.Version)
 
-		for _, c := range r.Changes {
-			_, _ = fmt.Fprintf(tw, "      %s %s: %s\t\t\t\n", c.Kind, c.Name, c.Action)
-		}
+		writeChanges(tw, r.Changes)
 	}
 
 	for _, s := range plan.Secrets {

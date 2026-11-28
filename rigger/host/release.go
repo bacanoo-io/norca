@@ -139,6 +139,14 @@ type Change struct {
 	Kind   resource.Kind `json:"kind"`
 	Name   string        `json:"name"`
 	Action Action        `json:"action"`
+	// Error is why the server would refuse the change, as its dry run
+	// says: a resource the token may not write, a job with policies the
+	// token does not hold, a resource it rejects. Empty when the change
+	// would be made.
+	Error string `json:"error,omitempty"`
+	// Diff are the lines of what changes in a job, as the server's dry
+	// run compares it; empty for the other kinds and for a new job.
+	Diff []string `json:"diff,omitempty"`
 }
 
 // Plan is the server's answer to what an apply would change.

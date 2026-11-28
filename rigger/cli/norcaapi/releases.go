@@ -191,16 +191,21 @@ func (r *Releases) Plan(ctx context.Context, req host.ApplyRequest) (host.Plan, 
 }
 
 // PlanOf is the plan of a release from the answer of a dry run: the
-// resources it would change.
+// resources it would change, each with the reason the server would refuse
+// it and the lines of a job's diff. An unchanged resource is left out,
+// unless the server would refuse it (an apply by this token would fail).
 func PlanOf(ref host.ReleaseRef, resp *api.ReleaseApplyResponse) host.Plan {
 	plan := host.Plan{Release: ref}
 
 	for _, ch := range resp.Changes {
-		if ch == nil || ch.Action == "unchanged" || ch.Action == "" {
+		if ch == nil || ch.Action == "" || ch.Action == "unchanged" && ch.Error == "" {
 			continue
 		}
 
-		plan.Changes = append(plan.Changes, host.Change{Kind: resource.Kind(ch.Type), Name: ch.Name, Action: host.Action(ch.Action)})
+		plan.Changes = append(plan.Changes, host.Change{
+			Kind: resource.Kind(ch.Type), Name: ch.Name, Action: host.Action(ch.Action),
+			Error: ch.Error, Diff: jobDiffLines(ch.JobDiff),
+		})
 	}
 
 	return plan

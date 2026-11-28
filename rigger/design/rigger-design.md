@@ -961,10 +961,16 @@ maintainer decides which stay (question 12):
 3. **Evaluate** each module to resources.
 4. **Compare** with the cluster: per release, the digest of (module digest +
    values + settings) against what the release's current revision records;
-   then the server's plan for the resources that differ.
+   then the server's plan (a dry run) for the releases that differ, a new
+   one included (added 2026-11-28): the servers check what they would
+   refuse before any release of the stack is applied. A new release whose
+   namespace does not exist yet (an apply before it creates it) is planned
+   as created, unchecked, with a warning.
 5. **Show** (`plan`): per release `unchanged`, `install`, `upgrade` with the
-   per-resource create/update/delete of the server's plan, `remove`. Exit
-   codes for CI: 0 nothing to do, 2 changes, 1 error.
+   per-resource create/update/delete of the server's plan, `remove`; each
+   change with the reason the servers would refuse it (`refused: ...`) and,
+   for a job, the lines of its diff (values of `Env` and `Template` are not
+   shown). Exit codes for CI: 0 nothing to do, 2 changes, 1 error.
 6. **Apply** in dependency order, each release through its own lock on the
    server, waiting until it is ready. The first failure stops the rest; a
    second `apply` continues where it stopped, because step 4 skips what is
