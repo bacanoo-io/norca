@@ -563,3 +563,28 @@ the operator reads the volume again before it registers it; since
 writes without one). `CSIMountOptions.Equal`, listed here before as left
 alone, is fixed by `d28a6453d`. The Norca copyright line was added to the
 api files changed above by `8b42df33c`.
+
+## A read of an ACL policy
+
+In Nomad v1.6.5 (MPL 2.0) `ACL.GetPolicy` (`nomad/acl_endpoint.go`) answers
+with the policy object of the state store and then sets its `RulesJSON`, so
+every read of a policy writes into the object that all readers of the store
+share. In Norca the release drift hashes the live policy, and a release
+reported its ACL policy as drifted ("modified") after anyone had read it.
+
+Norca fills `RulesJSON` into a copy (`8cdf698fe`, 2026-11-28,
+`Source-Rule: independent-development`), and the drift hash of an ACL policy,
+in a Norca file, leaves `RulesJSON` out. It was found in the end-to-end test
+of the platform tree of norca-deployer, and written from the Norca tree
+alone. Whether a later Nomad release changed it was not looked up; no
+HashiCorp source or documentation of a BSL release was opened or used. The
+change is in lines added to a file that comes from v1.6.5, which is in the
+`bugfix` set of the audit, and its test file.
+
+What the tests show (2026-11-28): after `ACL.GetPolicy` the stored policy has
+no `RulesJSON` (`TestACLEndpoint_GetPolicy_LeavesTheStateAlone`), and a
+release whose policy was read reports no drift
+(`TestRelease_DriftAfterAPolicyRead`). Both failed without the change.
+`TestACLEndpoint_GetPolicy` compared the policy it had stored with the
+answer, which matched only because the read had changed the stored policy;
+it now expects the policy with its parsed rules.
